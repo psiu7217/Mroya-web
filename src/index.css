@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --mroya-bg: #FBF8F3;
+  --mroya-surface: #FFFFFF;
+  --mroya-surface-muted: #F3EFE7;
+  --mroya-surface-active: #EBE1D5;
+  --mroya-text: #252019;
+  --mroya-text-muted: #655B4B;
+  --mroya-primary: #7E5301;
+  --mroya-primary-hover: #624000;
+  --mroya-on-primary: #FFFFFF;
+  --mroya-brand-honey: #B88536;
+  --mroya-divider: #D4C4B2;
+  --mroya-input-outline: #827566;
+  --mroya-error: #BA1A1A;
+  --mroya-radius-card: 12px;
+  --mroya-radius-input: 8px;
+  --mroya-radius-pill: 9999px;
+  --mroya-shadow-subtle: 0 2px 10px -2px rgba(37, 32, 25, 0.05), 0 1px 3px -1px rgba(37, 32, 25, 0.03);
+  --mroya-shadow-elevated: 0 10px 28px -6px rgba(37, 32, 25, 0.08), 0 2px 6px -1px rgba(37, 32, 25, 0.04);
+}
+
+[data-theme="dark"] {
+  --mroya-bg: #171513;
+  --mroya-surface: #23201B;
+  --mroya-surface-muted: #2F2B24;
+  --mroya-surface-active: #3B352C;
+  --mroya-text: #F4EFEA;
+  --mroya-text-muted: #A89F91;
+  --mroya-primary: #ECC682;
+  --mroya-primary-hover: #DFB263;
+  --mroya-on-primary: #171513;
+  --mroya-brand-honey: #ECC682;
+  --mroya-divider: rgba(236, 198, 130, 0.14);
+  --mroya-input-outline: #A89F91;
+  --mroya-error: #F28B82;
+  --mroya-shadow-subtle: 0 2px 10px -2px rgba(0, 0, 0, 0.35);
+  --mroya-shadow-elevated: 0 12px 32px -6px rgba(0, 0, 0, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background-color: var(--mroya-bg);
+  color: var(--mroya-text);
+  font-family: "Plus Jakarta Sans", "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-mono-tabular {
+  font-family: "JetBrains Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Accessible keyboard focus treatment per brandbook */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--mroya-primary);
+  outline-offset: 2px;
+}
+
+/* Custom subtle warm scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--mroya-divider);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mroya-input-outline);
+}
+

@@ -1,0 +1,512 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Plus,
+  Search,
+  MessageSquare,
+  Calendar,
+  BookOpen,
+  Share2,
+  Link2,
+  PanelLeftClose,
+  User,
+  CreditCard,
+  Settings,
+  Sun,
+  Moon,
+  LogOut,
+  X,
+  ChevronUp,
+  Sparkles,
+} from 'lucide-react';
+import { BrandMark } from './BrandMark';
+import {
+  Conversation,
+  NavSection,
+  SubscriptionPlan,
+  ThemeMode,
+} from '../types/mroya';
+
+interface SidebarProps {
+  activeSection: NavSection;
+  onSelectSection: (section: NavSection) => void;
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  onSelectConversation: (id: string) => void;
+  onNewChat: () => void;
+  plan: SubscriptionPlan;
+  onTogglePlan: () => void;
+  onOpenPlanModal: () => void;
+  theme: ThemeMode;
+  onToggleTheme: () => void;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
+  memoriesCount: number;
+  upcomingEventsCount: number;
+  onOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeSection,
+  onSelectSection,
+  conversations,
+  activeConversationId,
+  onSelectConversation,
+  onNewChat,
+  plan,
+  onTogglePlan,
+  onOpenPlanModal,
+  theme,
+  onToggleTheme,
+  isCollapsed,
+  onToggleCollapse,
+  mobileOpen,
+  onCloseMobile,
+  memoriesCount,
+  upcomingEventsCount,
+  onOpenSettingsTab,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [logoutToast, setLogoutToast] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredConversations = conversations.filter((conv) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      conv.title.toLowerCase().includes(q) ||
+      conv.messages.some((m) => m.content.toLowerCase().includes(q))
+    );
+  });
+
+  const groups: ('Today' | 'Previous 7 Days' | 'Earlier in October')[] = [
+    'Today',
+    'Previous 7 Days',
+    'Earlier in October',
+  ];
+
+  const navItems: {
+    id: NavSection;
+    label: string;
+    icon: React.FC<{ className?: string }>;
+    meta?: string;
+  }[] = [
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    {
+      id: 'calendar',
+      label: 'Calendar',
+      icon: Calendar,
+      meta: upcomingEventsCount > 0 ? String(upcomingEventsCount) : undefined,
+    },
+    {
+      id: 'memory',
+      label: 'Memory',
+      icon: BookOpen,
+      meta: String(memoriesCount),
+    },
+    { id: 'memory-map', label: 'Memory Map', icon: Share2 },
+    { id: 'connections', label: 'Connections', icon: Link2 },
+  ];
+
+  const sidebarContent = (
+    <aside
+      aria-label="Primary Sidebar Navigation"
+      className="flex flex-col h-full w-[264px] bg-[var(--mroya-surface-muted)] border-r border-[var(--mroya-divider)] text-[var(--mroya-text)] select-none shrink-0"
+    >
+      {/* Top Header: Brand Mark & Wordmark + Collapse Button */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <button
+          type="button"
+          onClick={() => {
+            onSelectSection('chat');
+            onCloseMobile();
+          }}
+          className="flex items-center gap-2.5 text-left rounded-lg py-1 px-1 hover:opacity-90 transition-opacity"
+        >
+          <BrandMark size="md" />
+          <span className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--mroya-text)] whitespace-nowrap">
+            Mroya
+          </span>
+        </button>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            title="Close navigation"
+            aria-label="Close navigation"
+            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Prominent + New Chat Action & Search Conversations */}
+      <div className="px-3.5 space-y-2.5 pb-3">
+        <button
+          type="button"
+          onClick={() => {
+            onNewChat();
+            onCloseMobile();
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[14px] font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4 stroke-[2.2]" />
+          <span>New chat</span>
+        </button>
+
+        <div className="relative">
+          <Search
+            className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search conversations..."
+            aria-label="Search conversations"
+            className="w-full pl-8 pr-7 py-1.5 text-[13px] bg-[var(--mroya-surface)] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)] focus:border-[var(--mroya-input-outline)] rounded-[8px] transition-colors"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Primary Navigation */}
+      <nav aria-label="Main sections" className="px-2.5 pb-3 border-b border-[var(--mroya-divider)]">
+        <ul className="space-y-0.5">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeSection === item.id;
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectSection(item.id);
+                    onCloseMobile();
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] text-[14px] transition-colors cursor-pointer ${
+                    isActive
+                      ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold'
+                      : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/60 font-medium'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 truncate">
+                    <Icon
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive ? 'text-[var(--mroya-primary)]' : 'text-[var(--mroya-text-muted)]'
+                      }`}
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                  {item.meta && (
+                    <span className="text-[12px] text-[var(--mroya-text-muted)] tabular-nums">
+                      {item.meta}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      {/* Recent Conversations History */}
+      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
+        {groups.map((groupName) => {
+          const items = filteredConversations.filter((c) => c.group === groupName);
+          if (items.length === 0) return null;
+          return (
+            <div key={groupName}>
+              <div className="px-2.5 pb-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)]">
+                {groupName}
+              </div>
+              <ul className="space-y-0.5">
+                {items.map((conv) => {
+                  const isCurrent =
+                    activeSection === 'chat' && activeConversationId === conv.id;
+                  return (
+                    <li key={conv.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectConversation(conv.id);
+                          onSelectSection('chat');
+                          onCloseMobile();
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-[8px] text-[13px] leading-[18px] transition-colors cursor-pointer flex items-center justify-between gap-2 ${
+                          isCurrent
+                            ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold'
+                            : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/50'
+                        }`}
+                      >
+                        <span className="truncate">{conv.title}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+
+        {filteredConversations.length === 0 && (
+          <div className="px-3 py-6 text-center">
+            <p className="text-[13px] text-[var(--mroya-text-muted)]">
+              No conversations matching &ldquo;{searchQuery}&rdquo;
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Area: Subscription Status + User Account Menu */}
+      <div className="p-3 border-t border-[var(--mroya-divider)] space-y-2.5 bg-[var(--mroya-surface-muted)]">
+        {/* Subscription Presentation State (Free vs Mroya Premium) */}
+        {plan === 'free' ? (
+          <div className="px-3 py-2.5 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
+                Free Plan
+              </div>
+              <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
+                Personal memory active
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenPlanModal}
+              className="px-3 py-1 rounded-full text-[12px] font-semibold text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              Upgrade
+            </button>
+          </div>
+        ) : (
+          <div className="px-3 py-2.5 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-brand-honey)]/50 flex items-center justify-between gap-2">
+            <div className="min-w-0 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)] shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
+                  Mroya Premium
+                </div>
+                <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
+                  Extended recall & graph
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onTogglePlan}
+              title="Switch back to Free preview"
+              className="text-[11px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] underline underline-offset-2 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              Preview Free
+            </button>
+          </div>
+        )}
+
+        {/* User Profile & Account Menu Popover */}
+        <div className="relative" ref={menuRef}>
+          {accountMenuOpen && (
+            <div
+              role="menu"
+              aria-label="Account menu"
+              className="absolute bottom-full left-0 right-0 mb-2 py-1.5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-50"
+            >
+              <div className="px-3.5 py-2 border-b border-[var(--mroya-divider)]">
+                <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                  Alex Lindqvist
+                </div>
+                <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
+                  alex@lindqvist.studio · {plan === 'premium' ? 'Mroya Premium' : 'Free'}
+                </div>
+              </div>
+
+              <div className="py-1">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    onOpenSettingsTab('profile');
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                >
+                  <User className="w-4 h-4 text-[var(--mroya-text-muted)]" />
+                  <span>Profile</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    onOpenPlanModal();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <CreditCard className="w-4 h-4 text-[var(--mroya-text-muted)]" />
+                    <span>My plan</span>
+                  </span>
+                  <span className="text-[12px] text-[var(--mroya-text-muted)]">
+                    {plan === 'premium' ? 'Premium' : 'Free'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    onOpenSettingsTab('settings');
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                >
+                  <Settings className="w-4 h-4 text-[var(--mroya-text-muted)]" />
+                  <span>Settings</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    onSelectSection('connections');
+                    onCloseMobile();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                >
+                  <Link2 className="w-4 h-4 text-[var(--mroya-text-muted)]" />
+                  <span>Connected accounts</span>
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onToggleTheme();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                >
+                  <span className="flex items-center gap-2.5">
+                    {theme === 'light' ? (
+                      <Moon className="w-4 h-4 text-[var(--mroya-text-muted)]" />
+                    ) : (
+                      <Sun className="w-4 h-4 text-[var(--mroya-text-muted)]" />
+                    )}
+                    <span>Appearance</span>
+                  </span>
+                  <span className="text-[12px] text-[var(--mroya-text-muted)] capitalize">
+                    {theme} mode
+                  </span>
+                </button>
+              </div>
+
+              <div className="pt-1 border-t border-[var(--mroya-divider)]">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setLogoutToast(true);
+                    setTimeout(() => setLogoutToast(false), 3000);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-error)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Log out</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setAccountMenuOpen((prev) => !prev)}
+            aria-expanded={accountMenuOpen}
+            aria-haspopup="menu"
+            className="w-full flex items-center justify-between px-2.5 py-2 rounded-[10px] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[13px] font-semibold text-[var(--mroya-primary)] shrink-0">
+                AL
+              </div>
+              <div className="text-left min-w-0">
+                <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
+                  Alex Lindqvist
+                </div>
+                <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
+                  Personal space
+                </div>
+              </div>
+            </div>
+            <ChevronUp
+              className={`w-4 h-4 text-[var(--mroya-text-muted)] transition-transform duration-150 ${
+                accountMenuOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {logoutToast && (
+            <div className="mt-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text-muted)]">
+              Prototype preview — session stays active.
+            </div>
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      {!isCollapsed && <div className="hidden lg:block h-full shrink-0">{sidebarContent}</div>}
+
+      {/* Mobile Navigation Drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-[1px]"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 h-full">{sidebarContent}</div>
+        </div>
+      )}
+    </>
+  );
+};

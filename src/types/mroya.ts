@@ -22,11 +22,23 @@ export type ReminderOffset =
   | '1_day'   // 1440 minutes
   | 'custom';
 
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurrenceRule {
+  frequency: RecurrenceFrequency;
+  interval?: number; // e.g. every 1 day, every 3 days, every 2 weeks
+  weekdays?: number[]; // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  endCondition?: 'never' | 'on_date' | 'after_count';
+  endDate?: string; // YYYY-MM-DD
+  endCount?: number;
+  humanReadable?: string;
+}
+
 export interface ReminderItem {
   id: string;
   title: string;
   type: 'standalone' | 'calendar_linked';
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD (next occurrence date)
   time: string; // HH:mm (calculated notification time)
   calendarEventId?: string;
   offsetMinutes?: number; // 0, 5, 15, 30, 60, 1440, etc.
@@ -36,6 +48,9 @@ export interface ReminderItem {
   syncedWithGoogle?: boolean;
   lastSyncedNote?: string;
   createdAt: string;
+  recurrence?: RecurrenceRule; // For standalone reminders ONLY (linked reminders inherit from parent event)
+  completedOccurrencesCount?: number;
+  lastCompletedDate?: string;
 }
 
 export interface ChatAction {
@@ -109,7 +124,7 @@ export interface MemoryItem {
 export interface CalendarEvent {
   id: string;
   title: string;
-  date: string; // YYYY-MM-DD in Oct 2026
+  date: string; // YYYY-MM-DD
   dayOfMonth: number;
   time: string;
   duration: string;
@@ -119,6 +134,9 @@ export interface CalendarEvent {
   locationOrLink?: string;
   notes: string;
   linkedMemoryId?: string;
+  recurrence?: RecurrenceRule;
+  isReadOnly?: boolean; // For external/read-only calendars like Google Contacts / Birthdays
+  calendarSource?: 'primary' | 'google_birthdays' | 'google_work' | 'local';
 }
 
 export type GraphNodeCategory = 'person' | 'agreement' | 'event' | 'organization' | 'preference';

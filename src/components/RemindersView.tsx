@@ -21,8 +21,16 @@ import {
   PanelLeftOpen,
   RefreshCw,
   ExternalLink,
+  Repeat,
+  Lock,
+  RotateCw,
 } from 'lucide-react';
 import { ReminderItem, CalendarEvent } from '../types/mroya';
+import {
+  formatRecurrence,
+  getEffectiveRecurrence,
+  getNextOccurrenceDate,
+} from '../utils/recurrenceUtils';
 
 interface RemindersViewProps {
   reminders: ReminderItem[];
@@ -31,6 +39,7 @@ interface RemindersViewProps {
   onUpdateReminder: (reminder: ReminderItem) => void;
   onDeleteReminder: (id: string) => void;
   onToggleComplete: (id: string) => void;
+  onCompleteOccurrence?: (id: string) => void;
   onTogglePause: (id: string) => void;
   onUnlinkReminder: (id: string) => void;
   onSimulateGoogleSync: (reminderId: string) => void;
@@ -49,6 +58,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   onUpdateReminder,
   onDeleteReminder,
   onToggleComplete,
+  onCompleteOccurrence,
   onTogglePause,
   onUnlinkReminder,
   onSimulateGoogleSync,
@@ -59,23 +69,41 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'standalone' | 'linked' | 'completed'>('all');
+  const [filter, setFilter] = useState<'all' | 'standalone' | 'linked' | 'recurring' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
-  const handleSimulateSync = (reminderId: string) => {
+  const handleSimulateSync = (reminderId: string, customMessage?: string) => {
     onSimulateGoogleSync(reminderId);
-    setSyncToast('Updated from Google Calendar · Offset changed from 1 hour to 30 min before');
+    setSyncToast(
+      customMessage ||
+        'Updated from Google Calendar · Shared recurrence rule updated (no duplicate reminders)'
+    );
     setTimeout(() => {
       setSyncToast(null);
-    }, 4000);
+    }, 4500);
+  };
+
+  const handleAdvanceOccurrence = (reminder: ReminderItem) => {
+    if (onCompleteOccurrence) {
+      onCompleteOccurrence(reminder.id);
+    } else {
+      onToggleComplete(reminder.id);
+    }
+    const eff = getEffectiveRecurrence(reminder, events);
+    const next = getNextOccurrenceDate(reminder.date, reminder.time, eff.rule, '2026-10-12');
+    setSyncToast(`Occurrence completed! Next alert scheduled for ${next.label}`);
+    setTimeout(() => setSyncToast(null), 4000);
   };
 
   // Filter items
   const filteredReminders = reminders.filter((item) => {
+    const eff = getEffectiveRecurrence(item, events);
+
     // Filter mode
     if (filter === 'standalone' && (item.type !== 'standalone' || item.status === 'completed')) return false;
     if (filter === 'linked' && (item.type !== 'calendar_linked' || item.status === 'completed')) return false;
+    if (filter === 'recurring' && (!eff.isRecurring || item.status === 'completed')) return false;
     if (filter === 'completed' && item.status !== 'completed') return false;
     if (filter === 'all' && item.status === 'completed') return true; // show in completed section
 
@@ -86,18 +114,19 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
       const matchNotes = item.notes?.toLowerCase().includes(q);
       const linkedEvt = events.find((e) => e.id === item.calendarEventId);
       const matchEvent = linkedEvt?.title.toLowerCase().includes(q);
-      if (!matchTitle && !matchNotes && !matchEvent) return false;
+      const matchRecurrence = eff.rule?.humanReadable?.toLowerCase().includes(q);
+      if (!matchTitle && !matchNotes && !matchEvent && !matchRecurrence) return false;
     }
 
     return true;
   });
 
   // Calculate stats
-  const pendingToday = reminders.filter(
-    (r) => r.date === '2026-10-12' && r.status === 'scheduled'
+  const totalScheduled = reminders.filter((r) => r.status === 'scheduled').length;
+  const recurringCount = reminders.filter(
+    (r) => getEffectiveRecurrence(r, events).isRecurring && r.status !== 'completed'
   ).length;
   const completedCount = reminders.filter((r) => r.status === 'completed').length;
-  const totalScheduled = reminders.filter((r) => r.status === 'scheduled').length;
 
   // Grouping
   const todayReminders = filteredReminders.filter(
@@ -153,9 +182,15 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]">
                 {totalScheduled} scheduled
               </span>
+              {recurringCount > 0 && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                  <Repeat className="w-3 h-3" />
+                  <span>{recurringCount} recurring</span>
+                </span>
+              )}
             </h1>
             <p className="hidden sm:block text-[11px] text-[var(--mroya-text-muted)] truncate">
-              The important things, right on time.
+              Standalone & calendar-linked reminders with automatic recurrence inheritance.
             </p>
           </div>
         </div>
@@ -183,7 +218,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           <button
             type="button"
             onClick={() => setSyncToast(null)}
-            className="text-[11px] underline cursor-pointer"
+            className="text-[11px] font-bold underline hover:opacity-80 cursor-pointer"
           >
             Dismiss
           </button>
@@ -191,40 +226,58 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-5">
-        <div className="max-w-[880px] mx-auto space-y-5">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
 
-          {/* Unobtrusive Today's Summary & Delivery Status */}
-          <div className="p-3.5 sm:p-4 rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] flex items-center justify-center shrink-0 border border-[var(--mroya-divider)]">
-                <Bell className="w-5 h-5" />
+          {/* Quick Simulation Banner for Google Calendar Sync */}
+          <div className="p-3 sm:p-4 rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                <RefreshCw className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-[14px] font-bold text-[var(--mroya-text)] flex items-center gap-2">
-                  <span>Today's status:</span>
-                  <span className="text-[var(--mroya-primary)]">
-                    {pendingToday} pending · {completedCount} completed
-                  </span>
-                </div>
-                <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  Next alert: Today at 2:35 PM · "Turn off the oven"
+                <span className="text-[13px] font-bold text-[var(--mroya-text)]">
+                  Shared Schedule with Google Calendar
+                </span>
+                <p className="text-[11px] text-[var(--mroya-text-muted)]">
+                  Test external modifications: recurring series & one-off reminder rules update synchronously without duplicating objects.
                 </p>
               </div>
             </div>
-
-            {/* Telegram Delivery Pill */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)] shrink-0 self-start sm:self-center">
-              <Send className="w-3.5 h-3.5 text-[#229ED9]" />
-              <span className="text-[11px] font-medium">Delivered via Telegram</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() =>
+                  handleSimulateSync(
+                    'rem-weekly-meeting',
+                    'Weekly meeting synced from Google Calendar · Offset changed across all recurrences (15m before)'
+                  )
+                }
+                className="px-2.5 py-1 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[11px] font-bold border border-purple-500/30 cursor-pointer transition-colors flex items-center gap-1"
+              >
+                <Repeat className="w-3 h-3" />
+                <span>Simulate weekly series sync</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  handleSimulateSync(
+                    'rem-doctor-appt',
+                    'Doctor appointment synced from Google Calendar · Offset changed from 1 hour to 30 min before'
+                  )
+                }
+                className="px-2.5 py-1 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] font-bold border border-blue-500/30 cursor-pointer transition-colors flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Simulate doctor sync</span>
+              </button>
             </div>
           </div>
 
-          {/* Filter Bar & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            {/* Segmented Filter Pills */}
-            <div className="flex items-center p-0.5 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] overflow-x-auto">
+          {/* Filter Tabs & Search Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[var(--mroya-divider)]">
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
               <button
                 type="button"
                 onClick={() => setFilter('all')}
@@ -257,6 +310,18 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 }`}
               >
                 Linked to Calendar
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('recurring')}
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                  filter === 'recurring'
+                    ? 'bg-[var(--mroya-surface)] text-purple-600 dark:text-purple-400 shadow-xs font-semibold'
+                    : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
+                }`}
+              >
+                <Repeat className="w-3 h-3" />
+                <span>Recurring ({recurringCount})</span>
               </button>
               <button
                 type="button"
@@ -378,7 +443,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-sm mx-auto mt-1">
                     {searchQuery
                       ? 'No reminders match your current search query.'
-                      : 'You are all caught up! Create a standalone reminder or link one to your calendar.'}
+                      : 'You are all caught up! Create a standalone recurring reminder or link one to your calendar.'}
                   </p>
                 </div>
                 <button
@@ -402,7 +467,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
     const isCompleted = reminder.status === 'completed';
     const isPaused = reminder.status === 'paused';
     const linkedEvent = events.find((e) => e.id === reminder.calendarEventId);
-    const isDoctorDemo = reminder.id === 'rem-doctor-appt';
+    const eff = getEffectiveRecurrence(reminder, events);
+    const nextInfo = getNextOccurrenceDate(reminder.date, reminder.time, eff.rule, '2026-10-12');
 
     return (
       <div
@@ -445,6 +511,18 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   {reminder.title}
                 </span>
 
+                {/* Recurrence Badge */}
+                {eff.isRecurring && eff.rule && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 whitespace-nowrap flex items-center gap-1">
+                    <Repeat className="w-2.5 h-2.5" />
+                    <span>
+                      {eff.isInherited
+                        ? `Inherited: ${formatRecurrence(eff.rule)}`
+                        : formatRecurrence(eff.rule)}
+                    </span>
+                  </span>
+                )}
+
                 {/* Relative Offset Pill if Linked */}
                 {reminder.type === 'calendar_linked' && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-primary)]/20 whitespace-nowrap">
@@ -455,7 +533,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 {/* Google Synced Badge */}
                 {reminder.syncedWithGoogle && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 whitespace-nowrap">
-                    Google Calendar Synced
+                    Google Synced
                   </span>
                 )}
 
@@ -480,6 +558,11 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     <span>Event: {linkedEvent.title} ({linkedEvent.date} · {linkedEvent.time})</span>
                     <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
+                  {linkedEvent.recurrence && (
+                    <span className="text-[10px] text-[var(--mroya-text-muted)] flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" /> (controlled by event)
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -490,7 +573,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 </p>
               )}
 
-              {/* Metadata Row: Date, Notification Time, Delivery Channel */}
+              {/* Metadata Row: Date, Notification Time, Delivery Channel, Next occurrence */}
               <div className="flex items-center gap-2.5 pt-1 text-[11px] text-[var(--mroya-text-muted)] flex-wrap">
                 <span className="font-mono-tabular font-medium text-[var(--mroya-text)] flex items-center gap-1">
                   <Clock className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
@@ -501,17 +584,52 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   <Send className="w-3 h-3" />
                   <span>Telegram</span>
                 </span>
+                {eff.isRecurring && !isCompleted && (
+                  <>
+                    <span className="text-[var(--mroya-divider)]">·</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
+                      <RotateCw className="w-3 h-3" />
+                      <span>Next occurrence: {nextInfo.label}</span>
+                    </span>
+                  </>
+                )}
+                {reminder.completedOccurrencesCount && reminder.completedOccurrencesCount > 0 && (
+                  <>
+                    <span className="text-[var(--mroya-divider)]">·</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                      ✓ {reminder.completedOccurrencesCount} completed
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {/* Right: Context Actions */}
           <div className="flex items-center gap-1 shrink-0 pt-0.5">
-            {/* Doctor Demo: Simulate Google Calendar Update Button */}
-            {isDoctorDemo && (
+            {/* Quick Action: Complete this occurrence for recurring reminders */}
+            {eff.isRecurring && !isCompleted && (
               <button
                 type="button"
-                onClick={() => handleSimulateSync(reminder.id)}
+                onClick={() => handleAdvanceOccurrence(reminder)}
+                title="Mark this occurrence completed & schedule next occurrence"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-500/30 cursor-pointer transition-colors mr-1"
+              >
+                <Check className="w-3 h-3" />
+                <span className="hidden sm:inline">Complete occurrence</span>
+              </button>
+            )}
+
+            {/* Doctor Demo: Simulate Google Calendar Update Button */}
+            {reminder.id === 'rem-doctor-appt' && (
+              <button
+                type="button"
+                onClick={() =>
+                  handleSimulateSync(
+                    reminder.id,
+                    'Doctor appointment synced from Google Calendar · Offset changed from 1 hour to 30 min before'
+                  )
+                }
                 title="Simulate external Google Calendar change (1h -> 30m before)"
                 className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] font-bold border border-blue-500/30 cursor-pointer transition-colors mr-1"
               >
@@ -567,20 +685,6 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Doctor Demo button on mobile if screen is small */}
-        {isDoctorDemo && (
-          <div className="sm:hidden pt-2 border-t border-[var(--mroya-divider)]/40 mt-2">
-            <button
-              type="button"
-              onClick={() => handleSimulateSync(reminder.id)}
-              className="w-full py-1.5 px-3 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] font-bold border border-blue-500/30 cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Simulate Google Calendar update (1h → 30m)</span>
-            </button>
-          </div>
-        )}
       </div>
     );
   }

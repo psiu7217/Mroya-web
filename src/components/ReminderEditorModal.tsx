@@ -9,8 +9,17 @@ import {
   Check,
   AlertCircle,
   Sparkles,
+  Repeat,
+  Lock,
+  ExternalLink,
 } from 'lucide-react';
-import { ReminderItem, CalendarEvent } from '../types/mroya';
+import { ReminderItem, CalendarEvent, RecurrenceRule } from '../types/mroya';
+import { RecurrenceEditor } from './RecurrenceEditor';
+import {
+  formatRecurrence,
+  getEffectiveRecurrence,
+  getNextOccurrenceDate,
+} from '../utils/recurrenceUtils';
 
 interface ReminderEditorModalProps {
   isOpen: boolean;
@@ -19,6 +28,7 @@ interface ReminderEditorModalProps {
   editingReminder?: ReminderItem | null;
   events: CalendarEvent[];
   preselectedEventId?: string;
+  onNavigateToCalendar?: (eventId: string) => void;
 }
 
 const PRESET_OFFSETS = [
@@ -37,6 +47,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
   editingReminder,
   events,
   preselectedEventId,
+  onNavigateToCalendar,
 }) => {
   const [type, setType] = useState<'standalone' | 'calendar_linked'>(
     editingReminder?.type || (preselectedEventId ? 'calendar_linked' : 'standalone')
@@ -54,6 +65,11 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
   const [isCustomOffset, setIsCustomOffset] = useState<boolean>(false);
   const [notes, setNotes] = useState(editingReminder?.notes || '');
   const [errors, setErrors] = useState<string | null>(null);
+
+  // Recurrence for standalone reminders
+  const [standaloneRecurrence, setStandaloneRecurrence] = useState<
+    RecurrenceRule | undefined
+  >(editingReminder?.recurrence);
 
   // Sync state when editingReminder or preselectedEventId changes
   useEffect(() => {
@@ -78,6 +94,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
           setOffsetMinutes(editingReminder.offsetMinutes);
         }
       }
+      setStandaloneRecurrence(editingReminder.recurrence);
       setNotes(editingReminder.notes || '');
     } else {
       setType(preselectedEventId ? 'calendar_linked' : 'standalone');
@@ -94,6 +111,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
       setTime('14:30');
       setOffsetMinutes(30);
       setIsCustomOffset(false);
+      setStandaloneRecurrence(undefined);
       setNotes('');
     }
     setErrors(null);
@@ -137,6 +155,19 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
     type === 'calendar_linked' && selectedEvent
       ? calculateNotificationTime(selectedEvent.date, selectedEvent.time, effectiveOffset)
       : { calcDate: date, calcTime: time };
+
+  // Recurrence resolution
+  const effectiveRecurrenceRule =
+    type === 'calendar_linked'
+      ? selectedEvent?.recurrence
+      : standaloneRecurrence;
+
+  const nextOccurrenceInfo = getNextOccurrenceDate(
+    computedNotification.calcDate,
+    computedNotification.calcTime,
+    effectiveRecurrenceRule,
+    '2026-10-12'
+  );
 
   const formatOffsetLabel = (mins: number) => {
     if (mins === 0) return 'At event time';
@@ -189,12 +220,18 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
       channel: 'telegram',
       status: editingReminder?.status || 'scheduled',
       notes: notes.trim() || undefined,
+      recurrence: type === 'standalone' ? standaloneRecurrence : undefined,
       syncedWithGoogle:
-        type === 'calendar_linked' && selectedEvent?.id === 'evt-oct13-doctor'
-          ? true
-          : editingReminder?.syncedWithGoogle,
+        type === 'calendar_linked' &&
+        (selectedEvent?.id === 'evt-oct13-doctor' ||
+          selectedEvent?.id === 'evt-weekly-meeting' ||
+          selectedEvent?.id === 'evt-annas-birthday' ||
+          editingReminder?.syncedWithGoogle),
       lastSyncedNote:
-        type === 'calendar_linked' && selectedEvent?.id === 'evt-oct13-doctor'
+        type === 'calendar_linked' &&
+        (selectedEvent?.id === 'evt-oct13-doctor' ||
+          selectedEvent?.id === 'evt-weekly-meeting' ||
+          selectedEvent?.id === 'evt-annas-birthday')
           ? 'Synced with Google Calendar'
           : undefined,
     };
@@ -277,8 +314,8 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
             </div>
             <p className="text-[11px] text-[var(--mroya-text-muted)] mt-1.5 px-0.5">
               {type === 'standalone'
-                ? 'Quick alert at a specific date and time without cluttering your calendar.'
-                : 'Shares rules with Google Calendar; notifies relative to the event start.'}
+                ? 'Quick alert at a specific time or recurring schedule without cluttering your calendar.'
+                : 'Shares rules with Google Calendar; inherits recurrence directly from the event.'}
             </p>
           </div>
 
@@ -292,8 +329,8 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               required
               placeholder={
                 type === 'standalone'
-                  ? 'e.g. Turn off the oven, Call pharmacy, Review brief'
-                  : 'e.g. Doctor appointment, Website proposal review'
+                  ? 'e.g. Take daily vitamins, Water the plants, Pay rent'
+                  : 'e.g. Doctor appointment, Weekly team meeting'
               }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -301,9 +338,9 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
             />
           </div>
 
-          {/* TYPE A: STANDALONE FIELDS */}
+          {/* TYPE A: STANDALONE FIELDS + RECURRENCE */}
           {type === 'standalone' && (
-            <div className="space-y-3 p-3.5 rounded-[14px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)]">
+            <div className="space-y-3.5 p-3.5 rounded-[14px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)]">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
@@ -349,18 +386,18 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => setTime('14:35')}
+                      onClick={() => setTime('09:00')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      In 20m
+                      Morning (09:00)
                     </button>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <button
                       type="button"
-                      onClick={() => setTime('15:15')}
+                      onClick={() => setTime('14:00')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      In 1h
+                      Afternoon (14:00)
                     </button>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <button
@@ -372,6 +409,16 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* RECURRENCE EDITOR FOR STANDALONE REMINDER */}
+              <div className="pt-2 border-t border-[var(--mroya-divider)]/70">
+                <RecurrenceEditor
+                  value={standaloneRecurrence}
+                  onChange={(rule) => setStandaloneRecurrence(rule)}
+                  baseTime={time}
+                  baseDate={date}
+                />
               </div>
             </div>
           )}
@@ -392,6 +439,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                   {events.map((ev) => (
                     <option key={ev.id} value={ev.id}>
                       {ev.title} ({ev.date} · {ev.time})
+                      {ev.recurrence ? ` [🔁 ${formatRecurrence(ev.recurrence)}]` : ''}
                     </option>
                   ))}
                 </select>
@@ -411,18 +459,67 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       </div>
                     </div>
                   </div>
-                  {selectedEvent.id === 'evt-oct13-doctor' && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                      Google Synced
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {selectedEvent.recurrence && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-1">
+                        <Repeat className="w-2.5 h-2.5" />
+                        <span>Recurring</span>
+                      </span>
+                    )}
+                    {(selectedEvent.id === 'evt-oct13-doctor' ||
+                      selectedEvent.id === 'evt-weekly-meeting' ||
+                      selectedEvent.id === 'evt-annas-birthday') && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        Google Synced
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
+
+              {/* INHERITED RECURRENCE DISPLAY (LOCKED FOR LINKED REMINDERS) */}
+              <div className="p-3 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-1.5">
+                <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-1.5 font-semibold text-[var(--mroya-text)]">
+                    <Repeat className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
+                    <span>Recurrence</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-[var(--mroya-surface-active)] text-[var(--mroya-text-muted)] flex items-center gap-0.5 font-medium">
+                      <Lock className="w-2.5 h-2.5" />
+                      <span>Inherited</span>
+                    </span>
+                  </div>
+                  {selectedEvent && onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToCalendar(selectedEvent.id)}
+                      className="text-[11px] text-[var(--mroya-primary)] hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                    >
+                      <span>Edit event in Calendar</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {selectedEvent?.recurrence ? (
+                  <div className="text-[12px]">
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">
+                      Repeats {formatRecurrence(selectedEvent.recurrence).toLowerCase()}
+                    </span>
+                    <p className="text-[11px] text-[var(--mroya-text-muted)] mt-0.5">
+                      Recurrence is controlled by the parent calendar event. When the meeting occurs, this reminder alerts you {formatOffsetLabel(effectiveOffset)}.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[var(--mroya-text-muted)]">
+                    Does not repeat (parent calendar event is a single occurrence).
+                  </p>
+                )}
+              </div>
 
               {/* Relative Timing Offset */}
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1.5">
-                  When to notify?
+                  When to notify relative to the event?
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {PRESET_OFFSETS.map((preset) => (
@@ -527,10 +624,18 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
 
           {/* Live Notification Preview Card */}
           <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mroya-text-muted)] flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-              <span>Telegram Notification Preview</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mroya-text-muted)] flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
+                <span>Telegram Notification Preview</span>
+              </label>
+              {effectiveRecurrenceRule && (
+                <span className="text-[10px] font-medium text-purple-500 flex items-center gap-1">
+                  <Repeat className="w-3 h-3" />
+                  <span>{formatRecurrence(effectiveRecurrenceRule)}</span>
+                </span>
+              )}
+            </div>
             <div className="p-3.5 rounded-[14px] bg-[#1E232A] text-white space-y-1.5 shadow-sm border border-black/10">
               <div className="flex items-center justify-between text-[11px] text-white/60">
                 <span className="font-semibold text-[#64B5F6] flex items-center gap-1">
@@ -548,8 +653,14 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               <p className="text-[12px] text-white/80 leading-relaxed">
                 {type === 'calendar_linked' && selectedEvent
                   ? `${selectedEvent.title} starts in ${formatOffsetLabel(effectiveOffset).replace(' before', '')} — ${selectedEvent.time}${selectedEvent.locationOrLink ? ` (${selectedEvent.locationOrLink})` : ''}`
-                  : notes || 'Scheduled personal reminder from Mroya.'}
+                  : notes || 'Scheduled reminder from Mroya.'}
               </p>
+              {effectiveRecurrenceRule && (
+                <div className="pt-1.5 border-t border-white/10 text-[11px] text-white/60 flex items-center justify-between">
+                  <span>🔁 Repeats: {formatRecurrence(effectiveRecurrenceRule)}</span>
+                  <span>Next: {nextOccurrenceInfo.label}</span>
+                </div>
+              )}
             </div>
           </div>
 

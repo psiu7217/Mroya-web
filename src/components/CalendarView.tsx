@@ -19,8 +19,11 @@ import {
   Bell,
   RefreshCw,
   Send,
+  Repeat,
 } from 'lucide-react';
-import { CalendarEvent, MemoryItem, ReminderItem } from '../types/mroya';
+import { CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
+import { RecurrenceEditor } from './RecurrenceEditor';
+import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils';
 
 interface CalendarViewProps {
   events: CalendarEvent[];
@@ -104,6 +107,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [newCategory, setNewCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
   const [newPerson, setNewPerson] = useState('Sarah Chen');
   const [newNotes, setNewNotes] = useState('');
+  const [newEventRecurrence, setNewEventRecurrence] = useState<RecurrenceRule | undefined>(undefined);
   const [newReminderEnabled, setNewReminderEnabled] = useState(false);
   const [newReminderOffset, setNewReminderOffset] = useState<number>(30);
   const [addingReminderForEventId, setAddingReminderForEventId] = useState<string | null>(null);
@@ -126,7 +130,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleSimulateSync = (reminderId: string) => {
     onSimulateGoogleSync(reminderId);
-    setSyncToast('Updated from Google Calendar · Doctor appointment reminder changed to 30 min before');
+    setSyncToast('Updated from Google Calendar · Shared schedule synchronized with Mroya');
     setTimeout(() => setSyncToast(null), 4000);
   };
 
@@ -153,8 +157,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       channel: 'telegram',
       status: 'scheduled',
       notes: `${event.title} starts at ${event.time}`,
-      syncedWithGoogle: event.id === 'evt-oct13-doctor',
-      lastSyncedNote: event.id === 'evt-oct13-doctor' ? 'Synced with Google Calendar' : undefined,
+      syncedWithGoogle: event.id === 'evt-oct13-doctor' || event.id === 'evt-weekly-meeting',
+      lastSyncedNote: 'Synced with Google Calendar',
     });
     setAddingReminderForEventId(null);
   };
@@ -182,21 +186,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const monthStr = String(monthIndex + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
     const dateStr = `${year}-${monthStr}-${dayStr}`;
-    return events.filter((e) => {
-      if (e.date === dateStr) return true;
-      if (year === 2026 && monthIndex === 9 && e.dayOfMonth === day) return true;
-      return false;
-    });
+    return events.filter((e) => doesEventOccurOnDate(e, dateStr));
   };
 
   const getEventsForMonthCount = (year: number, monthIndex: number) => {
     const monthStr = String(monthIndex + 1).padStart(2, '0');
     const prefix = `${year}-${monthStr}`;
-    return events.filter((e) => {
-      if (e.date?.startsWith(prefix)) return true;
-      if (year === 2026 && monthIndex === 9) return true;
-      return false;
-    }).length;
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    let count = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dStr = `${prefix}-${String(d).padStart(2, '0')}`;
+      if (events.some((e) => doesEventOccurOnDate(e, dStr))) {
+        count++;
+      }
+    }
+    return count;
   };
 
   const handleCreateEvent = (e: React.FormEvent) => {
@@ -216,12 +220,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         category: newCategory,
         person: newPerson.trim() || undefined,
         notes: newNotes.trim() || 'Added via Mroya Calendar.',
+        recurrence: newEventRecurrence,
       },
       newReminderEnabled ? newReminderOffset : undefined
     );
 
     setNewTitle('');
     setNewNotes('');
+    setNewEventRecurrence(undefined);
     setNewReminderEnabled(false);
     setIsNewModalOpen(false);
     setSelectedDay(newDay);
@@ -910,8 +916,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                             {/* Event content */}
                             <div className="flex-1 min-w-0 space-y-1">
-                              <div className="text-[14px] font-semibold text-[var(--mroya-text)] leading-[19px]">
-                                {ev.title}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[14px] font-semibold text-[var(--mroya-text)] leading-[19px]">
+                                  {ev.title}
+                                </span>
+                                {ev.recurrence && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded-full border border-purple-500/20">
+                                    <Repeat className="w-2.5 h-2.5" />
+                                    <span>{formatRecurrence(ev.recurrence)}</span>
+                                  </span>
+                                )}
+                                {ev.calendarSource === 'google_birthdays' && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-pink-600 dark:text-pink-400 bg-pink-500/10 px-1.5 py-0.2 rounded-full border border-pink-500/20">
+                                    🎂 Google Contacts · Annual
+                                  </span>
+                                )}
                               </div>
                               {ev.person && (
                                 <div className="text-[12px] text-[var(--mroya-text-muted)]">
@@ -1287,8 +1306,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   </span>
                                   <span>{ev.duration}</span>
                                 </div>
-                                <div className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                                  {ev.title}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[14px] font-semibold text-[var(--mroya-text)]">
+                                    {ev.title}
+                                  </span>
+                                  {ev.recurrence && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+                                      <Repeat className="w-3 h-3" />
+                                      <span>{formatRecurrence(ev.recurrence)}</span>
+                                    </span>
+                                  )}
+                                  {ev.calendarSource === 'google_birthdays' && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-600 dark:text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full border border-pink-500/20">
+                                      🎂 Google Contacts · Annual
+                                    </span>
+                                  )}
                                 </div>
                                 {ev.person && (
                                   <div className="text-[12px] text-[var(--mroya-text-muted)]">
@@ -1410,6 +1442,53 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             className="px-2.5 py-1 rounded-[6px] bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
                                           >
                                             Simulate Google Calendar update
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Weekly Team Meeting Simulation Callout */}
+                                      {ev.id === 'evt-weekly-meeting' && (
+                                        <div className="p-2.5 rounded-[10px] bg-purple-500/10 border border-purple-500/20 text-[12px] text-purple-900 dark:text-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                          <div>
+                                            <span className="font-semibold flex items-center gap-1.5">
+                                              <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                              <span>Weekly team meeting · Recurring Series</span>
+                                            </span>
+                                            <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
+                                              Parent event is source of truth. Simulates Google Calendar updating recurring alert across all Mondays.
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const meetingR = reminders.find((r) => r.calendarEventId === ev.id);
+                                              if (meetingR) handleSimulateSync(meetingR.id);
+                                            }}
+                                            className="px-2.5 py-1 rounded-[6px] bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
+                                          >
+                                            Simulate recurrence sync
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Anna's Birthday Simulation Callout */}
+                                      {ev.id === 'evt-annas-birthday' && (
+                                        <div className="p-2.5 rounded-[10px] bg-pink-500/10 border border-pink-500/20 text-[12px] text-pink-900 dark:text-pink-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                          <div>
+                                            <span className="font-semibold">Anna's birthday (Google Contacts · Annual)</span>
+                                            <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
+                                              Annual reminder inherited from contact calendar. Alerts on April 16 at 09:00 via Telegram.
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const bdayR = reminders.find((r) => r.calendarEventId === ev.id);
+                                              if (bdayR) handleSimulateSync(bdayR.id);
+                                            }}
+                                            className="px-2.5 py-1 rounded-[6px] bg-pink-600 hover:bg-pink-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
+                                          >
+                                            Test sync
                                           </button>
                                         </div>
                                       )}
@@ -1626,6 +1705,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                />
+              </div>
+
+              {/* Recurrence Rule for Event */}
+              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)]">
+                <RecurrenceEditor
+                  value={newEventRecurrence}
+                  onChange={(rule) => setNewEventRecurrence(rule)}
+                  baseTime={newTime}
+                  baseDate={`${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`}
                 />
               </div>
 

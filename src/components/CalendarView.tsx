@@ -278,54 +278,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           )}
 
-          {/* When in Month view: Apple Calendar Back Button to zoom out to Year View */}
-          {viewMode === 'month' || viewMode === 'week' ? (
-            <button
-              type="button"
-              onClick={() => setViewMode('year')}
-              title="Zoom out to Year calendar (iOS style)"
-              className="inline-flex items-center gap-0.5 px-2 py-1 -ml-1 rounded-lg text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer group shrink-0"
-            >
-              <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
-              <span className="text-[14px] sm:text-[15px] font-bold tracking-tight">
-                {currentYear}
-              </span>
-              <span className="hidden md:inline-block text-[11px] font-medium text-[var(--mroya-text-muted)] ml-1">
-                (Year)
-              </span>
-            </button>
-          ) : (
-            /* When in Year view: Navigation controls for switching years */
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={handlePrevYear}
-                title="Previous year"
-                aria-label="Previous year"
-                className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsMonthPickerOpen(true)}
-                className="text-[16px] sm:text-[18px] font-bold text-[var(--mroya-text)] hover:text-[var(--mroya-primary)] px-1 rounded transition-colors cursor-pointer flex items-center gap-1"
-                title="Choose year"
-              >
-                <span>{currentYear}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNextYear}
-                title="Next year"
-                aria-label="Next year"
-                className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          {/* Shared year breadcrumb: identical in month, week, and annual views */}
+          <button
+            type="button"
+            onClick={() => setViewMode(viewMode === 'year' ? 'month' : 'year')}
+            title={viewMode === 'year' ? 'Back to month calendar' : 'Zoom out to year calendar'}
+            aria-label={viewMode === 'year' ? 'Back to month calendar' : 'Show year calendar'}
+            className="inline-flex items-center gap-0.5 px-2 py-1 -ml-1 rounded-lg text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer group shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+            <span className="text-[14px] sm:text-[15px] font-bold tracking-tight">
+              {currentYear}
+            </span>
+          </button>
         </div>
 
         {/* Center: Month Navigator with Dropdown Picker & Chevrons (in Month/Week mode) */}

@@ -10,6 +10,7 @@ import {
   GraphNode,
   ChatAction,
   ChatMessage,
+  ReminderItem,
 } from './types/mroya';
 import {
   INITIAL_CONVERSATIONS,
@@ -18,11 +19,14 @@ import {
   INITIAL_GRAPH_NODES,
   INITIAL_GRAPH_EDGES,
   INITIAL_CONNECTIONS,
+  INITIAL_REMINDERS,
 } from './data/mockData';
 import { Sidebar } from './components/Sidebar';
 import { ChatWorkspace } from './components/ChatWorkspace';
 import { MemoryContextPanel } from './components/MemoryContextPanel';
 import { CalendarView } from './components/CalendarView';
+import { RemindersView } from './components/RemindersView';
+import { ReminderEditorModal } from './components/ReminderEditorModal';
 import { MemoryView } from './components/MemoryView';
 import { MemoryMapView } from './components/MemoryMapView';
 import { ConnectionsSettingsView } from './components/ConnectionsSettingsView';
@@ -47,6 +51,104 @@ export default function App() {
   const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
   const [nodes, setNodes] = useState<GraphNode[]>(INITIAL_GRAPH_NODES);
   const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
+
+  // Reminders state
+  const [reminders, setReminders] = useState<ReminderItem[]>(INITIAL_REMINDERS);
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<ReminderItem | null>(null);
+  const [reminderPreselectedEventId, setReminderPreselectedEventId] = useState<string | undefined>(undefined);
+
+  const handleAddOrUpdateReminder = (
+    reminderData: Omit<ReminderItem, 'id' | 'createdAt'>,
+    existingId?: string
+  ) => {
+    if (existingId) {
+      setReminders((prev) =>
+        prev.map((r) =>
+          r.id === existingId
+            ? {
+                ...r,
+                ...reminderData,
+              }
+            : r
+        )
+      );
+    } else {
+      const newReminder: ReminderItem = {
+        ...reminderData,
+        id: `rem-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+      };
+      setReminders((prev) => [newReminder, ...prev]);
+    }
+    setReminderModalOpen(false);
+    setEditingReminder(null);
+    setReminderPreselectedEventId(undefined);
+  };
+
+  const handleDeleteReminder = (id: string) => {
+    setReminders((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleToggleCompleteReminder = (id: string) => {
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? { ...r, status: r.status === 'completed' ? 'scheduled' : 'completed' }
+          : r
+      )
+    );
+  };
+
+  const handleTogglePauseReminder = (id: string) => {
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? { ...r, status: r.status === 'paused' ? 'scheduled' : 'paused' }
+          : r
+      )
+    );
+  };
+
+  const handleUnlinkReminder = (id: string) => {
+    setReminders((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              type: 'standalone',
+              calendarEventId: undefined,
+              offsetMinutes: undefined,
+            }
+          : r
+      )
+    );
+  };
+
+  // Google Calendar shared schedule synchronization simulation
+  const handleSimulateGoogleSync = (reminderId: string) => {
+    setReminders((prev) =>
+      prev.map((r) => {
+        if (
+          r.id === reminderId ||
+          (reminderId === 'rem-doctor-appt' && r.calendarEventId === 'evt-oct13-doctor')
+        ) {
+          const isCurrently30 = r.offsetMinutes === 30;
+          const newOffset = isCurrently30 ? 60 : 30;
+          const newTime = isCurrently30 ? '11:30' : '12:00';
+          return {
+            ...r,
+            offsetMinutes: newOffset,
+            time: newTime,
+            notes: `Starts in ${newOffset} minutes — 12:30 PM at City Health Clinic`,
+            syncedWithGoogle: true,
+            lastSyncedNote: `Synced with Google Calendar (${newOffset} min before appointment)`,
+          };
+        }
+        return r;
+      })
+    );
+  };
 
   // Contextual Memory Panel state (Optional third panel)
   const [isContextPanelOpen, setIsContextPanelOpen] = useState(false);
@@ -110,6 +212,139 @@ export default function App() {
     let assistantReply: ChatMessage;
 
     if (
+      lower.includes('oven') ||
+      (lower.includes('turn off') && lower.includes('remind'))
+    ) {
+      const newRemId = `rem-oven-${Date.now()}`;
+      const newRem: ReminderItem = {
+        id: newRemId,
+        title: 'Turn off the oven',
+        type: 'standalone',
+        date: '2026-10-12',
+        time: '14:44',
+        channel: 'telegram',
+        status: 'scheduled',
+        notes: 'Roast vegetables timer (20 minutes). Created via conversational assistant.',
+        createdAt: new Date().toISOString(),
+      };
+      setReminders((prev) => [newRem, ...prev]);
+
+      assistantReply = {
+        id: `msg-a-${Date.now() + 1}`,
+        sender: 'assistant',
+        timestamp: nowTime,
+        content:
+          "I've set a standalone reminder for you: **Turn off the oven** in 20 minutes (at 2:44 PM).\n\nSince this is an immediate, self-contained task, no calendar event was created. You'll receive a notification on Telegram right on time.",
+        structuredPoints: [
+          { label: 'Reminder type', value: 'Standalone (no calendar event)' },
+          { label: 'Notification time', value: 'Today · 2:44 PM (in 20 minutes)' },
+          { label: 'Delivery channel', value: 'Telegram bot (@MroyaBot)' },
+        ],
+        actions: [
+          {
+            id: `act-rem-${newRemId}`,
+            label: 'View in Reminders',
+            type: 'view-reminder',
+            targetReminderId: newRemId,
+          },
+        ],
+      };
+    } else if (
+      lower.includes('doctor') &&
+      (lower.includes('remind') || lower.includes('schedule') || lower.includes('appointment'))
+    ) {
+      const existingEvt = events.find((e) => e.id === 'evt-oct13-doctor');
+      if (!existingEvt) {
+        const newEvt: CalendarEvent = {
+          id: 'evt-oct13-doctor',
+          title: 'Doctor appointment',
+          date: '2026-10-13',
+          dayOfMonth: 13,
+          time: '12:30',
+          duration: '45m',
+          category: 'meeting',
+          person: 'Dr. Emily Watson',
+          organization: 'City Health Clinic',
+          locationOrLink: '742 Evergreen Terrace, Suite 300',
+          notes: 'Annual routine health checkup. Google Calendar synced.',
+        };
+        setEvents((prev) => [...prev, newEvt]);
+      }
+
+      const existingReminder = reminders.find((r) => r.calendarEventId === 'evt-oct13-doctor');
+      let remId = existingReminder?.id;
+      if (!existingReminder) {
+        remId = `rem-doctor-${Date.now()}`;
+        const newRem: ReminderItem = {
+          id: remId,
+          title: 'Doctor appointment',
+          type: 'calendar_linked',
+          date: '2026-10-13',
+          time: '11:30',
+          calendarEventId: 'evt-oct13-doctor',
+          offsetMinutes: 60,
+          channel: 'telegram',
+          status: 'scheduled',
+          syncedWithGoogle: true,
+          lastSyncedNote: 'Synced with Google Calendar (60m before)',
+          notes: 'Starts in 1 hour — 12:30 PM at City Health Clinic',
+          createdAt: new Date().toISOString(),
+        };
+        setReminders((prev) => [newRem, ...prev]);
+      }
+
+      assistantReply = {
+        id: `msg-a-${Date.now() + 1}`,
+        sender: 'assistant',
+        timestamp: nowTime,
+        content:
+          "I've scheduled your **Doctor appointment** for tomorrow, October 13, at 12:30 PM and set a linked reminder for **1 hour before (11:30 AM)** via Telegram.\n\nBoth Mroya and your connected Google Calendar share this exact schedule. Modifying the alert time in Google Calendar will automatically synchronize here.",
+        structuredPoints: [
+          { label: 'Calendar Event', value: 'Doctor appointment · Tue, Oct 13 at 12:30 PM' },
+          { label: 'Linked Reminder', value: '60 minutes before (11:30 AM)' },
+          { label: 'Sync Status', value: 'Shared schedule with Google Calendar' },
+          { label: 'Notification', value: 'Telegram bot (@MroyaBot)' },
+        ],
+        actions: [
+          {
+            id: 'act-rem-doc',
+            label: 'View reminder',
+            type: 'view-reminder',
+            targetReminderId: remId,
+          },
+          {
+            id: 'act-cal-doc',
+            label: 'Open in Calendar',
+            type: 'open-calendar-event',
+            targetEventId: 'evt-oct13-doctor',
+          },
+        ],
+      };
+    } else if (
+      lower.includes('what reminders') ||
+      lower.includes('show reminders') ||
+      lower.includes('my reminders') ||
+      lower === 'reminders'
+    ) {
+      const scheduledReminders = reminders.filter((r) => r.status === 'scheduled');
+      assistantReply = {
+        id: `msg-a-${Date.now() + 1}`,
+        sender: 'assistant',
+        timestamp: nowTime,
+        content: `You currently have ${scheduledReminders.length} scheduled reminders. Standalone items alert you directly without cluttering your calendar, while calendar-linked reminders stay synchronized with Google Calendar:`,
+        structuredPoints: scheduledReminders.slice(0, 4).map((r) => ({
+          label: `${r.date} · ${r.time}`,
+          value: `${r.title} (${r.type === 'calendar_linked' ? 'Linked to calendar · GCal synced' : 'Standalone'})`,
+        })),
+        actions: [
+          {
+            id: 'act-open-reminders-view',
+            label: 'Open Reminders screen',
+            type: 'view-reminder',
+          },
+        ],
+      };
+    } else if (
       lower.includes('remember that') ||
       lower.includes('save') ||
       lower.includes('note that') ||
@@ -316,6 +551,20 @@ export default function App() {
         setSelectedGraphNodeId(action.targetNodeId);
       }
       setActiveSection('memory-map');
+    } else if (action.type === 'view-reminder') {
+      if (action.targetReminderId) {
+        const target = reminders.find((r) => r.id === action.targetReminderId);
+        if (target) {
+          setEditingReminder(target);
+          setReminderModalOpen(true);
+        }
+      }
+      setActiveSection('reminders');
+    } else if (action.type === 'open-calendar-event') {
+      if (action.targetEventId) {
+        setSelectedCalendarEventId(action.targetEventId);
+      }
+      setActiveSection('calendar');
     } else if (action.type === 'add-calendar' && action.calendarPayload) {
       if (!addedActionIds.includes(action.id)) {
         const newEvt: CalendarEvent = {
@@ -363,6 +612,7 @@ export default function App() {
         onCloseMobile={() => setMobileMenuOpen(false)}
         memoriesCount={memories.length}
         upcomingEventsCount={events.length}
+        pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
         onOpenSettingsTab={(tab) => {
           setSettingsTab(tab);
           setActiveSection('connections');
@@ -423,6 +673,7 @@ export default function App() {
           <CalendarView
             events={events}
             memories={memories}
+            reminders={reminders}
             selectedEventId={selectedCalendarEventId}
             onAddEvent={(newEvt) =>
               setEvents((prev) => [...prev, { ...newEvt, id: `evt-${Date.now()}` }])
@@ -435,7 +686,41 @@ export default function App() {
               setSettingsTab('connections');
               setActiveSection('connections');
             }}
+            onAddReminder={(rem) => handleAddOrUpdateReminder(rem)}
+            onDeleteReminder={handleDeleteReminder}
+            onSimulateGoogleSync={handleSimulateGoogleSync}
+            onNavigateToReminders={() => setActiveSection('reminders')}
             googleCalendarConnected={googleCalendarConnected}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onExpandSidebar={() => setIsSidebarCollapsed(false)}
+            onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          />
+        )}
+
+        {activeSection === 'reminders' && (
+          <RemindersView
+            reminders={reminders}
+            events={events}
+            onAddReminder={handleAddOrUpdateReminder}
+            onUpdateReminder={(rem) => handleAddOrUpdateReminder(rem, rem.id)}
+            onDeleteReminder={handleDeleteReminder}
+            onToggleComplete={handleToggleCompleteReminder}
+            onTogglePause={handleTogglePauseReminder}
+            onUnlinkReminder={handleUnlinkReminder}
+            onSimulateGoogleSync={handleSimulateGoogleSync}
+            onOpenCalendarEvent={(eventId) => {
+              setSelectedCalendarEventId(eventId);
+              setActiveSection('calendar');
+            }}
+            onOpenNewReminderModal={() => {
+              setEditingReminder(null);
+              setReminderPreselectedEventId(undefined);
+              setReminderModalOpen(true);
+            }}
+            onOpenEditReminderModal={(rem) => {
+              setEditingReminder(rem);
+              setReminderModalOpen(true);
+            }}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={() => setIsSidebarCollapsed(false)}
             onOpenMobileMenu={() => setMobileMenuOpen(true)}
@@ -605,6 +890,20 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Reminders Creation / Edit Modal */}
+      <ReminderEditorModal
+        isOpen={reminderModalOpen}
+        onClose={() => {
+          setReminderModalOpen(false);
+          setEditingReminder(null);
+          setReminderPreselectedEventId(undefined);
+        }}
+        onSave={handleAddOrUpdateReminder}
+        editingReminder={editingReminder}
+        events={events}
+        preselectedEventId={reminderPreselectedEventId}
+      />
     </div>
   );
 }

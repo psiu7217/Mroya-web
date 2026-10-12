@@ -20,6 +20,7 @@ import {
   Settings,
   Mic,
   Square,
+  Bell,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {
@@ -284,7 +285,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Compact Workspace Header */}
-      <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0 bg-[var(--mroya-bg)]/90 backdrop-blur-xs z-20">
+      <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0 bg-[var(--mroya-surface)] shadow-xs z-20">
         {/* Left: Mobile Burger + Mroya Brand Logo | Desktop Sidebar toggles + Conversation title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Mobile Left: Burger + Mroya Logo right next to it */}
@@ -713,6 +714,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                       )}
                                       {act.type === 'open-map' && (
                                         <Share2 className="w-3.5 h-3.5" />
+                                      )}
+                                      {act.type === 'view-reminder' && (
+                                        <Bell className="w-3.5 h-3.5" />
+                                      )}
+                                      {act.type === 'open-calendar-event' && (
+                                        <Calendar className="w-3.5 h-3.5" />
                                       )}
                                       <span>
                                         {isAdded && act.type === 'add-calendar'

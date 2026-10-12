@@ -16,16 +16,24 @@ import {
   CalendarDays,
   ZoomOut,
   ZoomIn,
+  Bell,
+  RefreshCw,
+  Send,
 } from 'lucide-react';
-import { CalendarEvent, MemoryItem } from '../types/mroya';
+import { CalendarEvent, MemoryItem, ReminderItem } from '../types/mroya';
 
 interface CalendarViewProps {
   events: CalendarEvent[];
   memories: MemoryItem[];
+  reminders: ReminderItem[];
   selectedEventId: string | null;
-  onAddEvent: (event: Omit<CalendarEvent, 'id'>) => void;
+  onAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void;
   onOpenMemory: (memoryId: string) => void;
   onOpenConnections: () => void;
+  onAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>) => void;
+  onDeleteReminder: (id: string) => void;
+  onSimulateGoogleSync: (reminderId: string) => void;
+  onNavigateToReminders?: () => void;
   googleCalendarConnected: boolean;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
@@ -67,10 +75,15 @@ const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028];
 export const CalendarView: React.FC<CalendarViewProps> = ({
   events,
   memories,
+  reminders,
   selectedEventId,
   onAddEvent,
   onOpenMemory,
   onOpenConnections,
+  onAddReminder,
+  onDeleteReminder,
+  onSimulateGoogleSync,
+  onNavigateToReminders,
   googleCalendarConnected,
   isSidebarCollapsed,
   onExpandSidebar,
@@ -82,10 +95,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [selectedDay, setSelectedDay] = useState<number>(12);
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-
-  // Touch swipe support for iOS-like native gesture navigation
-  const touchStartXRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   // New event form state
   const [newTitle, setNewTitle] = useState('');
@@ -94,6 +104,60 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [newCategory, setNewCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
   const [newPerson, setNewPerson] = useState('Sarah Chen');
   const [newNotes, setNewNotes] = useState('');
+  const [newReminderEnabled, setNewReminderEnabled] = useState(false);
+  const [newReminderOffset, setNewReminderOffset] = useState<number>(30);
+  const [addingReminderForEventId, setAddingReminderForEventId] = useState<string | null>(null);
+  const [quickOffset, setQuickOffset] = useState<number>(30);
+
+  // Touch swipe support for iOS-like native gesture navigation
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const formatOffset = (mins?: number) => {
+    if (mins === undefined || mins === null) return '';
+    if (mins === 0) return 'At event time';
+    if (mins < 60) return `${mins} min before`;
+    if (mins === 60) return '1 hour before';
+    if (mins === 1440) return '1 day before';
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return rem > 0 ? `${hrs}h ${rem}m before` : `${hrs} hours before`;
+  };
+
+  const handleSimulateSync = (reminderId: string) => {
+    onSimulateGoogleSync(reminderId);
+    setSyncToast('Updated from Google Calendar · Doctor appointment reminder changed to 30 min before');
+    setTimeout(() => setSyncToast(null), 4000);
+  };
+
+  const handleQuickAddReminder = (event: CalendarEvent) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    let calcTime = event.time;
+    let calcDate = event.date;
+    try {
+      const [h, m] = event.time.split(':').map(Number);
+      const [y, mo, d] = event.date.split('-').map(Number);
+      const targetDate = new Date(y, mo - 1, d, h, m);
+      const notifDate = new Date(targetDate.getTime() - quickOffset * 60 * 1000);
+      calcDate = `${notifDate.getFullYear()}-${pad(notifDate.getMonth() + 1)}-${pad(notifDate.getDate())}`;
+      calcTime = `${pad(notifDate.getHours())}:${pad(notifDate.getMinutes())}`;
+    } catch {}
+
+    onAddReminder({
+      title: event.title,
+      type: 'calendar_linked',
+      date: calcDate,
+      time: calcTime,
+      calendarEventId: event.id,
+      offsetMinutes: quickOffset,
+      channel: 'telegram',
+      status: 'scheduled',
+      notes: `${event.title} starts at ${event.time}`,
+      syncedWithGoogle: event.id === 'evt-oct13-doctor',
+      lastSyncedNote: event.id === 'evt-oct13-doctor' ? 'Synced with Google Calendar' : undefined,
+    });
+    setAddingReminderForEventId(null);
+  };
 
   // Computes calendar grid data for any month/year
   const getMonthCalendarData = (year: number, monthIndex: number) => {
@@ -140,18 +204,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if (!newTitle.trim()) return;
     const paddedMonth = String(currentMonthIndex + 1).padStart(2, '0');
     const paddedDay = String(newDay).padStart(2, '0');
-    onAddEvent({
-      title: newTitle.trim(),
-      date: `${currentYear}-${paddedMonth}-${paddedDay}`,
-      dayOfMonth: newDay,
-      time: newTime,
-      duration: newCategory === 'deadline' ? 'Deadline' : '1h',
-      category: newCategory,
-      person: newPerson.trim() || undefined,
-      notes: newNotes.trim() || 'Added via Mroya Calendar.',
-    });
+    const eventDate = `${currentYear}-${paddedMonth}-${paddedDay}`;
+
+    onAddEvent(
+      {
+        title: newTitle.trim(),
+        date: eventDate,
+        dayOfMonth: newDay,
+        time: newTime,
+        duration: newCategory === 'deadline' ? 'Deadline' : '1h',
+        category: newCategory,
+        person: newPerson.trim() || undefined,
+        notes: newNotes.trim() || 'Added via Mroya Calendar.',
+      },
+      newReminderEnabled ? newReminderOffset : undefined
+    );
+
     setNewTitle('');
     setNewNotes('');
+    setNewReminderEnabled(false);
     setIsNewModalOpen(false);
     setSelectedDay(newDay);
   };
@@ -255,14 +326,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       onTouchEnd={handleTouchEnd}
     >
       {/* HEADER: iPhone iOS Calendar Inspired Navigation Bar */}
-      <header className="h-[56px] px-3 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-2 shrink-0 bg-[var(--mroya-bg)]/95 backdrop-blur-xs sticky top-0 z-20">
+      <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-2.5 shrink-0 bg-[var(--mroya-surface)] shadow-xs sticky top-0 z-20">
         {/* Left Side: Mobile Menu or Desktop Sidebar toggle + iOS Back/Zoom Breadcrumb */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           <button
             type="button"
             onClick={onOpenMobileMenu}
             aria-label="Open menu"
-            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0"
+            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -272,21 +343,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               type="button"
               onClick={onExpandSidebar}
               aria-label="Expand sidebar"
-              className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+              className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
             >
               <PanelLeftOpen className="w-4 h-4" />
             </button>
           )}
 
-          {/* Shared year breadcrumb: identical in month, week, and annual views */}
+          {/* Shared year breadcrumb: vibrant pill button */}
           <button
             type="button"
             onClick={() => setViewMode(viewMode === 'year' ? 'month' : 'year')}
             title={viewMode === 'year' ? 'Back to month calendar' : 'Zoom out to year calendar'}
             aria-label={viewMode === 'year' ? 'Back to month calendar' : 'Show year calendar'}
-            className="inline-flex items-center gap-0.5 px-2 py-1 -ml-1 rounded-lg text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer group shrink-0"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)]/80 shadow-2xs transition-all cursor-pointer group shrink-0"
           >
-            <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+            <ChevronLeft className="w-4 h-4 stroke-[2.5] text-[var(--mroya-brand-honey)] group-hover:-translate-x-0.5 transition-transform" />
             <span className="text-[14px] sm:text-[15px] font-bold tracking-tight">
               {currentYear}
             </span>
@@ -295,13 +366,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
         {/* Center: Month Navigator with Dropdown Picker & Chevrons (in Month/Week mode) */}
         {(viewMode === 'month' || viewMode === 'week') && (
-          <div className="hidden sm:flex items-center gap-0.5 sm:gap-1 min-w-0">
+          <div className="hidden sm:flex items-center gap-1 min-w-0 px-2 py-0.5 rounded-full bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]/80 shadow-2xs">
             <button
               type="button"
               onClick={handlePrevMonth}
               title="Previous month"
               aria-label="Previous month"
-              className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
+              className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--mroya-text)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface)] cursor-pointer shrink-0 transition-all shadow-2xs"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -310,10 +381,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <button
               type="button"
               onClick={() => setIsMonthPickerOpen(true)}
-              className="px-2 py-1 rounded-lg hover:bg-[var(--mroya-surface-muted)] flex items-center gap-1.5 transition-colors cursor-pointer group"
+              className="px-2.5 py-1 rounded-full hover:bg-[var(--mroya-surface)] flex items-center gap-1.5 transition-all cursor-pointer group"
               title="Click to jump to another month or year"
             >
-              <span className="text-[15px] sm:text-[17px] font-bold text-[var(--mroya-text)] group-hover:text-[var(--mroya-primary)] transition-colors truncate">
+              <span className="text-[15px] sm:text-[16px] font-bold text-[var(--mroya-text)] group-hover:text-[var(--mroya-primary)] transition-colors truncate">
                 {MONTH_NAMES[currentMonthIndex]}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0 transition-transform group-hover:translate-y-0.5" />
@@ -324,7 +395,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               onClick={handleNextMonth}
               title="Next month"
               aria-label="Next month"
-              className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
+              className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--mroya-text)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface)] cursor-pointer shrink-0 transition-all shadow-2xs"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -333,22 +404,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
         {/* Year view subtitle when in year view */}
         {viewMode === 'year' && (
-          <div className="hidden sm:flex items-center text-[12px] text-[var(--mroya-text-muted)]">
+          <div className="hidden sm:flex items-center text-[12px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-3 py-1 rounded-full border border-[var(--mroya-divider)]/60">
             Tap any month or day to zoom in
           </div>
         )}
 
         {/* Right Controls: iOS Segmented Controller (Year / Month) + Today + Add Event */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* iOS Style Segmented View Mode Toggle (Available on BOTH mobile and desktop) */}
-          <div className="flex items-center p-0.5 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* iOS Style Segmented View Mode Toggle */}
+          <div className="flex items-center p-0.5 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] shadow-2xs">
             <button
               type="button"
               onClick={() => setViewMode('year')}
               title="Zoom out to Year (12 months)"
-              className={`px-2 sm:px-2.5 py-1 rounded-[6px] text-[11px] sm:text-[12px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                 viewMode === 'year'
-                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] shadow-2xs font-semibold'
+                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-primary)] shadow-xs'
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
             >
@@ -360,9 +431,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               type="button"
               onClick={() => setViewMode('month')}
               title="Month calendar"
-              className={`px-2 sm:px-2.5 py-1 rounded-[6px] text-[11px] sm:text-[12px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                 viewMode === 'month'
-                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] shadow-2xs font-semibold'
+                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-primary)] shadow-xs'
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
             >
@@ -374,9 +445,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               type="button"
               onClick={() => setViewMode('week')}
               title="Week schedule"
-              className={`hidden md:inline-flex px-2 sm:px-2.5 py-1 rounded-[6px] text-[11px] sm:text-[12px] font-medium transition-all cursor-pointer ${
+              className={`hidden md:inline-flex px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer ${
                 viewMode === 'week'
-                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] shadow-2xs font-semibold'
+                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-primary)] shadow-xs'
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
             >
@@ -384,28 +455,45 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </button>
           </div>
 
-          {/* Today Button: Apple Calendar Style */}
+          {/* Today Button: Brighter warm accent pill */}
           <button
             type="button"
             onClick={handleJumpToToday}
             title="Jump to today (Oct 12)"
-            className="px-2 sm:px-2.5 py-1 rounded-full text-[11px] sm:text-[12px] font-semibold text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+            className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-[12px] font-bold text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] hover:bg-[var(--mroya-brand-honey)]/25 border border-[var(--mroya-brand-honey)]/40 shadow-2xs transition-all cursor-pointer shrink-0"
           >
             Today
           </button>
 
-          {/* + Add Event Button */}
+          {/* + Add Event Button: Radiant Primary Action */}
           <button
             type="button"
             onClick={() => setIsNewModalOpen(true)}
             aria-label="New commitment"
-            className="w-7 h-7 sm:w-auto sm:px-3 sm:py-1 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12px] font-semibold inline-flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
+            className="w-8 h-8 sm:w-auto sm:px-3.5 sm:py-1 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs hover:shadow-sm shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[2.4]" />
             <span className="hidden sm:inline">Event</span>
           </button>
         </div>
       </header>
+
+      {/* Google Calendar Sync Simulation Banner */}
+      {syncToast && (
+        <div className="px-4 py-2.5 bg-emerald-500/15 border-b border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[12px] font-semibold flex items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+            <span>{syncToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncToast(null)}
+            className="text-[11px] underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* QUICK MONTH & YEAR PICKER POPOVER / SHEET (iOS Style) */}
       {isMonthPickerOpen && (
@@ -846,6 +934,130 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   <span className="truncate">Memory: {linkedMem.title}</span>
                                 </button>
                               )}
+
+                              {/* Reminders section for event (Mobile) */}
+                              {(() => {
+                                const eventReminders = reminders.filter((r) => r.calendarEventId === ev.id);
+                                const isDoctor = ev.id === 'evt-oct13-doctor';
+                                return (
+                                  <div className="pt-2 border-t border-[var(--mroya-divider)]/50 space-y-2 mt-1.5">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="font-semibold text-[var(--mroya-text)] flex items-center gap-1">
+                                        <Bell className="w-3 h-3 text-[var(--mroya-primary)]" />
+                                        <span>Reminders ({eventReminders.length})</span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setAddingReminderForEventId(
+                                            addingReminderForEventId === ev.id ? null : ev.id
+                                          )
+                                        }
+                                        className="font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
+                                      >
+                                        {addingReminderForEventId === ev.id ? 'Cancel' : '+ Add'}
+                                      </button>
+                                    </div>
+
+                                    {eventReminders.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {eventReminders.map((r) => (
+                                          <div
+                                            key={r.id}
+                                            className="p-1.5 px-2 rounded-[6px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]/60 flex items-center justify-between text-[11px]"
+                                          >
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              <span className="font-medium text-[var(--mroya-text)] truncate">
+                                                🔔 {formatOffset(r.offsetMinutes)}
+                                              </span>
+                                              <span className="text-[var(--mroya-text-muted)] text-[10px]">
+                                                ({r.time})
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              {r.syncedWithGoogle && (
+                                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                                  GCal
+                                                </span>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => onDeleteReminder(r.id)}
+                                                className="w-4 h-4 inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-red-500 cursor-pointer"
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-[10px] text-[var(--mroya-text-muted)] italic">
+                                        No reminders set for this event
+                                      </div>
+                                    )}
+
+                                    {isDoctor && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const docR = reminders.find((r) => r.calendarEventId === ev.id);
+                                          if (docR) handleSimulateSync(docR.id);
+                                        }}
+                                        className="w-full py-1 px-2 rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-500/30 flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        <RefreshCw className="w-2.5 h-2.5" />
+                                        <span>Simulate Google update (1h → 30m)</span>
+                                      </button>
+                                    )}
+
+                                    {addingReminderForEventId === ev.id && (
+                                      <div className="p-2 rounded-[8px] bg-[var(--mroya-surface-active)]/60 border border-[var(--mroya-divider)] space-y-1.5">
+                                        <div className="text-[10px] font-semibold text-[var(--mroya-text)]">
+                                          Notification offset:
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-1">
+                                          {[
+                                            { label: 'At time', val: 0 },
+                                            { label: '15m', val: 15 },
+                                            { label: '30m', val: 30 },
+                                            { label: '1h', val: 60 },
+                                          ].map((p) => (
+                                            <button
+                                              key={p.val}
+                                              type="button"
+                                              onClick={() => setQuickOffset(p.val)}
+                                              className={`py-0.5 text-[10px] rounded border cursor-pointer ${
+                                                quickOffset === p.val
+                                                  ? 'bg-[var(--mroya-primary)] text-white font-semibold'
+                                                  : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)]'
+                                              }`}
+                                            >
+                                              {p.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <div className="flex items-center justify-end gap-1.5 pt-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => setAddingReminderForEventId(null)}
+                                            className="text-[10px] text-[var(--mroya-text-muted)] hover:underline cursor-pointer"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickAddReminder(ev)}
+                                            className="px-2 py-0.5 rounded bg-[var(--mroya-primary)] text-white text-[10px] font-semibold cursor-pointer"
+                                          >
+                                            Save
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         );
@@ -1097,6 +1309,159 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     <span>Linked memory: {linkedMem.title}</span>
                                   </button>
                                 )}
+
+                                {/* Reminders section for event (Desktop) */}
+                                {(() => {
+                                  const eventReminders = reminders.filter((r) => r.calendarEventId === ev.id);
+                                  const isDoctor = ev.id === 'evt-oct13-doctor';
+                                  return (
+                                    <div className="pt-2.5 border-t border-[var(--mroya-divider)]/60 space-y-2 mt-2">
+                                      <div className="flex items-center justify-between text-[12px]">
+                                        <div className="font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
+                                          <Bell className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
+                                          <span>Reminders</span>
+                                          {eventReminders.length > 0 && (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]">
+                                              {eventReminders.length}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setAddingReminderForEventId(
+                                              addingReminderForEventId === ev.id ? null : ev.id
+                                            )
+                                          }
+                                          className="text-[11px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
+                                        >
+                                          {addingReminderForEventId === ev.id ? 'Cancel' : '+ Add reminder'}
+                                        </button>
+                                      </div>
+
+                                      {/* Reminders List */}
+                                      {eventReminders.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                          {eventReminders.map((r) => (
+                                            <div
+                                              key={r.id}
+                                              className="p-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between text-[11px] gap-2"
+                                            >
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <Bell className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
+                                                <span className="font-semibold text-[var(--mroya-text)] truncate">
+                                                  {formatOffset(r.offsetMinutes)}
+                                                </span>
+                                                <span className="text-[var(--mroya-text-muted)] font-mono-tabular shrink-0">
+                                                  ({r.time})
+                                                </span>
+                                                {r.syncedWithGoogle && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                                                    Google Synced
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              <div className="flex items-center gap-1 shrink-0">
+                                                {isDoctor && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleSimulateSync(r.id)}
+                                                    title="Simulate Google Calendar external update"
+                                                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 cursor-pointer flex items-center gap-1 transition-colors"
+                                                  >
+                                                    <RefreshCw className="w-2.5 h-2.5" />
+                                                    <span>Sync update</span>
+                                                  </button>
+                                                )}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => onDeleteReminder(r.id)}
+                                                  title="Remove reminder"
+                                                  className="w-5 h-5 rounded flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-red-500 cursor-pointer"
+                                                >
+                                                  <X className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="text-[11px] text-[var(--mroya-text-muted)] italic">
+                                          No reminders configured. Default calendar events have no alerts.
+                                        </div>
+                                      )}
+
+                                      {/* Doctor Appointment Demo Simulation Callout */}
+                                      {isDoctor && (
+                                        <div className="p-2.5 rounded-[10px] bg-blue-500/10 border border-blue-500/20 text-[12px] text-blue-900 dark:text-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                          <div>
+                                            <span className="font-semibold">Doctor appointment (Google Synced)</span>
+                                            <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+                                              Simulate external Google Calendar change from 1 hour to 30 min before
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const docR = reminders.find((r) => r.calendarEventId === ev.id);
+                                              if (docR) handleSimulateSync(docR.id);
+                                            }}
+                                            className="px-2.5 py-1 rounded-[6px] bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
+                                          >
+                                            Simulate Google Calendar update
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Quick Add Reminder inline picker */}
+                                      {addingReminderForEventId === ev.id && (
+                                        <div className="p-2.5 rounded-[10px] bg-[var(--mroya-surface-active)]/50 border border-[var(--mroya-divider)] space-y-2 animate-in fade-in duration-150">
+                                          <div className="text-[11px] font-semibold text-[var(--mroya-text)]">
+                                            Select notification offset before start:
+                                          </div>
+                                          <div className="grid grid-cols-4 gap-1.5">
+                                            {[
+                                              { label: 'At time', val: 0 },
+                                              { label: '15m before', val: 15 },
+                                              { label: '30m before', val: 30 },
+                                              { label: '1h before', val: 60 },
+                                            ].map((p) => (
+                                              <button
+                                                key={p.val}
+                                                type="button"
+                                                onClick={() => setQuickOffset(p.val)}
+                                                className={`py-1 text-[11px] rounded border cursor-pointer ${
+                                                  quickOffset === p.val
+                                                    ? 'bg-[var(--mroya-primary)] text-white border-[var(--mroya-primary)] font-semibold'
+                                                    : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)]'
+                                                }`}
+                                              >
+                                                {p.label}
+                                              </button>
+                                            ))}
+                                          </div>
+                                          <div className="flex items-center justify-end gap-2 pt-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => setAddingReminderForEventId(null)}
+                                              className="text-[11px] text-[var(--mroya-text-muted)] hover:underline cursor-pointer"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleQuickAddReminder(ev)}
+                                              className="px-3 py-1 rounded bg-[var(--mroya-primary)] text-white text-[11px] font-semibold cursor-pointer shadow-xs"
+                                            >
+                                              Save reminder
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })}
@@ -1262,6 +1627,54 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onChange={(e) => setNewNotes(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                 />
+              </div>
+
+              {/* Optional Reminder Setup */}
+              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newReminderEnabled}
+                    onChange={(e) => setNewReminderEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-[var(--mroya-primary)] accent-[var(--mroya-primary)] cursor-pointer"
+                  />
+                  <span className="text-[12px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
+                    <span>Set a reminder for this commitment</span>
+                  </span>
+                </label>
+                {newReminderEnabled && (
+                  <div className="pt-1 space-y-1.5 animate-in fade-in duration-150">
+                    <div className="text-[11px] text-[var(--mroya-text-muted)]">
+                      Notify before event start:
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { label: '15m before', val: 15 },
+                        { label: '30m before', val: 30 },
+                        { label: '1h before', val: 60 },
+                        { label: '1d before', val: 1440 },
+                      ].map((chip) => (
+                        <button
+                          key={chip.val}
+                          type="button"
+                          onClick={() => setNewReminderOffset(chip.val)}
+                          className={`py-1 px-1 rounded-[6px] text-[11px] font-medium border text-center transition-all cursor-pointer ${
+                            newReminderOffset === chip.val
+                              ? 'bg-[var(--mroya-primary)] text-white border-[var(--mroya-primary)] font-semibold shadow-2xs'
+                              : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)]'
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-[var(--mroya-text-muted)] flex items-center gap-1">
+                      <Send className="w-3 h-3 text-[#229ED9]" />
+                      <span>Alert will be sent via Telegram (@MroyaBot)</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

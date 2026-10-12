@@ -17,6 +17,7 @@ import {
   X,
   ChevronUp,
   Sparkles,
+  Bell,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {
@@ -44,6 +45,7 @@ interface SidebarProps {
   onCloseMobile: () => void;
   memoriesCount: number;
   upcomingEventsCount: number;
+  pendingRemindersCount: number;
   onOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
 }
 
@@ -65,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   memoriesCount,
   upcomingEventsCount,
+  pendingRemindersCount,
   onOpenSettingsTab,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,6 +112,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Calendar',
       icon: Calendar,
       meta: upcomingEventsCount > 0 ? String(upcomingEventsCount) : undefined,
+    },
+    {
+      id: 'reminders',
+      label: 'Reminders',
+      icon: Bell,
+      meta: pendingRemindersCount > 0 ? String(pendingRemindersCount) : undefined,
     },
     {
       id: 'memory',

@@ -1,4 +1,4 @@
-export type NavSection = 'chat' | 'calendar' | 'memory' | 'memory-map' | 'connections';
+export type NavSection = 'chat' | 'calendar' | 'reminders' | 'memory' | 'memory-map' | 'connections';
 
 export type SubscriptionPlan = 'free' | 'premium';
 
@@ -13,18 +13,52 @@ export interface MemoryCitation {
   relatedNodeId?: string;
 }
 
+export type ReminderOffset =
+  | 'at_time' // 0 minutes
+  | '5_min'   // 5 minutes
+  | '15_min'  // 15 minutes
+  | '30_min'  // 30 minutes
+  | '1_hour'  // 60 minutes
+  | '1_day'   // 1440 minutes
+  | 'custom';
+
+export interface ReminderItem {
+  id: string;
+  title: string;
+  type: 'standalone' | 'calendar_linked';
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm (calculated notification time)
+  calendarEventId?: string;
+  offsetMinutes?: number; // 0, 5, 15, 30, 60, 1440, etc.
+  channel: 'telegram';
+  status: 'scheduled' | 'completed' | 'paused' | 'cancelled';
+  notes?: string;
+  syncedWithGoogle?: boolean;
+  lastSyncedNote?: string;
+  createdAt: string;
+}
+
 export interface ChatAction {
   id: string;
   label: string;
-  type: 'add-calendar' | 'show-memories' | 'open-map' | 'view-memory';
+  type: 'add-calendar' | 'show-memories' | 'open-map' | 'view-memory' | 'view-reminder' | 'open-calendar-event';
   targetMemoryId?: string;
   targetNodeId?: string;
+  targetReminderId?: string;
+  targetEventId?: string;
   calendarPayload?: {
     title: string;
     date: string;
     time: string;
     category: 'deadline' | 'meeting' | 'reminder';
     person?: string;
+  };
+  reminderPayload?: {
+    title: string;
+    date: string;
+    time: string;
+    offsetMinutes?: number;
+    calendarEventId?: string;
   };
 }
 

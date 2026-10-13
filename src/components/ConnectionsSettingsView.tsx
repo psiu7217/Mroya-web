@@ -1,3 +1,4 @@
+import type { AccountPresentation } from '../types/workspace';
 import React from 'react';
 import {
   Link2,
@@ -16,7 +17,8 @@ import {
   ThemeMode,
 } from '../types/mroya';
 
-interface ConnectionsSettingsViewProps {
+export interface ConnectionsSettingsViewProps {
+  account: AccountPresentation;
   connections: ServiceConnection[];
   onToggleConnection: (id: string) => void;
   plan: SubscriptionPlan;
@@ -31,6 +33,7 @@ interface ConnectionsSettingsViewProps {
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
+  account,
   connections,
   onToggleConnection,
   plan,
@@ -316,14 +319,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
               <div className="flex items-center gap-3.5">
                 <div className="w-12 h-12 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[16px] font-semibold text-[var(--mroya-primary)]">
-                  AL
+                  {account.initials}
                 </div>
                 <div>
                   <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                    Alex Lindqvist
+                    {account.displayName}
                   </h2>
                   <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                    alex@lindqvist.studio · Independent Design Director
+                    {account.email} · {account.description}
                   </p>
                 </div>
               </div>
@@ -331,13 +334,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <div>
                   <div className="text-[var(--mroya-text-muted)]">Personal space</div>
                   <div className="font-medium text-[var(--mroya-text)]">
-                    Client Advisory & Studio Operations
+                    {account.spaceDescription}
                   </div>
                 </div>
                 <div>
                   <div className="text-[var(--mroya-text-muted)]">Time zone</div>
                   <div className="font-medium text-[var(--mroya-text)]">
-                    Europe/Stockholm (CET)
+                    {account.timezone}
                   </div>
                 </div>
               </div>

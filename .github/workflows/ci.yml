@@ -1,0 +1,22 @@
+name: Frontend architecture
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check:boundaries
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build:production
+      - run: node scripts/check-production.mjs
+      - run: npm run build:design

@@ -1,3 +1,4 @@
+import type { AccountPresentation } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu,
@@ -30,7 +31,9 @@ import {
   ThemeMode,
 } from '../types/mroya';
 
-interface ChatWorkspaceProps {
+export interface ChatWorkspaceProps {
+  account: AccountPresentation;
+  memoriesCount: number;
   conversation: Conversation | null;
   onSendMessage: (content: string, attachmentName?: string) => void;
   onCitationClick: (memoryId: string) => void;
@@ -57,6 +60,8 @@ const STARTER_SUGGESTIONS = [
 ];
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
+  account,
+  memoriesCount,
   conversation,
   onSendMessage,
   onCitationClick,
@@ -353,7 +358,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               aria-label="User account and options"
               className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[12px] font-bold text-[var(--mroya-primary)] hover:opacity-90 transition-opacity cursor-pointer shadow-2xs"
             >
-              AL
+              {account.initials}
             </button>
 
             {mobileUserMenuOpen && (
@@ -365,10 +370,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 {/* User Header */}
                 <div className="px-3.5 py-2.5 border-b border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)]/40 rounded-t-[12px]">
                   <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                    Alex Lindqvist
+                    {account.displayName}
                   </div>
                   <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
-                    alex@lindqvist.studio
+                    {account.email}
                   </div>
                 </div>
 
@@ -914,7 +919,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </button>
 
                   <span className="text-[12px] text-[var(--mroya-text-muted)] hidden sm:inline pl-1">
-                    Recalling across 7 saved memories · Enter to send
+                    Recalling across {memoriesCount} saved memories · Enter to send
                   </span>
                 </div>
 

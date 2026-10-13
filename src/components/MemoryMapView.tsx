@@ -42,6 +42,8 @@ export const MemoryMapView: React.FC<MemoryMapViewProps> = ({
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  if (!nodes.length) return <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--mroya-bg)] text-[var(--mroya-text)]"><header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center gap-3"><button aria-label="Open navigation" onClick={onOpenMobileMenu} className="lg:hidden"><Menu className="w-5 h-5"/></button><h1 className="font-semibold">Memory Map</h1></header><p className="m-auto text-sm text-[var(--mroya-text-muted)]">No memories to map yet.</p></div>;
+
   const activeNode =
     nodes.find((n) => n.id === selectedNodeId) ||
     nodes.find((n) => n.id === 'node-redesign') ||

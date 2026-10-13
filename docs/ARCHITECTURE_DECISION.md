@@ -1,71 +1,28 @@
-# Mroya architecture decision — frontend and backend separation
+# Mroya frontend architecture decision
 
-Status: **Accepted (2026-10-12)**
+Status: architecture preparation, 2026-10-13. Not approved for production cutover.
 
-## Decision
+Mroya-web is the single React UI source of truth. The published **Mroya-api** Django application is the current integration contract. Personal Memory OS remains outside this frontend task; its engine is neither modified nor duplicated. Django is authoritative for accounts, data, access and persistence.
 
-Mroya is a chat-first application with an independent frontend and backend. Keep the existing `Mroya-web` repository as the UI source of truth and continue using `Personal-Memory-OS` for agent orchestration, long-term memory, data, access control and calendar operations. **Do not rewrite or duplicate the memory engine inside the frontend.**
+## Compile-time roots
 
-## Repositories and responsibility
+`src/App.tsx` delegates to the Vite-selected `@mroya/entry`. Default build selects `providers/ProductionRoot`; explicit Design build selects `demo/DesignRoot`. Optimized Studio previews use an explicit design target even with NODE_ENV=production. A runtime query, localStorage value or user switch cannot import the other root. Production bundles are checked for demo markers. A design build additionally refuses known production hostnames; this is a deployment mistake guard, not the primary mode boundary.
 
-| Repository | Responsibilities |
-| --- | --- |
-| [Mroya-web](https://github.com/psiu7217/Mroya-web) | React UI, routing, styles, presentation state, API clients, user interaction, frontend testing and deployment |
-| [Personal-Memory-OS](https://github.com/psiu7217/Personal-Memory-OS) | Django APIs, authentication/authorization, agent, memory, retrieval, persistence, calendar, connectors, backend tests and deployment |
+The current deployed mock application is unchanged. The new production root implements session bootstrap/login/logout and an explicit integration-pending screen; it is intentionally not a substitute for a complete authenticated workspace. Do not deploy this branch before the real workspace adapter is implemented and reviewed.
 
-Frontend baseline: React 19, TypeScript, Vite 8, Tailwind CSS 4, Lucide icons, Mroya brandbook design tokens. Proposed additions, not yet installed: React Router, TanStack Query, Vitest/Testing Library, Playwright.
+## Responsibilities
 
-Backend baseline: existing Django application and its existing data/services. Backend is the sole authority for user-specific data, entitlements and mutations.
+- components and pages: existing visuals, explicit props and callbacks; no transport or demo imports.
+- types/workspace: stable presentation contract, including profile presentation; no import of a demo hook.
+- demo: original fixtures and local simulation hook; source and scenarios without network access.
+- providers: compile-time roots and live source composition.
+- hooks/useSession: session loading/guest/user/error state and stale request handling.
+- api and types/api: same-origin Django JSON/CSRF/SSE clients and real DTO contracts.
 
-## API boundary
+The existing filled workspace renders exactly the same markup as the original pinned Git baseline. Existing colors, typography and responsive styles are retained in src/index.css. No router, state framework or second frontend was introduced. The small design scenario control is preview-only. Empty map rendering no longer assumes a first node exists.
 
-- Use a documented, versioned API (proposed `/api/v1/`) between React and Django.
-- Prefer same-origin routes for the production app, with Traefik routing the frontend and API, using secure session cookies and appropriate CSRF protection.
-- Use HTTP/JSON for ordinary operations and SSE for streaming AI chat responses.
-- Define request/response contracts and error handling centrally.
-- Do not let frontend components execute direct database queries or include API secrets.
-- Maintain compatibility across independent frontend/backend releases; contract tests are required before deployments.
-- Adapt existing Django services/endpoints rather than moving business logic into React.
+## Next integration phase
 
-## Separation inside Mroya-web (target, not yet implemented)
+Adapt live API DTOs to WorkspaceModel with real history, chat and canonical memory state; replace local mutation callbacks with server-backed or unsupported actions. Retain all screens visually, honor capabilities and never silently show fixtures after a live failure. Real session authorization remains a Django responsibility. Verify real login/logout, reload persistence and interrupted chat recovery before a separate production cutover review.
 
-- `src/components/` and `src/pages/`: mostly presentational UI.
-- `src/api/`: HTTP clients, auth/CSRF handling and SSE transport.
-- `src/hooks/`: server state and data coordination.
-- `src/types/`: explicit shared-facing API types.
-- `src/styles/`: visual tokens, theme and layout.
-- Keep mock/demo fixtures separate from real production data paths.
-- API integrations must not be implemented inline in large JSX components.
-
-## AI-assisted design workflow
-
-1. Visualize and adjust layouts in Google AI Studio Build.
-2. Use GitHub sync to review imported/upstream code and push UI changes.
-3. Use Codex to integrate frontend with Django, implement service logic and add tests.
-4. Review diffs and run frontend tests/build and backend API contract tests before release.
-5. Deploy frontend and backend independently after staging validation.
-
-**AI Studio may rewrite any file it edits. GitHub sync is not a semantic merge of business logic.** Avoid assigning generated editing tasks to API, auth, or infrastructure files. UI component contract changes must be code-reviewed.
-
-## Deployment direction
-
-- Frontend: Vite static build served from Nginx container.
-- Backend: existing Django containers/services.
-- Traefik: HTTPS routing; preferably frontend `/` and backend `/api/v1/` on one application origin.
-- Domain name, route map, session migration, CI/CD and production cutover require separate implementation decisions.
-- Do not automatically deploy unreviewed AI Studio commits to production.
-
-## Current status and constraints
-
-This document records an **architecture decision**, not completed integration. As of acceptance, the Mroya-web UI is largely a mock-driven React prototype: `App.tsx` owns local memory/chat/calendar state and fabricated responses. Authentication, persistent storage, server-side subscriptions and production API integration are not yet implemented here.
-
-Existing Django endpoints and behaviors must be inventoried before specifying final HTTP contracts. In particular, the existing chat SSE protocol, calendars, memory detail and map authorization should be reused with compatible adapters as needed.
-
-## Acceptance criteria for the first integration phase
-
-1. Existing visual appearance remains intact.
-2. Authentication and user permissions are enforced by Django.
-3. Chat replies and conversation history come from the backend and persist across refreshes.
-4. Memory and calendar operations use real backend APIs instead of local mock state.
-5. TypeScript build, API contract tests and basic end-to-end smoke checks pass.
-6. UI-only updates from AI Studio can be reviewed and incorporated without rewriting the API client.
+See [backend inventory](BACKEND_CONTRACT.md) and [Studio workflow](AI_STUDIO_WORKFLOW.md). CI performs type, contract, transport, boundary and separate bundle checks without deployment. Review visual changes and architecture together before independently releasing Web. Existing production releases/rollback are untouched.

@@ -6,3 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
+
+dist-design/
+.review-types/
+.research/
+
+.review-baseline/
+
+.preview-requests.log
+dist-studio

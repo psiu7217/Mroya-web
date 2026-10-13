@@ -1,3 +1,4 @@
+import type { AccountPresentation } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Plus,
@@ -27,7 +28,8 @@ import {
   ThemeMode,
 } from '../types/mroya';
 
-interface SidebarProps {
+export interface SidebarProps {
+  account: AccountPresentation;
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   conversations: Conversation[];
@@ -50,6 +52,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
+  account,
   activeSection,
   onSelectSection,
   conversations,
@@ -363,10 +366,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="px-3.5 py-2 border-b border-[var(--mroya-divider)]">
                 <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                  Alex Lindqvist
+                  {account.displayName}
                 </div>
                 <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
-                  alex@lindqvist.studio · {plan === 'premium' ? 'Mroya Premium' : 'Free'}
+                  {account.email} · {plan === 'premium' ? 'Mroya Premium' : 'Free'}
                 </div>
               </div>
 
@@ -480,11 +483,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[13px] font-semibold text-[var(--mroya-primary)] shrink-0">
-                AL
+                {account.initials}
               </div>
               <div className="text-left min-w-0">
                 <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
-                  Alex Lindqvist
+                  {account.displayName}
                 </div>
                 <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
                   Personal space

@@ -4,6 +4,7 @@ function files(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e
 const failures=[];
 for(const file of files('src').filter(f=>/\.[tj]sx?$/.test(f))){
  const text=fs.readFileSync(file,'utf8');
+ if(/(?:GuestExperience|useGuestChat|guestConversation)\.[tj]sx?$/.test(file)&&(/from\s*['"][^'"]*(?:\/api\/|liveSource|useSession)/.test(text)||/\b(fetch|localStorage|sessionStorage|EventSource)\b/.test(text)))failures.push(file+': guest cannot own transport or persistence');
  if(/^src\/(components|pages)\//.test(file)){
   if(/\b(fetch|XMLHttpRequest|EventSource)\s*\(|\b(localStorage|sessionStorage|document\.cookie)\b/.test(text))failures.push(file+': UI must not own network, session or storage');
   const imports=[...text.matchAll(/(?:import|export)\s+(?!type\b)[\s\S]*?\bfrom\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)];

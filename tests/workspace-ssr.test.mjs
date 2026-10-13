@@ -14,9 +14,21 @@ after(async()=>{await vite.close();});
  test('extracted workspace preserves original initial markup exactly',async()=>{
   // Materialize read-only upstream source into a disposable ignored directory, never modify production.
   fs.mkdirSync('.review-baseline',{recursive:true});
-  const archive=execFileSync('git',['archive','d869b42de9c9315a26e3a578c57f37ce1432b5e4','src']);execFileSync('tar',['-xf','-','-C','.review-baseline'],{input:archive});
-  const {default:OriginalApp}=await vite.ssrLoadModule('/.review-baseline/src/App.tsx');
-  assert.equal(render(),renderToStaticMarkup(React.createElement(OriginalApp)));
+  const archive=execFileSync('git',['archive','1fe0f3b','src']);execFileSync('tar',['-xf','-','-C','.review-baseline'],{input:archive});
+  const {WorkspaceView:OriginalView}=await vite.ssrLoadModule('/.review-baseline/src/pages/WorkspaceView.tsx');
+  const {useDemoWorkspace:originalModel}=await vite.ssrLoadModule('/.review-baseline/src/demo/useDemoWorkspace.ts');
+  function OriginalApp(){return React.createElement(OriginalView,{model:originalModel()});}
+  // Unique SVG paint-server IDs fix invisible mobile logos; normalize only these generated identifiers.
+  const stableIds=html=>html.replace(/mroya[^"()\s]*-(gold-grad|star-grad|ambient)/g,'mroya-$1');
+  assert.equal(stableIds(render()),stableIds(renderToStaticMarkup(React.createElement(OriginalApp))));
+  const ids=[...render().matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);
+ });
+ test('welcome, invitation and Studio login render without a transport',async()=>{
+  const {GuestWelcome}=await vite.ssrLoadModule('/src/components/GuestWelcome.tsx');
+  const {LoginScreen}=await vite.ssrLoadModule('/src/components/LoginScreen.tsx');
+  const typing=renderToStaticMarkup(React.createElement(GuestWelcome,{phase:'typing',onSignIn:()=>{}}));assert.equal((typing.match(/class="guest-dot"/g)||[]).length,3);assert.ok(typing.includes('Mroya is typing'));
+  const ready=renderToStaticMarkup(React.createElement(GuestWelcome,{phase:'ready',onSignIn:()=>{}}));assert.ok(ready.includes('Get started'));
+  const login=renderToStaticMarkup(React.createElement(LoginScreen,{pending:false,error:null,onSubmit:async()=>{}}));assert.match(login,/aria-label="Sign in with Google"/);assert.match(login,/Google sign-in — coming soon/);assert.match(login,/disabled=""/);
  });
  test('all preserved sections render in filled and empty scenarios',()=>{
   for(const seed of ['filled','empty'])for(const section of ['chat','memory','memory-map','calendar','reminders','connections'])assert.ok(render(seed,section).length>100);

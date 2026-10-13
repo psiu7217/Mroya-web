@@ -15,3 +15,5 @@ dist-design/
 
 .preview-requests.log
 dist-studio
+
+.preview-network-error

@@ -43,6 +43,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'chat' && (
           <>
             <ChatWorkspace
+              samples={model.composerSamples}
               account={account}
               memoriesCount={memories.length}
               conversation={activeConversation}

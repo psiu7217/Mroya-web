@@ -30,6 +30,9 @@ import {
 
 export interface SidebarProps {
   account: AccountPresentation;
+  onSignIn?: () => void;
+  onLogout?: () => void;
+  live?: boolean;
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   conversations: Conversation[];
@@ -52,7 +55,7 @@ export interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  account,
+  account, onSignIn, onLogout, live=false,
   activeSection,
   onSelectSection,
   conversations,
@@ -260,6 +263,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </li>
             );
           })}
+          {(live || onSignIn) && <li><button type="button" onClick={()=>{onOpenSettingsTab('settings');onCloseMobile();}} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[8px] text-[14px] text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface)]"><Settings className="w-4 h-4"/>Settings</button></li>}
         </ul>
       </nav>
 
@@ -305,7 +309,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {filteredConversations.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-[13px] text-[var(--mroya-text-muted)]">
-              No conversations matching &ldquo;{searchQuery}&rdquo;
+              {searchQuery ? <>No conversations matching &ldquo;{searchQuery}&rdquo;</> : 'Your conversations will appear here.'}
             </p>
           </div>
         )}
@@ -314,7 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Bottom Area: Subscription Status + User Account Menu */}
       <div className="p-3 border-t border-[var(--mroya-divider)] space-y-2.5 bg-[var(--mroya-surface-muted)]">
         {/* Subscription Presentation State (Free vs Mroya Premium) */}
-        {plan === 'free' ? (
+        {live || onSignIn ? <p className="px-3 py-2 text-xs text-[var(--mroya-text-muted)]">{onSignIn ? 'Your memory starts after sign in.' : 'Your personal workspace'}</p> : plan === 'free' ? (
           <div className="px-3 py-2.5 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
@@ -366,7 +370,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="px-3.5 py-2 border-b border-[var(--mroya-divider)]">
                 <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                  {account.displayName}
+                  {onSignIn ? 'Sign in' : account.displayName}
                 </div>
                 <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
                   {account.email} · {plan === 'premium' ? 'Mroya Premium' : 'Free'}
@@ -462,6 +466,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   role="menuitem"
                   onClick={() => {
                     setAccountMenuOpen(false);
+                    if (onLogout) {onLogout();return;}
+                    if (onSignIn) {onSignIn();return;}
                     setLogoutToast(true);
                     setTimeout(() => setLogoutToast(false), 3000);
                   }}
@@ -476,7 +482,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             type="button"
-            onClick={() => setAccountMenuOpen((prev) => !prev)}
+            onClick={() => onSignIn ? onSignIn() : setAccountMenuOpen((prev) => !prev)}
             aria-expanded={accountMenuOpen}
             aria-haspopup="menu"
             className="w-full flex items-center justify-between px-2.5 py-2 rounded-[10px] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
@@ -487,7 +493,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="text-left min-w-0">
                 <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
-                  {account.displayName}
+                  {onSignIn ? 'Sign in' : account.displayName}
                 </div>
                 <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
                   Personal space

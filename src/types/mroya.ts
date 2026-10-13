@@ -78,6 +78,8 @@ export interface ChatAction {
 }
 
 export interface ChatMessage {
+  signInPrompt?: boolean;
+  status?: string;
   id: string;
   sender: 'user' | 'assistant';
   timestamp: string;
@@ -105,7 +107,7 @@ export interface Conversation {
   relatedNodeId?: string;
 }
 
-export type MemoryCategory = 'People & Clients' | 'Agreements & Decisions' | 'Preferences' | 'Dates & Commitments';
+export type MemoryCategory = 'Personal memory' | 'People & Clients' | 'Agreements & Decisions' | 'Preferences' | 'Dates & Commitments';
 
 export interface MemoryItem {
   id: string;

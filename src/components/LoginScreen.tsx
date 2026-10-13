@@ -7,9 +7,10 @@ export interface LoginScreenProps {
   onSubmit: (username: string, password: string) => Promise<void>;
   onGoogleSignIn?: () => Promise<void> | void;
   design?: boolean;
+  embedded?: boolean;
 }
 
-export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design = false }: LoginScreenProps) {
+export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design = false, embedded = false }: LoginScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [googlePending, setGooglePending] = useState(false);
@@ -30,14 +31,14 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
     } else {
       setGoogleNotice(
         design
-          ? 'Google authorization simulated in design preview.'
+          ? 'Google sign-in is unavailable in this preview.'
           : 'Google sign-in is not configured on this server.'
       );
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-5 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
+    <main className={`${embedded ? "py-5" : "min-h-screen"} flex items-center justify-center px-5 bg-[var(--mroya-bg)] text-[var(--mroya-text)]`}>
       <form
         className="w-full max-w-sm p-6 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] space-y-5"
         onSubmit={async (event) => {
@@ -64,7 +65,8 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={pending || googlePending}
+            disabled={pending || googlePending || !onGoogleSignIn}
+            aria-describedby="google-availability"
             className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-full border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] active:scale-[0.99] text-sm font-medium text-[var(--mroya-text)] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
             aria-label="Sign in with Google"
           >
@@ -90,6 +92,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
           </button>
         </div>
 
+        {!onGoogleSignIn && <p id="google-availability" className="text-xs text-[var(--mroya-text-muted)] text-center">Google sign-in — coming soon.</p>}
         {/* Separator */}
         <div className="relative flex items-center justify-center">
           <div className="grow border-t border-[var(--mroya-divider)]" />
@@ -102,6 +105,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
         <label className="block text-sm">
           Username
           <input
+            autoFocus={embedded}
             name="username"
             autoComplete={design ? 'off' : 'username'}
             required

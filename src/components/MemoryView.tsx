@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { MemoryItem, MemoryCategory } from '../types/mroya';
 
-interface MemoryViewProps {
+export interface MemoryViewProps {
+  readOnly?: boolean;
   memories: MemoryItem[];
   selectedMemoryId: string | null;
   onSelectMemory: (id: string) => void;
@@ -37,6 +38,7 @@ const CATEGORIES: ('All' | MemoryCategory)[] = [
 ];
 
 export const MemoryView: React.FC<MemoryViewProps> = ({
+  readOnly=false,
   memories,
   selectedMemoryId,
   onSelectMemory,
@@ -61,7 +63,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<MemoryCategory>('Agreements & Decisions');
   const [newSummary, setNewSummary] = useState('');
-  const [newEntities, setNewEntities] = useState('Sarah Chen, Harbor Labs');
+  const [newEntities, setNewEntities] = useState('');
 
   const filteredMemories = memories.filter((m) => {
     const matchesCat = activeCategory === 'All' || m.category === activeCategory;
@@ -80,6 +82,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
     memories.find((m) => m.id === selectedMemoryId) || filteredMemories[0] || null;
 
   const startEditing = (mem: MemoryItem) => {
+    if(readOnly)return;
     setEditTitle(mem.title);
     setEditSummary(mem.summary);
     setEditDetails(mem.details);
@@ -148,6 +151,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
         <button
           type="button"
+          disabled={readOnly}
           onClick={() => setIsAddModalOpen(true)}
           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
         >
@@ -267,6 +271,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                       <>
                         <button
                           type="button"
+                          disabled={readOnly}
                           onClick={() => startEditing(activeMemory)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[12px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer"
                         >
@@ -275,6 +280,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         </button>
                         <button
                           type="button"
+                          disabled={readOnly}
                           onClick={() => onForgetMemory(activeMemory.id)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-error)]/15 text-[12px] font-semibold text-[var(--mroya-error)] transition-colors cursor-pointer"
                         >
@@ -432,7 +438,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g., Harbor Labs staging domain preference"
+                  placeholder="e.g., Preferred meeting time"
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[14px] text-[var(--mroya-text)]"
                 />
               </div>

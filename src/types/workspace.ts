@@ -4,6 +4,7 @@ import { NavSection, SubscriptionPlan, ThemeMode, Conversation, MemoryItem, Cale
 export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string }
 export interface WorkspaceModel {
     account: AccountPresentation;
+    composerSamples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
     activeSection: NavSection;
     isSidebarCollapsed: boolean;
     mobileMenuOpen: boolean;

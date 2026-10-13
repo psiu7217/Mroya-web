@@ -8,11 +8,11 @@ Use Node 22.12+ and `npm ci`, then `npm run dev`. This explicitly selects Design
 
 For a built preview: `npm run build:design` then `npm run preview -- --outDir dist-design --host 0.0.0.0`. If Studio does not expose build environment settings, use the explicit design script for its preview command. Never change the default production target just to make a preview work. Studio's runner controls its commands; inspect the preview banner to verify the selected target.
 
-Open the small **Design states** control at bottom left. Scenarios: filled, guest (editable login screen), user, empty, loading and error. `?scenario=guest` etc. are shortcuts in the design bundle only. Guest login is fictional; enter fictional values only. All original workspace sections remain available. Calendar/reminder/connection actions in this mode are local simulations. No backend or production credentials are needed.
+Open the small **Design states** control at bottom left. Scenarios: filled, user, empty, loading, error, guest (animated entry), guest-typing, guest-welcome, guest-login (Studio form in dialog), and guest-invite. `?scenario=guest` etc. are shortcuts in the design bundle only. Guest login is fictional; enter fictional values only. All original workspace sections remain available. Calendar/reminder/connection actions in this mode are local simulations. No backend or production credentials are needed.
 
 ## Safe editing scope
 
-- Visual edits: `src/components/`, `src/pages/WorkspaceView.tsx`, `src/index.css`, visual assets in `public/`.
+- Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.
 - Keep exported props and `src/types/workspace.ts` compatible. UI emits actions through props; it does not fetch, read cookies/storage, import demo sources, or implement authorization.
 - Architecture owned by Codex: `src/api/`, `src/hooks/`, `src/providers/`, `src/demo/`, `src/types/`, `src/App.tsx`, `src/build.d.ts`, Vite/package configuration, tests, CI and deployment files.
 - Demo fixtures/scenarios can be requested for a design task but changes need architecture review. Do not move demo logic into production components.
@@ -34,4 +34,4 @@ Run `npm run check:boundaries`, `npm run lint`, `npm test`, `npm run build:produ
 
 Check new screens with every relevant scenario and desktop/mobile viewport. Verify navigation, scrolling, dialogs, touch controls and login layout. Inspect browser errors and failed assets. The boundary scanner is a heuristic; reviewers must also inspect imports, side effects, mode selection and dependency changes. CI checks props, boundaries, API/SSE behavior, fixtures without networking and absence of demo code in the production bundle.
 
-This preparation branch must not be deployed yet: the authenticated live workspace adapter is the next task. When that task is complete, reviewed GitHub changes can be built as Production Mode and deployed using the existing independent Web release/rollback procedure. No automatic deployment is enabled by this CI.
+Guest entry and the minimum live workspace are implemented. Before production cutover, real Django end-to-end verification and a separate release review are required. Reviewed GitHub changes can then be built as Production Mode and deployed using the existing independent Web release/rollback procedure. No automatic deployment is enabled by this CI.

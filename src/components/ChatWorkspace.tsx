@@ -33,6 +33,12 @@ import {
 
 export interface ChatWorkspaceProps {
   account: AccountPresentation;
+  live?: boolean;
+  intro?: React.ReactNode;
+  onSignIn?: () => void;
+  onUnavailable?: () => void;
+  pending?: boolean;
+  samples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
   memoriesCount: number;
   conversation: Conversation | null;
   onSendMessage: (content: string, attachmentName?: string) => void;
@@ -60,7 +66,7 @@ const STARTER_SUGGESTIONS = [
 ];
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  account,
+  account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -95,14 +101,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const recognitionRef = useRef<any>(null);
   const timerIntervalRef = useRef<any>(null);
 
-  const sampleVoicePhrases = [
-    'Remember that Sarah confirmed we will review the design system tokens on Thursday at 2 PM.',
-    'Add a reminder to send the revised website proposal to Sarah Chen by Friday October 16.',
-    'Daniel mentioned he needs the updated typography scale and CSS custom properties by next Monday.',
-    'Elena Vance noted that all milestone invoices must include purchase order number HL-2026-09.',
-    'Remember that my protected deep work window is every morning before 11:00 AM.',
-  ];
-
+  const sampleVoicePhrases = samples?.voicePhrases ?? [];
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -110,6 +109,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const startRecording = () => {
+    if (onUnavailable) {onUnavailable();return;}
     setIsRecording(true);
     setRecordingSeconds(0);
     setLiveTranscript('');
@@ -232,7 +232,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [conversation?.messages.length, conversation?.id]);
 
   // Auto-resize multiline textarea
@@ -246,7 +246,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = input.trim();
-    if (!trimmed && !attachedFile) return;
+    if (pending || (!trimmed && !attachedFile)) return;
     onSendMessage(
       trimmed || `Shared attachment: ${attachedFile}`,
       attachedFile || undefined
@@ -268,7 +268,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleStarterClick = (promptText: string) => {
     if (promptText === 'Remember something important') {
       setInput(
-        'Remember that Sarah prefers receiving a 1-page written summary 24 hours before any design review call.'
+        samples?.memoryPrompt ?? 'Remember that '
       );
       textareaRef.current?.focus();
     } else {
@@ -277,10 +277,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const handleAttachSample = () => {
+    if (!samples) {onUnavailable?.();return;}
     if (attachedFile) {
       setAttachedFile(null);
     } else {
-      setAttachedFile('Harbor_Labs_Scope_Oct2026.pdf');
+      setAttachedFile(samples.attachmentName);
       textareaRef.current?.focus();
     }
   };
@@ -389,7 +390,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
                       <span className="font-semibold text-[var(--mroya-text)] truncate">
-                        {plan === 'premium' ? 'Mroya Premium' : 'Free Plan'}
+                        {live ? 'Personal workspace' : plan === 'premium' ? 'Mroya Premium' : 'Free Plan'}
                       </span>
                     </div>
                     <button
@@ -479,7 +480,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {/* Subscription state indicator & demo switch */}
             {plan === 'free' ? (
               <div className="flex items-center gap-1.5 text-[12px] text-[var(--mroya-text-muted)]">
-                <span>Free</span>
+                <span>{live ? 'Account' : 'Free'}</span>
                 <span aria-hidden="true">·</span>
                 <button
                   type="button"
@@ -576,7 +577,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                     <span>
-                      Switch to {plan === 'free' ? 'Premium' : 'Free'} preview
+                      {live ? 'Subscription unavailable' : <>Switch to {plan === 'free' ? 'Premium' : 'Free'} preview</>}
                     </span>
                   </button>
                 </div>
@@ -589,6 +590,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       {/* Main Scrollable Conversation Area */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-8 py-5 sm:py-8">
         <div className="max-w-[740px] mx-auto">
+          {intro}
           {hasMessages ? (
             <div className="space-y-6 sm:space-y-8 pb-6">
               {conversation.messages.map((msg) => {
@@ -631,6 +633,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                           {msg.timestamp}
                         </span>
+                        {msg.status && msg.status!=='completed' && <span role="status" className="text-xs text-[var(--mroya-text-muted)]">{msg.status==='failed'?'Reply failed':msg.status==='streaming'?'Receiving reply…':'Processing…'}</span>}
                       </div>
 
                       {/* Optional "Saved to memory" quiet acknowledgement */}
@@ -657,6 +660,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           {msg.content}
                         </p>
 
+                        {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">Sign in</button>}
                         {/* Structured recalled details if present */}
                         {msg.structuredPoints && msg.structuredPoints.length > 0 && (
                           <div className="pt-3 border-t border-[var(--mroya-divider)]/70 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
@@ -751,7 +755,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               })}
               <div ref={messagesEndRef} />
             </div>
-          ) : (
+          ) : intro ? null : (
             /* Restrained Empty New Conversation State */
             <div className="min-h-[58vh] flex flex-col items-center justify-center text-center px-4">
               <BrandMark size="lg" glow className="mb-5" />
@@ -762,7 +766,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 Good afternoon. What&apos;s on your mind?
               </h2>
               <p className="text-[14px] text-[var(--mroya-text-muted)] max-w-md mb-8">
-                Ask about past conversations, client agreements, upcoming deadlines, or tell Mroya something new to remember.
+                {live ? 'Ask about your conversations, or tell Mroya something to remember.' : 'Ask about past conversations, client agreements, upcoming deadlines, or tell Mroya something new to remember.'}
               </p>
 
               {/* 3 Subtle Starter Suggestions */}
@@ -931,7 +935,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                 <button
                   type="submit"
-                  disabled={!input.trim() && !attachedFile}
+                  disabled={pending || (!input.trim() && !attachedFile)}
                   aria-label="Send message"
                   className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >

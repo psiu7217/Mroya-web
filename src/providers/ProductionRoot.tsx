@@ -1,13 +1,16 @@
-import React,{useMemo} from 'react';
+import React,{useEffect,useMemo,useState} from 'react';
 import {createLiveSource} from './liveSource';
 import {useSession} from '../hooks/useSession';
-import {LoginScreen} from '../components/LoginScreen';
 import {BrandMark} from '../components/BrandMark';
+import {LoginDialog} from '../components/LoginDialog';
+import {GuestExperience} from './GuestExperience';
+import {LiveExperience} from './LiveExperience';
 export default function ProductionRoot(){
-  const source=useMemo(()=>createLiveSource(),[]);
-  const {session,pending,error,login,logout}=useSession(source);
-  if(session.status==='guest')return <LoginScreen pending={pending} error={error} onSubmit={login}/>;
-  return <main className="min-h-screen flex items-center justify-center bg-[var(--mroya-bg)] text-[var(--mroya-text)] p-6"><section className="max-w-lg space-y-4"><BrandMark size="lg"/>
-    {session.status==='loading'?<p role="status">Loading your session…</p>:session.status==='error'?<p role="alert">{session.message}</p>:<><h1 className="text-xl font-semibold">Welcome, {session.user.first_name||session.user.username}</h1><p>Session verified. The live workspace adapter is pending; this build is not approved for production cutover.</p><button onClick={()=>void logout()} disabled={pending} className="rounded-full px-4 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)]">Sign out</button></>}
-  </section></main>;
+ const source=useMemo(()=>createLiveSource(),[]);
+ const {session,pending,error,login,logout,refresh}=useSession(source);
+ const [loginOpen,setLoginOpen]=useState(false);
+ useEffect(()=>{if(session.status!=="guest")setLoginOpen(false);},[session.status]);
+ if(session.status==='loading'||session.status==='error')return <main className="min-h-dvh flex items-center justify-center bg-[var(--mroya-bg)] text-[var(--mroya-text)] p-6"><section className="max-w-md space-y-4"><BrandMark size="lg"/>{session.status==='loading'?<p role="status">Checking your session…</p>:<><p role="alert">We couldn’t check your session. {session.message}</p><button onClick={refresh} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)]">Try again</button></>}</section></main>;
+ if(session.status==='authenticated')return <LiveExperience key={session.user.id} source={source} user={session.user} onExpired={refresh} onLogout={()=>{setLoginOpen(false);void logout();}}/>;
+ return <><GuestExperience onSignIn={()=>setLoginOpen(true)}/>{loginOpen&&<LoginDialog pending={pending} error={error} onSubmit={async(username,password)=>{await login(username,password);}} onClose={()=>setLoginOpen(false)}/>}</>;
 }

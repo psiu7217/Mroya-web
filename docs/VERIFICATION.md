@@ -17,3 +17,12 @@ The local Production build opened with `?scenario=user&demo=true` stayed on actu
 ## Remaining validation
 
 Studio-specific runner settings and GitHub controls must be checked in the user's Studio project; current official workflow is documented with fallback. Real login/chat/persistence/recovery and capability-driven live UI are not end-to-end connected yet. No production changes or real user mutations were used to claim success. A separate cutover review is required.
+
+
+## Guest/session branch (2026-10-14)
+
+23 tests, typecheck, boundary scan, production demo-marker scan and both builds pass locally. Base was refreshed to synchronized Studio main 1fe0f3b; filled-workspace markup comparison normalizes only unique SVG gradient IDs. Studio logo paths/colors remain unchanged, and the mobile disappearance caused by duplicate gradient IDs is fixed.
+
+An isolated loopback HTTP fixture exercised the production transport end to end: wrong/correct password, session cookie, SSE response, server history after reload, memory/map, unavailable features, logout and /me server error with retry. Guest sends and section gates occurred before any auth POST and made no personal API request. Design guest states made zero API requests. Mobile 390x844 passed guest navigation/gate/dialog checks with no horizontal overflow; Username focus, Tab/Shift+Tab wrapping, Escape and trigger focus restoration were observed. Final browser console was clean. Fixture credentials/data are not real Django accounts or production data.
+
+Real Django HTTPS end-to-end checks using an approved test account remain a release requirement. Production deployment was not performed.

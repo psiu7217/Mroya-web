@@ -13,6 +13,7 @@ Open the small **Design states** control at bottom left. Scenarios: filled, user
 ## Safe editing scope
 
 - Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.
+- Keep package-lock.json in the repository; do not delete lockfiles or replace dependency configuration during a visual sync.
 - Keep exported props and `src/types/workspace.ts` compatible. UI emits actions through props; it does not fetch, read cookies/storage, import demo sources, or implement authorization.
 - Architecture owned by Codex: `src/api/`, `src/hooks/`, `src/providers/`, `src/demo/`, `src/types/`, `src/App.tsx`, `src/build.d.ts`, Vite/package configuration, tests, CI and deployment files.
 - Demo fixtures/scenarios can be requested for a design task but changes need architecture review. Do not move demo logic into production components.

@@ -26,3 +26,5 @@ Studio-specific runner settings and GitHub controls must be checked in the user'
 An isolated loopback HTTP fixture exercised the production transport end to end: wrong/correct password, session cookie, SSE response, server history after reload, memory/map, unavailable features, logout and /me server error with retry. Guest sends and section gates occurred before any auth POST and made no personal API request. Design guest states made zero API requests. Mobile 390x844 passed guest navigation/gate/dialog checks with no horizontal overflow; Username focus, Tab/Shift+Tab wrapping, Escape and trigger focus restoration were observed. Final browser console was clean. Fixture credentials/data are not real Django accounts or production data.
 
 Real Django HTTPS end-to-end checks using an approved test account remain a release requirement. Production deployment was not performed.
+
+CI caught that the latest Studio commit 1fe0f3b removed package-lock.json. The unchanged manifest was matched to the last reviewed lockfile, which is restored in this PR so fresh npm ci remains reproducible.

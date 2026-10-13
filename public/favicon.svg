@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2A251E"/>
+      <stop offset="100%" stop-color="#171513"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFE08F"/>
+      <stop offset="40%" stop-color="#DF9F35"/>
+      <stop offset="100%" stop-color="#B88536"/>
+    </linearGradient>
+    <linearGradient id="star" x1="16" y1="2" x2="16" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF3C4"/>
+      <stop offset="60%" stop-color="#DF9F35"/>
+      <stop offset="100%" stop-color="#B88536"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="9" fill="url(#bg)"/>
+  <rect width="30" height="30" x="1" y="1" rx="8" stroke="#DF9F35" stroke-opacity="0.25" stroke-width="1"/>
+  <!-- Dream Star (Зорка мроі) -->
+  <path d="M 16 3.5 C 16 6 17.2 7.2 19.8 7.2 C 17.2 7.2 16 8.4 16 11 C 16 8.4 14.8 7.2 12.2 7.2 C 14.8 7.2 16 6 16 3.5 Z" fill="url(#star)"/>
+  <!-- Soaring M Arches -->
+  <path d="M 7.2 23 C 7.2 14.8 9.8 9.8 12.4 9.8 C 14.5 9.8 15.5 13.5 16 16.2 C 16.5 13.5 17.5 9.8 19.6 9.8 C 22.2 9.8 24.8 14.8 24.8 23" stroke="url(#gold)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Confluence Node -->
+  <circle cx="16" cy="16.2" r="1.5" fill="#FFE08F"/>
+  <!-- Foundation Horizon Arc -->
+  <path d="M 9.8 22.5 C 13.2 24.2 18.8 24.2 22.2 22.5" stroke="url(#gold)" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+</svg>

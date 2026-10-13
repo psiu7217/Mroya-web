@@ -302,12 +302,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <button
               type="button"
               onClick={onNewChat}
-              className="flex items-center gap-2 text-left rounded-lg py-1 px-1 hover:opacity-90 transition-opacity cursor-pointer select-none"
+              className="group flex items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
+              title="Mroya (бел. «мроя») — светлая мара, летуценне і памяць"
             >
-              <BrandMark size="sm" />
-              <span className="text-[17px] font-semibold tracking-[-0.02em] text-[var(--mroya-text)]">
-                Mroya
-              </span>
+              <BrandMark size="sm" glow />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[16px] font-bold tracking-[-0.02em] text-[var(--mroya-text)] leading-none group-hover:text-[var(--mroya-primary)] transition-colors">
+                  Mroya
+                </span>
+                <span className="text-[8.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-0.5 opacity-75 uppercase">
+                  мроя · dream & memory
+                </span>
+              </div>
             </button>
           </div>
 
@@ -743,7 +749,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           ) : (
             /* Restrained Empty New Conversation State */
             <div className="min-h-[58vh] flex flex-col items-center justify-center text-center px-4">
-              <BrandMark size="lg" className="mb-5" />
+              <BrandMark size="lg" glow className="mb-5" />
               <h2
                 className="text-[24px] sm:text-[28px] font-semibold tracking-[-0.02em] text-[var(--mroya-text)] mb-2"
                 style={{ textWrap: 'balance' }}

@@ -1,33 +1,83 @@
 import React,{useState} from 'react';
-import {LiveWorkspace} from '../pages/LiveWorkspace';
+import {WorkspaceView} from '../pages/WorkspaceView';
 import {useLiveWorkspace} from '../hooks/useLiveWorkspace';
 import {useWorkspaceLayout} from '../hooks/useWorkspaceLayout';
 import {useUserPreferences} from '../hooks/useUserPreferences';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
 import type {WorkspaceSource} from '../types/source';
-import type {ConnectionsSettingsViewProps} from '../components/ConnectionsSettingsView';
+import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
+
 export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
  const {state,controller}=useLiveWorkspace(source,onExpired);
  const preferences=useUserPreferences(source,user,onExpired);
  const logout=()=>{preferences.stop();onLogout();};
  const layout=useWorkspaceLayout({theme:preferences.theme,onThemeChange:preferences.setTheme});
- const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null),[selectedMemory,setSelectedMemory]=useState<string|null>(null),[selectedNode,setSelectedNode]=useState<string|null>(null);
- const [settingsTab,setSettingsTab]=useState<ConnectionsSettingsViewProps['activeTab']>('connections');
- const account=accountPresentation({...user,nickname:preferences.nickname}),conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
+ const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null);
+ const [selectedMemory,setSelectedMemory]=useState<string|null>(null),[selectedNode,setSelectedNode]=useState<string|null>(null);
+ const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
+ const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
+ const account=accountPresentation({...user,nickname:preferences.nickname});
+ const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map)),graph=graphPresentation(state.map);
  const unavailable=()=>setNotice('This feature is not available on the current server. No changes have been saved.');
- const select=(s:NavSection)=>{if(s==='connections')setSettingsTab('connections');setSection(s);layout.closeMobile();setNotice(null);};
- const openSettings=(tab:ConnectionsSettingsViewProps['activeTab'])=>{select('connections');setSettingsTab(tab);};
- const openMemory=(id:string)=>{setSelectedMemory(id);select('memory');};
+ const select=(next:NavSection)=>{if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
+ const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(tab);};
+ const openMemory=(id:string)=>{
+  select('memory');
+  if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}
+  setSelectedMemory(id);setFocusedMemoryId(id);
+ };
+ const openMap=(id:string)=>{if(!id){setNotice('This memory has no displayed map node.');return;}setSelectedNode(id);select('memory-map');};
  const ask=(text:string)=>{select('chat');void controller.send(text);};
  const newChat=()=>{select('chat');setNotice('This server currently uses one conversation. Your history is preserved.');};
- return <LiveWorkspace settings={{account,connections:[],plan:'free',theme:preferences.theme,onSelectTheme:preferences.setTheme,
- activeTab:settingsTab,onChangeTab:setSettingsTab,isSidebarCollapsed:layout.collapsed,onExpandSidebar:layout.expand,onOpenMobileMenu:layout.openMobile,
- onToggleConnection:unavailable,onSelectPlan:unavailable,onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname(''),live:true,preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry}}} section={section} notice={notice} onCloseNotice={()=>setNotice(null)} error={state.error} loading={state.loading} busy={state.busy} onRefresh={()=>void controller.recover()} hasOlder={state.history.next_before!==null} onOlder={()=>void controller.older()} hasMoreMemories={state.memories.memories.length<state.memories.total} onMoreMemories={()=>void controller.moreMemories()} truncated={state.map.truncated===true||state.map.stats?.truncated===true}
- sidebar={{account,live:true,onLogout:logout,activeSection:section,onSelectSection:select,conversations:conversation?[conversation]:[],activeConversationId:conversation?.id??null,onSelectConversation:()=>select('chat'),onNewChat:newChat,plan:'free',onTogglePlan:unavailable,onOpenPlanModal:()=>openSettings('plan'),theme:layout.appearance,onToggleTheme:layout.toggleTheme,isCollapsed:layout.collapsed,onToggleCollapse:layout.toggleCollapse,mobileOpen:layout.mobile,onCloseMobile:layout.closeMobile,memoriesCount:state.memories.total,upcomingEventsCount:0,pendingRemindersCount:0,onOpenSettingsTab:openSettings}}
- chat={{account,live:true,memoriesCount:state.memories.total,conversation,onSendMessage:content=>void controller.send(content),pending:state.busy||state.loading||state.uncertain,onCitationClick:openMemory,onActionClick:unavailable,addedActionIds:[],isSidebarCollapsed:layout.collapsed,onExpandSidebar:layout.expand,onOpenMobileMenu:layout.openMobile,isContextPanelOpen:false,onToggleContextPanel:()=>select('memory'),plan:'free',onTogglePlan:unavailable,onOpenPlanModal:()=>openSettings('plan'),theme:layout.appearance,onToggleTheme:layout.toggleTheme,onNewChat:newChat,onOpenSettingsTab:openSettings,onUnavailable:unavailable}}
- memory={{memories,selectedMemoryId:selectedMemory,onSelectMemory:setSelectedMemory,onUpdateMemory:unavailable,onForgetMemory:unavailable,onAddMemory:unavailable,onExploreInMap:id=>{if(!id){setNotice('This memory has no displayed map node.');return;}setSelectedNode(id);select('memory-map');},onAskMroyaAbout:m=>ask('What do you know about '+m.title+'?'),isSidebarCollapsed:layout.collapsed,onExpandSidebar:layout.expand,onOpenMobileMenu:layout.openMobile}}
- map={{...graph,selectedNodeId:selectedNode,onSelectNode:setSelectedNode,onOpenMemory:openMemory,onAskAboutNode:n=>ask('What do you know about '+n.label+'?')}}/>;
+ const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}setFocusedMemoryId(id);setContextOpen(true);};
+ const model:WorkspaceModel={
+  runtime:{pending:state.busy||state.loading||state.uncertain||state.capabilities?.chat!==true,
+   loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
+   chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
+   calendarAvailable:false,remindersAvailable:false,memoriesTotal:state.memories.total,
+   hasOlder:state.history.next_before!==null,onOlder:()=>void controller.older(),
+   hasMoreMemories:memories.length<state.memories.total,onMoreMemories:()=>void controller.moreMemories(),
+   truncated:state.map.truncated===true||state.map.stats?.truncated===true,notice,onCloseNotice:()=>setNotice(null),
+   onUnavailable:unavailable,onLogout:logout,
+   preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry},
+   onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
+  account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
+  theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
+  conversations:conversation?[conversation]:[],activeConversationId:conversation?.id??null,activeConversation:conversation,
+  memories,nodes:graph.nodes,edges:graph.edges,events:[],reminders:[],connections:[],
+  reminderModalOpen:false,editingReminder:null,reminderPreselectedEventId:undefined,
+  isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
+  focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,
+  relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:false,
+  handleNewChat:newChat,handleSendMessage:content=>void controller.send(content),handleCitationClick:focusMemory,handleChatActionClick:unavailable,
+  handleAddOrUpdateReminder:unavailable,handleDeleteReminder:unavailable,handleToggleCompleteReminder:unavailable,
+  handleTogglePauseReminder:unavailable,handleUnlinkReminder:unavailable,handleSimulateGoogleSync:unavailable,
+  onSidebarSelectSection:select,onSidebarSelectConversation:()=>select('chat'),onSidebarTogglePlan:unavailable,
+  onSidebarOpenPlanModal:()=>openSettings('plan'),onSidebarToggleTheme:layout.toggleTheme,onSidebarToggleCollapse:layout.toggleCollapse,
+  onSidebarCloseMobile:layout.closeMobile,onSidebarOpenSettingsTab:openSettings,
+  onChatWorkspaceExpandSidebar:layout.expand,onChatWorkspaceOpenMobileMenu:layout.openMobile,
+  onChatWorkspaceToggleContextPanel:()=>setContextOpen(v=>!v),onChatWorkspaceTogglePlan:unavailable,
+  onChatWorkspaceOpenPlanModal:()=>openSettings('plan'),onChatWorkspaceToggleTheme:layout.toggleTheme,onChatWorkspaceOpenSettingsTab:openSettings,
+  onMemoryContextPanelClose:()=>setContextOpen(false),onMemoryContextPanelSelectMemory:focusMemory,
+  onMemoryContextPanelOpenInMemoryView:openMemory,onMemoryContextPanelOpenInMemoryMap:openMap,onMemoryContextPanelOpenInCalendar:unavailable,
+  onCalendarViewAddEvent:unavailable,onCalendarViewOpenMemory:openMemory,onCalendarViewOpenConnections:()=>openSettings('connections'),
+  onCalendarViewAddReminder:unavailable,onCalendarViewNavigateToReminders:()=>select('reminders'),
+  onCalendarViewExpandSidebar:layout.expand,onCalendarViewOpenMobileMenu:layout.openMobile,
+  onRemindersViewUpdateReminder:unavailable,onRemindersViewOpenCalendarEvent:unavailable,
+  onRemindersViewOpenNewReminderModal:unavailable,onRemindersViewOpenEditReminderModal:unavailable,
+  onRemindersViewExpandSidebar:layout.expand,onRemindersViewOpenMobileMenu:layout.openMobile,
+  onMemoryViewSelectMemory:id=>{setSelectedMemory(id);setFocusedMemoryId(id);},onMemoryViewUpdateMemory:unavailable,onMemoryViewForgetMemory:unavailable,onMemoryViewAddMemory:unavailable,
+  onMemoryViewExploreInMap:openMap,onMemoryViewAskMroyaAbout:m=>ask('What do you know about '+m.title+'?'),
+  onMemoryViewExpandSidebar:layout.expand,onMemoryViewOpenMobileMenu:layout.openMobile,
+  onMemoryMapViewSelectNode:setSelectedNode,onMemoryMapViewOpenMemory:openMemory,onMemoryMapViewAskAboutNode:n=>ask('What do you know about '+n.label+'?'),
+  onMemoryMapViewExpandSidebar:layout.expand,onMemoryMapViewOpenMobileMenu:layout.openMobile,
+  onConnectionsSettingsViewToggleConnection:unavailable,onConnectionsSettingsViewSelectPlan:unavailable,
+  onConnectionsSettingsViewSelectTheme:preferences.setTheme,onConnectionsSettingsViewChangeTab:setSettingsTab,
+  onConnectionsSettingsViewExpandSidebar:layout.expand,onConnectionsSettingsViewOpenMobileMenu:layout.openMobile,
+  onClosePlanPreview:unavailable,onPreviewFreePlan:unavailable,onPreviewPremiumPlan:unavailable,onReminderEditorModalClose:unavailable,
+ };
+ return <WorkspaceView model={model}/>;
 }

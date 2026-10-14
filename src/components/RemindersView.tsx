@@ -33,6 +33,7 @@ import {
 } from '../utils/recurrenceUtils';
 
 interface RemindersViewProps {
+  readOnly?:boolean;
   reminders: ReminderItem[];
   events: CalendarEvent[];
   onAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>, existingId?: string) => void;
@@ -52,6 +53,7 @@ interface RemindersViewProps {
 }
 
 export const RemindersView: React.FC<RemindersViewProps> = ({
+  readOnly=false,
   reminders,
   events,
   onAddReminder,
@@ -74,6 +76,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
   const handleSimulateSync = (reminderId: string, customMessage?: string) => {
+    if(readOnly)return;
     onSimulateGoogleSync(reminderId);
     setSyncToast(
       customMessage ||
@@ -85,6 +88,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   };
 
   const handleAdvanceOccurrence = (reminder: ReminderItem) => {
+    if(readOnly)return;
     if (onCompleteOccurrence) {
       onCompleteOccurrence(reminder.id);
     } else {
@@ -188,6 +192,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            disabled={readOnly}
             onClick={onOpenNewReminderModal}
             className="px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[13px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:shadow-sm"
           >
@@ -229,13 +234,14 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   Shared Schedule with Google Calendar
                 </span>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                  Test external modifications: recurring series & one-off reminder rules update synchronously without duplicating objects.
+                  {readOnly ? 'Calendar sync is not available yet.' : 'Test external modifications: recurring series & one-off reminder rules update synchronously without duplicating objects.'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() =>
                   handleSimulateSync(
                     'rem-weekly-meeting',
@@ -249,6 +255,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               </button>
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() =>
                   handleSimulateSync(
                     'rem-doctor-appt',
@@ -432,11 +439,12 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-sm mx-auto mt-1">
                     {searchQuery
                       ? 'No reminders match your current search query.'
-                      : 'You are all caught up! Create a standalone recurring reminder or link one to your calendar.'}
+                      : readOnly ? 'Reminders API is not available yet.' : 'You are all caught up! Create a standalone recurring reminder or link one to your calendar.'}
                   </p>
                 </div>
                 <button
                   type="button"
+                  disabled={readOnly}
                   onClick={onOpenNewReminderModal}
                   className="px-4 py-2 rounded-full bg-[var(--mroya-primary)] text-white text-[13px] font-semibold hover:bg-[var(--mroya-primary-hover)] transition-colors cursor-pointer"
                 >
@@ -476,6 +484,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {/* Complete Checkbox */}
             <button
               type="button"
+              disabled={readOnly}
               onClick={() => onToggleComplete(reminder.id)}
               aria-label={isCompleted ? 'Mark incomplete' : 'Mark completed'}
               className="mt-0.5 text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)] cursor-pointer transition-colors shrink-0"
@@ -600,6 +609,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {eff.isRecurring && !isCompleted && (
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() => handleAdvanceOccurrence(reminder)}
                 title="Mark this occurrence completed & schedule next occurrence"
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-500/30 cursor-pointer transition-colors mr-1"
@@ -613,6 +623,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {reminder.id === 'rem-doctor-appt' && (
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() =>
                   handleSimulateSync(
                     reminder.id,
@@ -630,6 +641,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {/* Pause / Resume */}
             <button
               type="button"
+              disabled={readOnly}
               onClick={() => onTogglePause(reminder.id)}
               title={isPaused ? 'Resume reminder' : 'Pause reminder'}
               aria-label={isPaused ? 'Resume' : 'Pause'}
@@ -641,6 +653,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {/* Edit */}
             <button
               type="button"
+              disabled={readOnly}
               onClick={() => onOpenEditReminderModal(reminder)}
               title="Edit reminder"
               aria-label="Edit"
@@ -653,6 +666,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {reminder.type === 'calendar_linked' && (
               <button
                 type="button"
+                disabled={readOnly}
                 onClick={() => onUnlinkReminder(reminder.id)}
                 title="Unlink from calendar event (keep reminder as standalone)"
                 aria-label="Unlink"
@@ -665,6 +679,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             {/* Delete */}
             <button
               type="button"
+              disabled={readOnly}
               onClick={() => onDeleteReminder(reminder.id)}
               title="Delete reminder"
               aria-label="Delete"

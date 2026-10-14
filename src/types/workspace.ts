@@ -2,8 +2,20 @@
 import type React from 'react';
 import { NavSection, SubscriptionPlan, ThemeMode, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
 export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string; nickname?:string }
+export interface WorkspaceRuntime {
+    pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
+    chatAvailable:boolean; memoryAvailable:boolean;
+    calendarAvailable:false; remindersAvailable:false; // No agreed REST contracts yet.
+    memoriesTotal:number; hasOlder:boolean; onOlder:()=>void; hasMoreMemories:boolean; onMoreMemories:()=>void;
+    truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
+    preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
+    onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
+}
 export interface WorkspaceModel {
+    runtime?:WorkspaceRuntime;
+    feedback?:Pick<WorkspaceRuntime,'loading'|'busy'|'error'|'onRetry'>;
     account: AccountPresentation;
+    calendarSamples?: {person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
     composerSamples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
     activeSection: NavSection;
     isSidebarCollapsed: boolean;

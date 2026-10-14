@@ -116,28 +116,95 @@ class DeployTests(unittest.TestCase):
   for required in ['npm ci --ignore-scripts --no-audit --no-fund','npm run lint','MROYA_BUILD_TARGET=production npm run build:production','node scripts/check-production.mjs','lock.packages','deepEqual']:self.assertIn(required,s)
   self.assertNotIn('npm install',s)
 class InstallerTests(unittest.TestCase):
- def test_syntax_failure_preserves_existing_files_and_success_only_replaces_two(self):
-  spec=importlib.util.spec_from_file_location('installer',DEPLOY/'install.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
-  with tempfile.TemporaryDirectory() as folder:
-   root=pathlib.Path(folder); config=root/'config';config.mkdir();target=root/'helper';target.write_text('old helper')
-   (config/'Dockerfile').write_text('old Dockerfile')
-   checkout=root/'checkout';checkout.mkdir()
-   def git(*args):
-    if args[0]=='remote':return m.REMOTE.encode()
-    if args[0]=='branch':return b'main'
-    if args[0]=='status':return b''
-    if args[0]=='rev-parse':return b'approved-sha'
-    return b'new Dockerfile' if args[-1].endswith('Dockerfile') else (DEPLOY/'mroya-web-deploy').read_bytes()
-   # Temporary destinations and fake ownership; never touch installed root files.
-   source=(DEPLOY/'install.py').read_text().replace("pathlib.Path('/usr/local/sbin/mroya-web-deploy')","pathlib.Path("+repr(str(target))+")")
-   # Re-import transformed source into this module.
-   exec(compile(source,str(DEPLOY/'install.py'),'exec'),m.__dict__)
-   with patch.object(m,'CHECKOUT',checkout),patch.object(m,'CONFIG',config),patch.object(m,'git',git),patch.object(m.os,'chown'),patch.object(pathlib.Path,'owner',lambda p:'psiu' if p in [checkout,checkout/'.git'] else 'root'):
-    with patch.object(m.subprocess,'run',side_effect=subprocess.CalledProcessError(2,['bash','-n'])):
-     with self.assertRaises(subprocess.CalledProcessError):m.update()
-    self.assertEqual(target.read_text(),'old helper');self.assertEqual((config/'Dockerfile').read_text(),'old Dockerfile')
-    m.update()
-    self.assertTrue(target.read_text().startswith('#!/usr/bin/env bash'))
-    self.assertEqual((config/'Dockerfile').read_text(),'new Dockerfile')
-    self.assertFalse(list(root.rglob('.mroya-web-update-*')))
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name)
+  self.config=self.root/'config';self.config.mkdir()
+  self.helper=self.root/'helper';self.helper.write_text('old helper');self.helper.chmod(0o750)
+  self.dockerfile=self.config/'Dockerfile';self.dockerfile.write_text('old Dockerfile');self.dockerfile.chmod(0o640)
+  (self.config/'compose.yaml').write_text('unchanged compose');(self.config/'nginx.conf').write_text('unchanged nginx')
+  self.checkout=self.root/'checkout';self.checkout.mkdir();(self.checkout/'.git').mkdir()
+  spec=importlib.util.spec_from_file_location('installer',DEPLOY/'install.py')
+  self.m=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.m)
+  source=(DEPLOY/'install.py').read_text().replace("pathlib.Path('/usr/local/sbin/mroya-web-deploy')","pathlib.Path("+repr(str(self.helper))+")")
+  exec(compile(source,str(DEPLOY/'install.py'),'exec'),self.m.__dict__)
+  self.raw_git=self.m.git;self.remote_sha='approved-sha';self.git_calls=[]
+  def git(*args):
+   self.git_calls.append(args)
+   if args[0]=='remote':return self.m.REMOTE.encode()
+   if args[0]=='branch':return b'main'
+   if args[0]=='status':return b''
+   if args[0]=='rev-parse':return b'approved-sha'
+   if args[0]=='ls-remote':
+    self.assertEqual(args,('ls-remote','--exit-code',self.m.REMOTE,'refs/heads/main'))
+    return (self.remote_sha+'\trefs/heads/main\n').encode()
+   self.assertEqual(args[0],'show')
+   return b'new Dockerfile' if args[-1].endswith('Dockerfile') else (DEPLOY/'mroya-web-deploy').read_bytes()
+  for name,value in [('CHECKOUT',self.checkout),('CONFIG',self.config),('git',git)]:
+   patcher=patch.object(self.m,name,value);patcher.start();self.addCleanup(patcher.stop)
+  patcher=patch.object(pathlib.Path,'owner',lambda p:'psiu' if p in [self.checkout,self.checkout/'.git'] else 'root')
+  patcher.start();self.addCleanup(patcher.stop)
+  patcher=patch.object(self.m.os,'chown');self.chown=patcher.start();self.addCleanup(patcher.stop)
+  patcher=patch.object(self.m.subprocess,'run',return_value=subprocess.CompletedProcess([],0));self.run=patcher.start();self.addCleanup(patcher.stop)
+  self.real_replace=os.replace
+  patcher=patch.object(self.m.os,'replace',wraps=self.real_replace);self.replace=patcher.start();self.addCleanup(patcher.stop)
+  self.before=self.snapshot()
+ def snapshot(self):
+  return {p:(p.read_bytes(),p.stat().st_mode&0o777) for p in self.root.rglob('*') if p.is_file()}
+ def assert_clean(self):
+  self.assertFalse(list(self.root.rglob('.mroya-web-update-*')))
+  self.assertFalse(any(c[0] in ['pull','reset','clean','checkout'] for c in self.git_calls))
+ def test_current_remote_main_allows_only_two_expected_replacements(self):
+  self.m.update();after=self.snapshot()
+  changed={p for p in after if after[p]!=self.before[p]}
+  self.assertEqual(changed,{self.helper,self.dockerfile});self.assertEqual(set(after),set(self.before))
+  self.assertEqual(self.dockerfile.read_bytes(),b'new Dockerfile')
+  self.assertEqual(self.helper.read_bytes(),(DEPLOY/'mroya-web-deploy').read_bytes())
+  self.assertEqual(after[self.helper][1],0o755);self.assertEqual(after[self.dockerfile][1],0o644)
+  self.assertEqual([c.args[1] for c in self.replace.call_args_list],[self.dockerfile,self.helper])
+  self.assertEqual(sum(c.args[1:]==(0,0) for c in self.chown.call_args_list),2)
+  self.assert_clean()
+ def test_stale_head_stops_before_staging_or_changing_files(self):
+  self.remote_sha='new-main-sha'
+  with self.assertRaisesRegex(RuntimeError,'synchronize and review'):self.m.update()
+  self.replace.assert_not_called();self.chown.assert_not_called();self.run.assert_not_called()
+  self.assertEqual(self.snapshot(),self.before);self.assert_clean()
+ def test_syntax_failure_preserves_installed_pair(self):
+  self.run.side_effect=subprocess.CalledProcessError(2,['bash','-n'])
+  with self.assertRaises(subprocess.CalledProcessError):self.m.update()
+  self.replace.assert_not_called();self.assertEqual(self.snapshot(),self.before);self.assert_clean()
+ def test_second_replace_error_restores_first_bytes_and_permissions(self):
+  count=0
+  def replace(source,target):
+   nonlocal count
+   count+=1
+   if count==2:raise OSError('simulated second replacement failure')
+   return self.real_replace(source,target)
+  self.replace.side_effect=replace
+  with self.assertRaisesRegex(RuntimeError,'prior files restored'):self.m.update()
+  self.assertEqual(self.snapshot(),self.before)
+  self.assertEqual([c.args[1] for c in self.replace.call_args_list],[self.dockerfile,self.helper,self.dockerfile])
+  self.assert_clean()
+ def test_failed_restoration_identifies_manual_check_and_cleans_temporary_data(self):
+  count=0
+  def replace(source,target):
+   nonlocal count
+   count+=1
+   if count in [2,3]:raise OSError('simulated replacement/restoration failure')
+   return self.real_replace(source,target)
+  self.replace.side_effect=replace
+  with self.assertRaises(RuntimeError) as caught:self.m.update()
+  self.assertIn(str(self.dockerfile),str(caught.exception));self.assertIn('manual verification required',str(caught.exception))
+  self.assertEqual(self.helper.read_text(),'old helper');self.assert_clean()
+ def test_first_replace_error_leaves_both_files_unchanged(self):
+  self.replace.side_effect=OSError('simulated first replacement failure')
+  with self.assertRaisesRegex(RuntimeError,'prior files restored'):self.m.update()
+  self.assertEqual(self.snapshot(),self.before);self.assert_clean()
+ def test_remote_git_uses_only_existing_psiu_https_credentials(self):
+  self.run.return_value=subprocess.CompletedProcess([],0,stdout=b'approved-sha\trefs/heads/main\n')
+  self.raw_git('ls-remote','--exit-code',self.m.REMOTE,'refs/heads/main')
+  args=self.run.call_args.args[0]
+  self.assertEqual(args[:6],['sudo','-u','psiu','-H','env','GIT_TERMINAL_PROMPT=0'])
+  self.assertIn('credential.helper=store --file=/home/psiu/.config/mroya/git-credentials',args)
+  self.assertEqual(args[-4:],['ls-remote','--exit-code',self.m.REMOTE,'refs/heads/main'])
+  self.assertEqual(self.run.call_args.kwargs['stderr'],subprocess.PIPE)
 if __name__=='__main__':unittest.main()

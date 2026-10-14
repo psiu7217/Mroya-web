@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {Menu} from 'lucide-react';
 import {Sidebar,type SidebarProps} from '../components/Sidebar';
 import {ChatWorkspace,type ChatWorkspaceProps} from '../components/ChatWorkspace';
@@ -16,7 +16,12 @@ export interface LiveWorkspaceProps {
 export function LiveWorkspace(props:LiveWorkspaceProps) {
  const {sidebar,chat,memory,map,section}=props;
  const [nicknameDraft,setNicknameDraft]=useState(props.settings.nickname);
- useEffect(()=>setNicknameDraft(props.settings.nickname),[props.settings.nickname]);
+ const previousNickname=useRef(props.settings.nickname);
+ useEffect(()=>{
+  const previous=previousNickname.current;
+  setNicknameDraft(draft=>draft===previous?props.settings.nickname:draft);
+  previousNickname.current=props.settings.nickname;
+ },[props.settings.nickname]);
  return <div className="flex h-dvh w-full overflow-hidden bg-[var(--mroya-bg)] text-[var(--mroya-text)]"><Sidebar {...sidebar}/><main className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
  {(props.error||props.loading||props.busy)&&<div role={props.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)]">{props.error??(props.busy?'Mroya is working…':'Loading your workspace…')}{props.error&&<button disabled={props.busy||props.loading} onClick={props.onRefresh} className="ml-3 underline">Check server status</button>}</div>}
  {section==='chat'?<><div className="px-4 text-xs">{props.hasOlder&&<button disabled={props.loading||props.busy} onClick={props.onOlder} className="py-2 underline">Load earlier messages</button>}</div><ChatWorkspace {...chat}/></>:
@@ -37,9 +42,9 @@ export function LiveWorkspace(props:LiveWorkspaceProps) {
   <h2 className="font-semibold">Profile</h2>
   <p className="text-sm text-[var(--mroya-text-muted)]">{sidebar.account.displayName} · {sidebar.account.email}</p>
   <p className="text-sm text-[var(--mroya-text-muted)]">Time zone: {sidebar.account.timezone||'Not set'}</p>
-  <form onSubmit={event=>{event.preventDefault();props.settings.onSaveNickname(nicknameDraft);}} className="space-y-2">
+  <form onSubmit={event=>{event.preventDefault();setNicknameDraft(nicknameDraft.trim());props.settings.onSaveNickname(nicknameDraft);}} className="space-y-2">
    <label htmlFor="mroya-nickname" className="block text-sm font-medium">Nickname</label>
-   <input id="mroya-nickname" type="text" autoComplete="nickname" maxLength={80} value={nicknameDraft} onChange={event=>setNicknameDraft(event.target.value)} className="w-full rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3 py-2 text-[var(--mroya-text)]"/>
+   <input id="mroya-nickname" type="text" autoComplete="nickname" value={nicknameDraft} onChange={event=>setNicknameDraft(event.target.value)} className="w-full rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3 py-2 text-[var(--mroya-text)]"/>
    <div className="flex flex-wrap gap-3">
     <button type="submit" className="rounded-full bg-[var(--mroya-primary)] px-4 py-2 text-sm font-medium text-[var(--mroya-on-primary)]">Save nickname</button>
     <button type="button" className="text-sm underline" onClick={()=>{setNicknameDraft('');props.settings.onSaveNickname('');}}>Clear nickname</button>

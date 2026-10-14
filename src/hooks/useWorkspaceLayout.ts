@@ -16,10 +16,11 @@ export function useWorkspaceLayout(options:{guest?:boolean;theme?:ThemeMode;onTh
   const [collapsed,setCollapsed]=useState(false),[mobile,setMobile]=useState(false);
   const [localTheme,setLocalTheme]=useState<ThemeMode>(()=>options.guest?readGuestTheme():options.theme??'light');
   const theme=options.theme??localTheme;
+  const [appearance,setAppearance]=useState<'light'|'dark'>(()=>resolvedTheme(theme,typeof window!=='undefined'&&window.matchMedia?.('(prefers-color-scheme: dark)')?.matches===true));
   useEffect(()=>{
     if(typeof window==='undefined')return;
     const media=window.matchMedia?.('(prefers-color-scheme: dark)');
-    const apply=()=>document.documentElement.setAttribute('data-theme',resolvedTheme(theme,media?.matches===true));
+    const apply=()=>{const value=resolvedTheme(theme,media?.matches===true);setAppearance(value);document.documentElement.setAttribute('data-theme',value);};
     apply();
     media?.addEventListener?.('change',apply);
     return()=>{media?.removeEventListener?.('change',apply);document.documentElement.removeAttribute('data-theme');};
@@ -35,5 +36,5 @@ export function useWorkspaceLayout(options:{guest?:boolean;theme?:ThemeMode;onTh
     const mediaDark=typeof window!=='undefined'&&window.matchMedia?.('(prefers-color-scheme: dark)')?.matches===true;
     selectTheme(resolvedTheme(theme,mediaDark)==='dark'?'light':'dark');
   };
-  return {collapsed,mobile,theme,selectTheme,toggleCollapse:()=>setCollapsed(v=>!v),expand:()=>setCollapsed(false),openMobile:()=>setMobile(true),closeMobile:()=>setMobile(false),toggleTheme};
+  return {collapsed,mobile,theme,appearance,selectTheme,toggleCollapse:()=>setCollapsed(v=>!v),expand:()=>setCollapsed(false),openMobile:()=>setMobile(true),closeMobile:()=>setMobile(false),toggleTheme};
 }

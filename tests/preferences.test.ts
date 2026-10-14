@@ -83,3 +83,83 @@ test('system preference resolves without changing saved theme, guest defaults sa
  assert.equal(resolvedTheme('system',true),'dark');assert.equal(resolvedTheme('system',false),'light');
  assert.equal(resolvedTheme('dark',false),'dark');assert.equal(readGuestTheme(),'system');
 });
+
+test('editing after an ambiguous committed write stays unsaved until explicit reconciliation',async()=>{
+ let reads=0,writes=0;let server=user;
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{writes++;server=updated(p);if(writes===1)throw Error('Lost response');return server;},session:async()=>{reads++;return {status:'authenticated',user:server};}}),7,user,()=>{});
+ s.setTheme('dark');await nextTick();s.setTheme('system');await nextTick();
+ assert.equal(writes,1);assert.equal(s.snapshot().status,'unsaved');
+ await s.retry();await nextTick();assert.equal(reads,1);assert.equal(writes,2);assert.equal(s.snapshot().theme,'system');assert.equal(s.snapshot().status,'saved');s.dispose();
+});
+test('retry reconciliation is single-flight and edits cannot PATCH ahead of its response',async()=>{
+ let reads=0,writes=0;let finish!:(value:Awaited<ReturnType<WorkspaceSource['session']>>)=>void;
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{writes++;if(writes===1)throw new ApiError(500,'failed','Failed');return updated(p);},session:async()=>{reads++;return new Promise(resolve=>{finish=resolve;});}}),7,user,()=>{});
+ s.setTheme('dark');await nextTick();const retry=s.retry();void s.retry();s.setNickname('Latest');
+ assert.equal(reads,1);assert.equal(writes,1);
+ finish({status:'authenticated',user});await retry;await nextTick();
+ assert.equal(writes,2);assert.equal(s.snapshot().nickname,'Latest');assert.equal(s.snapshot().theme,'dark');s.dispose();
+});
+test('normalizing an old nickname response does not overwrite a newer nickname or theme',async()=>{
+ let finish!:(u:ApiUser)=>void;const sent:PreferencesPatch[]=[];
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{sent.push(p);return new Promise(resolve=>{finish=resolve;});}}),7,user,()=>{});
+ s.setNickname(' Alice ');s.setNickname('Bob');s.setTheme('dark');
+ finish(updated({nickname:'Alice'}));await nextTick();
+ assert.deepEqual(sent,[{nickname:'Alice'},{nickname:'Bob',theme:'dark'}]);
+ assert.equal(s.snapshot().nickname,'Bob');assert.equal(s.snapshot().theme,'dark');
+ finish(updated({nickname:'Bob',theme:'dark'}));await nextTick();assert.equal(s.snapshot().status,'saved');s.dispose();
+});
+test('server changes to untouched fields are adopted without unintended PATCH overwrite',async()=>{
+ const patches:PreferencesPatch[]=[];const s=new UserPreferenceStore(source({savePreferences:async p=>{patches.push(p);return updated({...p,nickname:'Server nickname'});}}),7,user,()=>{});
+ s.setTheme('dark');await nextTick();assert.equal(s.snapshot().nickname,'Server nickname');assert.equal(patches.length,1);s.dispose();
+});
+test('failed CSRF refresh cannot release a PATCH; editing is queued until manual retry',async()=>{
+ let writes=0,refreshes=0;
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{writes++;if(writes===1)throw new ApiError(403,'csrf_failed','Rejected');return updated(p);},refreshCsrf:async()=>{refreshes++;if(refreshes<=2)throw Error('Offline CSRF');return 'valid';}}),7,user,()=>{});
+ s.setTheme('dark');await nextTick();s.setTheme('light');await nextTick();assert.equal(writes,1);
+ await s.retry();await nextTick();assert.equal(writes,1);assert.equal(s.snapshot().status,'unsaved');
+ await s.retry();await nextTick();assert.equal(writes,2);assert.equal(s.snapshot().status,'saved');s.dispose();
+});
+test('401 and wrong-user responses terminate the queue even before React unmounts',async()=>{
+ for(const reply of ['expired','other-user']){
+  let writes=0,expired=0;const s=new UserPreferenceStore(source({savePreferences:async()=>{writes++;if(reply==='expired')throw new ApiError(401,'authentication_required','Expired');return {...user,id:8};}}),7,user,()=>{expired++;});
+  s.setTheme('dark');await nextTick();s.setNickname('Must not submit');await s.retry();
+  assert.equal(writes,1);assert.equal(expired,1);assert.equal(s.snapshot().status,'unsaved');
+ }
+});
+test('disposing during retry aborts its read and ignores a response from the old account',async()=>{
+ let signal:AbortSignal|undefined;let finish!:(v:Awaited<ReturnType<WorkspaceSource['session']>>)=>void;let writes=0,expired=0;
+ const s=new UserPreferenceStore(source({savePreferences:async()=>{writes++;throw Error('Network');},session:async abort=>{signal=abort;return new Promise(resolve=>{finish=resolve;});}}),7,user,()=>{expired++;});
+ s.setTheme('dark');await nextTick();const retry=s.retry();s.dispose();assert.equal(signal?.aborted,true);
+ finish({status:'authenticated',user:{...user,id:8}});await retry;assert.equal(writes,1);assert.equal(expired,0);
+});
+test('nickname validation counts trimmed Unicode characters and requires correction',async()=>{
+ let calls=0;const s=new UserPreferenceStore(source({savePreferences:async p=>{calls++;return updated(p);}}),7,user,()=>{});
+ s.setNickname(' '+ '😀'.repeat(80)+' ');await nextTick();assert.equal(calls,1);assert.equal(s.snapshot().status,'saved');
+ s.setNickname('😀'.repeat(81));await s.retry();await nextTick();assert.equal(calls,1);assert.equal(s.snapshot().status,'unsaved');
+ s.setNickname('');await nextTick();assert.equal(calls,2);assert.equal(s.snapshot().nickname,'');s.dispose();
+});
+
+test('guest theme storage is separate, validates values and tolerates blocked storage',()=>{
+ const original=(globalThis as unknown as Record<string,unknown>).window;
+ try{
+  for(const choice of ['system','light','dark','invalid']){
+   (globalThis as unknown as Record<string,unknown>).window={localStorage:{getItem(key:string){assert.equal(key,'mroya:guest-theme');return choice;}}};
+   assert.equal(readGuestTheme(),choice==='invalid'?'system':choice);
+  }
+  (globalThis as unknown as Record<string,unknown>).window={localStorage:{getItem(){throw Error('Storage denied');}}};
+  assert.equal(readGuestTheme(),'system');
+ }finally{(globalThis as unknown as Record<string,unknown>).window=original;}
+});
+test('invalid nickname entered during reconciliation cannot become falsely saved',async()=>{
+ let finish!:(v:Awaited<ReturnType<WorkspaceSource['session']>>)=>void;let calls=0;
+ const s=new UserPreferenceStore(source({savePreferences:async()=>{calls++;throw Error('Lost response');},session:async()=>new Promise(resolve=>{finish=resolve;})}),7,user,()=>{});
+ s.setTheme('dark');await nextTick();const retry=s.retry();s.setNickname('x'.repeat(81));
+ finish({status:'authenticated',user});await retry;await nextTick();
+ assert.equal(calls,1);assert.equal(s.snapshot().status,'unsaved');assert.match(s.snapshot().error??'',/80/);s.dispose();
+});
+
+test('nickname initials preserve Unicode and whitespace names fall back to username',()=>{
+ assert.equal(accountPresentation(updated({nickname:'😀 One'})).initials,'😀O');
+ assert.equal(accountPresentation({...user,first_name:' ',last_name:' '}).displayName,'account');
+ assert.equal(user.id,7);assert.equal(user.username,'account');
+});

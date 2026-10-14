@@ -26,7 +26,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         plan={plan}
         onTogglePlan={onSidebarTogglePlan}
         onOpenPlanModal={onSidebarOpenPlanModal}
-        theme={theme}
+        theme={model.appearance??theme}
         onToggleTheme={onSidebarToggleTheme}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={onSidebarToggleCollapse}
@@ -59,7 +59,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               plan={plan}
               onTogglePlan={onChatWorkspaceTogglePlan}
               onOpenPlanModal={onChatWorkspaceOpenPlanModal}
-              theme={theme}
+              theme={model.appearance??theme}
               onToggleTheme={onChatWorkspaceToggleTheme}
               onNewChat={handleNewChat}
               onOpenSettingsTab={onChatWorkspaceOpenSettingsTab}

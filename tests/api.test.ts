@@ -192,3 +192,17 @@ test('preferences invalid shape exposes validation fields without retry',async()
  await assert.rejects(api.savePreferences({nickname:'test'}),(error:unknown)=>error instanceof ApiError&&error.status===400&&Array.isArray(error.fields?.nickname));
  assert.equal(writes,1);
 });
+
+test('preferences empty no-op is allowed, malformed users cannot authenticate',async()=>{
+ const api=new MroyaApi(fakeFetch(url=>url.endsWith('csrf/')?json({csrf_token:'token'}):json({user})));
+ assert.deepEqual(await api.savePreferences({}),user);
+ for(const invalid of [{...user,id:NaN},{...user,id:1.5},{...user,nickname:'x'.repeat(81)},{...user,preferences:{theme:'invalid'}},{...user,preferences:[]}]){
+  await assert.rejects(new MroyaApi(fakeFetch(()=>json({user:invalid}))).me(),ApiError);
+ }
+});
+test('preferences HTTP/CSRF failures do not automatically replay PATCH',async()=>{
+ for(const status of [400,401,403,500]){
+  let writes=0;const api=new MroyaApi(fakeFetch(url=>url.endsWith('csrf/')?json({csrf_token:'fresh'}):(writes++,json({error:{code:status===403?'csrf_failed':'failed'}},status))));
+  await assert.rejects(api.savePreferences({theme:'dark'}),ApiError);assert.equal(writes,1);
+ }
+});

@@ -1,7 +1,7 @@
 // Stable shared UI contract. Only coordinated, reviewed changes should alter this interface.
 import type React from 'react';
 import { NavSection, SubscriptionPlan, ThemeMode, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
-export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string }
+export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string; nickname?:string }
 export interface WorkspaceModel {
     account: AccountPresentation;
     composerSamples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};

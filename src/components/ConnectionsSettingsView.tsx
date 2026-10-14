@@ -11,12 +11,39 @@ import {
   Shield,
   Menu,
   PanelLeftOpen,
+  ChevronDown,
 } from 'lucide-react';
 import {
   ServiceConnection,
   SubscriptionPlan,
   ThemeMode,
 } from '../types/mroya';
+
+const COMMON_TIMEZONES = [
+  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+  { value: 'Europe/London', label: 'Europe/London (GMT / BST)' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin (CET / CEST)' },
+  { value: 'Europe/Warsaw', label: 'Europe/Warsaw (CET / CEST)' },
+  { value: 'Europe/Stockholm', label: 'Europe/Stockholm (CET / CEST)' },
+  { value: 'Europe/Kyiv', label: 'Europe/Kyiv (EET / EEST)' },
+  { value: 'Europe/Vilnius', label: 'Europe/Vilnius (EET / EEST)' },
+  { value: 'Europe/Minsk', label: 'Europe/Minsk (MSK, UTC+3)' },
+  { value: 'Europe/Moscow', label: 'Europe/Moscow (MSK, UTC+3)' },
+  { value: 'Europe/Istanbul', label: 'Europe/Istanbul (TRT, UTC+3)' },
+  { value: 'Asia/Tbilisi', label: 'Asia/Tbilisi (GET, UTC+4)' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST, UTC+4)' },
+  { value: 'Asia/Almaty', label: 'Asia/Almaty (UTC+5)' },
+  { value: 'Asia/Tashkent', label: 'Asia/Tashkent (UZT, UTC+5)' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT, UTC+8)' },
+  { value: 'Asia/Hong_Kong', label: 'Asia/Hong_Kong (HKT, UTC+8)' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (JST, UTC+9)' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST / AEDT)' },
+  { value: 'America/New_York', label: 'America/New_York (EST / EDT)' },
+  { value: 'America/Chicago', label: 'America/Chicago (CST / CDT)' },
+  { value: 'America/Denver', label: 'America/Denver (MST / MDT)' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (PST / PDT)' },
+  { value: 'America/Sao_Paulo', label: 'America/Sao_Paulo (BRT, UTC-3)' },
+];
 
 export interface ConnectionsSettingsViewProps {
   account: AccountPresentation;
@@ -31,6 +58,9 @@ export interface ConnectionsSettingsViewProps {
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
   onOpenMobileMenu: () => void;
+  onSaveNickname?: (nickname: string) => void;
+  onClearNickname?: () => void;
+  onChangeTimezone?: (timezone: string) => void;
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
@@ -46,7 +76,48 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   isSidebarCollapsed,
   onExpandSidebar,
   onOpenMobileMenu,
+  onSaveNickname,
+  onClearNickname,
+  onChangeTimezone,
 }) => {
+  const [nicknameDraft, setNicknameDraft] = React.useState(account.nickname || '');
+  const [selectedTimezone, setSelectedTimezone] = React.useState(account.timezone || 'UTC');
+  const [saveStatus, setSaveStatus] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setNicknameDraft(account.nickname || '');
+  }, [account.nickname]);
+
+  React.useEffect(() => {
+    setSelectedTimezone(account.timezone || 'UTC');
+  }, [account.timezone]);
+
+  const availableTimezones = React.useMemo(() => {
+    const list = [...COMMON_TIMEZONES];
+    if (account.timezone && !list.some((tz) => tz.value === account.timezone || tz.label.startsWith(account.timezone))) {
+      list.unshift({ value: account.timezone, label: account.timezone });
+    }
+    return list;
+  }, [account.timezone]);
+
+  const handleSaveNickname = () => {
+    onSaveNickname?.(nicknameDraft);
+    setSaveStatus('Saved');
+    setTimeout(() => setSaveStatus(null), 2000);
+  };
+
+  const handleClearNickname = () => {
+    setNicknameDraft('');
+    onClearNickname?.();
+    setSaveStatus('Cleared');
+    setTimeout(() => setSaveStatus(null), 2000);
+  };
+
+  const handleTimezoneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextTz = e.target.value;
+    setSelectedTimezone(nextTz);
+    onChangeTimezone?.(nextTz);
+  };
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
     label: string;
@@ -310,32 +381,100 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
           )}
 
           {activeTab === 'profile' && (
-            <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[16px] font-semibold text-[var(--mroya-primary)]">
+            <div className="p-5 sm:p-6 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">
+              {/* Profile identity header */}
+              <div className="flex items-center gap-3.5 pb-4 border-b border-[var(--mroya-divider)]">
+                <div className="w-12 h-12 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[16px] font-semibold text-[var(--mroya-primary)] shrink-0">
                   {account.initials}
                 </div>
-                <div>
-                  <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+                <div className="min-w-0">
+                  <h2 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
                     {account.displayName}
                   </h2>
-                  <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                    {account.email} · {account.description}
+                  <p className="text-[13px] text-[var(--mroya-text-muted)] truncate">
+                    {account.email}{account.description ? ` · ${account.description}` : ''}
                   </p>
                 </div>
               </div>
-              <div className="pt-3 border-t border-[var(--mroya-divider)] grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px]">
-                <div>
-                  <div className="text-[var(--mroya-text-muted)]">Personal space</div>
-                  <div className="font-medium text-[var(--mroya-text)]">
-                    {account.spaceDescription}
+
+              {/* Nickname section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="mroya-profile-nickname" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
+                    Nickname
+                  </label>
+                  {saveStatus && (
+                    <span className="text-[12px] font-medium text-[var(--mroya-primary)]">
+                      {saveStatus}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <input
+                    id="mroya-profile-nickname"
+                    type="text"
+                    autoComplete="nickname"
+                    value={nicknameDraft}
+                    onChange={(e) => setNicknameDraft(e.target.value)}
+                    placeholder="Enter your nickname"
+                    maxLength={80}
+                    className="flex-1 min-w-[200px] rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2 text-[13px] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors"
+                  />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleSaveNickname}
+                      className="px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearNickname}
+                      className="px-3 py-2 rounded-full text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
+                      title="Clear nickname"
+                    >
+                      Clear
+                    </button>
                   </div>
                 </div>
-                <div>
-                  <div className="text-[var(--mroya-text-muted)]">Time zone</div>
-                  <div className="font-medium text-[var(--mroya-text)]">
-                    {account.timezone}
+                <p className="text-[12px] text-[var(--mroya-text-muted)]">
+                  How Mroya addresses you in personal conversations and greetings.
+                </p>
+              </div>
+
+              {/* Time zone section */}
+              <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">
+                <label htmlFor="mroya-timezone-select" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
+                  Time zone
+                </label>
+                <div className="relative">
+                  <select
+                    id="mroya-timezone-select"
+                    value={selectedTimezone}
+                    onChange={handleTimezoneChange}
+                    className="w-full appearance-none rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2.5 pr-10 text-[13px] text-[var(--mroya-text)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors cursor-pointer"
+                  >
+                    {availableTimezones.map((tz) => (
+                      <option key={tz.value} value={tz.value} className="bg-[var(--mroya-surface)] text-[var(--mroya-text)]">
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-[var(--mroya-text-muted)]">
+                    <ChevronDown className="w-4 h-4" />
                   </div>
+                </div>
+                <p className="text-[12px] text-[var(--mroya-text-muted)]">
+                  Select your time zone so Mroya can accurately schedule reminders and coordinate calendar events.
+                </p>
+              </div>
+
+              {/* Personal space summary */}
+              <div className="pt-3 border-t border-[var(--mroya-divider)] text-[13px]">
+                <div className="text-[var(--mroya-text-muted)]">Personal space</div>
+                <div className="font-medium text-[var(--mroya-text)] mt-0.5">
+                  {account.spaceDescription || 'Personal space'}
                 </div>
               </div>
             </div>

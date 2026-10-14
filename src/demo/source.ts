@@ -1,4 +1,4 @@
-export const DEMO_ACCOUNT = {displayName:'Alex Lindqvist',initials:'AL',email:'alex@lindqvist.studio',description:'Independent Design Director',timezone:'Europe/Stockholm (CET)',spaceDescription:'Client Advisory & Studio Operations'};
+export const DEMO_ACCOUNT = {displayName:'Alex Lindqvist',initials:'AL',email:'alex@lindqvist.studio',description:'Independent Design Director',timezone:'Europe/Stockholm (CET)',spaceDescription:'Client Advisory & Studio Operations',nickname:'Alex'};
 import { INITIAL_CONVERSATIONS, INITIAL_MEMORIES, INITIAL_GRAPH_NODES, INITIAL_GRAPH_EDGES } from './fixtures.ts';
 import type { WorkspaceSource, SessionState } from '../types/source.ts';
 export function createDesignSource(): WorkspaceSource {

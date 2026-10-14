@@ -4,7 +4,7 @@ import type {Conversation,MemoryItem,GraphNode,GraphEdge} from '../types/mroya.t
 const text=(v:unknown):string=>v==null?'':typeof v==='string'?v:JSON.stringify(v);
 export function accountPresentation(user:ApiUser):AccountPresentation {
  const name=user.nickname.trim()||[user.first_name,user.last_name].filter(Boolean).join(' ').trim()||user.username;
- return {displayName:name,initials:name.split(/\s+/).map(v=>Array.from(v)[0]).slice(0,2).join('').toUpperCase(),email:user.email,description:'',timezone:user.timezone,spaceDescription:'Personal space'};
+ return {displayName:name,initials:name.split(/\s+/).map(v=>Array.from(v)[0]).slice(0,2).join('').toUpperCase(),email:user.email,description:'',timezone:user.timezone,spaceDescription:'Personal space',nickname:user.nickname};
 }
 export function chatPresentation(id:string,messages:ApiMessage[]):Conversation {
  return {id,title:'Your conversation',group:'Today',updatedAt:messages.at(-1)?.created_at??'',relatedMemoryIds:[],messages:messages.map(m=>({id:m.id,sender:m.role,content:m.content||(m.status==='failed'?'This reply could not be completed.':''),status:m.status,timestamp:new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}))};

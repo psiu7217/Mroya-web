@@ -5,7 +5,24 @@ import type {WorkspaceSource} from '../types/source.ts';
 import type {TelegramPresentation} from '../types/workspace.ts';
 type View=Omit<TelegramPresentation,'onConnect'|'onDisconnect'|'onCheck'|'onRetry'>;
 type Action='status'|'connect'|'disconnect';
-const initial=():View=>({status:null,phase:'loading',checking:false,error:null,link:null});
+const initial=():View=>({status:null,phase:'loading',checking:false,error:null,link:null,openFallback:false});
+export interface TelegramPopup {navigate:(url:string)=>boolean;close:()=>void}
+// Only the still-blank tab belongs to us; never redirect/close a tab the user has navigated.
+export function openTelegramPopup():TelegramPopup|null {
+ if(typeof window==='undefined')return null;
+ let tab:Window|null=null;
+ const controlled=()=>{try{return !!tab&&!tab.closed&&tab.location.href==='about:blank';}catch{return false;}};
+ const close=()=>{try{if(controlled())tab?.close();}catch{/* The tab is no longer accessible. */}};
+ try{
+  tab=window.open('about:blank','_blank');
+  if(!tab)return null;
+  tab.opener=null; // Synchronous isolation, before CSRF or any request.
+  if(!controlled()||tab.opener!==null){close();return null;}
+  return {navigate:url=>{
+   try{if(!validTelegramLink(url)||!controlled())return false;tab!.location.replace(url);return true;}catch{return false;}
+  },close};
+ }catch{close();return null;}
+}
 // Account-local coordinator; URL lives only here and in the current view props.
 export class TelegramConnectionController {
  private current:View=initial();
@@ -18,19 +35,21 @@ export class TelegramConnectionController {
  private timer:ReturnType<typeof setTimeout>|null=null;
  private retryAction:Action='status';
  private csrfRequired=false;
- constructor(private source:WorkspaceSource,private onExpired:()=>void){}
+ private popup:TelegramPopup|null=null;
+ constructor(private source:WorkspaceSource,private onExpired:()=>void,private openPopup:()=>TelegramPopup|null=openTelegramPopup){}
  snapshot=()=>this.current;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return ()=>{this.listeners.delete(fn);};};
  private emit(next:View){this.current=next;for(const listener of this.listeners)listener();}
  start(){this.active=true;}
  stop=()=>{
   this.active=false;this.generation++;this.request?.abort();this.request=null;this.pending=null;this.writing=false;
-  this.clearTimer();this.emit(initial());
+  this.closePopup();this.clearTimer();this.emit(initial());
  };
+ private closePopup(){const popup=this.popup;this.popup=null;try{popup?.close();}catch{/* Closed or no longer controlled. */}}
  private clearTimer(){if(this.timer!==null)clearTimeout(this.timer);this.timer=null;}
  expire=(now=Date.now())=>{
   if(this.current.link&&Date.parse(this.current.link.expires_at)<=now){
-   this.clearTimer();this.emit({...this.current,link:null,phase:this.current.status?.connected?'idle':'expired'});
+   this.clearTimer();this.emit({...this.current,link:null,openFallback:false,phase:this.current.status?.connected?'idle':'expired'});
   }
  };
  private armExpiry(){
@@ -60,7 +79,7 @@ export class TelegramConnectionController {
     if(!this.active||version!==this.generation||abort.signal.aborted)return;
     const link=status.connected?null:this.current.link;
     if(status.connected)this.clearTimer();
-    this.emit({...this.current,status,link,checking:false,phase:status.connected?'idle':link?'pending':this.current.phase==='expired'?'expired':'idle',
+    this.emit({...this.current,status,link,openFallback:!!link&&this.current.openFallback,checking:false,phase:status.connected?'idle':link?'pending':this.current.phase==='expired'?'expired':'idle',
       error:(status.connected&&this.retryAction!=='disconnect')||this.retryAction==='status'||(this.retryAction==='disconnect'&&!status.connected)?null:this.current.error});
     this.expire();
    }catch(error){if(this.active&&version===this.generation&&!abort.signal.aborted)this.failure(error,'status');}
@@ -72,12 +91,14 @@ export class TelegramConnectionController {
  disconnect=()=>this.write('disconnect');
  private write(action:'connect'|'disconnect'):Promise<void>{
   if(!this.active||this.writing)return Promise.resolve();
-  if(action==='connect'&&(!this.current.status?.configured||this.current.status.connected))return Promise.resolve();
+  if(action==='connect'&&(this.source.kind!=='live'||this.current.link||!this.current.status?.configured||this.current.status.connected))return Promise.resolve();
   if(action==='disconnect'&&!this.current.status?.connected)return Promise.resolve();
   this.request?.abort();this.pending=null;
   const abort=new AbortController(),version=++this.generation;this.request=abort;this.writing=true;
+  // Remain in the user's click stack, including an explicit Retry after CSRF failure.
+  if(action==='connect'){try{this.popup=this.openPopup();}catch{this.popup=null;}}
   this.clearTimer();
-  this.emit({...this.current,link:null,checking:false,error:null,phase:action==='connect'?'creating':'disconnecting'});
+  this.emit({...this.current,link:null,openFallback:false,checking:false,error:null,phase:action==='connect'?'creating':'disconnecting'});
   let recheck=false;
   return (async()=>{
    try{
@@ -93,7 +114,13 @@ export class TelegramConnectionController {
      if(!this.active||version!==this.generation||abort.signal.aborted)return;
      // Defend the source boundary too, without exposing the rejected URL.
      if(!validTelegramLink(link.url)||!Number.isFinite(Date.parse(link.expires_at)))throw new ApiError(502,'invalid_response','Invalid Telegram link');
-     this.emit({...this.current,link,phase:'pending'});
+     if(Date.parse(link.expires_at)<=Date.now()){
+      this.emit({...this.current,link:null,openFallback:false,phase:'expired'});return;
+     }
+     let opened=false;
+     try{opened=this.popup?.navigate(link.url)===true;}catch{/* Offer the explicit safe fallback. */}
+     if(opened)this.popup=null;else this.closePopup();
+     this.emit({...this.current,link,openFallback:!opened,phase:'pending'});
      this.armExpiry();this.expire();
     }else{
      if(!this.source.disconnectTelegram)throw new Error('Telegram unavailable');
@@ -103,6 +130,7 @@ export class TelegramConnectionController {
     }
    }catch(error){
     if(!this.active||version!==this.generation||abort.signal.aborted)return;
+    this.closePopup();
     if(error instanceof ApiError&&error.status===409&&error.code==='already_linked'){
      recheck=true;this.retryAction='status';this.emit({...this.current,phase:'idle'});
     }else{
@@ -111,7 +139,7 @@ export class TelegramConnectionController {
      recheck=action==='disconnect'&&(!(error instanceof ApiError)||error.status>=500);
     }
    }finally{
-    if(version===this.generation){this.request=null;this.writing=false;if(recheck&&this.active)await this.check();}
+    if(version===this.generation){this.closePopup();this.request=null;this.writing=false;if(recheck&&this.active)await this.check();}
    }
   })();
  }

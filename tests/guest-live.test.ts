@@ -5,7 +5,7 @@ import {LiveWorkspaceController} from '../src/hooks/LiveWorkspaceController.ts';
 import {memoryPresentation,graphPresentation} from '../src/hooks/liveAdapters.ts';
 import {ApiError,StreamInterruptedError} from '../src/api/errors.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
-const user={id:1,username:'account',first_name:'',last_name:'',email:'',timezone:'UTC'};
+const user={id:1,username:'account',first_name:'',last_name:'',email:'',timezone:'UTC',nickname:'',preferences:{theme:'system' as const}};
 const caps={api_version:'v1' as const,chat:true,memory_read:true,memory_mutations_via_chat:true,memory_mutations_rest:false,calendar_rest:false,connections_rest:false,reminders:false,local_recurrence:false,sse_token_streaming:false};
 const history={conversation_id:'server-conversation',messages:[],next_before:null};
 function source(overrides:Partial<WorkspaceSource>={}):WorkspaceSource {return {kind:'live',session:async()=>({status:'authenticated',user}),login:async()=>user,logout:async()=>{},capabilities:async()=>caps,history:async()=>history,memories:async()=>({memories:[],total:0}),map:async()=>({nodes:[],edges:[]}),send:async()=>{},turn:async()=>({turn_status:'completed',summary:'',events:[]}),...overrides};}

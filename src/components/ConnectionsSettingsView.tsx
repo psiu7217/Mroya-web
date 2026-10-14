@@ -4,6 +4,7 @@ import {
   Link2,
   Sun,
   Moon,
+  Monitor,
   Sparkles,
   Check,
   User,
@@ -255,7 +256,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button type="button" onClick={() => onSelectTheme('system')} aria-pressed={theme==='system'} className={`p-4 rounded-[10px] border text-left flex items-center justify-between cursor-pointer ${theme==='system'?'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)]':'bg-[var(--mroya-surface-muted)] border-[var(--mroya-divider)]'}`}>
+                  <div className="flex items-center gap-3"><Monitor className="w-4 h-4 text-[var(--mroya-primary)]"/><div><div className="text-[14px] font-semibold">System theme</div><div className="text-[12px] text-[var(--mroya-text-muted)]">Follow device appearance</div></div></div>{theme==='system'&&<Check className="w-4 h-4 text-[var(--mroya-primary)]"/>}
+                </button>
                 <button
                   type="button"
                   onClick={() => onSelectTheme('light')}

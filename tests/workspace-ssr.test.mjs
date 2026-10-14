@@ -23,6 +23,15 @@ after(async()=>{await vite.close();});
   assert.equal(stableIds(render()),stableIds(renderToStaticMarkup(React.createElement(OriginalApp))));
   const ids=[...render().matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);
  });
+ test('preferences review preserves the current Studio main initial workspace markup',async()=>{
+  fs.mkdirSync('.review-baseline/current-main',{recursive:true});
+  const archive=execFileSync('git',['archive','323df4ddb2d0e2fd036c6dce65f96be849dd9551','src'],{maxBuffer:32*1024*1024});
+  execFileSync('tar',['-xf','-','-C','.review-baseline/current-main'],{input:archive});
+  const {WorkspaceView:BaseView}=await vite.ssrLoadModule('/.review-baseline/current-main/src/pages/WorkspaceView.tsx');
+  const {useDemoWorkspace:baseModel}=await vite.ssrLoadModule('/.review-baseline/current-main/src/demo/useDemoWorkspace.ts');
+  function BaseApp(){return React.createElement(BaseView,{model:baseModel()});}
+  assert.equal(render(),renderToStaticMarkup(React.createElement(BaseApp)));
+ });
  test('welcome, invitation and Studio login render without a transport',async()=>{
   const {GuestWelcome}=await vite.ssrLoadModule('/src/components/GuestWelcome.tsx');
   const {LoginScreen}=await vite.ssrLoadModule('/src/components/LoginScreen.tsx');

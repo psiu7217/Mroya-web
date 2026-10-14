@@ -2,7 +2,7 @@ export type NavSection = 'chat' | 'calendar' | 'reminders' | 'memory' | 'memory-
 
 export type SubscriptionPlan = 'free' | 'premium';
 
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'system' | 'light' | 'dark';
 
 export interface MemoryCitation {
   memoryId: string;

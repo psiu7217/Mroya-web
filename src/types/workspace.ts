@@ -9,6 +9,7 @@ export interface WorkspaceModel {
     isSidebarCollapsed: boolean;
     mobileMenuOpen: boolean;
     theme: ThemeMode;
+    appearance?: 'light'|'dark';
     plan: SubscriptionPlan;
     planModalOpen: boolean;
     conversations: Conversation[];

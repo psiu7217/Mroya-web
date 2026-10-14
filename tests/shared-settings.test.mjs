@@ -51,7 +51,8 @@ test('actual account-menu handlers route Profile, Connected accounts, Settings a
 });
 test('live shows unavailable services/plan/memory controls without fake successes or demo accounts',()=>{
  const connections=markup({live:true});
- assert.equal((connections.match(/>Coming soon<\/button>/g)||[]).length,3);
+ assert.equal((connections.match(/>Coming soon<\/button>/g)||[]).length,2);
+ assert.match(connections,/Checking Telegram connection/);
  assert.doesNotMatch(connections,/Connected \(|Disconnect preview|alex@|lindqvist|Saved<|Enabled</);
  assert.equal((connections.match(/disabled=""/g)||[]).length,3);
  const plan=markup({live:true,activeTab:'plan'});assert.equal((plan.match(/>Coming soon<\/button>/g)||[]).length,2);assert.doesNotMatch(plan,/Current active preview/);

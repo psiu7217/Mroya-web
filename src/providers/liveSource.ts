@@ -9,6 +9,9 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     savePreferences:(changes,signal)=>api.savePreferences(changes,signal),refreshCsrf:signal=>api.csrf(signal),
     history:(before,signal)=>api.history(before,signal),memories:(options,signal)=>api.memories(options,signal),map:signal=>api.map(signal),capabilities:signal=>api.capabilities(signal),
     send:(content,id,onEvent,options)=>api.send(content,id,onEvent,options),turn:(id,signal)=>api.turn(id,signal),
+    telegramStatus:signal=>api.telegramStatus(signal),
+    createTelegramLink:signal=>api.createTelegramLink(signal),
+    disconnectTelegram:signal=>api.disconnectTelegram(signal),
     startGoogleAuth:signal=>api.startGoogleAuth(signal),
   };
 }

@@ -836,17 +836,17 @@ export const INITIAL_CONNECTIONS: ServiceConnection[] = [
   {
     id: 'conn-telegram',
     name: 'Telegram',
-    category: 'Reminders & Quick Alerts',
+    category: 'Personal text chat',
     description:
-      'Receive personal reminders and calendar alerts in Telegram. Forward voice notes, quick client updates, or travel confirmations to Mroya on the go.',
+      'Chat privately with Mroya in Telegram using your existing account.',
     connected: true,
     accountLabel: '@alexlindqvist',
-    lastSyncNote: 'Active delivery channel for all Mroya reminders',
+    lastSyncNote: 'Local Design preview — no Telegram link is opened',
     capabilities: [
-      'Delivers personal reminders right on time via @MroyaBot',
-      'Unified schedule for standalone reminders and Google Calendar events',
-      'Forward quick voice or text notes after client meetings to store in memory',
-      'Receive quiet morning briefings of the day’s commitments',
+      'Personal text chat with Mroya',
+      'Shared conversation history between Web and Telegram',
+      'Shared personal memory',
+      'Telegram replies only to messages sent in Telegram',
     ],
   },
   {

@@ -55,3 +55,23 @@ Theme and nickname are persistent account preferences; the frontend uses the exi
 Positive login with real credentials requires the owner's manual browser check when credentials are not supplied. Do not create production test users or modify real user data for a release smoke check.
 
 Preference-save failures retain the latest submitted choices as unsaved until explicit retry. Ambiguous network/5xx failures are reconciled with me/ before another PATCH; edits and retries share one queue. No account preferences are persisted in localStorage. Abort/expiry/logout invalidate pending work. Production route presence was confirmed read-only (GET returns 405 with Allow: PATCH); authenticated persistence and migration readiness still require an owner browser check before release.
+
+## Telegram connection (verified API main 78011891e694e0612c3af09881452f5f1fd77a69)
+
+Verified against [session linking views](https://github.com/psiu7217/Mroya-api/blob/78011891e694e0612c3af09881452f5f1fd77a69/apps/telegram_channel/views.py) and [Telegram contract](https://github.com/psiu7217/Mroya-api/blob/78011891e694e0612c3af09881452f5f1fd77a69/docs/TELEGRAM.md). This specific published contract is independent of the broad connections_rest flag; it does not make Calendar/Gmail connections available.
+
+| Same-origin method/path | Request and successful response |
+| --- | --- |
+| GET me/telegram/ | Session, no CSRF. {configured:boolean, connected:boolean, bot_username:string}; a binding adds telegram_username:string and connected_at:ISO timestamp. |
+| POST me/telegram/link/ | Session + CSRF, exact JSON {}. {url:string, expires_at:ISO timestamp}. |
+| DELETE me/telegram/ | Session + CSRF. {connected:false}; idempotent and revokes unused links. |
+
+configured and connected are independent: a binding survives configuration failure. Only GET confirms Connected/Disconnected; POST merely issues a link, DELETE is followed by authoritative GET. Unconfigured/disconnected is temporarily unavailable. Errors use the existing envelope: 401 expires the session, 403 requires explicit retry with refreshed CSRF, 409 already_linked rechecks GET (link_replaced is also possible), 503 shows retryable unavailability. Never automatically replay writes; an ambiguous DELETE is reconciled through GET before manual retry. An ambiguous POST must not automatically replace a possibly issued token.
+
+The link is a one-use bearer credential, valid for 12 minutes. Re-generation invalidates the previous unused link. Validate HTTPS, exact t.me host and a bot/start URL before presenting an explicit Open Telegram anchor with noopener noreferrer. Press Start in Telegram, return and Check connection; focus/visibility refresh only the active Connections tab or an unfinished flow. There is no used/revoked-link lookup, polling or Telegram event stream. Expiry removes the URL but does not prove disconnection.
+
+Transport and DTO validation stay in MroyaApi/createLiveSource. The account-local useTelegramConnection hook owns status, request cancellation/generation guards, single-flight operations, errors, expiry and a transient link in memory only. WorkspaceRuntime passes typed presentation/actions to the existing common card; it is not a persistent/global store. Logout/user changes invalidate requests and erase link/identity. No storage, console/telemetry, Mroya query parameter or displayed token text. Never call telegram/webhook/ from Web; Bot Token/webhook secret belong only to API.
+
+Design retains local connection toggles with no requests or real bearer links. Telegram supports personal text chat, shared Web/Telegram history and personal memory. Telegram answers only Telegram messages: no Web forwarding, reminders/alerts, voice, attachments, calendar sync, groups or morning briefings. Google Calendar/Gmail remain Coming soon.
+
+Manual acceptance after a separately authorized merge/deploy: an existing owner account creates a link, presses Start, verifies Connected on return and optionally Disconnect; verify shared text history/memory separately. This PR creates no production accounts or bindings and does not deploy either runtime.

@@ -206,3 +206,47 @@ test('preferences HTTP/CSRF failures do not automatically replay PATCH',async()=
   await assert.rejects(api.savePreferences({theme:'dark'}),ApiError);assert.equal(writes,1);
  }
 });
+
+test('Telegram uses the existing same-origin session transport, exact POST body, DELETE and AbortSignal',async()=>{
+ const calls:{url:string;init:RequestInit}[]=[];
+ const signal=new AbortController().signal;
+ const status={configured:true,connected:false,bot_username:'MroyaBot'};
+ const link={url:'https://t.me/MroyaBot?start=synthetic_test_token',expires_at:'2099-01-01T00:00:00Z'};
+ const api=new MroyaApi(fakeFetch((url,init)=>{calls.push({url,init});return json(url.endsWith('csrf/')?{csrf_token:'test-csrf'}:init.method==='DELETE'?{connected:false}:url.endsWith('link/')?link:status);}));
+ const source=createLiveSource(api);
+ assert.deepEqual(await source.telegramStatus!(signal),status);
+ assert.deepEqual(await source.createTelegramLink!(signal),link);
+ assert.deepEqual(await source.disconnectTelegram!(signal),{connected:false});
+ assert.deepEqual(calls.map(c=>[c.url,c.init.method]),[['/api/v1/me/telegram/','GET'],['/api/v1/auth/csrf/','GET'],['/api/v1/me/telegram/link/','POST'],['/api/v1/me/telegram/','DELETE']]);
+ for(const c of calls){assert.equal(c.init.credentials,'same-origin');assert.equal(c.init.cache,'no-store');assert.equal(c.init.redirect,'error');assert.equal(c.init.signal,signal);}
+ assert.equal(calls[0].init.body,undefined);assert.equal((calls[0].init.headers as Record<string,string>)['X-CSRFToken'],undefined);
+ for(const c of [calls[2],calls[3]]){assert.equal(c.init.body,'{}');assert.equal((c.init.headers as Record<string,string>)['X-CSRFToken'],'test-csrf');}
+});
+test('Telegram validates every successful DTO, MIME, JSON and safe link host without leaking URLs',async()=>{
+ const invoke=async(method:'telegramStatus'|'createTelegramLink'|'disconnectTelegram',body:unknown)=>{
+  const api=new MroyaApi(fakeFetch(url=>json(url.endsWith('csrf/')?{csrf_token:'test'}:body)));
+  await assert.rejects(api[method](),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+ };
+ for(const v of [null,[],{}, {configured:true,connected:'true',bot_username:'bot'},{configured:true,connected:true,bot_username:'bot',telegram_username:null},{configured:true,connected:true,bot_username:'bot',connected_at:'bad'}])await invoke('telegramStatus',v);
+ for(const url of ['javascript:alert(1)','https://evil.test/bot?start=synthetic','https://t.me.evil.test/bot?start=x','https://user:pass@t.me/bot?start=x','http://t.me/bot?start=x','https://t.me:444/bot?start=x','https://t.me/bot?start=x#secret','https://t.me/bot','https://t.me/bot?start=x&next=evil'])await invoke('createTelegramLink',{url,expires_at:'2099-01-01T00:00:00Z'});
+ await invoke('createTelegramLink',{url:'https://t.me/bot?start=synthetic',expires_at:'bad'});
+ for(const v of [null,[],{}, {connected:true},{connected:'false'}])await invoke('disconnectTelegram',v);
+ for(const response of [new Response('html',{headers:{'Content-Type':'text/html'}}),new Response('{bad',{headers:{'Content-Type':'application/json'}})]){
+  await assert.rejects(new MroyaApi(fakeFetch(()=>response)).telegramStatus(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+ }
+});
+test('Telegram backend failures and aborts never automatically replay writes',async()=>{
+ for(const method of ['createTelegramLink','disconnectTelegram'] as const)for(const status of [401,403,409,503]){
+  let writes=0;const api=new MroyaApi(fakeFetch(url=>url.endsWith('csrf/')?json({csrf_token:'test'}):(writes++,json({error:{code:status===409?'already_linked':'unavailable'}},status))));
+  await assert.rejects(api[method](),(e:unknown)=>e instanceof ApiError&&e.status===status);assert.equal(writes,1);
+ }
+ const abort=new AbortController();abort.abort();
+ const api=new MroyaApi(fakeFetch((_url,init)=>{assert.equal(init.signal,abort.signal);throw new DOMException('Aborted','AbortError');}));
+ await assert.rejects(api.telegramStatus(abort.signal),{name:'AbortError'});
+});
+
+test('Telegram preserves response-body cancellation instead of treating it as invalid JSON',async()=>{
+ const response=json({});
+ response.json=async()=>{throw new DOMException('Aborted','AbortError');};
+ await assert.rejects(new MroyaApi(fakeFetch(()=>response)).telegramStatus(),{name:'AbortError'});
+});

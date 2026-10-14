@@ -110,3 +110,33 @@ select:focus-visible {
 .guest-welcome {animation:guest-welcome-in .25s ease-out}
 @keyframes guest-welcome-in {from {opacity:0;transform:translateY(4px)} to {opacity:1;transform:translateY(0)}}
 @media (prefers-reduced-motion: reduce) {.guest-dot,.guest-welcome {animation:none}}
+
+/* Assistant messages only; raw content remains in the chat model. */
+.mroya-markdown { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.mroya-markdown > * + * { margin-top: .8em; }
+.mroya-markdown :where(h1,h2,h3,h4,h5,h6) { font-weight: 650; line-height: 1.35; margin-top: 1em; }
+.mroya-markdown h1 { font-size: 1.35em; }
+.mroya-markdown h2 { font-size: 1.25em; }
+.mroya-markdown h3 { font-size: 1.15em; }
+.mroya-markdown h4 { font-size: 1.08em; }
+.mroya-markdown :where(h5,h6) { font-size: 1em; }
+.mroya-markdown > :first-child { margin-top: 0; }
+.mroya-markdown :where(ul,ol) { padding-left: 1.5em; }
+.mroya-markdown ul { list-style-type: disc; }
+.mroya-markdown ol { list-style-type: decimal; }
+.mroya-markdown li + li, .mroya-markdown li > p + p { margin-top: .3em; }
+.mroya-markdown li :where(ul,ol) { margin-top: .3em; }
+.mroya-markdown blockquote { border-left: 3px solid var(--mroya-divider); padding: .3em 0 .3em 1em; color: var(--mroya-text-muted); }
+.mroya-markdown blockquote > * + * { margin-top: .6em; }
+.mroya-markdown code { font-family: "JetBrains Mono", monospace; font-size: .88em; background: var(--mroya-surface-muted); border-radius: 4px; padding: .1em .3em; }
+.mroya-markdown pre { max-width: 100%; overflow-x: auto; padding: .8em 1em; border: 1px solid var(--mroya-divider); border-radius: 8px; background: var(--mroya-surface-muted); white-space: pre; overflow-wrap: normal; }
+.mroya-markdown pre code { padding: 0; background: transparent; border-radius: 0; white-space: pre; }
+.mroya-markdown a { color: var(--mroya-primary); text-decoration: underline; text-underline-offset: 3px; }
+.mroya-markdown a:hover { color: var(--mroya-primary-hover); }
+.mroya-markdown :where(a,pre,.mroya-markdown-scroll):focus-visible { outline: 2px solid var(--mroya-primary); outline-offset: 2px; }
+.mroya-markdown-scroll { max-width: 100%; overflow-x: auto; }
+.mroya-markdown table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.mroya-markdown :where(th,td) { border: 1px solid var(--mroya-divider); padding: .45em .7em; min-width: 7em; }
+.mroya-markdown th { font-weight: 650; background: var(--mroya-surface-muted); }
+.mroya-markdown hr { border: 0; border-top: 1px solid var(--mroya-divider); }
+.mroya-markdown-image { color: var(--mroya-text-muted); }

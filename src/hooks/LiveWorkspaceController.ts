@@ -1,5 +1,6 @@
 import type {WorkspaceSource} from '../types/source.ts';
 import type {HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
+import {readReportContext} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
 export interface LiveState {
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
@@ -8,7 +9,7 @@ export interface LiveState {
 export class LiveWorkspaceController {
  private state:LiveState={loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
  private listeners=new Set<()=>void>();
- private abort=new AbortController();private epoch=0;private turnId:string|null=null;
+ private abort=new AbortController();private epoch=0;private turnId:string|null=null;private replyId:string|null=null;
  private source:WorkspaceSource;private expired:()=>void;private uuid:()=>string;
  constructor(source:WorkspaceSource,expired:()=>void,uuid:()=>string=()=>crypto.randomUUID()){this.source=source;this.expired=expired;this.uuid=uuid;}
  snapshot=()=>this.state;
@@ -38,14 +39,22 @@ export class LiveWorkspaceController {
   if(this.state.busy||this.state.loading||this.state.uncertain)return;
   if(this.state.capabilities?.chat!==true){this.set({error:'Chat is unavailable on this server.'});return;}
   if(!content.trim()||content.length>16000){this.set({error:'Messages must contain 1–16000 characters.'});return;}
-  const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;
+  const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;this.replyId='reply:'+id;
   const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
-  let answer='';
+  let answer='',failedActivity=false;
   try {
-   await this.source.send(content,id,event=>{if(epoch!==this.epoch)return;if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
-    if(answer)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:'streaming',created_at:now,completed_at:null}]}});
-   },{signal:this.abort.signal,onTurn:id=>{this.turnId=id;}});
+   await this.source.send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
+    if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
+     failedActivity=true;
+     const context=readReportContext(event.data.report_context);
+     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',created_at:now,completed_at:null,
+      ...(context&&(!this.turnId||context.turn_id===this.turnId)?{report_context:context}:{})}]}});
+     return;
+    }
+    if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
+    if(answer&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:'streaming',created_at:now,completed_at:null}]}});
+   },{signal:this.abort.signal,onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id)this.turnId=turnId;}});
    if(epoch===this.epoch){await this.load();this.set({uncertain:false});}
   }catch(error){
    if(epoch!==this.epoch)return;
@@ -59,7 +68,15 @@ export class LiveWorkspaceController {
  async recover(){
   if(this.state.busy)return;
   const epoch=this.epoch;
-  try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
+  try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='failed'){
+    const context=readReportContext(turn.report_context);
+    let messages=this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:context?.turn_id===this.turnId?context:undefined}:message);
+    const pending=messages.at(-1);
+    if(this.replyId&&context?.turn_id===this.turnId&&typeof turn.assistant_content==='string'&&pending?.id==='pending:'+this.replyId.slice(6)){
+     messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context}];
+    }
+    this.set({history:{...this.state.history,messages}});
+   }if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
    await this.load();
    if(epoch===this.epoch&&this.state.uncertain)this.set({error:'The submission could not be confirmed. Review server history and reload the page before starting a new message; nothing is automatically resent.'});
   }catch(error){if(epoch===this.epoch)this.failure(error);}

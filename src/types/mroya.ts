@@ -78,6 +78,7 @@ export interface ChatAction {
 }
 
 export interface ChatMessage {
+  report_context?:import('./api').ReportContext;
   signInPrompt?: boolean;
   status?: string;
   id: string;

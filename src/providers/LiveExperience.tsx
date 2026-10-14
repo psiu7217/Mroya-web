@@ -3,6 +3,7 @@ import {WorkspaceView} from '../pages/WorkspaceView';
 import {useLiveWorkspace} from '../hooks/useLiveWorkspace';
 import {useWorkspaceLayout} from '../hooks/useWorkspaceLayout';
 import {useTelegramConnection} from '../hooks/useTelegramConnection';
+import {useChatDiagnostics} from '../hooks/useChatDiagnostics';
 import {useUserPreferences} from '../hooks/useUserPreferences';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
@@ -20,7 +21,8 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
- const logout=()=>{telegram.stop();preferences.stop();onLogout();};
+ const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice);
+ const logout=()=>{diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...user,nickname:preferences.nickname});
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map)),graph=graphPresentation(state.map);
@@ -37,7 +39,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const newChat=()=>{select('chat');setNotice('This server currently uses one conversation. Your history is preserved.');};
  const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}setFocusedMemoryId(id);setContextOpen(true);};
  const model:WorkspaceModel={
-  runtime:{telegram,pending:state.busy||state.loading||state.uncertain||state.capabilities?.chat!==true,
+  runtime:{diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.capabilities?.chat!==true,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
    calendarAvailable:false,remindersAvailable:false,memoriesTotal:state.memories.total,

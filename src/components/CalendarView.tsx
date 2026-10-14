@@ -22,6 +22,7 @@ import {
   Repeat,
 } from 'lucide-react';
 import { CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
+import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils';
 
@@ -75,7 +76,6 @@ const SHORT_MONTH_NAMES = [
   'Dec',
 ];
 
-const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028];
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   readOnly=false,
@@ -241,31 +241,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setSelectedDay(newDay);
   };
 
-  const handlePrevMonth = () => {
-    if (currentMonthIndex === 0) {
-      setCurrentMonthIndex(11);
-      setCurrentYear((y) => y - 1);
-    } else {
-      setCurrentMonthIndex((m) => m - 1);
-    }
+  const selectDate = (year:number,month:number,day=selectedDay) => {
+    const date=calendarDate(year,month,day);
+    setCurrentYear(date.getFullYear());setCurrentMonthIndex(date.getMonth());setSelectedDay(date.getDate());
   };
-
-  const handleNextMonth = () => {
-    if (currentMonthIndex === 11) {
-      setCurrentMonthIndex(0);
-      setCurrentYear((y) => y + 1);
-    } else {
-      setCurrentMonthIndex((m) => m + 1);
-    }
-  };
-
-  const handlePrevYear = () => {
-    setCurrentYear((y) => y - 1);
-  };
-
-  const handleNextYear = () => {
-    setCurrentYear((y) => y + 1);
-  };
+  const handlePrevMonth = () => selectDate(currentYear,currentMonthIndex-1);
+  const handleNextMonth = () => selectDate(currentYear,currentMonthIndex+1);
+  const handlePrevYear = () => selectDate(currentYear-1,currentMonthIndex);
+  const handleNextYear = () => selectDate(currentYear+1,currentMonthIndex);
 
   const handleJumpToToday = () => {
     setCurrentYear(today.getFullYear());
@@ -276,18 +259,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleSelectMonthFromYearView = (mIdx: number, day?: number) => {
-    setCurrentMonthIndex(mIdx);
-    if (day) {
-      setSelectedDay(day);
-    }
+    selectDate(currentYear,mIdx,day??selectedDay);
     setViewMode('month');
   };
 
   const handleSelectMonthAndYear = (year: number, mIdx: number) => {
-    setCurrentYear(year);
-    setCurrentMonthIndex(mIdx);
+    selectDate(year,mIdx);
     setIsMonthPickerOpen(false);
-    setViewMode('month');
+    if(!readOnly||viewMode!=='week')setViewMode('month');
   };
 
   // Touch gestures: swipe left/right to change month/year
@@ -331,7 +310,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const dayEvents = getEventsForDay(currentYear, currentMonthIndex, selectedDay);
   const formattedDayTitle = `${getDayOfWeekName(currentYear, currentMonthIndex, selectedDay)}, ${MONTH_NAMES[currentMonthIndex]} ${selectedDay}`;
 
-  const weekDays = [12, 13, 14, 15, 16, 17, 18];
+  const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
+  const weekDays=calendarWeek(selectedDate);
+  const availableYears=calendarYears(currentYear);
 
   return (
     <div
@@ -528,11 +509,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 Select Year
               </label>
               <div className="flex items-center justify-between gap-1 p-1 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]">
-                {AVAILABLE_YEARS.map((yr) => (
+                {availableYears.map((yr) => (
                   <button
                     key={yr}
                     type="button"
-                    onClick={() => setCurrentYear(yr)}
+                    onClick={() => selectDate(yr,currentMonthIndex)}
                     className={`flex-1 py-1.5 rounded-[7px] text-[12px] font-semibold transition-all cursor-pointer ${
                       currentYear === yr
                         ? 'bg-[var(--mroya-primary)] text-white shadow-2xs'
@@ -553,7 +534,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 {MONTH_NAMES.map((name, idx) => {
                   const isCurrent = currentMonthIndex === idx;
-                  const isTodayMonth = currentYear === 2026 && idx === 9;
+                  const isTodayMonth = currentYear === today.getFullYear() && idx === today.getMonth();
                   const count = getEventsForMonthCount(currentYear, idx);
 
                   return (
@@ -661,8 +642,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {MONTH_NAMES.map((mName, mIdx) => {
                   const mData = getMonthCalendarData(currentYear, mIdx);
                   const evtCount = getEventsForMonthCount(currentYear, mIdx);
-                  const isCurrentViewingMonth = currentMonthIndex === mIdx && currentYear === 2026;
-                  const isRealTodayMonth = mIdx === 9 && currentYear === 2026;
+                  const isCurrentViewingMonth = currentMonthIndex === mIdx;
+                  const isRealTodayMonth = mIdx === today.getMonth() && currentYear === today.getFullYear();
 
                   return (
                     <div
@@ -1226,15 +1207,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         })}
                       </div>
                     ) : (
-                      /* Week View (Oct 12 - Oct 18) */
+                      /* Monday–Sunday week containing the selected civil date. */
                       <div className="grid grid-cols-7 gap-2">
-                        {weekDays.map((day) => {
-                          const evts = getEventsForDay(currentYear, currentMonthIndex, day);
-                          const isSelected = day === selectedDay;
+                        {weekDays.map((date) => {
+                          const year=date.getFullYear(),month=date.getMonth(),day=date.getDate();
+                          const evts = getEventsForDay(year,month,day);
+                          const isSelected = sameCalendarDay(date,selectedDate);
+                          const isToday = sameCalendarDay(date,today);
                           return (
                             <div
-                              key={day}
-                              onClick={() => setSelectedDay(day)}
+                              key={calendarKey(date)}
+                              data-calendar-date={readOnly?calendarKey(date):undefined}
+                              onClick={() => selectDate(year,month,day)}
                               className={`min-h-[240px] p-2.5 rounded-[10px] border cursor-pointer flex flex-col gap-2 ${
                                 isSelected
                                   ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)]'
@@ -1242,7 +1226,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               }`}
                             >
                               <div className="text-[13px] font-semibold text-[var(--mroya-text)] tabular-nums border-b border-[var(--mroya-divider)] pb-1.5">
-                                Oct {day} {day === today.getDate() ? '· Today' : ''}
+                                {SHORT_MONTH_NAMES[month]} {day}{readOnly ? ', '+year : ''} {isToday ? '· Today' : ''}
                               </div>
                               <div className="space-y-2">
                                 {evts.map((ev) => (
@@ -1563,9 +1547,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             key={ev.id}
                             type="button"
                             onClick={() => {
-                              setSelectedDay(ev.dayOfMonth);
-                              setCurrentMonthIndex(9);
-                              setCurrentYear(2026);
+                              const [year,month,day]=ev.date.split('-').map(Number);
+                              // Demo fixtures store recurring occurrence dayOfMonth separately from their series start date.
+                              selectDate(readOnly?year:today.getFullYear(),readOnly?month-1:today.getMonth(),readOnly?day:ev.dayOfMonth);
                               setViewMode('month');
                             }}
                             className="w-full py-2.5 first:pt-0 last:pb-0 text-left flex items-start justify-between gap-3 hover:opacity-85 transition-opacity cursor-pointer"
@@ -1580,7 +1564,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             </div>
                             <div className="text-right shrink-0 tabular-nums">
                               <div className="text-[12px] font-semibold text-[var(--mroya-primary)]">
-                                Oct {ev.dayOfMonth}
+                                {SHORT_MONTH_NAMES[readOnly?Number(ev.date.slice(5,7))-1:today.getMonth()]} {readOnly?Number(ev.date.slice(8,10)):ev.dayOfMonth}{readOnly?', '+ev.date.slice(0,4):''}
                               </div>
                               <div className="text-[11px] text-[var(--mroya-text-muted)] flex items-center justify-end gap-1">
                                 <Clock className="w-3 h-3" />

@@ -173,6 +173,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
             live={!!runtime}
+            telegram={runtime?.telegram}
             preferenceSave={runtime?.preferenceSave}
             onSaveNickname={runtime?.onSaveNickname}
             onClearNickname={runtime?.onClearNickname}

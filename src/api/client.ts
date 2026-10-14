@@ -1,4 +1,4 @@
-import type {ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
+import type {TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
 import {ApiError} from './errors.ts';
 import {readChatStream} from './sse.ts';
 function checkedUser(value: unknown): ApiUser {
@@ -9,6 +9,15 @@ function checkedUser(value: unknown): ApiUser {
     || !['system','light','dark'].includes((user.preferences as Record<string,unknown>).theme as ThemeMode))
     throw new ApiError(502,'invalid_response','Invalid API preferences');
   return value as ApiUser;
+}
+// A link is a bearer credential. Never include its value in errors or persistence.
+export function validTelegramLink(value:string):boolean {
+  try {
+    const url=new URL(value);
+    return url.protocol==='https:'&&url.host==='t.me'&&!url.username&&!url.password&&!url.hash
+      && /^\/[A-Za-z0-9_]+$/.test(url.pathname)&&url.searchParams.size===1
+      && /^[A-Za-z0-9_-]+$/.test(url.searchParams.get('start')??'');
+  } catch {return false;}
 }
 export class MroyaApi {
   private token='';
@@ -23,13 +32,13 @@ export class MroyaApi {
     throw new ApiError(response.status,typeof body?.error?.code==='string'?body.error.code:'http_error',typeof body?.error?.message==='string'?body.error.message:`HTTP ${response.status}`,
       fields && typeof fields==='object' && !Array.isArray(fields) ? fields : undefined);
   }
-  private async json<T>(path:string,body?:unknown,signal?:AbortSignal,method:'POST'|'PATCH'='POST'):Promise<T> {
+  private async json<T>(path:string,body?:unknown,signal?:AbortSignal,method:'POST'|'PATCH'|'DELETE'='POST'):Promise<T> {
     if(body!==undefined&&!this.token)await this.csrf(signal);
     const response=await this.fetcher('/api/v1/'+path,{method:body===undefined?'GET':method,credentials:'same-origin',cache:'no-store',redirect:'error',signal,
       headers:body===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':this.token},body:body===undefined?undefined:JSON.stringify(body)});
     await this.check(response);
     if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON, received a different response');
-    return response.json() as Promise<T>;
+    try{return await response.json() as T;}catch(error){if(signal?.aborted||(error instanceof Error&&error.name==='AbortError'))throw error;throw new ApiError(502,'invalid_response','Invalid API JSON');}
   }
   async csrf(signal?:AbortSignal):Promise<string> {
     if(this.csrfPending){await this.csrfPending;return this.token;}
@@ -61,6 +70,30 @@ export class MroyaApi {
     if(keys.some(key=>key!=='theme'&&key!=='nickname'))throw new Error('Invalid preferences payload');
     const data=await this.json<{user:unknown}>('me/preferences/',changes,signal,'PATCH');
     return checkedUser(data.user);
+  }
+  async telegramStatus(signal?:AbortSignal):Promise<TelegramConnectionStatus>{
+    const data=await this.json<unknown>('me/telegram/',undefined,signal);
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new ApiError(502,'invalid_response','Invalid Telegram status');
+    const v=data as Record<string,unknown>;
+    if(typeof v.configured!=='boolean'||typeof v.connected!=='boolean'||typeof v.bot_username!=='string'
+      || (v.telegram_username!==undefined&&typeof v.telegram_username!=='string')
+      || (v.connected_at!==undefined&&(typeof v.connected_at!=='string'||!Number.isFinite(Date.parse(v.connected_at)))))
+      throw new ApiError(502,'invalid_response','Invalid Telegram status');
+    return data as TelegramConnectionStatus;
+  }
+  async createTelegramLink(signal?:AbortSignal):Promise<TelegramLinkResponse>{
+    const data=await this.json<unknown>('me/telegram/link/',{},signal);
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new ApiError(502,'invalid_response','Invalid Telegram link');
+    const v=data as Record<string,unknown>;
+    if(typeof v.url!=='string'||!validTelegramLink(v.url)||typeof v.expires_at!=='string'||!Number.isFinite(Date.parse(v.expires_at)))
+      throw new ApiError(502,'invalid_response','Invalid Telegram link');
+    return data as TelegramLinkResponse;
+  }
+  async disconnectTelegram(signal?:AbortSignal):Promise<TelegramDisconnectResponse>{
+    const data=await this.json<unknown>('me/telegram/',{},signal,'DELETE');
+    if(!data||typeof data!=='object'||Array.isArray(data)||(data as Record<string,unknown>).connected!==false)
+      throw new ApiError(502,'invalid_response','Invalid Telegram disconnect response');
+    return {connected:false};
   }
   async logout(signal?:AbortSignal):Promise<void>{const data=await this.json<{status:'logged_out';csrf_token:string}>('auth/logout/',{},signal);if(data.status!=='logged_out'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing logout fields');this.token=data.csrf_token;}
   history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal);}

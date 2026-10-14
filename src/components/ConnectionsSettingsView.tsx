@@ -1,4 +1,4 @@
-import type { AccountPresentation } from '../types/workspace';
+import type { AccountPresentation, TelegramPresentation } from '../types/workspace';
 import React from 'react';
 import {
   Link2,
@@ -48,11 +48,12 @@ const COMMON_TIMEZONES = [
 // Public service catalogue only: no fictional account IDs, connection state or user data.
 const PLANNED_CONNECTIONS: ServiceConnection[] = [
   {id:'google-calendar',name:'Google Calendar',category:'Calendar & Scheduling',description:'Calendar connections are not available yet.',connected:false,capabilities:[]},
-  {id:'telegram',name:'Telegram',category:'Reminders & Quick Alerts',description:'Reminder delivery connections are not available yet.',connected:false,capabilities:[]},
+  {id:'telegram',name:'Telegram',category:'Personal text chat',description:'Chat privately with Mroya in Telegram using your existing account.',connected:false,capabilities:['Personal text chat with Mroya','Shared conversation history between Web and Telegram','Shared personal memory','Telegram replies only to messages sent in Telegram']},
   {id:'gmail',name:'Google Mail (Context Forwarding)',category:'Email & Proposals',description:'Email connections are not available yet.',connected:false,capabilities:[]},
 ];
 export interface ConnectionsSettingsViewProps {
   live?: boolean;
+  telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
   account: AccountPresentation;
   connections: ServiceConnection[];
@@ -73,6 +74,7 @@ export interface ConnectionsSettingsViewProps {
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   live=false,
+  telegram,
   preferenceSave,
   account,
   connections,
@@ -214,7 +216,32 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                {visibleConnections.map((conn) => (
+                {visibleConnections.map((conn) => {
+                  // Explicit catalogue mapping: Studio and live IDs are deliberately different.
+                  const isTelegram=conn.id===(live?'telegram':'conn-telegram');
+                  const state=live&&isTelegram?telegram:undefined;
+                  const connected=state?.status?.connected??(!live&&conn.connected);
+                  const busy=live&&isTelegram&&(!state||state.checking||state.phase==='loading'||state.phase==='creating'||state.phase==='disconnecting');
+                  const pending=!!state?.link;
+                  const unavailable=!!state?.status&&!state.status.configured&&!connected;
+                  const status=live&&isTelegram
+                    ? !state||state.phase==='loading'?'Checking Telegram connection…'
+                      : state.phase==='creating'?'Creating Telegram link…'
+                      : state.phase==='disconnecting'?'Disconnecting Telegram…'
+                      : state.checking?'Checking Telegram connection…'
+                      : connected?'Connected'+(state.status?.telegram_username?' (@'+state.status.telegram_username.replace(/^@/,'')+')':'')
+                      : state.phase==='expired'?'Link expired'
+                      : pending?'Waiting for Telegram. Open Telegram and press Start, then check connection.'
+                      : unavailable?'Telegram connection is temporarily unavailable.'
+                      : state.status?'Disconnected':'Telegram connection has not been checked.'
+                    : live?'Not available yet':conn.connected?'Connected ('+(conn.accountLabel||'Active in prototype')+')':'Disconnected';
+                  const buttonLabel=live&&isTelegram
+                    ? !state||busy?'Please wait…':state.error?'Retry':connected?'Disconnect':pending?'Check connection':state.phase==='expired'?'Generate new link':unavailable?'Check connection':'Connect Telegram'
+                    :live?'Coming soon':conn.connected?'Disconnect preview':'Connect '+conn.name;
+                  const action=live&&isTelegram
+                    ? state?.error?state.onRetry:connected?state?.onDisconnect:pending||unavailable?state?.onCheck:state?.onConnect
+                    :()=>onToggleConnection(conn.id);
+                  return (
                   <div
                     key={conn.id}
                     className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-start justify-between gap-4"
@@ -244,26 +271,26 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         ))}
                       </ul>
                       <div className="text-[12px] text-[var(--mroya-text-muted)] pt-1">
-                        {live ? 'Not available yet' : conn.connected
-                          ? `Connected (${conn.accountLabel || 'Active in prototype'})`
-                          : 'Disconnected'}
+                        {status}
                       </div>
+                      {state?.link && <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] whitespace-nowrap">Open Telegram</a>}
+                      {state?.error && <p role="alert" className="text-[12px] text-[var(--mroya-error)]">{state.error}</p>}
                     </div>
 
                     <button
                       type="button"
-                      disabled={live}
-                      onClick={() => onToggleConnection(conn.id)}
+                      disabled={live&&(!isTelegram||busy)}
+                      onClick={action}
                       className={`px-4 py-2 rounded-full text-[13px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                        conn.connected
+                        connected
                           ? 'bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)]'
                           : 'bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)]'
                       }`}
                     >
-                      {live ? 'Coming soon' : conn.connected ? 'Disconnect preview' : `Connect ${conn.name}`}
+                      {buttonLabel}
                     </button>
                   </div>
-                ))}
+                );})}
               </div>
             </div>
           )}

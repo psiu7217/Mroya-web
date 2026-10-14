@@ -2,7 +2,14 @@
 import type React from 'react';
 import { NavSection, SubscriptionPlan, ThemeMode, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
 export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string; nickname?:string }
+export interface TelegramPresentation {
+    status:import('./api').TelegramConnectionStatus|null;
+    phase:'loading'|'idle'|'creating'|'pending'|'disconnecting'|'expired';
+    checking:boolean; error:string|null; link:import('./api').TelegramLinkResponse|null;
+    onConnect:()=>void; onDisconnect:()=>void; onCheck:()=>void; onRetry:()=>void;
+}
 export interface WorkspaceRuntime {
+    telegram?:TelegramPresentation;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
     calendarAvailable:false; remindersAvailable:false; // No agreed REST contracts yet.

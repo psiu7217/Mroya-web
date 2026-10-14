@@ -1,4 +1,7 @@
 // Observed contract: Mroya-api apps/api/views.py and docs/API.md (main 504e67c).
+export interface TelegramConnectionStatus {configured:boolean;connected:boolean;bot_username:string;telegram_username?:string;connected_at?:string}
+export interface TelegramLinkResponse {url:string;expires_at:string}
+export interface TelegramDisconnectResponse {connected:false}
 export type ThemeMode = 'system'|'light'|'dark';
 export interface ApiUser { id:number; username:string; email:string; first_name:string; last_name:string; timezone:string; nickname:string; preferences:{theme:ThemeMode} }
 export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode}>;

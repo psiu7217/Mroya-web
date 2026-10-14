@@ -31,10 +31,12 @@ after(async()=>{await vite.close();});
   const {useDemoWorkspace:baseModel}=await vite.ssrLoadModule('/.review-baseline/current-main/src/demo/useDemoWorkspace.ts');
   function BaseApp({seed,section}){const model=baseModel(seed);return React.createElement(BaseView,{model:{...model,activeSection:section}});}
   for(const seed of ['filled','empty'])for(const section of ['chat','calendar','reminders','memory','memory-map','connections']){
-  const expected=renderToStaticMarkup(React.createElement(BaseApp,{seed,section}))
+  let expected=renderToStaticMarkup(React.createElement(BaseApp,{seed,section}))
    .replace('flex h-screen w-screen overflow-hidden','flex h-dvh w-full overflow-hidden')
    .replace('<main class="flex-1 flex min-w-0 h-full relative overflow-hidden">','<main class="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden"><div class="flex flex-1 min-w-0 min-h-0">')
    .replace('</main>','</div></main>');
+  // Only the reviewed Telegram capability copy changes; all markup/styles stay compared.
+  if(section==='connections')for(const [before,after] of [["Reminders &amp; Quick Alerts","Personal text chat"],["Receive personal reminders and calendar alerts in Telegram. Forward voice notes, quick client updates, or travel confirmations to Mroya on the go.","Chat privately with Mroya in Telegram using your existing account."],["Delivers personal reminders right on time via @MroyaBot","Personal text chat with Mroya"],["Unified schedule for standalone reminders and Google Calendar events","Shared conversation history between Web and Telegram"],["Forward quick voice or text notes after client meetings to store in memory","Shared personal memory"],["Receive quiet morning briefings of the day’s commitments","Telegram replies only to messages sent in Telegram"]])expected=expected.replace(before,after);
   assert.equal(render(seed,section),expected,seed+':'+section);
   }
  });

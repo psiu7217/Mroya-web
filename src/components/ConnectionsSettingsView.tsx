@@ -45,7 +45,15 @@ const COMMON_TIMEZONES = [
   { value: 'America/Sao_Paulo', label: 'America/Sao_Paulo (BRT, UTC-3)' },
 ];
 
+// Public service catalogue only: no fictional account IDs, connection state or user data.
+const PLANNED_CONNECTIONS: ServiceConnection[] = [
+  {id:'google-calendar',name:'Google Calendar',category:'Calendar & Scheduling',description:'Calendar connections are not available yet.',connected:false,capabilities:[]},
+  {id:'telegram',name:'Telegram',category:'Reminders & Quick Alerts',description:'Reminder delivery connections are not available yet.',connected:false,capabilities:[]},
+  {id:'gmail',name:'Google Mail (Context Forwarding)',category:'Email & Proposals',description:'Email connections are not available yet.',connected:false,capabilities:[]},
+];
 export interface ConnectionsSettingsViewProps {
+  live?: boolean;
+  preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
   account: AccountPresentation;
   connections: ServiceConnection[];
   onToggleConnection: (id: string) => void;
@@ -64,6 +72,8 @@ export interface ConnectionsSettingsViewProps {
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
+  live=false,
+  preferenceSave,
   account,
   connections,
   onToggleConnection,
@@ -118,6 +128,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     setSelectedTimezone(nextTz);
     onChangeTimezone?.(nextTz);
   };
+  const visibleConnections = live ? PLANNED_CONNECTIONS : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
     label: string;
@@ -169,6 +180,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-[820px] mx-auto space-y-6">
+          {preferenceSave && <div className="text-[13px] text-[var(--mroya-text-muted)]" aria-live="polite">
+            {preferenceSave.status==='saving' && <p role="status">Saving account settings…</p>}
+            {preferenceSave.status==='unsaved' && <><p role="alert">These changes are not saved on the server.</p>{preferenceSave.error && <p role="alert" className="text-[var(--mroya-error)]">{preferenceSave.error}</p>}<button type="button" onClick={preferenceSave.onRetry} className="underline mt-2">Retry saving</button></>}
+          </div>}
           {activeTab === 'connections' && (
             <div className="space-y-4">
               <div>
@@ -181,7 +196,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
               </div>
 
               <div className="grid grid-cols-1 gap-4">
-                {connections.map((conn) => (
+                {visibleConnections.map((conn) => (
                   <div
                     key={conn.id}
                     className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-start justify-between gap-4"
@@ -211,7 +226,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         ))}
                       </ul>
                       <div className="text-[12px] text-[var(--mroya-text-muted)] pt-1">
-                        {conn.connected
+                        {live ? 'Not available yet' : conn.connected
                           ? `Connected (${conn.accountLabel || 'Active in prototype'})`
                           : 'Disconnected'}
                       </div>
@@ -219,6 +234,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
                     <button
                       type="button"
+                      disabled={live}
                       onClick={() => onToggleConnection(conn.id)}
                       className={`px-4 py-2 rounded-full text-[13px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                         conn.connected
@@ -226,7 +242,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                           : 'bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)]'
                       }`}
                     >
-                      {conn.connected ? 'Disconnect preview' : `Connect ${conn.name}`}
+                      {live ? 'Coming soon' : conn.connected ? 'Disconnect preview' : `Connect ${conn.name}`}
                     </button>
                   </div>
                 ))}
@@ -238,10 +254,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             <div className="space-y-5">
               <div>
                 <h2 className="text-[18px] font-semibold text-[var(--mroya-text)]">
-                  Subscription & plan preview
+                  {live ? 'Subscription & plan' : 'Subscription & plan preview'}
                 </h2>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] mt-0.5">
-                  Switch between the Free and Mroya Premium states to preview how the interface adapts.
+                  {live ? 'Subscription management is not available yet.' : 'Switch between the Free and Mroya Premium states to preview how the interface adapts.'}
                 </p>
               </div>
 
@@ -249,7 +265,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 {/* Free State Card */}
                 <div
                   className={`p-5 rounded-[12px] border flex flex-col justify-between space-y-4 ${
-                    plan === 'free'
+                    !live && plan === 'free'
                       ? 'bg-[var(--mroya-surface)] border-[var(--mroya-primary)]'
                       : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)]'
                   }`}
@@ -267,21 +283,22 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   </div>
                   <button
                     type="button"
+                    disabled={live}
                     onClick={() => onSelectPlan('free')}
                     className={`w-full py-2.5 px-4 rounded-full text-[13px] font-semibold transition-colors cursor-pointer ${
-                      plan === 'free'
+                      !live && plan === 'free'
                         ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)]'
                         : 'bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)]'
                     }`}
                   >
-                    {plan === 'free' ? 'Current active preview (Free)' : 'Preview Free state'}
+                    {live ? 'Coming soon' : plan === 'free' ? 'Current active preview (Free)' : 'Preview Free state'}
                   </button>
                 </div>
 
                 {/* Premium State Card */}
                 <div
                   className={`p-5 rounded-[12px] border flex flex-col justify-between space-y-4 ${
-                    plan === 'premium'
+                    !live && plan === 'premium'
                       ? 'bg-[var(--mroya-surface)] border-[var(--mroya-brand-honey)]'
                       : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)]'
                   }`}
@@ -300,14 +317,15 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   </div>
                   <button
                     type="button"
+                    disabled={live}
                     onClick={() => onSelectPlan('premium')}
                     className={`w-full py-2.5 px-4 rounded-full text-[13px] font-semibold transition-colors cursor-pointer ${
-                      plan === 'premium'
+                      !live && plan === 'premium'
                         ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)]'
                         : 'bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)]'
                     }`}
                   >
-                    {plan === 'premium'
+                    {live ? 'Coming soon' : plan === 'premium'
                       ? 'Current active preview (Premium)'
                       : 'Preview Mroya Premium'}
                   </button>
@@ -398,7 +416,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
               </div>
 
               {/* Nickname section */}
-              <div className="space-y-2">
+              {!live && <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label htmlFor="mroya-profile-nickname" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
                     Nickname
@@ -441,7 +459,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
                   How Mroya addresses you in personal conversations and greetings.
                 </p>
-              </div>
+              </div>}
 
               {/* Time zone section */}
               <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">
@@ -451,10 +469,12 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <div className="relative">
                   <select
                     id="mroya-timezone-select"
-                    value={selectedTimezone}
+                    value={live ? account.timezone || '' : selectedTimezone}
+                    disabled={live}
                     onChange={handleTimezoneChange}
                     className="w-full appearance-none rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2.5 pr-10 text-[13px] text-[var(--mroya-text)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors cursor-pointer"
                   >
+                    {live && !account.timezone && <option value="">Not set</option>}
                     {availableTimezones.map((tz) => (
                       <option key={tz.value} value={tz.value} className="bg-[var(--mroya-surface)] text-[var(--mroya-text)]">
                         {tz.label}
@@ -466,7 +486,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   </div>
                 </div>
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  Select your time zone so Mroya can accurately schedule reminders and coordinate calendar events.
+                  {live ? 'Time zone is read-only. Editing is not available yet.' : 'Select your time zone so Mroya can accurately schedule reminders and coordinate calendar events.'}
                 </p>
               </div>
 
@@ -489,13 +509,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 </h2>
               </div>
               <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-                Every fact Mroya remembers includes a verifiable source citation and date. You can edit or permanently forget any memory at any time from the Memory section or directly from chat citations.
+                {live ? 'Ask Mroya in chat to update or forget memories. Memory preference controls are not available yet.' : 'Every fact Mroya remembers includes a verifiable source citation and date. You can edit or permanently forget any memory at any time from the Memory section or directly from chat citations.'}
               </p>
               <div className="pt-2 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[13px]">
                 <span className="font-medium text-[var(--mroya-text)]">
                   Show inline &ldquo;Saved to memory&rdquo; confirmations in chat
                 </span>
-                <span className="text-[var(--mroya-primary)] font-semibold">Enabled</span>
+                <span className="text-[var(--mroya-primary)] font-semibold">{live ? 'Coming soon' : 'Enabled'}</span>
               </div>
             </div>
           )}

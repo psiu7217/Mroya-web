@@ -176,7 +176,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           role="menuitem"
           onClick={() => {
             setAccountMenuOpen(false);
-            onOpenPlanModal();
+            onOpenSettingsTab('plan');
+            onCloseMobile();
           }}
           className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
         >
@@ -208,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           role="menuitem"
           onClick={() => {
             setAccountMenuOpen(false);
-            onSelectSection('connections');
+            onOpenSettingsTab('connections');
             onCloseMobile();
           }}
           className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
@@ -322,7 +323,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onSelectSection(item.id);
+                        if (item.id === 'connections') onOpenSettingsTab('connections');
+                        else onSelectSection(item.id);
                         onCloseMobile();
                       }}
                       title={item.label + (item.meta ? ` (${item.meta})` : '')}
@@ -348,22 +350,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </li>
                 );
               })}
-              {(live || onSignIn) && (
-                <li className="w-full flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onOpenSettingsTab('settings');
-                      onCloseMobile();
-                    }}
-                    title="Settings"
-                    aria-label="Settings"
-                    className="w-10 h-9 rounded-[8px] flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)] transition-all cursor-pointer"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </li>
-              )}
+
             </ul>
           </nav>
 
@@ -515,7 +502,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      onSelectSection(item.id);
+                      if (item.id === 'connections') onOpenSettingsTab('connections');
+                        else onSelectSection(item.id);
                       onCloseMobile();
                     }}
                     className={`w-full h-9 flex items-center justify-between px-3 rounded-[8px] text-[14px] transition-colors cursor-pointer ${
@@ -541,21 +529,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </li>
               );
             })}
-            {(live || onSignIn) && (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenSettingsTab('settings');
-                    onCloseMobile();
-                  }}
-                  className="w-full h-9 flex items-center gap-2.5 px-3 rounded-[8px] text-[14px] text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface)] cursor-pointer"
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </button>
-              </li>
-            )}
+
           </ul>
         </nav>
 

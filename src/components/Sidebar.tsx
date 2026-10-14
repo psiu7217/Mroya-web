@@ -17,7 +17,6 @@ import {
   LogOut,
   X,
   ChevronUp,
-  Sparkles,
   Bell,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
@@ -315,51 +314,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Bottom Area: Subscription Status + User Account Menu */}
-      <div className="p-3 border-t border-[var(--mroya-divider)] space-y-2.5 bg-[var(--mroya-surface-muted)]">
-        {/* Subscription Presentation State (Free vs Mroya Premium) */}
-        {live || onSignIn ? <p className="px-3 py-2 text-xs text-[var(--mroya-text-muted)]">{onSignIn ? 'Your memory starts after sign in.' : 'Your personal workspace'}</p> : plan === 'free' ? (
-          <div className="px-3 py-2.5 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
-                Free Plan
-              </div>
-              <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
-                Personal memory active
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onOpenPlanModal}
-              className="px-3 py-1 rounded-full text-[12px] font-semibold text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              Upgrade
-            </button>
-          </div>
-        ) : (
-          <div className="px-3 py-2.5 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-brand-honey)]/50 flex items-center justify-between gap-2">
-            <div className="min-w-0 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)] shrink-0" />
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
-                  Mroya Premium
-                </div>
-                <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
-                  Extended recall & graph
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onTogglePlan}
-              title="Switch back to Free preview"
-              className="text-[11px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] underline underline-offset-2 whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              Preview Free
-            </button>
-          </div>
-        )}
-
+      {/* Bottom Area: User Account Menu */}
+      <div className="p-3 border-t border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)]">
         {/* User Profile & Account Menu Popover */}
         <div className="relative" ref={menuRef}>
           {accountMenuOpen && (

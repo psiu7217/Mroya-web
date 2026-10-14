@@ -33,7 +33,7 @@ export class MroyaApi {
   }
   async startGoogleAuth(signal?:AbortSignal):Promise<void> {
     const caps=await this.capabilities(signal);
-    if(!caps.google_oauth)throw new ApiError(400,'oauth_unavailable','Google sign-in is not configured on this server.');
+    if(caps.google_oauth!==true)throw new ApiError(400,'oauth_unavailable','Google sign-in is not configured on this server.');
     const token=await this.csrf(signal);
     if(typeof document!=='undefined'){
       const form=document.createElement('form');

@@ -145,3 +145,32 @@ test('readAndClearAuthError formats documented auth errors and cleans URL', () =
     (globalThis as unknown as Record<string, unknown>).window = originalWindow;
   }
 });
+
+test('all documented OAuth errors are consumed once, preserve URL context and ignore unknown codes', () => {
+ const original=(globalThis as unknown as Record<string,unknown>).window;
+ try {
+  for(const code of [...Object.keys(GOOGLE_AUTH_ERRORS),'unknown','constructor','toString','__proto__']){
+   const location={search:'?auth_error='+code+'&scenario=guest&other=1',pathname:'/workspace',hash:'#memory'};
+   const history={state:{preserved:true},replaceState(state:unknown,_title:string,url:string){
+    assert.deepEqual(state,{preserved:true});assert.equal(url,'/workspace?scenario=guest&other=1#memory');location.search='?scenario=guest&other=1';
+   }};
+   (globalThis as unknown as Record<string,unknown>).window={location,history};
+   assert.equal(readAndClearAuthError(),Object.hasOwn(GOOGLE_AUTH_ERRORS,code)?GOOGLE_AUTH_ERRORS[code]:null);
+   assert.equal(readAndClearAuthError(),null);
+  }
+ }finally{(globalThis as unknown as Record<string,unknown>).window=original;}
+});
+test('Google capability must be explicitly true; unavailable and failed CSRF never start OAuth',async()=>{
+ for(const flag of [undefined,false,'true',1]){
+  let calls=0;
+  const api=new MroyaApi(fakeFetch(url=>{calls++;assert.ok(url.endsWith('capabilities/'));return json({google_oauth:flag});}));
+  await assert.rejects(api.startGoogleAuth(),(e:unknown)=>e instanceof ApiError&&e.code==='oauth_unavailable');assert.equal(calls,1);
+ }
+ let calls=0;
+ const failed=new MroyaApi(fakeFetch(url=>{calls++;return url.endsWith('capabilities/')?json({google_oauth:true}):json({error:{code:'unavailable'}},503);}));
+ await assert.rejects(failed.startGoogleAuth(),ApiError);assert.equal(calls,2);
+});
+test('Design Google action cannot use the live OAuth transport',async()=>{
+ const original=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw Error('No production requests in Design Mode');};
+ try{await assert.rejects(createDesignSource().startGoogleAuth!(),/Design Mode/);assert.equal(calls,0);}finally{globalThis.fetch=original;}
+});

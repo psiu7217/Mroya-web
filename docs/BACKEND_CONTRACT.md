@@ -1,26 +1,52 @@
-# Backend contract inventory
+# Backend contract for Mroya Web
 
-Source: `psiu7217/Mroya-api`, reviewed commit `504e67c` (`apps/api/views.py`, URL configuration and tests). Read-only inspection; no API changes. Preferred browser base is the fixed same-origin `/api/v1/` on app.heymroya.com. The separate api.heymroya.com address is not used by the browser client.
+Mroya API is authoritative for identity, user data and business logic. This inventory was checked against Django routes/views, chat and memory services, and Google OAuth application code installed at `503f99c98c`. The canonical methods, payloads, DTOs, limits and errors are in [API.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md); OAuth setup and flow are in [GOOGLE-OAUTH.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/GOOGLE-OAUTH.md). Read those references before adding a feature. Markdown alone does not establish API availability: verify current code and capabilities.
 
-| Endpoint | Prepared behavior |
+## Published routes
+
+All paths below are relative to the fixed same-origin `/api/v1/` on app.heymroya.com.
+
+| Method/path | Contract |
 | --- | --- |
-| GET auth/csrf/ | Read csrf_token; no token storage beyond client memory |
-| POST auth/login/ | username/password, X-CSRFToken, rotated csrf_token and user |
-| POST auth/logout/ | empty JSON body, status logged_out, rotated token |
-| GET me/ | user id/username/email/names/timezone; 401 means guest |
-| GET chat/messages/ | sequence cursor before; messages, conversation_id, next_before |
-| POST chat/send/ | content, submission_id UUID, optional timezone/retry; SSE or completed JSON replay |
-| GET chat/turns/{UUID}/ | existing recovery endpoint: turn_status, summary, events; optional result/error fields |
-| GET memories/ | state active/history/all, q, offset, limit; canonical records and total |
-| GET memories/map/ | entity/memory nodes, edges, truncation and optional statistics |
-| GET capabilities/ | actual capability flags, never guessed from visual availability |
+| GET auth/csrf/ | Public; csrf_token and CSRF cookie |
+| POST auth/login/ | username/password JSON + X-CSRFToken; user and rotated csrf_token |
+| POST auth/logout/ | Session + CSRF; status logged_out and rotated token |
+| GET me/ | user (numeric id, username/email/names/timezone); 401 means guest |
+| POST auth/google/start/ | CSRF-protected ordinary HTML form; 302 to Google |
+| GET auth/google/callback/ | Google's code/state; verified Django session then redirect to Web |
+| GET chat/messages/ | limit 1..200/default50, before sequence; conversation_id, messages, next_before |
+| POST chat/send/ | content 1..16000, submission_id UUID, optional IANA timezone/boolean retry; SSE or completed JSON replay |
+| GET chat/turns/{UUID}/ | Owned turn: activity, turn_status and result/error fields |
+| GET chat/turns/{UUID}/error/ | Failed owned turn only; bounded text/plain report |
+| GET memories/ | state active/history/all, q<=160, offset<=100000, limit default25; memories and total |
+| GET memories/{UUID}/ | Detailed memory/provenance in memory; owner-only |
+| GET memories/map/ | Canonical nodes/edges, truncated, optional stats |
+| GET capabilities/ | Public effective capabilities, including google_oauth |
 
-Django owns Secure/HttpOnly session cookies. Fetch uses credentials same-origin, redirect error and no-store. CSRF applies to login and all writes; token rotation is handled. No browser API keys, session tokens in storage, direct database access or cookie parsing. Non-401 errors remain errors; mock records never replace failed live requests.
+For memories use limit<=50: the adapter accepts <=100 but its repository currently accepts <=50. History returns chronological pages; next_before is present only if an older page exists. Dates are server timestamps; preserve canonical UUIDs, validity and provenance when mapping DTOs into presentation props. The graph can be truncated; do not silently represent it as complete.
 
-SSE uses fetch POST, not EventSource. It accepts trace/delta/done/error frames across UTF-8/chunk/CRLF boundaries. EOF without done is an interrupted stream. Capture X-Chat-Turn-ID, retain the original submission UUID, inspect turn/history after interruption, and only then decide whether to retry. Do not create a new UUID or automatically repeat an ambiguous write. The current backend reports sse_token_streaming=false, so do not promise token-by-token model output.
+## Existing frontend integration
 
-Canonical memories retain UUIDs and raw provenance/history fields; UI demo IDs are not backend IDs. The next workspace adapter must deliberately map API DTOs to presentation contracts and preserve server authority. Do not send local demo mutations to imaginary REST endpoints.
+Use `src/api/client.ts`, `errors.ts`, `sse.ts` and the existing hooks/providers. Do not create another HTTP client or authentication system. UI receives typed actions/state through `src/types/workspace.ts`; do not fetch, read cookies/storage or import demo fixtures from presentation components.
 
-Actual capabilities: chat=true, memory_read=true, memory_mutations_via_chat=true; memory_mutations_rest=false, calendar_rest=false, connections_rest=false, reminders=false, local_recurrence=false. No subscription management endpoints were found. Unknown capabilities mean unsupported. Calendar, reminders, connections and subscription screens are retained for design; live interactions must be disabled or explicitly marked unavailable until backend support exists.
+The client uses same-origin cookies and no-store. Django owns host-only Secure, HttpOnly session cookies; the browser does not store secrets/tokens in localStorage. Get CSRF before writes and refresh on session rotation. An ordinary OAuth form uses csrfmiddlewaretoken instead of the JSON client's header. Keep auth/CSRF transport in the existing API layer.
 
-Session entry and the minimum shared live workspace now use these transports; see GUEST_CHAT.md. Real account login, chat recovery, persistence across refresh, memory mapping and capability-driven UI must be tested against Django before a separate production cutover. No production database writes or credentials were used for these preparation tests.
+JSON errors normally contain error.code/error.message; message can be absent on disabled OAuth. Account bootstrap treats only me/401 as guest. Network/5xx failures remain errors with retry. Never inject demo records on live failures. Handle status and Content-Type, including non-JSON proxy errors, OAuth redirects and text reports. Do not automatically repeat a CSRF-rejected write.
+
+Chat SSE is fetch POST, not EventSource. Parse trace/delta/done/error across chunk boundaries; delta is the full answer, since sse_token_streaming=false. Capture X-Chat-Turn-ID early and retain submission_id. EOF without done is interrupted; inspect the original turn and authoritative history before resending. Completed duplicates replay JSON, running/failed/conflicting submissions return 409. A failed retry uses the same UUID/content and retry:true, never an automatic new submission. Stale recovery occurs server-side after ten minutes.
+
+## Google Sign-In: backend ready, button pending
+
+The backend start/callback routes already exist. Web deliberately keeps its Google button disabled until the separate integration task. The next task must expose the public google_oauth capability to the guest/login state, extend the existing typed API contract, and obtain the form token through the existing client (its current csrf method returns void and keeps the token private). Do not add a second fetch/auth implementation.
+
+Submit an ordinary same-origin POST form to auth/google/start/; do not fetch-follow Google's redirect and do not add a browser Google SDK/JWT. The exact registered callback is https://app.heymroya.com/api/v1/auth/google/callback/. Client secret remains on API only. After return, me/ establishes the UI identity and fresh CSRF supports later writes. Display only the documented auth_error allowlist. Google signup requires verified email, does not automatically link matching password accounts, and does not enable password signup or a usable password for a new Google account.
+
+## Capabilities and boundaries
+
+Available: chat, memory_read, memory_mutations_via_chat. google_oauth is configuration-dependent (currently true on the published API). Unavailable: memory_mutations_rest, calendar_rest, connections_rest, reminders, local_recurrence, sse_token_streaming. Missing/unknown flags mean unsupported.
+
+There are no public subscription, password signup/account linking, attachment/voice upload, chat cancellation or conversation CRUD endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
+
+Design Mode remains a separate offline build with fictional data/accounts. Production cannot be switched into Design Mode through query strings, storage or a user control. Preserve all visual screens and responsive layout; live unavailable features remain explicitly unavailable. See [AI Studio workflow](AI_STUDIO_WORKFLOW.md) and [guest/live behavior](GUEST_CHAT.md).
+
+Positive login with real credentials requires the owner's manual browser check when credentials are not supplied. Do not create production test users or modify real user data for a release smoke check.

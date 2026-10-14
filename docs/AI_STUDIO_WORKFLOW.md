@@ -10,12 +10,18 @@ For a built preview: `npm run build:design` then `npm run preview -- --outDir di
 
 Open the small **Design states** control at bottom left. Scenarios: filled, user, empty, loading, error, guest (animated entry), guest-typing, guest-welcome, guest-login (Studio form in dialog), and guest-invite. `?scenario=guest` etc. are shortcuts in the design bundle only. Guest login is fictional; enter fictional values only. All original workspace sections remain available. Calendar/reminder/connection actions in this mode are local simulations. No backend or production credentials are needed.
 
+## API authority and integration tasks
+
+Read [BACKEND_CONTRACT](BACKEND_CONTRACT.md) before implementing any functional integration. It links the canonical Django API and Google OAuth documentation; Mroya API owns identity, user data and business logic. Reuse src/api/, hooks and providers with same-origin /api/v1/, Django session and CSRF. Never create a second API client/auth system, store browser secrets, invent endpoints or present demo data as real. Missing routes require explicitly described API work.
+
+Studio may implement a small frontend integration when explicitly assigned, through existing typed contracts. API/auth architecture changes still require architectural review of the entire Git diff. Google Sign-In button integration is a separate task; the backend flow is already available. Keep Design Mode offline, including login previews.
+
 ## Safe editing scope
 
 - Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.
 - Keep package-lock.json in the repository; do not delete lockfiles or replace dependency configuration during a visual sync.
 - Keep exported props and `src/types/workspace.ts` compatible. UI emits actions through props; it does not fetch, read cookies/storage, import demo sources, or implement authorization.
-- Architecture owned by Codex: `src/api/`, `src/hooks/`, `src/providers/`, `src/demo/`, `src/types/`, `src/App.tsx`, `src/build.d.ts`, Vite/package configuration, tests, CI and deployment files.
+- Architecture requiring Codex review (including explicitly assigned Studio integrations): `src/api/`, `src/hooks/`, `src/providers/`, `src/demo/`, `src/types/`, `src/App.tsx`, `src/build.d.ts`, Vite/package configuration, tests, CI and deployment files.
 - Demo fixtures/scenarios can be requested for a design task but changes need architecture review. Do not move demo logic into production components.
 - Do not add Gemini SDK calls, API keys, secrets, server processes, mock authorization or production URLs to visual components.
 
@@ -35,4 +41,4 @@ Run `npm run check:boundaries`, `npm run lint`, `npm test`, `npm run build:produ
 
 Check new screens with every relevant scenario and desktop/mobile viewport. Verify navigation, scrolling, dialogs, touch controls and login layout. Inspect browser errors and failed assets. The boundary scanner is a heuristic; reviewers must also inspect imports, side effects, mode selection and dependency changes. CI checks props, boundaries, API/SSE behavior, fixtures without networking and absence of demo code in the production bundle.
 
-Guest entry and the minimum live workspace are implemented. Before production cutover, real Django end-to-end verification and a separate release review are required. Reviewed GitHub changes can then be built as Production Mode and deployed using the existing independent Web release/rollback procedure. No automatic deployment is enabled by this CI.
+Guest entry and the minimum live workspace are implemented. Release reviewed main within explicit user authorization using the existing independent Web helper/rollback procedure. Check HTTPS, guest state, same-origin routing and CSRF. When real credentials are not supplied, record positive account login as pending the owner’s manual check; do not create production test accounts or change user data. No automatic deployment is enabled by this CI.

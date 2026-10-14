@@ -20,13 +20,9 @@ Ambiguous stream interruption disables another send and exposes Check server sta
 
 This is the minimum supported workspace, not full feature parity. Rich memory provenance/detail fetching, broader settings and unsupported features remain future work.
 
-## Google OAuth requirements (backend task, not implemented)
+## Google OAuth status
 
-Current public config/urls.py exposes `/api/v1/` and admin only; API routes have no Google start/callback. Existing identity/allauth provider modules alone do not expose a usable public flow. Button remains visible and disabled with Coming soon in both roots; no simulated Google login or browser credentials.
-
-A backend-owned authorization-code flow needs an agreed start and callback route under the public API namespace, creation/linking of the account, Django session establishment and CSRF rotation, state validation and validated identity. Proposed routes ONLY, requiring backend agreement: `/api/v1/auth/google/start/` and `/api/v1/auth/google/callback/`. They do not exist and the frontend does not call them.
-
-Google Cloud needs a Web application OAuth client ID and client secret stored on the backend, a consent configuration with appropriate audience/test users, and openid/email/profile scopes. Proposed exact redirect URI after backend agreement: `https://app.heymroya.com/api/v1/auth/google/callback/`. Register exactly the actual deployed backend callback; do not register this proposal as a working endpoint. After callback, redirect safely to the Web app, whose `/me/` check loads the verified session. See [Google's server OAuth documentation](https://developers.google.com/identity/protocols/oauth2/web-server). No signup endpoint is exposed today; guest wording promises sign-in rather than fictitious free self-registration.
+Backend Google start/callback and signup through Django sessions are already published. The current Web button remains visible and disabled with Coming soon; connecting it is a separate task. The authoritative routes, CSRF/form flow, callback, capabilities and limitations are in [BACKEND_CONTRACT](BACKEND_CONTRACT.md), which links the API OAuth documentation. Do not infer missing backend support from the disabled button.
 
 ## Verification and cutover
 
@@ -34,4 +30,4 @@ Automated checks cover bounded network-free guest exchange; capability gates; li
 
 Manual optimized-build checks use a temporary localhost-only HTTP contract server, not Django or real accounts: guest welcome/send/Memory gate; shared form/disabled Google; wrong password; successful cookie-session login; live SSE/history reload/memory/map; unsupported sections; logout; `/me/` server error/retry. Desktop and mobile checks and Design scenarios are recorded in the PR. This fixture server is not shipped in frontend bundles.
 
-Production is unchanged. Before cutover, verify real Django session cookies/CSRF and account access through HTTPS using a designated test account in an approved non-production environment, exercise one chat turn and reload, and review the release/rollback. No real account credentials were supplied for this task, so fixture checks are not presented as real-account end-to-end proof. Google OAuth and full feature parity are not requirements for releasing the supported username/password minimum, but must remain explicitly unavailable.
+The preparation checks above are isolated fixture evidence. Release reviewed main through the existing Web helper within explicit release authorization; verify HTTPS, guest entry, same-origin API and CSRF. Real account login/chat must be verified manually by the owner if credentials are not supplied. Do not create production test users or mutate existing user data. No real account credentials were supplied for this task, so fixture checks are not presented as real-account end-to-end proof. Google OAuth and full feature parity are not requirements for releasing the supported username/password minimum, but must remain explicitly unavailable.

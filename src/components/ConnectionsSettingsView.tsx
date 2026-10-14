@@ -231,7 +231,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       : state.checking?'Checking Telegram connection…'
                       : connected?'Connected'+(state.status?.telegram_username?' (@'+state.status.telegram_username.replace(/^@/,'')+')':'')
                       : state.phase==='expired'?'Link expired'
-                      : pending?'Waiting for Telegram. Open Telegram and press Start, then check connection.'
+                      : pending?state.openFallback?'Waiting for Telegram. Open Telegram and press Start, then check connection.':'Waiting for Telegram. Press Start in the Telegram tab, then return to Mroya.'
                       : unavailable?'Telegram connection is temporarily unavailable.'
                       : state.status?'Disconnected':'Telegram connection has not been checked.'
                     : live?'Not available yet':conn.connected?'Connected ('+(conn.accountLabel||'Active in prototype')+')':'Disconnected';
@@ -273,7 +273,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       <div className="text-[12px] text-[var(--mroya-text-muted)] pt-1">
                         {status}
                       </div>
-                      {state?.link && <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] whitespace-nowrap">Open Telegram</a>}
+                      {state?.link && state.openFallback && <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] whitespace-nowrap">Open Telegram</a>}
+                      {state?.link && state.openFallback && <p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">Telegram could not open automatically. Your browser may have blocked the tab. Use Open Telegram to continue.</p>}
                       {state?.error && <p role="alert" className="text-[12px] text-[var(--mroya-error)]">{state.error}</p>}
                     </div>
 

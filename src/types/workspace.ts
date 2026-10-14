@@ -5,7 +5,7 @@ export interface AccountPresentation { displayName:string; initials:string; emai
 export interface TelegramPresentation {
     status:import('./api').TelegramConnectionStatus|null;
     phase:'loading'|'idle'|'creating'|'pending'|'disconnecting'|'expired';
-    checking:boolean; error:string|null; link:import('./api').TelegramLinkResponse|null;
+    openFallback:boolean; checking:boolean; error:string|null; link:import('./api').TelegramLinkResponse|null;
     onConnect:()=>void; onDisconnect:()=>void; onCheck:()=>void; onRetry:()=>void;
 }
 export interface WorkspaceRuntime {

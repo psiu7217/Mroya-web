@@ -17,3 +17,5 @@ dist-design/
 dist-studio
 
 .preview-network-error
+
+__pycache__/

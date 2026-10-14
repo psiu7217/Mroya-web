@@ -39,13 +39,27 @@ sha=$(git_as_psiu -C "$checkout" rev-parse HEAD)
 dirty=$(git_as_psiu -C "$checkout" status --porcelain )
 [[ -z "$dirty" ]]
 echo "Building approved main $sha"
-stage='tracked package-lock.json required (restore/review it; never npm install)'
-git_as_psiu -C "$checkout" cat-file -e "$sha:package-lock.json"
+stage='tracked npm lockfile (primary or fallback) required'
+lock_source=package-lock.json
+if git_as_psiu -C "$checkout" cat-file -e "$sha:package-lock.json"; then
+    :
+elif git_as_psiu -C "$checkout" cat-file -e "$sha:deploy/npm-lock.fallback.json"; then
+    lock_source=deploy/npm-lock.fallback.json
+    echo 'INFO: canonical package-lock.json absent; using reviewed deploy/npm-lock.fallback.json' >&2
+else
+    echo 'ERROR: both package-lock.json and deploy/npm-lock.fallback.json are absent from main' >&2
+    false
+fi
 stage='temporary production build context'
 context=$(mktemp -d /tmp/mroya-web-build.XXXXXX)
-files=(package.json package-lock.json index.html tsconfig.json vite.config.ts src scripts/check-production.mjs)
+files=(package.json index.html tsconfig.json vite.config.ts src scripts/check-production.mjs)
+files+=("$lock_source")
 if git_as_psiu -C "$checkout" cat-file -e "$sha:public"; then files+=(public); fi
 git_as_psiu -C "$checkout" archive "$sha" -- "${files[@]}" | tar -xf - -C "$context"
+# Restore only inside the temporary build context, without modifying the Git checkout.
+if [[ "$lock_source" != package-lock.json ]]; then
+    cp "$context/$lock_source" "$context/package-lock.json"
+fi
 mkdir -p "$context/public"
 cp "$config/Dockerfile" "$context/Dockerfile"
 cp "$config/nginx.conf" "$context/nginx.conf"

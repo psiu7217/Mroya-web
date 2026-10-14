@@ -52,9 +52,10 @@ class DeployTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=pathlib.Path(self.tmp.name)
   self.checkout=self.root/'checkout';self.config=self.root/'config';self.state=self.root/'state';self.bin=self.root/'bin'
-  for p in [self.checkout,self.config,self.state,self.bin,self.root/'tmp',self.checkout/'.git',self.checkout/'src',self.checkout/'scripts']:p.mkdir()
+  for p in [self.checkout,self.config,self.state,self.bin,self.root/'tmp',self.checkout/'.git',self.checkout/'src',self.checkout/'scripts',self.checkout/'deploy']:p.mkdir()
   (self.checkout/'package.json').write_text(json.dumps({'dependencies':{'react':'^19'}}))
   (self.checkout/'package-lock.json').write_text(json.dumps({'packages':{'':{'dependencies':{'react':'^19'}}}}))
+  (self.checkout/'deploy/npm-lock.fallback.json').write_bytes((self.checkout/'package-lock.json').read_bytes())
   for name in ['index.html','tsconfig.json','vite.config.ts']:(self.checkout/name).write_text('approved main')
   (self.checkout/'scripts/check-production.mjs').write_text('bundle check')
   (self.checkout/'.env').write_text('not part of build context')
@@ -94,10 +95,27 @@ class DeployTests(unittest.TestCase):
    with self.subTest(mode=mode):
     self.log.unlink(missing_ok=True);r=self.run_helper(mode);self.assertNotEqual(r.returncode,0)
     self.assertFalse(any(c[0] in ['docker','compose'] for c in self.calls))
- def test_missing_tracked_lock_never_publishes(self):
+ def test_studio_removed_primary_lock_uses_reviewed_fallback(self):
   (self.checkout/'package-lock.json').unlink()
-  r=self.run_helper();self.assertNotEqual(r.returncode,0);self.assertIn('tracked package-lock',r.stderr)
+  r=self.run_helper();self.assertEqual(r.returncode,0,r.stderr)
+  self.assertIn('using reviewed deploy/npm-lock.fallback.json',r.stderr)
+  self.assertTrue(any(c[0]=='docker' and 'build' in c for c in self.calls))
+  self.assertTrue(any(c[0]=='compose' and 'up' in c for c in self.calls))
+ def test_missing_both_locks_never_builds_or_publishes(self):
+  (self.checkout/'package-lock.json').unlink()
+  (self.checkout/'deploy/npm-lock.fallback.json').unlink()
+  r=self.run_helper();self.assertNotEqual(r.returncode,0)
+  self.assertIn('both package-lock.json and deploy/npm-lock.fallback.json are absent',r.stderr)
   self.assertFalse(any(c[0] in ['docker','compose'] for c in self.calls))
+ def test_stale_fallback_cannot_publish_incompatible_dependencies(self):
+  (self.checkout/'package-lock.json').unlink()
+  (self.checkout/'package.json').write_text(json.dumps({'dependencies':{'react':'^20'}}))
+  r=self.run_helper();self.assertNotEqual(r.returncode,0)
+  self.assertFalse(any(c[0]=='compose' or c[1:3]==['image','tag'] for c in self.calls))
+ def test_existing_primary_lock_is_preferred_over_stale_fallback(self):
+  (self.checkout/'deploy/npm-lock.fallback.json').write_text(json.dumps({'packages':{'':{'dependencies':{'react':'^20'}}}}))
+  r=self.run_helper();self.assertEqual(r.returncode,0,r.stderr)
+  self.assertNotIn('using reviewed deploy/npm-lock.fallback.json',r.stderr)
  def test_inconsistent_lock_and_build_error_never_publish(self):
   for mode in ['lock','build']:
    with self.subTest(mode=mode):

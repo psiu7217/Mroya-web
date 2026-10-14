@@ -19,7 +19,7 @@ Studio may implement a small frontend integration when explicitly assigned, thro
 ## Safe editing scope
 
 - Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.
-- Keep package-lock.json tracked and consistent with package.json; visual changes must not remove it or change dependencies. Deployment stops on missing/incompatible locks. Restore the last matching tracked lock, or regenerate and review it only for an intentional dependency change; never replace npm ci with npm install during publication.
+- Keep package-lock.json tracked and consistent with package.json; visual changes should not delete it or change dependencies. Never modify or delete `deploy/npm-lock.fallback.json` in Studio. The deployment helper can recover a missing canonical lockfile from this tracked fallback only in a temporary build context; incompatible dependencies still fail validation. When intentionally changing dependencies, regenerate and review package-lock.json and refresh the fallback copy together. Never use npm install during publication.
 - Keep exported props and `src/types/workspace.ts` compatible. UI emits actions through props; it does not fetch, read cookies/storage, import demo sources, or implement authorization.
 - Architecture requiring Codex review (including explicitly assigned Studio integrations): `src/api/`, `src/hooks/`, `src/providers/`, `src/demo/`, `src/types/`, `src/App.tsx`, `src/build.d.ts`, Vite/package configuration, tests, CI and deployment files.
 - Demo fixtures/scenarios can be requested for a design task but changes need architecture review. Do not move demo logic into production components.
@@ -33,7 +33,7 @@ The owner's currently connected Google AI Studio can publish only directly to Gi
 
 Before a visual task, compare Studio's snapshot with the latest GitHub `main` and synchronize the project when the available Studio UI permits it. Scope prompts to presentation files and preserve API/provider/type/build contracts. After Studio publishes to `main`, review the exact new commit(s), including unexpected changes to dependencies, lockfile, tests, authentication and deployment files. Studio push never triggers a production deployment.
 
-Codex architecture changes should use a separate branch and PR, rebasing or merging the latest Studio changes before review. Never force-push or reset the `main` history to reconcile Studio; keep the reviewed API contracts and merge intended presentation changes deliberately. `package-lock.json` is required by the existing Dockerfile and must not be removed.
+Codex architecture changes should use a separate branch and PR, rebasing or merging the latest Studio changes before review. Never force-push or reset the `main` history to reconcile Studio; keep the reviewed API contracts and merge intended presentation changes deliberately. `package-lock.json` is required by the Dockerfile; a guarded fallback can supply it during deployment if Studio deletes the original, without disabling `npm ci`.
 
 ## Review and verification
 

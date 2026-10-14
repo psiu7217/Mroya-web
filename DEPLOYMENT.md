@@ -16,7 +16,7 @@ Root owns the helper, Docker operations and runtime files. The existing /var/lib
 
 A temporary /tmp/mroya-web-build.* context contains explicitly selected files archived from the exact main SHA, plus the installed /etc/mroya-web-deploy/Dockerfile and nginx.conf. It is removed on exit. No retained archive/release directory is created. The repository cannot overwrite runtime Nginx.
 
-Before publication: a tracked package-lock.json is required; Docker checks its root dependency declarations against package.json, then npm ci validates/installs locked dependencies. Missing/incompatible locks stop before any live image switch. Do not generate/restore a lock automatically during deployment or substitute npm install: restore the last matching lock in Git, or commit a reviewed regenerated lock after an intentional dependency change.
+Before publication, prefer the tracked `package-lock.json` from the reviewed main commit. If Studio deleted it, the helper takes the tracked `deploy/npm-lock.fallback.json` from that same commit and copies it to `package-lock.json` **only in the temporary Docker build context**; it does not modify GitHub main or the deployment checkout. An existing canonical lockfile always takes precedence. The Docker root-dependency comparison and `npm ci` must still succeed; if both lockfiles are missing or dependencies disagree, deployment stops before the live image switch. Never generate a new lockfile with `npm install` during deployment. For intentional dependency changes, review and commit the regenerated `package-lock.json` and update the fallback copy together.
 
 The existing build stage runs npm run lint, MROYA_BUILD_TARGET=production npm run build:production, and node scripts/check-production.mjs. Typecheck/build/bundle checks run without network after npm ci. The Vite Production/Design entrypoint boundary is unchanged; bundle markers are only an additional check. Full tests, boundary scans and Design builds remain explicit development/review commands.
 
@@ -44,7 +44,7 @@ Installed legacy /usr/local/sbin/mroya-web-rollback remains untouched but is **n
 
 ## Failure handling
 
-Errors name the stage with a brief safe message; Git error output is suppressed to avoid exposing credential-bearing remote diagnostics. No credentials, cookies, production .env or API payloads enter the build context/logs. Before image publication, build failures leave the live container and stable image tag untouched.
+Errors name the stage with a brief safe message; Git error output is suppressed to avoid exposing credential-bearing remote diagnostics. No credentials, cookies, production .env or API payloads enter the build context/logs. Before image publication, build and lockfile validation failures leave the live container and stable image tag untouched.
 
 After the tag/Compose switch, failures are explicit and **no automatic rollback occurs**. The stable tag can already point to the new image even if Compose startup failed. Do not claim the previous image was restored. Review/fix or git revert the bad change, publish the correction to main, then repeat the ordinary command after release authorization. This is not an automatic rollback system.
 

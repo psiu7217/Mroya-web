@@ -93,9 +93,16 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   const [nicknameDraft, setNicknameDraft] = React.useState(account.nickname || '');
   const [selectedTimezone, setSelectedTimezone] = React.useState(account.timezone || 'UTC');
   const [saveStatus, setSaveStatus] = React.useState<string | null>(null);
+  const [nicknameSubmitted, setNicknameSubmitted] = React.useState(false);
+  const nicknameEdited = React.useRef(false);
+  const nicknameStatus = live
+    ? nicknameSubmitted && preferenceSave
+      ? preferenceSave.status==='saving' ? 'Saving…' : preferenceSave.status==='unsaved' ? 'Not saved' : 'Saved'
+      : null
+    : saveStatus;
 
   React.useEffect(() => {
-    setNicknameDraft(account.nickname || '');
+    if (!nicknameEdited.current) setNicknameDraft(account.nickname || '');
   }, [account.nickname]);
 
   React.useEffect(() => {
@@ -111,13 +118,24 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   }, [account.timezone]);
 
   const handleSaveNickname = () => {
-    onSaveNickname?.(nicknameDraft);
+    const value = nicknameDraft.trim();
+    if (Array.from(value).length > 80) {
+      if (live) { setNicknameSubmitted(true); onSaveNickname?.(value); }
+      else setSaveStatus('Nickname must be at most 80 characters.');
+      return;
+    }
+    nicknameEdited.current = false;
+    setNicknameDraft(value);
+    if (live) { setNicknameSubmitted(true); onSaveNickname?.(value); return; }
+    onSaveNickname?.(value);
     setSaveStatus('Saved');
     setTimeout(() => setSaveStatus(null), 2000);
   };
 
   const handleClearNickname = () => {
+    nicknameEdited.current = false;
     setNicknameDraft('');
+    if (live) { setNicknameSubmitted(true); onClearNickname?.(); return; }
     onClearNickname?.();
     setSaveStatus('Cleared');
     setTimeout(() => setSaveStatus(null), 2000);
@@ -416,14 +434,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
               </div>
 
               {/* Nickname section */}
-              {!live && <div className="space-y-2">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label htmlFor="mroya-profile-nickname" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
                     Nickname
                   </label>
-                  {saveStatus && (
+                  {nicknameStatus && (
                     <span className="text-[12px] font-medium text-[var(--mroya-primary)]">
-                      {saveStatus}
+                      {nicknameStatus}
                     </span>
                   )}
                 </div>
@@ -433,9 +451,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     type="text"
                     autoComplete="nickname"
                     value={nicknameDraft}
-                    onChange={(e) => setNicknameDraft(e.target.value)}
+                    onChange={(e) => { nicknameEdited.current = true; setNicknameSubmitted(false); setSaveStatus(null); setNicknameDraft(e.target.value); }}
                     placeholder="Enter your nickname"
-                    maxLength={80}
                     className="flex-1 min-w-[200px] rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2 text-[13px] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors"
                   />
                   <div className="flex items-center gap-2 shrink-0">
@@ -459,7 +476,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
                   How Mroya addresses you in personal conversations and greetings.
                 </p>
-              </div>}
+              </div>
 
               {/* Time zone section */}
               <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">

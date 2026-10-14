@@ -344,17 +344,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <Menu className="w-5 h-5" />
           </button>
 
-          {isSidebarCollapsed && (
-            <button
-              type="button"
-              onClick={onExpandSidebar}
-              aria-label="Expand sidebar"
-              className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
-            >
-              <PanelLeftOpen className="w-4 h-4" />
-            </button>
-          )}
-
           {/* Shared year breadcrumb: vibrant pill button */}
           <button
             type="button"

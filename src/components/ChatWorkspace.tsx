@@ -323,20 +323,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             </button>
           </div>
 
-          {/* Desktop Left: Sidebar collapse toggle + Conversation title + Personal space indicator */}
+          {/* Desktop Left: Conversation title + Personal space indicator */}
           <div className="hidden lg:flex items-center gap-2.5 min-w-0">
-            {isSidebarCollapsed && (
-              <button
-                type="button"
-                onClick={onExpandSidebar}
-                title="Expand sidebar"
-                aria-label="Expand sidebar"
-                className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-              >
-                <PanelLeftOpen className="w-4 h-4" />
-              </button>
-            )}
-
             <div className="flex items-center gap-2 min-w-0">
               <h1 className="text-[15px] font-semibold text-[var(--mroya-text)] truncate">
                 {conversation ? conversation.title : 'New chat'}

@@ -165,17 +165,6 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             <Menu className="w-5 h-5" />
           </button>
 
-          {isSidebarCollapsed && (
-            <button
-              type="button"
-              onClick={onExpandSidebar}
-              aria-label="Expand sidebar"
-              className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
-            >
-              <PanelLeftOpen className="w-4 h-4" />
-            </button>
-          )}
-
           <div>
             <h1 className="text-[17px] sm:text-[18px] font-bold text-[var(--mroya-text)] flex items-center gap-2">
               <span>Reminders</span>

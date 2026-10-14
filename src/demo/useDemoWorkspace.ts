@@ -173,11 +173,10 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
 
   // Sync data-theme attribute on document root
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
+    const media=window.matchMedia?.('(prefers-color-scheme: dark)');
+    const apply=()=>document.documentElement.setAttribute('data-theme',theme==='system'?(media?.matches?'dark':'light'):theme);
+    apply();media?.addEventListener?.('change',apply);
+    return()=>{media?.removeEventListener?.('change',apply);document.documentElement.removeAttribute('data-theme');};
   }, [theme]);
 
   const activeConversation: Conversation | null =

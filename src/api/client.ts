@@ -1,10 +1,13 @@
-import type {ApiUser,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
+import type {ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
 import {ApiError} from './errors.ts';
 import {readChatStream} from './sse.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
   const user=value as Record<string,unknown>;
   if (typeof user.id !== 'number' || !['username','email','first_name','last_name','timezone'].every(field=>typeof user[field]==='string')) throw new ApiError(502,'invalid_response','Invalid API user');
+  if(typeof user.nickname!=='string' || !user.preferences || typeof user.preferences!=='object'
+    || !['system','light','dark'].includes((user.preferences as Record<string,unknown>).theme as ThemeMode))
+    throw new ApiError(502,'invalid_response','Invalid API preferences');
   return value as ApiUser;
 }
 export class MroyaApi {
@@ -15,12 +18,14 @@ export class MroyaApi {
   private async check(response:Response):Promise<void> {
     if(response.ok)return;
     const body=await response.json().catch(()=>({}));
-    if(response.status===401)this.token='';
-    throw new ApiError(response.status,typeof body?.error?.code==='string'?body.error.code:'http_error',typeof body?.error?.message==='string'?body.error.message:`HTTP ${response.status}`);
+    if(response.status===401||response.status===403)this.token='';
+    const fields=body?.error?.fields;
+    throw new ApiError(response.status,typeof body?.error?.code==='string'?body.error.code:'http_error',typeof body?.error?.message==='string'?body.error.message:`HTTP ${response.status}`,
+      fields && typeof fields==='object' && !Array.isArray(fields) ? fields : undefined);
   }
-  private async json<T>(path:string,body?:unknown,signal?:AbortSignal):Promise<T> {
+  private async json<T>(path:string,body?:unknown,signal?:AbortSignal,method:'POST'|'PATCH'='POST'):Promise<T> {
     if(body!==undefined&&!this.token)await this.csrf(signal);
-    const response=await this.fetcher('/api/v1/'+path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+    const response=await this.fetcher('/api/v1/'+path,{method:body===undefined?'GET':method,credentials:'same-origin',cache:'no-store',redirect:'error',signal,
       headers:body===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':this.token},body:body===undefined?undefined:JSON.stringify(body)});
     await this.check(response);
     if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON, received a different response');
@@ -51,6 +56,12 @@ export class MroyaApi {
   }
   async me(signal?:AbortSignal):Promise<{user:ApiUser}>{const data=await this.json<{user:unknown}>('me/',undefined,signal);return {user:checkedUser(data.user)};}
   async login(username:string,password:string,signal?:AbortSignal):Promise<ApiUser>{const data=await this.json<{user:ApiUser;csrf_token:string}>('auth/login/',{username,password},signal);if(typeof data.csrf_token!=='string'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing login fields');this.token=data.csrf_token;return checkedUser(data.user);}
+  async savePreferences(changes:PreferencesPatch,signal?:AbortSignal):Promise<ApiUser>{
+    const keys=Object.keys(changes);
+    if(!keys.length || keys.some(key=>key!=='theme'&&key!=='nickname'))throw new Error('Invalid preferences payload');
+    const data=await this.json<{user:unknown}>('me/preferences/',changes,signal,'PATCH');
+    return checkedUser(data.user);
+  }
   async logout(signal?:AbortSignal):Promise<void>{const data=await this.json<{status:'logged_out';csrf_token:string}>('auth/logout/',{},signal);if(data.status!=='logged_out'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing logout fields');this.token=data.csrf_token;}
   history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal);}
   memories(options:{state?:'active'|'history'|'all';q?:string;offset?:number;limit?:number}={},signal?:AbortSignal):Promise<MemoriesResponse>{const query=new URLSearchParams(Object.entries(options).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]));return this.json('memories/'+(query.size?'?'+query:''),undefined,signal);}

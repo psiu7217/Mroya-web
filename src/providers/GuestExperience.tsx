@@ -5,7 +5,7 @@ import {useWorkspaceLayout} from '../hooks/useWorkspaceLayout';
 import {GUEST_ACCOUNT} from '../hooks/guestConversation';
 import type {GreetingPhase} from '../components/GuestWelcome';
 export function GuestExperience({onSignIn,phase:initial,initialMessage}:{onSignIn:()=>void;phase?:GreetingPhase;initialMessage?:string}) {
- const {phase,conversation,send,clear}=useGuestChat(initial,initialMessage),layout=useWorkspaceLayout();
+ const {phase,conversation,send,clear}=useGuestChat(initial,initialMessage),layout=useWorkspaceLayout({guest:true});
  const [notice,setNotice]=useState<string|null>(null);
  const gate=()=>{setNotice('Sign in to access your personal workspace.');layout.closeMobile();};
  const newChat=()=>{clear();setNotice(null);};

@@ -1,7 +1,39 @@
 import {useEffect,useState} from 'react';
 import type {ThemeMode} from '../types/mroya';
-export function useWorkspaceLayout() {
- const [collapsed,setCollapsed]=useState(false),[mobile,setMobile]=useState(false),[theme,setTheme]=useState<ThemeMode>('light');
- useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);return()=>document.documentElement.removeAttribute('data-theme');},[theme]);
- return {collapsed,mobile,theme,toggleCollapse:()=>setCollapsed(v=>!v),expand:()=>setCollapsed(false),openMobile:()=>setMobile(true),closeMobile:()=>setMobile(false),toggleTheme:()=>setTheme(v=>v==='light'?'dark':'light')};
+
+const GUEST_THEME_KEY='mroya:guest-theme';
+export function readGuestTheme():ThemeMode{
+  if(typeof window==='undefined')return 'system';
+  try{
+    const value=window.localStorage.getItem(GUEST_THEME_KEY);
+    return value==='light'||value==='dark'||value==='system'?value:'system';
+  }catch{return 'system';}
+}
+export function resolvedTheme(theme:ThemeMode,darkPreferred:boolean):'light'|'dark'{
+  return theme==='system'?(darkPreferred?'dark':'light'):theme;
+}
+export function useWorkspaceLayout(options:{guest?:boolean;theme?:ThemeMode;onThemeChange?:(value:ThemeMode)=>void}={}) {
+  const [collapsed,setCollapsed]=useState(false),[mobile,setMobile]=useState(false);
+  const [localTheme,setLocalTheme]=useState<ThemeMode>(()=>options.guest?readGuestTheme():options.theme??'light');
+  const theme=options.theme??localTheme;
+  useEffect(()=>{
+    if(typeof window==='undefined')return;
+    const media=window.matchMedia?.('(prefers-color-scheme: dark)');
+    const apply=()=>document.documentElement.setAttribute('data-theme',resolvedTheme(theme,media?.matches===true));
+    apply();
+    media?.addEventListener?.('change',apply);
+    return()=>{media?.removeEventListener?.('change',apply);document.documentElement.removeAttribute('data-theme');};
+  },[theme]);
+  const selectTheme=(value:ThemeMode)=>{
+    if(options.onThemeChange)options.onThemeChange(value);
+    else setLocalTheme(value);
+    if(options.guest&&typeof window!=='undefined'){
+      try{window.localStorage.setItem(GUEST_THEME_KEY,value);}catch{/* Private browsing/storage denied. */}
+    }
+  };
+  const toggleTheme=()=>{
+    const mediaDark=typeof window!=='undefined'&&window.matchMedia?.('(prefers-color-scheme: dark)')?.matches===true;
+    selectTheme(resolvedTheme(theme,mediaDark)==='dark'?'light':'dark');
+  };
+  return {collapsed,mobile,theme,selectTheme,toggleCollapse:()=>setCollapsed(v=>!v),expand:()=>setCollapsed(false),openMobile:()=>setMobile(true),closeMobile:()=>setMobile(false),toggleTheme};
 }

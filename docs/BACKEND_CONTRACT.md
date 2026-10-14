@@ -11,7 +11,8 @@ All paths below are relative to the fixed same-origin `/api/v1/` on app.heymroya
 | GET auth/csrf/ | Public; csrf_token and CSRF cookie |
 | POST auth/login/ | username/password JSON + X-CSRFToken; user and rotated csrf_token |
 | POST auth/logout/ | Session + CSRF; status logged_out and rotated token |
-| GET me/ | user (numeric id, username/email/names/timezone); 401 means guest |
+| GET me/ | user (numeric id, username/email/names/timezone/nickname/preferences.theme); 401 means guest |
+| PATCH me/preferences/ | Authenticated CSRF JSON theme/nickname; returns updated user; theme system/light/dark, nickname up to 80 or empty to clear |
 | POST auth/google/start/ | CSRF-protected ordinary HTML form; 302 to Google |
 | GET auth/google/callback/ | Google's code/state; verified Django session then redirect to Web |
 | GET chat/messages/ | limit 1..200/default50, before sequence; conversation_id, messages, next_before |
@@ -48,5 +49,7 @@ Available: chat, memory_read, memory_mutations_via_chat. google_oauth is configu
 There are no public subscription, password signup/account linking, attachment/voice upload, chat cancellation or conversation CRUD endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
 
 Design Mode remains a separate offline build with fictional data/accounts. Production cannot be switched into Design Mode through query strings, storage or a user control. Preserve all visual screens and responsive layout; live unavailable features remain explicitly unavailable. See [AI Studio workflow](AI_STUDIO_WORKFLOW.md) and [guest/live behavior](GUEST_CHAT.md).
+
+Theme and nickname are persistent account preferences; the frontend uses the existing session/CSRF client and serializes PATCH operations. Guest theme remains separate in browser storage. The backend's published `me/preferences/` contract must be deployed with migration `identity.0003_user_preferences` before functional testing. Read `docs/API.md` in Mroya-api for 400 `invalid_preferences` validation fields.
 
 Positive login with real credentials requires the owner's manual browser check when credentials are not supplied. Do not create production test users or modify real user data for a release smoke check.

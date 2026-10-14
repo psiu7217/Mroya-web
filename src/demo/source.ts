@@ -4,8 +4,8 @@ import type { WorkspaceSource, SessionState } from '../types/source.ts';
 export function createDesignSource(): WorkspaceSource {
   return {
     kind: 'design',
-    session: async (): Promise<SessionState> => ({status:'authenticated',user:{id:0,username:'design-user',email:'alex@lindqvist.studio',first_name:'Alex',last_name:'Lindqvist',timezone:'Europe/Stockholm'}}),
-    login: async () => ({id:0,username:'design-user',email:'',first_name:'Alex',last_name:'Lindqvist',timezone:'Europe/Stockholm'}),
+    session: async (): Promise<SessionState> => ({status:'authenticated',user:{id:0,username:'design-user',email:'alex@lindqvist.studio',first_name:'Alex',last_name:'Lindqvist',timezone:'Europe/Stockholm',nickname:'Alex',preferences:{theme:'light'}}}),
+    login: async () => ({id:0,username:'design-user',email:'',first_name:'Alex',last_name:'Lindqvist',timezone:'Europe/Stockholm',nickname:'Alex',preferences:{theme:'light'}}),
     logout: async () => {},
     // Demo DTOs remain separate from canonical backend records. UI scenarios use the same fixtures.
     history: async () => ({conversation_id:'design',messages:INITIAL_CONVERSATIONS[0].messages.map((m,i)=>({id:m.id,sequence:i+1,role:m.sender,content:m.content,status:'completed',created_at:'2026-10-12T12:00:00Z',completed_at:null})),next_before:null}),

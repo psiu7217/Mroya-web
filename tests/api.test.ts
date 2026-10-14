@@ -7,7 +7,7 @@ import {createDesignSource} from '../src/demo/source.ts';
 import {isProductionHost} from '../src/providers/mode.ts';
 import {designScenario} from '../src/demo/scenarios.ts';
 import {readChatStream} from '../src/api/sse.ts';
-const user={id:3,username:'test',email:'',first_name:'Test',last_name:'',timezone:'UTC'};
+const user={id:3,username:'test',email:'',first_name:'Test',last_name:'',timezone:'UTC',nickname:'',preferences:{theme:'system' as const}};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 const uuid='00000000-0000-4000-8000-000000000001';
 function fakeFetch(fn:(url:string,init:RequestInit)=>Response|Promise<Response>):typeof fetch{return ((url,init={})=>Promise.resolve(fn(String(url),init))) as typeof fetch;}
@@ -55,7 +55,7 @@ test('production host blocks accidental design bundle; preview scenario flags ar
 
 test('default transport calls browser fetch with its global receiver',async()=>{
  const original=globalThis.fetch;
- globalThis.fetch=async function(this:unknown){assert.equal(this,globalThis);return new Response(JSON.stringify({user:{id:1,username:'real',email:'',first_name:'',last_name:'',timezone:'UTC'}}),{headers:{'Content-Type':'application/json'}});};
+ globalThis.fetch=async function(this:unknown){assert.equal(this,globalThis);return new Response(JSON.stringify({user:{id:1,username:'real',email:'',first_name:'',last_name:'',timezone:'UTC',nickname:'',preferences:{theme:'system'}}}),{headers:{'Content-Type':'application/json'}});};
  try{assert.equal((await new MroyaApi().me()).user.username,'real');}finally{globalThis.fetch=original;}
 });
 
@@ -173,4 +173,22 @@ test('Google capability must be explicitly true; unavailable and failed CSRF nev
 test('Design Google action cannot use the live OAuth transport',async()=>{
  const original=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw Error('No production requests in Design Mode');};
  try{await assert.rejects(createDesignSource().startGoogleAuth!(),/Design Mode/);assert.equal(calls,0);}finally{globalThis.fetch=original;}
+});
+
+test('preferences PATCH uses CSRF and accepts independent fields from same-origin API',async()=>{
+ const updated={...user,nickname:'Alex',preferences:{theme:'dark' as const}};
+ const calls:{url:string;init:RequestInit}[]=[];
+ const api=new MroyaApi(fakeFetch((url,init)=>{calls.push({url,init});return url.endsWith('csrf/')?json({csrf_token:'csrf-for-patch'}):json({user:updated});}));
+ assert.deepEqual(await api.savePreferences({nickname:'Alex',theme:'dark'}),updated);
+ assert.equal(calls[1].url,'/api/v1/me/preferences/');
+ assert.equal(calls[1].init.method,'PATCH');
+ assert.equal(calls[1].init.credentials,'same-origin');
+ assert.equal((calls[1].init.headers as Record<string,string>)['X-CSRFToken'],'csrf-for-patch');
+ assert.deepEqual(JSON.parse(calls[1].init.body as string),{nickname:'Alex',theme:'dark'});
+});
+test('preferences invalid shape exposes validation fields without retry',async()=>{
+ let writes=0;
+ const api=new MroyaApi(fakeFetch(url=>url.endsWith('csrf/')?json({csrf_token:'test'}):(writes++,json({error:{code:'invalid_preferences',message:'Invalid',fields:{nickname:[{code:'invalid',message:'Cannot save'}]}}},400))));
+ await assert.rejects(api.savePreferences({nickname:'test'}),(error:unknown)=>error instanceof ApiError&&error.status===400&&Array.isArray(error.fields?.nickname));
+ assert.equal(writes,1);
 });

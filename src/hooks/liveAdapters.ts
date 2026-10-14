@@ -3,7 +3,7 @@ import type {AccountPresentation} from '../types/workspace.ts';
 import type {Conversation,MemoryItem,GraphNode,GraphEdge} from '../types/mroya.ts';
 const text=(v:unknown):string=>v==null?'':typeof v==='string'?v:JSON.stringify(v);
 export function accountPresentation(user:ApiUser):AccountPresentation {
- const name=[user.first_name,user.last_name].filter(Boolean).join(' ')||user.username;
+ const name=user.nickname.trim()||[user.first_name,user.last_name].filter(Boolean).join(' ')||user.username;
  return {displayName:name,initials:name.split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase(),email:user.email,description:'',timezone:user.timezone,spaceDescription:'Personal space'};
 }
 export function chatPresentation(id:string,messages:ApiMessage[]):Conversation {

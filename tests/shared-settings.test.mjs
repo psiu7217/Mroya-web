@@ -9,7 +9,6 @@ const vite=await createServer({mode:'design',server:{middlewareMode:true},appTyp
 after(()=>vite.close());
 const {ConnectionsSettingsView}=await vite.ssrLoadModule('/src/components/ConnectionsSettingsView.tsx');
 const {Sidebar}=await vite.ssrLoadModule('/src/components/Sidebar.tsx');
-const {LiveWorkspace}=await vite.ssrLoadModule('/src/pages/LiveWorkspace.tsx');
 const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 const {useDemoWorkspace}=await vite.ssrLoadModule('/src/demo/useDemoWorkspace.ts');
 const {UserPreferenceStore}=await vite.ssrLoadModule('/src/hooks/useUserPreferences.ts');
@@ -24,9 +23,11 @@ const labels=['Connected accounts','My plan','Appearance','Profile','Memory pref
 test('both workspace pages render the same five settings tabs in order',()=>{
  function Design(){const model=useDemoWorkspace();return React.createElement(WorkspaceView,{model:{...model,activeSection:'connections'}});}
  const design=renderToStaticMarkup(React.createElement(Design));
- const live=renderToStaticMarkup(React.createElement(LiveWorkspace,{sidebar:{...sidebar,live:true},chat:{},memory:{},map:{},section:'connections',settings:{...settings,live:true},notice:null,error:null,loading:false,busy:false}));
+ function Live(){const model=useDemoWorkspace('empty');return React.createElement(WorkspaceView,{model:{...model,account,activeSection:'connections',runtime:{pending:false,loading:false,busy:false,error:null,onRetry:noop,chatAvailable:true,memoryAvailable:true,calendarAvailable:false,remindersAvailable:false,memoriesTotal:0,hasOlder:false,onOlder:noop,hasMoreMemories:false,onMoreMemories:noop,truncated:false,notice:null,onCloseNotice:noop,onUnavailable:noop,onLogout:noop,preferenceSave:{status:'saved',error:null,onRetry:noop},onSaveNickname:noop,onClearNickname:noop}}});}
+ const live=renderToStaticMarkup(React.createElement(Live));
  for(const html of [design,live]){let previous=-1;for(const label of labels){const index=html.indexOf('>'+label+'</button>');assert.ok(index>previous,label);previous=index;}assert.match(html,/Connections &amp; Account/);}
- for(const path of ['src/pages/WorkspaceView.tsx','src/pages/LiveWorkspace.tsx'])assert.match(fs.readFileSync(path,'utf8'),/<ConnectionsSettingsView\b/);
+ assert.match(fs.readFileSync('src/pages/WorkspaceView.tsx','utf8'),/<ConnectionsSettingsView\b/);
+ assert.ok(!fs.existsSync('src/pages/LiveWorkspace.tsx'));
 });
 test('sidebar has no standalone Settings in expanded, collapsed, mobile, live or guest navigation',()=>{
  for(const live of [true,false])for(const isCollapsed of [true,false])for(const mobileOpen of [true,false])for(const guest of [true,false]){
@@ -45,7 +46,7 @@ test('actual account-menu handlers route Profile, Connected accounts, Settings a
  }
  assert.equal((s.match(/if \(item.id === 'connections'\) onOpenSettingsTab\('connections'\)/g)||[]).length,2);
  const provider=fs.readFileSync('src/providers/LiveExperience.tsx','utf8');
- assert.equal((provider.match(/onOpenSettingsTab:openSettings/g)||[]).length,2);
+ assert.equal((provider.match(/on(?:Sidebar|ChatWorkspace)OpenSettingsTab:openSettings/g)||[]).length,2);
  assert.match(provider,/select\('connections'\);setSettingsTab\(tab\)/);
 });
 test('live shows unavailable services/plan/memory controls without fake successes or demo accounts',()=>{

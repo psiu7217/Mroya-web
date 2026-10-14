@@ -22,10 +22,13 @@ import {
   Repeat,
 } from 'lucide-react';
 import { CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
+import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils';
 
 interface CalendarViewProps {
+  readOnly?:boolean;
+  samples?:{person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
   events: CalendarEvent[];
   memories: MemoryItem[];
   reminders: ReminderItem[];
@@ -73,9 +76,10 @@ const SHORT_MONTH_NAMES = [
   'Dec',
 ];
 
-const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028];
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  readOnly=false,
+  samples,
   events,
   memories,
   reminders,
@@ -92,10 +96,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(9); // 0-based: 9 = October
+  const today=readOnly?new Date():new Date(2026,9,12);
+  const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(today.getMonth());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'week'>('month');
-  const [selectedDay, setSelectedDay] = useState<number>(12);
+  const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
@@ -105,7 +110,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [newDay, setNewDay] = useState(12);
   const [newTime, setNewTime] = useState('14:00');
   const [newCategory, setNewCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
-  const [newPerson, setNewPerson] = useState('Sarah Chen');
+  const [newPerson, setNewPerson] = useState(samples?.person??'');
   const [newNotes, setNewNotes] = useState('');
   const [newEventRecurrence, setNewEventRecurrence] = useState<RecurrenceRule | undefined>(undefined);
   const [newReminderEnabled, setNewReminderEnabled] = useState(false);
@@ -129,12 +134,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleSimulateSync = (reminderId: string) => {
+    if(readOnly)return;
     onSimulateGoogleSync(reminderId);
     setSyncToast('Updated from Google Calendar · Shared schedule synchronized with Mroya');
     setTimeout(() => setSyncToast(null), 4000);
   };
 
   const handleQuickAddReminder = (event: CalendarEvent) => {
+    if(readOnly)return;
     const pad = (n: number) => String(n).padStart(2, '0');
     let calcTime = event.time;
     let calcDate = event.date;
@@ -205,6 +212,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
+    if(readOnly)return;
     if (!newTitle.trim()) return;
     const paddedMonth = String(currentMonthIndex + 1).padStart(2, '0');
     const paddedDay = String(newDay).padStart(2, '0');
@@ -233,53 +241,32 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setSelectedDay(newDay);
   };
 
-  const handlePrevMonth = () => {
-    if (currentMonthIndex === 0) {
-      setCurrentMonthIndex(11);
-      setCurrentYear((y) => y - 1);
-    } else {
-      setCurrentMonthIndex((m) => m - 1);
-    }
+  const selectDate = (year:number,month:number,day=selectedDay) => {
+    const date=calendarDate(year,month,day);
+    setCurrentYear(date.getFullYear());setCurrentMonthIndex(date.getMonth());setSelectedDay(date.getDate());
   };
-
-  const handleNextMonth = () => {
-    if (currentMonthIndex === 11) {
-      setCurrentMonthIndex(0);
-      setCurrentYear((y) => y + 1);
-    } else {
-      setCurrentMonthIndex((m) => m + 1);
-    }
-  };
-
-  const handlePrevYear = () => {
-    setCurrentYear((y) => y - 1);
-  };
-
-  const handleNextYear = () => {
-    setCurrentYear((y) => y + 1);
-  };
+  const handlePrevMonth = () => selectDate(currentYear,currentMonthIndex-1);
+  const handleNextMonth = () => selectDate(currentYear,currentMonthIndex+1);
+  const handlePrevYear = () => selectDate(currentYear-1,currentMonthIndex);
+  const handleNextYear = () => selectDate(currentYear+1,currentMonthIndex);
 
   const handleJumpToToday = () => {
-    setCurrentYear(2026);
-    setCurrentMonthIndex(9); // October
-    setSelectedDay(12);
+    setCurrentYear(today.getFullYear());
+    setCurrentMonthIndex(today.getMonth());
+    setSelectedDay(today.getDate());
     setViewMode('month');
     setIsMonthPickerOpen(false);
   };
 
   const handleSelectMonthFromYearView = (mIdx: number, day?: number) => {
-    setCurrentMonthIndex(mIdx);
-    if (day) {
-      setSelectedDay(day);
-    }
+    selectDate(currentYear,mIdx,day??selectedDay);
     setViewMode('month');
   };
 
   const handleSelectMonthAndYear = (year: number, mIdx: number) => {
-    setCurrentYear(year);
-    setCurrentMonthIndex(mIdx);
+    selectDate(year,mIdx);
     setIsMonthPickerOpen(false);
-    setViewMode('month');
+    if(!readOnly||viewMode!=='week')setViewMode('month');
   };
 
   // Touch gestures: swipe left/right to change month/year
@@ -323,7 +310,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const dayEvents = getEventsForDay(currentYear, currentMonthIndex, selectedDay);
   const formattedDayTitle = `${getDayOfWeekName(currentYear, currentMonthIndex, selectedDay)}, ${MONTH_NAMES[currentMonthIndex]} ${selectedDay}`;
 
-  const weekDays = [12, 13, 14, 15, 16, 17, 18];
+  const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
+  const weekDays=calendarWeek(selectedDate);
+  const availableYears=calendarYears(currentYear);
 
   return (
     <div
@@ -454,7 +443,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             onClick={handleJumpToToday}
-            title="Jump to today (Oct 12)"
+            title={readOnly?'Jump to today':'Jump to today (Oct 12)'}
             className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-[12px] font-bold text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] hover:bg-[var(--mroya-brand-honey)]/25 border border-[var(--mroya-brand-honey)]/40 shadow-2xs transition-all cursor-pointer shrink-0"
           >
             Today
@@ -463,6 +452,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {/* + Add Event Button: Radiant Primary Action */}
           <button
             type="button"
+            disabled={readOnly}
             onClick={() => setIsNewModalOpen(true)}
             aria-label="New commitment"
             className="w-8 h-8 sm:w-auto sm:px-3.5 sm:py-1 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs hover:shadow-sm shrink-0"
@@ -519,11 +509,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 Select Year
               </label>
               <div className="flex items-center justify-between gap-1 p-1 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]">
-                {AVAILABLE_YEARS.map((yr) => (
+                {availableYears.map((yr) => (
                   <button
                     key={yr}
                     type="button"
-                    onClick={() => setCurrentYear(yr)}
+                    onClick={() => selectDate(yr,currentMonthIndex)}
                     className={`flex-1 py-1.5 rounded-[7px] text-[12px] font-semibold transition-all cursor-pointer ${
                       currentYear === yr
                         ? 'bg-[var(--mroya-primary)] text-white shadow-2xs'
@@ -544,7 +534,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 {MONTH_NAMES.map((name, idx) => {
                   const isCurrent = currentMonthIndex === idx;
-                  const isTodayMonth = currentYear === 2026 && idx === 9;
+                  const isTodayMonth = currentYear === today.getFullYear() && idx === today.getMonth();
                   const count = getEventsForMonthCount(currentYear, idx);
 
                   return (
@@ -652,8 +642,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {MONTH_NAMES.map((mName, mIdx) => {
                   const mData = getMonthCalendarData(currentYear, mIdx);
                   const evtCount = getEventsForMonthCount(currentYear, mIdx);
-                  const isCurrentViewingMonth = currentMonthIndex === mIdx && currentYear === 2026;
-                  const isRealTodayMonth = mIdx === 9 && currentYear === 2026;
+                  const isCurrentViewingMonth = currentMonthIndex === mIdx;
+                  const isRealTodayMonth = mIdx === today.getMonth() && currentYear === today.getFullYear();
 
                   return (
                     <div
@@ -705,7 +695,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           </div>
                         ))}
                         {mData.days.map((day) => {
-                          const isTodayDate = currentYear === 2026 && mIdx === 9 && day === 12;
+                          const isTodayDate = currentYear === today.getFullYear() && mIdx === today.getMonth() && day === today.getDate();
                           const hasEvt = getEventsForDay(currentYear, mIdx, day).length > 0;
                           return (
                             <button
@@ -811,7 +801,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {currentMonthData.days.map((day) => {
                       const dayEvts = getEventsForDay(currentYear, currentMonthIndex, day);
                       const hasEvt = dayEvts.length > 0;
-                      const isToday = currentYear === 2026 && currentMonthIndex === 9 && day === 12;
+                      const isToday = currentYear === today.getFullYear() && currentMonthIndex === today.getMonth() && day === today.getDate();
                       const isSelected = day === selectedDay;
                       return (
                         <button
@@ -864,9 +854,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                     <button
                       type="button"
+                      disabled={readOnly}
                       onClick={() => {
                         setNewDay(selectedDay);
-                        setIsNewModalOpen(true);
+                        if(!readOnly)setIsNewModalOpen(true);
                       }}
                       className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
@@ -1077,7 +1068,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         No Events
                       </div>
                       <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                        Protected deep work block · Tap + to schedule a commitment
+                        {readOnly ? 'Calendar API is not available yet.' : 'Protected deep work block · Tap + to schedule a commitment'}
                       </div>
                     </div>
                   )}
@@ -1094,7 +1085,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         Google Calendar
                       </div>
                       <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
-                        {googleCalendarConnected ? 'Synced (alex@lindqvist.studio)' : 'Not connected'}
+                        {googleCalendarConnected ? `Synced (${samples?.accountLabel??''})` : readOnly ? 'Coming soon' : 'Not connected'}
                       </div>
                     </div>
                   </div>
@@ -1120,11 +1111,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       <div className="text-[14px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                         <span>Google Calendar integration</span>
                         <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">
-                          · {googleCalendarConnected ? 'Connected (alex@lindqvist.studio)' : 'Not connected'}
+                          · {googleCalendarConnected ? `Connected (${samples?.accountLabel??''})` : readOnly ? 'Coming soon' : 'Not connected'}
                         </span>
                       </div>
                       <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                        Mroya cross-references your calendar with saved client commitments and protects mornings before 11:00 AM.
+                        {readOnly ? 'Calendar integration is not available yet.' : 'Mroya cross-references your calendar with saved client commitments and protects mornings before 11:00 AM.'}
                       </p>
                     </div>
                   </div>
@@ -1164,7 +1155,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         ))}
                         {currentMonthData.days.map((day) => {
                           const evts = getEventsForDay(currentYear, currentMonthIndex, day);
-                          const isToday = currentYear === 2026 && currentMonthIndex === 9 && day === 12;
+                          const isToday = currentYear === today.getFullYear() && currentMonthIndex === today.getMonth() && day === today.getDate();
                           const isSelected = day === selectedDay;
                           return (
                             <button
@@ -1216,15 +1207,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         })}
                       </div>
                     ) : (
-                      /* Week View (Oct 12 - Oct 18) */
+                      /* Monday–Sunday week containing the selected civil date. */
                       <div className="grid grid-cols-7 gap-2">
-                        {weekDays.map((day) => {
-                          const evts = getEventsForDay(currentYear, currentMonthIndex, day);
-                          const isSelected = day === selectedDay;
+                        {weekDays.map((date) => {
+                          const year=date.getFullYear(),month=date.getMonth(),day=date.getDate();
+                          const evts = getEventsForDay(year,month,day);
+                          const isSelected = sameCalendarDay(date,selectedDate);
+                          const isToday = sameCalendarDay(date,today);
                           return (
                             <div
-                              key={day}
-                              onClick={() => setSelectedDay(day)}
+                              key={calendarKey(date)}
+                              data-calendar-date={readOnly?calendarKey(date):undefined}
+                              onClick={() => selectDate(year,month,day)}
                               className={`min-h-[240px] p-2.5 rounded-[10px] border cursor-pointer flex flex-col gap-2 ${
                                 isSelected
                                   ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)]'
@@ -1232,7 +1226,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               }`}
                             >
                               <div className="text-[13px] font-semibold text-[var(--mroya-text)] tabular-nums border-b border-[var(--mroya-divider)] pb-1.5">
-                                Oct {day} {day === 12 ? '· Today' : ''}
+                                {SHORT_MONTH_NAMES[month]} {day}{readOnly ? ', '+year : ''} {isToday ? '· Today' : ''}
                               </div>
                               <div className="space-y-2">
                                 {evts.map((ev) => (
@@ -1266,9 +1260,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </h2>
                         <button
                           type="button"
+                          disabled={readOnly}
                           onClick={() => {
                             setNewDay(selectedDay);
-                            setIsNewModalOpen(true);
+                            if(!readOnly)setIsNewModalOpen(true);
                           }}
                           className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                         >
@@ -1536,7 +1531,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </div>
                       ) : (
                         <p className="text-[13px] text-[var(--mroya-text-muted)] py-3">
-                          No commitments scheduled for {MONTH_NAMES[currentMonthIndex]} {selectedDay}. Mornings before 11:00 AM are protected for deep work.
+                          {readOnly ? 'Calendar API is not available yet.' : <>No commitments scheduled for {MONTH_NAMES[currentMonthIndex]} {selectedDay}. Mornings before 11:00 AM are protected for deep work.</>}
                         </p>
                       )}
                     </div>
@@ -1552,9 +1547,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             key={ev.id}
                             type="button"
                             onClick={() => {
-                              setSelectedDay(ev.dayOfMonth);
-                              setCurrentMonthIndex(9);
-                              setCurrentYear(2026);
+                              const [year,month,day]=ev.date.split('-').map(Number);
+                              // Demo fixtures store recurring occurrence dayOfMonth separately from their series start date.
+                              selectDate(readOnly?year:today.getFullYear(),readOnly?month-1:today.getMonth(),readOnly?day:ev.dayOfMonth);
                               setViewMode('month');
                             }}
                             className="w-full py-2.5 first:pt-0 last:pb-0 text-left flex items-start justify-between gap-3 hover:opacity-85 transition-opacity cursor-pointer"
@@ -1569,7 +1564,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             </div>
                             <div className="text-right shrink-0 tabular-nums">
                               <div className="text-[12px] font-semibold text-[var(--mroya-primary)]">
-                                Oct {ev.dayOfMonth}
+                                {SHORT_MONTH_NAMES[readOnly?Number(ev.date.slice(5,7))-1:today.getMonth()]} {readOnly?Number(ev.date.slice(8,10)):ev.dayOfMonth}{readOnly?', '+ev.date.slice(0,4):''}
                               </div>
                               <div className="text-[11px] text-[var(--mroya-text-muted)] flex items-center justify-end gap-1">
                                 <Clock className="w-3 h-3" />
@@ -1614,7 +1609,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Design token sprint with Sarah"
+                  placeholder={samples?.titlePlaceholder??'Event title'}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
@@ -1677,7 +1672,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Sarah Chen"
+                  placeholder={samples?.personPlaceholder??'Person or organization'}
                   value={newPerson}
                   onChange={(e) => setNewPerson(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"

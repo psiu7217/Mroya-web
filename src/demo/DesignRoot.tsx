@@ -7,7 +7,9 @@ import { DESIGN_SCENARIOS, designScenario, type DesignScenario } from './scenari
 import { isProductionHost } from '../providers/mode';
 function DesignWorkspace({scenario}:{scenario:DesignScenario}) {
   const viewModel = useDemoWorkspace(scenario === 'empty' ? 'empty' : 'filled');
-  return <><WorkspaceView model={viewModel}/>{(scenario === 'loading' || scenario === 'error') && <div role={scenario === 'error' ? 'alert' : 'status'} className="fixed top-16 left-1/2 -translate-x-1/2 z-40 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] px-5 py-3 shadow-sm">{scenario === 'loading' ? 'Loading your workspace…' : 'Unable to load workspace. Design preview of the error state.'}</div>}</>;
+  const [showFeedback,setShowFeedback]=useState(true);
+  const feedback=showFeedback&&(scenario==='loading'||scenario==='error')?{loading:scenario==='loading',busy:false,error:scenario==='error'?'Unable to load workspace. Design preview of the error state.':null,onRetry:()=>setShowFeedback(false)}:undefined;
+  return <WorkspaceView model={{...viewModel,feedback}}/>;
 }
 export default function DesignRoot() {
   const [scenario, setScenario] = useState<DesignScenario>(() => designScenario(window.location.search));

@@ -23,25 +23,22 @@ after(async()=>{await vite.close();});
   assert.equal(stableIds(render()),stableIds(renderToStaticMarkup(React.createElement(OriginalApp))));
   const ids=[...render().matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);
  });
- test('Markdown changes preserve Studio markup outside assistant text wrappers',async()=>{
+ test('unified workspace preserves current Studio initial UI inside shared scaffolding',async()=>{
   fs.mkdirSync('.review-baseline/current-main',{recursive:true});
-  const archive=execFileSync('git',['archive','1b63d5c4df2b99c81b5cb6ed662e4988f2bfe006','src'],{maxBuffer:32*1024*1024});
+  const archive=execFileSync('git',['archive','fce3d7e','src'],{maxBuffer:32*1024*1024});
   execFileSync('tar',['-xf','-','-C','.review-baseline/current-main'],{input:archive});
   const {WorkspaceView:BaseView}=await vite.ssrLoadModule('/.review-baseline/current-main/src/pages/WorkspaceView.tsx');
   const {useDemoWorkspace:baseModel}=await vite.ssrLoadModule('/.review-baseline/current-main/src/demo/useDemoWorkspace.ts');
-  let baselineModel;
-  function BaseApp(){baselineModel=baseModel();return React.createElement(BaseView,{model:baselineModel});}
-  let expected=renderToStaticMarkup(React.createElement(BaseApp));
-  const {AssistantMarkdown}=await vite.ssrLoadModule('/src/components/AssistantMarkdown.tsx');
-  // Replace only exact original assistant paragraphs with the reviewed renderer.
-  // The rest of the complete Studio workspace must remain byte-for-byte identical.
-  for(const message of baselineModel.activeConversation.messages.filter(m=>m.sender==='assistant')) {
-   const original=renderToStaticMarkup(React.createElement('p',{className:'text-[15px] sm:text-[16px] leading-[24px] sm:leading-[25px] text-[var(--mroya-text)]'},message.content));
-   assert.ok(expected.includes(original));
-   expected=expected.replace(original,renderToStaticMarkup(React.createElement(AssistantMarkdown,{content:message.content})));
+  function BaseApp({seed,section}){const model=baseModel(seed);return React.createElement(BaseView,{model:{...model,activeSection:section}});}
+  for(const seed of ['filled','empty'])for(const section of ['chat','calendar','reminders','memory','memory-map','connections']){
+  const expected=renderToStaticMarkup(React.createElement(BaseApp,{seed,section}))
+   .replace('flex h-screen w-screen overflow-hidden','flex h-dvh w-full overflow-hidden')
+   .replace('<main class="flex-1 flex min-w-0 h-full relative overflow-hidden">','<main class="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden"><div class="flex flex-1 min-w-0 min-h-0">')
+   .replace('</main>','</div></main>');
+  assert.equal(render(seed,section),expected,seed+':'+section);
   }
-  assert.equal(render(),expected);
  });
+
  test('welcome, invitation and Studio login render without a transport',async()=>{
   const {GuestWelcome}=await vite.ssrLoadModule('/src/components/GuestWelcome.tsx');
   const {LoginScreen}=await vite.ssrLoadModule('/src/components/LoginScreen.tsx');

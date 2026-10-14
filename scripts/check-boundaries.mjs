@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 function files(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(path.join(dir,e.name)):[path.join(dir,e.name)]);}
 const failures=[];
+if(fs.existsSync('src/pages/LiveWorkspace.tsx'))failures.push('Use shared WorkspaceView; do not restore a second live composition.');
 for(const file of files('src').filter(f=>/\.[tj]sx?$/.test(f))){
  const text=fs.readFileSync(file,'utf8');
+ if(file==='src/providers/LiveExperience.tsx'&&(!/<WorkspaceView\b/.test(text)||/from\s*['"][^'"]*\/components\//.test(text)))failures.push(file+': live must compose WorkspaceView, not separate page components');
  if(/(?:GuestExperience|useGuestChat|guestConversation)\.[tj]sx?$/.test(file)&&(/from\s*['"][^'"]*(?:\/api\/|liveSource|useSession)/.test(text)||/\b(fetch|localStorage|sessionStorage|EventSource)\b/.test(text)))failures.push(file+': guest cannot own transport or persistence');
  if(/^src\/(components|pages)\//.test(file)){
   if(/\b(fetch|XMLHttpRequest|EventSource)\s*\(|\b(localStorage|sessionStorage|document\.cookie)\b/.test(text))failures.push(file+': UI must not own network, session or storage');

@@ -16,6 +16,10 @@ Read [BACKEND_CONTRACT](BACKEND_CONTRACT.md) before implementing any functional 
 
 Studio may implement a small frontend integration when explicitly assigned, through existing typed contracts. API/auth architecture changes still require architectural review of the entire Git diff. Google Sign-In button integration is a separate task; the backend flow is already available. Keep Design Mode offline, including login previews.
 
+## Shared Workspace
+
+Authenticated Design and Production use the same src/pages/WorkspaceView.tsx and page components. Do not recreate a separate Live/Production page tree. Data, capability restrictions and actions use the existing typed WorkspaceModel; transport stays in providers/hooks. See [composition audit and regression rules](WORKSPACE_COMPOSITION.md).
+
 ## Safe editing scope
 
 - Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.

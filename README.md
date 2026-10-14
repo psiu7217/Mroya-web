@@ -17,7 +17,7 @@ node scripts/check-production.mjs
 npm run build:design
 ```
 
-The markup regression test needs the pinned original Git commit (full history; `git fetch --unshallow` if necessary). CI fetches history and runs these checks; it does not deploy.
+The markup regression test needs the pinned original Git commit (full history; `git fetch --unshallow` if necessary). GitHub Actions are intentionally disabled: use these checks explicitly when relevant. The existing Web deploy helper performs only its local Nginx HTTP smoke check.
 
 Default production builds contain the real same-origin session/CSRF/API foundation and no demo root. The minimum live workspace is connected to existing API contracts: **real Django end-to-end verification and separate release review are required before deployment**. Existing production releases and rollback remain unchanged.
 

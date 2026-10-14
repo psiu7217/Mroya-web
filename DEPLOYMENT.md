@@ -17,7 +17,7 @@ sudo /usr/local/sbin/mroya-web-rollback
 The helper uses the existing `/opt/mroya-web` Git repository, `/etc/mroya-web-deploy` runtime configuration, `/var/lib/mroya-web-deploy` release state and Compose project `mroya-web`. No parallel installer, service, project or deployment daemon is introduced.
 
 1. Fetch GitHub **main** and archive that exact commit. Local dirty files are not built or overwritten; feature branches, including PR #2, are never selected.
-2. Build the React production image using the installed Dockerfile and Nginx configuration. Docker layer cache and npm lockfile remain. Design target is explicitly disabled for this build. Typecheck/tests remain in CI rather than repeating during deployment.
+2. Build the React production image using the installed Dockerfile and Nginx configuration. Docker layer cache and npm lockfile remain. Design target is explicitly disabled for this build. Typecheck/tests remain available for explicit developer or server-side execution rather than running automatically. GitHub Actions are intentionally disabled.
 3. Tag the candidate and run only `docker compose -p mroya-web ... up -d --no-deps --pull never web`.
 4. Retry a single HTTP check of `/` inside the Web container at `127.0.0.1:8080` until Nginx serves it. No browser suite, external DNS/HTTPS checks, API requests or Traefik metadata inspection are part of deployment.
 5. On failure after the live switch, restore the retained Web image **and its Compose artifact**, then check the same HTTP homepage. Build failures occur before the switch. Pending state permits recovery after an interrupted process.
@@ -28,7 +28,7 @@ No global fingerprints, neighbor/container snapshots, revision-label/ID/start-ti
 
 ## Approved release policy
 
-Main must contain the approved deployable frontend before invoking the command. GitHub sync and CI review remain the release boundary; the helper does not fetch/open/test/merge PRs. The current open guest PR #2 still needs its separately documented real Django verification before cutover. **Do not run a frontend update merely to test this helper.** Missing lockfile/build errors leave the current Web serving its old image.
+Main must contain the approved deployable frontend before invoking the command. GitHub code review and explicit release verification remain the release boundary; the helper does not fetch/open/test/merge PRs. The current open guest PR #2 still needs its separately documented real Django verification before cutover. **Do not run a frontend update merely to test this helper.** Missing lockfile/build errors leave the current Web serving its old image.
 
 The simplification PR is based on PR #2 to keep its code intact; its diff contains deployment files/docs/CI only. This is a Git review relationship, not a second deployment path. Runtime installation below does not publish PR #2 or change the live React image.
 
@@ -46,4 +46,4 @@ To revert the helper change itself, copy the backed-up files to the same three p
 
 ## Verification
 
-`python3 -m unittest discover -s deploy -p test_deploy.py -v` exercises success, build failure, HTTP-triggered rollback, manual rollback, interrupted recovery and exact Git archive selection using fake command execution. It never starts containers. Existing frontend CI checks remain, with this scoped deployment test added. No unfinished frontend was deployed for verification.
+`python3 -m unittest discover -s deploy -p test_deploy.py -v` exercises success, build failure, HTTP-triggered rollback, manual rollback, interrupted recovery and exact Git archive selection using fake command execution. It never starts containers. Existing frontend and deployment tests remain in the repository for explicit invocation; there are no GitHub Actions. No unfinished frontend was deployed for verification.

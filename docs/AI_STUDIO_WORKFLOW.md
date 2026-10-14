@@ -19,7 +19,7 @@ Studio may implement a small frontend integration when explicitly assigned, thro
 ## Safe editing scope
 
 - Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.
-- Keep package-lock.json in the repository; do not delete lockfiles or replace dependency configuration during a visual sync.
+- Keep package-lock.json tracked and consistent with package.json; visual changes must not remove it or change dependencies. Deployment stops on missing/incompatible locks. Restore the last matching tracked lock, or regenerate and review it only for an intentional dependency change; never replace npm ci with npm install during publication.
 - Keep exported props and `src/types/workspace.ts` compatible. UI emits actions through props; it does not fetch, read cookies/storage, import demo sources, or implement authorization.
 - Architecture requiring Codex review (including explicitly assigned Studio integrations): `src/api/`, `src/hooks/`, `src/providers/`, `src/demo/`, `src/types/`, `src/App.tsx`, `src/build.d.ts`, Vite/package configuration, tests, CI and deployment files.
 - Demo fixtures/scenarios can be requested for a design task but changes need architecture review. Do not move demo logic into production components.
@@ -41,4 +41,4 @@ When engineering changes require verification, explicitly run the relevant exist
 
 Check new screens with every relevant scenario and desktop/mobile viewport. Verify navigation, scrolling, dialogs, touch controls and login layout. Inspect browser errors and failed assets. The boundary scanner is a heuristic; reviewers must also inspect imports, side effects, mode selection and dependency changes. The retained repository test and boundary scripts can check props, API/SSE behavior, fixture isolation and production bundle contents when manually invoked.
 
-Guest entry and the minimum live workspace are implemented. Release reviewed main within explicit user authorization using the existing independent Web helper/rollback procedure. Check HTTPS, guest state, same-origin routing and CSRF. When real credentials are not supplied, record positive account login as pending the owner’s manual check; do not create production test accounts or change user data. There are no GitHub Actions; deployment is a separate, explicitly authorized operation.
+Guest entry and the minimum live workspace are implemented. Release reviewed main within explicit user authorization using the Web-only publication procedure in [DEPLOYMENT.md](../DEPLOYMENT.md). No automatic rollback: review/fix or revert a bad main commit and publish again. Check HTTPS, guest state, same-origin routing and CSRF. When real credentials are not supplied, record positive account login as pending the owner’s manual check; do not create production test accounts or change user data. There are no GitHub Actions; deployment is a separate, explicitly authorized operation.

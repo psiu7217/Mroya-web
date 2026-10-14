@@ -1,49 +1,65 @@
 # Mroya Web deployment
 
-Permanent command, without arguments:
+One reviewed GitHub main, one clean deployment checkout, one publication command. GitHub Actions are absent; deployment never opens/merges PRs. Studio publishes directly to main; review its exact diff before release. Codex changes use a separate branch/PR.
 
-```sh
+## Flow and ownership
+
+HTTPS main update → lockfile/preflight → production Docker build → Web-only Compose update → local Nginx HTTP check.
+
+The dedicated checkout is /home/psiu/mroya-web-deployment, owned by psiu. It was **absent** during read-only diagnosis on 2026-10-14; the installation command below creates it explicitly. Git uses sudo -u psiu -H, GIT_TERMINAL_PROMPT=0 and the existing store credential helper /home/psiu/.config/mroya/git-credentials. No new token/SSH/proxy/VPN setup is needed. Never read, copy or print that file's contents.
+
+The helper checks owner, official HTTPS origin, main branch and a clean worktree, then pulls --ff-only. HEAD must equal the fetched main SHA; local commits ahead of main also stop publication. No reset/clean/force operations. /opt/mroya-web and Codex/Studio working copies are not synchronized or changed.
+
+Root owns the helper, Docker operations and runtime files. The existing /var/lib/mroya-web-deploy/deployment.lock is retained for flock. No other state files are used.
+
+## Production build and runtime
+
+A temporary /tmp/mroya-web-build.* context contains explicitly selected files archived from the exact main SHA, plus the installed /etc/mroya-web-deploy/Dockerfile and nginx.conf. It is removed on exit. No retained archive/release directory is created. The repository cannot overwrite runtime Nginx.
+
+Before publication: a tracked package-lock.json is required; Docker checks its root dependency declarations against package.json, then npm ci validates/installs locked dependencies. Missing/incompatible locks stop before any live image switch. Do not generate/restore a lock automatically during deployment or substitute npm install: restore the last matching lock in Git, or commit a reviewed regenerated lock after an intentional dependency change.
+
+The existing build stage runs npm run lint, MROYA_BUILD_TARGET=production npm run build:production, and node scripts/check-production.mjs. Typecheck/build/bundle checks run without network after npm ci. The Vite Production/Design entrypoint boundary is unchanged; bundle markers are only an additional check. Full tests, boundary scans and Design builds remain explicit development/review commands.
+
+Build produces mroya-web:<exact SHA>. Only after all build checks pass, tag it mroya-web:production, matching the existing base Compose image. Thus ordinary Compose restarts use the same current image; no temporary override can silently select an older base image.
+
+Use the installed /usr/bin/docker and /usr/libexec/docker/cli-plugins/docker-compose, existing Docker host/config, /etc/mroya-web-deploy/compose.yaml and empty.env, project mroya-web, service web. Run only up -d --no-deps --no-build --pull never web. Then retry only exec -T web wget against http://127.0.0.1:8080/ (30 attempts, 3-second HTTP timeout, 2-second pauses). There are no external HTTP/API/browser/account checks inside publication.
+
+Permanent publication command (only after separate release authorization):
+
+```bash
 sudo /usr/local/sbin/mroya-web-deploy
 ```
 
-Optional manual rollback:
+## One-time helper update — not publication
 
-```sh
-sudo /usr/local/sbin/mroya-web-rollback
+**This PR is not installed or deployed. Merge/review the PR manually first. Do not execute the following against the old main installer.** The command is based on the confirmed existing /home/psiu parent, working HTTPS credentials and currently absent Web checkout. It explicitly clones that missing checkout; it does not assume an unverified directory exists. If the checkout has appeared in the meantime, stop and review it rather than deleting/replacing it.
+
+```bash
+sudo bash -c 'set -e; sudo -u psiu -H env GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c "credential.helper=store --file=/home/psiu/.config/mroya/git-credentials" clone --branch main https://github.com/psiu7217/Mroya-web.git /home/psiu/mroya-web-deployment; python3 -I /home/psiu/mroya-web-deployment/deploy/install.py'
 ```
 
-## Existing mechanism, reduced to Web only
+The existing deploy/install.py reads committed files from the clean, correctly owned official main checkout and prints their source SHA. It syntax-checks Bash before replacing anything, stages root-owned files beside their destinations, then individually atomically replaces only /etc/mroya-web-deploy/Dockerfile and /usr/local/sbin/mroya-web-deploy. It creates no permanent backup and starts no containers. Compose/Nginx are never installed/modified by it. Subsequent helper updates use the same reviewed installer from an explicitly synchronized clean main checkout; do not execute an unreviewed installer from Studio.
 
-The helper uses the existing `/opt/mroya-web` Git repository, `/etc/mroya-web-deploy` runtime configuration, `/var/lib/mroya-web-deploy` release state and Compose project `mroya-web`. No parallel installer, service, project or deployment daemon is introduced.
+Installed legacy /usr/local/sbin/mroya-web-rollback remains untouched but is **not supported for this new helper**. Do not use it with the new workflow: it still refers to old state. Old images, helper backups, releases/, pending.json/last-success.json (where present) and logs are left in place, never deleted or migrated.
 
-1. Fetch GitHub **main** and archive that exact commit. Local dirty files are not built or overwritten; feature branches, including PR #2, are never selected.
-2. Build the React production image using the installed Dockerfile and Nginx configuration. Docker layer cache and npm lockfile remain. Design target is explicitly disabled for this build. Typecheck/tests remain available for explicit developer or server-side execution rather than running automatically. GitHub Actions are intentionally disabled.
-3. Tag the candidate and run only `docker compose -p mroya-web ... up -d --no-deps --pull never web`.
-4. Retry a single HTTP check of `/` inside the Web container at `127.0.0.1:8080` until Nginx serves it. No browser suite, external DNS/HTTPS checks, API requests or Traefik metadata inspection are part of deployment.
-5. On failure after the live switch, restore the retained Web image **and its Compose artifact**, then check the same HTTP homepage. Build failures occur before the switch. Pending state permits recovery after an interrupted process.
+## Failure handling
 
-A successful release retains current and previous image tags plus their Compose files under `/var/lib/mroya-web-deploy/releases/`; the images include the built assets and Nginx configuration. The state record is `last-success.json`; an interrupted transaction retains `pending.json`. Logs use the existing `deployment.log`. The existing per-Web lock prevents overlapping update/rollback/install operations.
+Errors name the stage with a brief safe message; Git error output is suppressed to avoid exposing credential-bearing remote diagnostics. No credentials, cookies, production .env or API payloads enter the build context/logs. Before image publication, build failures leave the live container and stable image tag untouched.
 
-No global fingerprints, neighbor/container snapshots, revision-label/ID/start-time comparisons, image scans, network/mount inspection, API/landing/database checks or global Docker operations remain. An inspection of the single named Web container reads only its current image to retain the rollback artifact; it is not a comparison/check of container identity. No volumes are removed, and there is no down/prune. Runtime Compose and Nginx routing are not updated from GitHub: existing app.heymroya.com and /api/v1/ routing are preserved.
+After the tag/Compose switch, failures are explicit and **no automatic rollback occurs**. The stable tag can already point to the new image even if Compose startup failed. Do not claim the previous image was restored. Review/fix or git revert the bad change, publish the correction to main, then repeat the ordinary command after release authorization. This is not an automatic rollback system.
 
-## Approved release policy
+No image deletion, volumes removal, down/prune, global Docker restart, foreign-resource snapshots or checks. No Django migrations/DB smoke tests are copied to Web.
 
-Main must contain the approved deployable frontend before invoking the command. GitHub code review and explicit release verification remain the release boundary; the helper does not fetch/open/test/merge PRs. The current open guest PR #2 still needs its separately documented real Django verification before cutover. **Do not run a frontend update merely to test this helper.** Missing lockfile/build errors leave the current Web serving its old image.
+## Diagnosis and checks
 
-The simplification PR is based on PR #2 to keep its code intact; its diff contains deployment files/docs/CI only. This is a Git review relationship, not a second deployment path. Runtime installation below does not publish PR #2 or change the live React image.
+Confirmed on Ubuntu: installed Web helper matched the previous repository helper; helpers are root:root 0755; runtime Compose/Dockerfile/Nginx are root-owned readable files, docker-cli is root-only. Installed Compose selects mroya-web:production with unless-stopped, external traefik-proxy, app.heymroya.com HTTPS labels and its existing healthcheck. Actual Web container has no mounts/published host ports/custom SecurityOpt and ReadonlyRootfs=false; these settings are preserved. The Nginx /api/ fallback remains unchanged; same-origin API is provided by the existing independent routing, not by a new proxy configuration.
 
-## One-time update of the installed helper
+psiu exists and belongs to Docker; sudo -u psiu -H works under psiu's account. Its credential file metadata is psiu:0600; contents were not read. HTTPS ls-remote returned the checked Web main 3b3ab358168db3088ff4743eb38bf81f305139e8 without a prompt. Docker supports named build contexts, but a temporary explicitly selected context avoids changing installed Nginx handling. Compose is v2.40.3. Current Web image is mroya-web:production and container healthy. It has no reliable Git revision label, and protected legacy state was not read; current published SHA is not inferred from checkout or image IDs.
 
-The existing preparation installer was updated in place. As administrator on the server:
+The API reference was read at deployment checkout d1e918ee4dfbd17a0be2f04aa9e54e8ad171f08d; installed API Bash helper matched that pattern. Web shares HTTPS user/clean main/flock/Web-only update/no rollback behavior; React replaces the API's Python/Django checks and migrations with npm/typecheck/build/bundle checks and container-local Nginx HTTP.
 
-```sh
-sudo python3 -I /home/codex/mroya-web-preparation/install.py
-```
+Run python3 -m unittest discover -s deploy -p test_deploy.py -v and bash -n deploy/mroya-web-deploy. Tests use fake Git/sudo/Docker/Compose and temporary paths; installer tests replace only temporary files. They check checkout refusal, exact main, locked build refusal, Web-only commands, HTTP retry and explicit failure without rollback. No real Docker build/deployment, production API or credential contents are used. Installer syntax checks and atomic replacement are covered without installing it.
 
-It installs only `/usr/local/sbin/mroya-web-deploy`, `/usr/local/sbin/mroya-web-rollback` and `/etc/mroya-web-deploy/Dockerfile`. It backs up these three files in the existing Web state directory and refuses a missing initial installation. It starts no containers and leaves Compose, Nginx, source checkout, sudoers, Traefik and other projects unchanged. Administrative rights are needed for this one-time file replacement; the existing no-argument sudo permission handles future Web updates.
+No Actions, CI/CD, scheduler, new service or credential was added. Real Docker build and administrative installation remain unexecuted in this PR.
 
-To revert the helper change itself, copy the backed-up files to the same three paths as root. This is separate from rolling back a frontend release. Frontend release rollback needs no Git checkout reset or rebuilding.
-
-## Verification
-
-`python3 -m unittest discover -s deploy -p test_deploy.py -v` exercises success, build failure, HTTP-triggered rollback, manual rollback, interrupted recovery and exact Git archive selection using fake command execution. It never starts containers. Existing frontend and deployment tests remain in the repository for explicit invocation; there are no GitHub Actions. No unfinished frontend was deployed for verification.
+Review validation: eight fake deployment/installer tests, Bash/Python syntax, actual Node lock metadata check, TypeScript, boundaries and both frontend builds passed on Ubuntu. The full frontend suite is 28/29: the unchanged SSR test still pins 1fe0f3b and fails against the already approved Studio PNG logo in main. This PR changes neither UI nor that historical baseline; reconcile the deliberate visual baseline in a separate reviewed change.

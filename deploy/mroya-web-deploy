@@ -1,136 +1,67 @@
-#!/usr/bin/python3 -I
-"""Only Mroya Web: fetch main, build, up --no-deps, HTTP smoke, image/Compose rollback."""
-import fcntl, io, json, os, pathlib, pwd, shutil, signal, subprocess, sys, tarfile, tempfile, time
-CONFIG=pathlib.Path('/etc/mroya-web-deploy')
-STATE=pathlib.Path('/var/lib/mroya-web-deploy')
-SOURCE=pathlib.Path('/opt/mroya-web')
-NAME='mroya-web-web-1'
-IMAGE='mroya-web:production'
-D=['/usr/bin/docker','--host','unix:///var/run/docker.sock','--config',str(CONFIG/'docker-cli')]
-C=['/usr/libexec/docker/cli-plugins/docker-compose','--project-directory',str(CONFIG),'--env-file',str(CONFIG/'empty.env'),'-p','mroya-web','-f',str(CONFIG/'compose.yaml')]
-ENV={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','HOME':'/root','LANG':'C.UTF-8','DOCKER_BUILDKIT':'1','DOCKER_HOST':'unix:///var/run/docker.sock'}
-SSH='ssh -F /dev/null -i /home/codex/.ssh/mroya_deploy -p 443 -o Hostname=ssh.github.com -o "ProxyCommand=/usr/bin/sudo -n -u psiu /usr/local/sbin/mroya-github-proxy" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 -o UpdateHostKeys=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/usr/local/share/mroya-deploy/github_known_hosts'
-LOG=None
-
-def run(args,timeout=120):
-    result=subprocess.run(args,cwd='/',env=ENV,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=timeout)
-    if LOG:LOG.write(result.stdout.decode(errors='replace'));LOG.flush()
-    if result.returncode:raise RuntimeError(result.stdout.decode(errors='replace')[-4000:])
-    return result.stdout
-
-def git(*args):
-    account=pwd.getpwnam('codex')
-    env={'PATH':'/usr/bin:/bin','HOME':'/home/codex','LANG':'C.UTF-8','GIT_TERMINAL_PROMPT':'0','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null','GIT_SSH_COMMAND':SSH}
-    result=subprocess.run(['/usr/bin/git','-c','core.hooksPath=/dev/null','-C',str(SOURCE),*args],cwd='/',env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=120,user=account.pw_uid,group=account.pw_gid,extra_groups=[])
-    if result.returncode:raise RuntimeError(result.stderr.decode(errors='replace'))
-    return result.stdout
-
-def read_record(name):
-    path=STATE/name
-    return json.loads(path.read_text()) if path.exists() else {}
-
-def write_record(name,value):
-    path=STATE/name;temporary=path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(value,indent=2)+'\n');os.replace(temporary,path)
-
-def current_image():
-    result=subprocess.run(D+['container','inspect','--format','{{.Image}}',NAME],env=ENV,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-    if result.returncode:
-        if b'No such' in result.stderr:return None
-        raise RuntimeError(result.stderr.decode(errors='replace'))
-    return result.stdout.decode().strip()
-
-def build_source(dest):
-    # Build the fetched commit, never local dirty files; do not reset the production checkout.
-    git('fetch','--no-tags','git@github.com:psiu7217/Mroya-web.git','main')
-    revision=git('rev-parse','FETCH_HEAD').decode().strip()
-    with tarfile.open(fileobj=io.BytesIO(git('archive','--format=tar',revision))) as archive:
-        archive.extractall(dest,filter='data')
-    (dest/'public').mkdir(exist_ok=True)
-    for name in ('Dockerfile','nginx.conf'):shutil.copyfile(CONFIG/name,dest/name)
-    return revision
-
-def up_and_check():
-    run(C+['up','-d','--no-deps','--pull','never','web'])
-    for attempt in range(30):
-        try:
-            run(C+['exec','-T','web','wget','-q','-T','3','-O','/dev/null','http://127.0.0.1:8080/'],timeout=10)
-            return
-        except RuntimeError:
-            if attempt==29:raise RuntimeError('Web homepage HTTP check failed')
-            time.sleep(2)
-
-def restore(previous):
-    if previous is None:
-        run(C+['stop','web'])
-        return
-    run(D+['image','tag',previous['image'],IMAGE])
-    shutil.copyfile(previous['compose'],CONFIG/'compose.yaml')
-    up_and_check()
-
-def recover_pending():
-    pending=read_record('pending.json')
-    if not pending:return
-    restore(pending['previous'])
-    write_record('last-success.json',pending['before'])
-    (STATE/'pending.json').unlink()
-    print('Recovered interrupted Web update',flush=True)
-
-def rollback():
-    if read_record('pending.json'):
-        recover_pending();return
-    record=read_record('last-success.json');previous=record.get('previous')
-    if not previous:raise RuntimeError('No previous release retained by this helper')
-    write_record('pending.json',{'previous':previous,'before':{'current':previous,'previous':record.get('current')}})
-    restore(previous)
-    write_record('last-success.json',{'current':previous,'previous':record.get('current')})
-    (STATE/'pending.json').unlink()
-    print('Web rollback successful; homepage HTTP available',flush=True)
-
-def deploy():
-    recover_pending()
-    release=time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'-'+str(os.getpid())
-    artifacts=STATE/'releases'/release;artifacts.mkdir(parents=True)
-    before=read_record('last-success.json');old=current_image();previous=None
-    if old:
-        retained='mroya-web:rollback-'+release
-        run(D+['image','tag',old,retained])
-        old_compose=before.get('current',{}).get('compose') or str(CONFIG/'compose.yaml')
-        shutil.copyfile(old_compose,artifacts/'previous-compose.yaml')
-        previous={'image':retained,'compose':str(artifacts/'previous-compose.yaml'),'revision':before.get('current',{}).get('revision') or before.get('revision')}
-    with tempfile.TemporaryDirectory(prefix='build-',dir=STATE) as temporary:
-        revision=build_source(pathlib.Path(temporary))
-        candidate='mroya-web:release-'+release
-        print('Building production Web '+revision,flush=True)
-        run(D+['build','--pull=false','-t',candidate,temporary],timeout=1800)
-    shutil.copyfile(CONFIG/'compose.yaml',artifacts/'compose.yaml')
-    current={'image':candidate,'compose':str(artifacts/'compose.yaml'),'revision':revision}
-    # Keep all rollback inputs before the first live change, also for an interrupted process.
-    write_record('pending.json',{'previous':previous,'before':before})
-    try:
-        run(D+['image','tag',candidate,IMAGE]);up_and_check()
-        write_record('last-success.json',{'current':current,'previous':previous})
-        (STATE/'pending.json').unlink()
-        print('Web deployed; homepage HTTP available',flush=True)
-    except BaseException:
-        signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.signal(signal.SIGINT,signal.SIG_IGN)
-        restore(previous);write_record('last-success.json',before);(STATE/'pending.json').unlink()
-        print('Previous Web restored',flush=True)
-        raise
-
-def interrupted(signum,frame):raise RuntimeError('Web update interrupted')
-
-def main():
-    global LOG
-    if os.geteuid()!=0 or len(sys.argv)!=1:raise RuntimeError('Use sudo without arguments')
-    os.umask(0o077)
-    signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
-    LOG=(STATE/'deployment.log').open('a',buffering=1)
-    with (STATE/'deployment.lock').open('a') as lock:
-        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        if pathlib.Path(sys.argv[0]).name=='mroya-web-rollback':rollback()
-        else:deploy()
-
-if __name__=='__main__':
-    try:main()
-    except BaseException as error:print('FAILED: '+str(error),file=sys.stderr);sys.exit(1)
+#!/usr/bin/env bash
+# Root: Docker/runtime files. psiu: dedicated HTTPS Git checkout.
+set -Eeuo pipefail
+umask 077
+[[ $EUID == 0 && $# == 0 ]] || { echo 'Usage: sudo /usr/local/sbin/mroya-web-deploy'; exit 1; }
+checkout=/home/psiu/mroya-web-deployment
+config=/etc/mroya-web-deploy
+state=/var/lib/mroya-web-deploy
+remote=https://github.com/psiu7217/Mroya-web.git
+stage=preflight
+context=
+trap 'echo "ERROR: $stage (exit $?). No automatic rollback." >&2' ERR
+trap '[[ -z "$context" ]] || rm -rf -- "$context"' EXIT
+# Same lock as the existing installer/helper; old state is not read or removed.
+exec 9>"$state/deployment.lock"
+flock -n 9 || { echo 'ERROR: another Web operation is running'; exit 1; }
+export DOCKER_HOST=unix:///var/run/docker.sock DOCKER_CONFIG="$config/docker-cli"
+as_psiu() { sudo -u psiu -H env GIT_TERMINAL_PROMPT=0 "$@"; }
+git_as_psiu() {
+    local result=0
+    as_psiu git -c credential.helper= -c "credential.helper=store --file=/home/psiu/.config/mroya/git-credentials" "$@" 2>/dev/null || result=$?
+    return "$result"
+}
+for file in compose.yaml empty.env Dockerfile nginx.conf; do [[ -f "$config/$file" ]]; done
+stage='HTTPS main checkout (expected psiu owner, clean main and official origin)'
+if [[ ! -e "$checkout" ]]; then
+    git_as_psiu clone --branch main "$remote" "$checkout" >/dev/null
+fi
+[[ ! -L "$checkout" && "$(stat -c %U "$checkout")" == psiu && "$(stat -c %U "$checkout/.git")" == psiu ]]
+origin=$(git_as_psiu -C "$checkout" remote get-url origin )
+[[ "$origin" == "$remote" ]]
+branch=$(git_as_psiu -C "$checkout" branch --show-current )
+[[ "$branch" == main ]]
+dirty=$(git_as_psiu -C "$checkout" status --porcelain )
+[[ -z "$dirty" ]]
+git_as_psiu -C "$checkout" pull --ff-only origin main >/dev/null
+sha=$(git_as_psiu -C "$checkout" rev-parse HEAD)
+[[ "$sha" == "$(git_as_psiu -C "$checkout" rev-parse FETCH_HEAD)" ]]
+dirty=$(git_as_psiu -C "$checkout" status --porcelain )
+[[ -z "$dirty" ]]
+echo "Building approved main $sha"
+stage='tracked package-lock.json required (restore/review it; never npm install)'
+git_as_psiu -C "$checkout" cat-file -e "$sha:package-lock.json"
+stage='temporary production build context'
+context=$(mktemp -d /tmp/mroya-web-build.XXXXXX)
+files=(package.json package-lock.json index.html tsconfig.json vite.config.ts src scripts/check-production.mjs)
+if git_as_psiu -C "$checkout" cat-file -e "$sha:public"; then files+=(public); fi
+git_as_psiu -C "$checkout" archive "$sha" -- "${files[@]}" | tar -xf - -C "$context"
+mkdir -p "$context/public"
+cp "$config/Dockerfile" "$context/Dockerfile"
+cp "$config/nginx.conf" "$context/nginx.conf"
+stage='production build: npm ci (lock must match), TypeScript, Vite and bundle check'
+/usr/bin/docker build --pull=false -t "mroya-web:$sha" "$context"
+# Stable runtime tag: base Compose and ordinary restarts select this same image.
+stage='publish Web image'
+/usr/bin/docker image tag "mroya-web:$sha" mroya-web:production
+compose=(/usr/libexec/docker/cli-plugins/docker-compose --project-directory "$config" --env-file "$config/empty.env" -p mroya-web -f "$config/compose.yaml")
+stage='Web-only Compose startup'
+"${compose[@]}" up -d --no-deps --no-build --pull never web
+stage='local Nginx HTTP smoke'
+available=false
+for ((attempt=0; attempt<30; attempt++)); do
+    if "${compose[@]}" exec -T web wget -q -T 3 -O /dev/null http://127.0.0.1:8080/; then available=true; break; fi
+    sleep 2
+done
+[[ "$available" == true ]]
+echo "SUCCESS: mroya-web $sha"

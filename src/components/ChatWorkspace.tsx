@@ -782,7 +782,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         <div className="max-w-[740px] mx-auto">
           <form
             onSubmit={handleSubmit}
-            className="rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)]/70 focus-within:border-[var(--mroya-primary)] focus-within:ring-2 focus-within:ring-[var(--mroya-primary)]/20 shadow-[var(--mroya-shadow-subtle)] transition-all"
+            className="rounded-[12px] bg-[var(--mroya-surface)] border-0 border-none outline-none ring-0 focus-within:border-none focus-within:outline-none focus-within:ring-0 shadow-[var(--mroya-shadow-subtle)] transition-all"
           >
             {/* Optional attached document preview */}
             {attachedFile && (
@@ -814,7 +814,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask Mroya anything..."
-                className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] focus:outline-none max-h-40"
+                className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border-0 border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 max-h-40"
               />
             </div>
 

@@ -74,6 +74,15 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+#mroya-chat-composer,
+#mroya-chat-composer:focus,
+#mroya-chat-composer:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* Custom subtle warm scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

@@ -7,6 +7,7 @@ import {
   Paperclip,
   ArrowUp,
   Check,
+  Copy,
   Calendar,
   BookOpen,
   Share2,
@@ -93,6 +94,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState('');
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -100,6 +102,31 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const timerIntervalRef = useRef<any>(null);
+  const copyTimeoutRef = useRef<any>(null);
+
+  const handleCopyMessage = (id: string, text: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    } else {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (e) {}
+    }
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+    setCopiedMessageId(id);
+    copyTimeoutRef.current = setTimeout(() => {
+      setCopiedMessageId(null);
+    }, 2000);
+  };
 
   const sampleVoicePhrases = samples?.voicePhrases ?? [];
   const formatTime = (totalSeconds: number) => {
@@ -210,6 +237,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   useEffect(() => {
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -603,16 +631,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
                         Mroya
                       </span>
-                      <span
-                        className="text-[11px] text-[var(--mroya-text-muted)]"
-                        aria-hidden="true"
-                      >
-                        ·
-                      </span>
-                      <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
-                        {msg.timestamp}
-                      </span>
-                      {msg.status && msg.status!=='completed' && <span role="status" className="text-xs text-[var(--mroya-text-muted)]">{msg.status==='failed'?'Reply failed':msg.status==='streaming'?'Receiving reply…':'Processing…'}</span>}
+                      {msg.status && msg.status !== 'completed' && (
+                        <span role="status" className="text-xs text-[var(--mroya-text-muted)]">
+                          {msg.status === 'failed'
+                            ? 'Reply failed'
+                            : msg.status === 'streaming'
+                            ? 'Receiving reply…'
+                            : 'Processing…'}
+                        </span>
+                      )}
                     </div>
 
                       {/* Optional "Saved to memory" quiet acknowledgement */}
@@ -727,6 +754,25 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             )}
                           </div>
                         )}
+                      </div>
+
+                      {/* Assistant message footer: Copy icon · Time */}
+                      <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMessage(msg.id, msg.content)}
+                          aria-label={copiedMessageId === msg.id ? 'Copied' : 'Copy response'}
+                          title={copiedMessageId === msg.id ? 'Copied!' : 'Copy'}
+                          className="inline-flex items-center justify-center p-1 -ml-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
+                        >
+                          {copiedMessageId === msg.id ? (
+                            <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <span aria-hidden="true" className="select-none">·</span>
+                        <span className="tabular-nums">{msg.timestamp}</span>
                       </div>
                   </div>
                 );

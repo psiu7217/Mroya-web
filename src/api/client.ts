@@ -26,10 +26,28 @@ export class MroyaApi {
     if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON, received a different response');
     return response.json() as Promise<T>;
   }
-  async csrf(signal?:AbortSignal):Promise<void> {
-    if(this.csrfPending)return this.csrfPending;
+  async csrf(signal?:AbortSignal):Promise<string> {
+    if(this.csrfPending){await this.csrfPending;return this.token;}
     this.csrfPending=(async()=>{const data=await this.json<{csrf_token:string}>('auth/csrf/',undefined,signal);if(typeof data.csrf_token!=='string'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing CSRF token');this.token=data.csrf_token;})();
-    try{await this.csrfPending;}finally{this.csrfPending=null;}
+    try{await this.csrfPending;return this.token;}finally{this.csrfPending=null;}
+  }
+  async startGoogleAuth(signal?:AbortSignal):Promise<void> {
+    const caps=await this.capabilities(signal);
+    if(!caps.google_oauth)throw new ApiError(400,'oauth_unavailable','Google sign-in is not configured on this server.');
+    const token=await this.csrf(signal);
+    if(typeof document!=='undefined'){
+      const form=document.createElement('form');
+      form.method='POST';
+      form.action='/api/v1/auth/google/start/';
+      form.style.display='none';
+      const input=document.createElement('input');
+      input.type='hidden';
+      input.name='csrfmiddlewaretoken';
+      input.value=token;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+    }
   }
   async me(signal?:AbortSignal):Promise<{user:ApiUser}>{const data=await this.json<{user:unknown}>('me/',undefined,signal);return {user:checkedUser(data.user)};}
   async login(username:string,password:string,signal?:AbortSignal):Promise<ApiUser>{const data=await this.json<{user:ApiUser;csrf_token:string}>('auth/login/',{username,password},signal);if(typeof data.csrf_token!=='string'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing login fields');this.token=data.csrf_token;return checkedUser(data.user);}

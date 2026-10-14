@@ -8,5 +8,6 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     login:(username,password,signal)=>api.login(username,password,signal),logout:signal=>api.logout(signal),
     history:(before,signal)=>api.history(before,signal),memories:(options,signal)=>api.memories(options,signal),map:signal=>api.map(signal),capabilities:signal=>api.capabilities(signal),
     send:(content,id,onEvent,options)=>api.send(content,id,onEvent,options),turn:(id,signal)=>api.turn(id,signal),
+    startGoogleAuth:signal=>api.startGoogleAuth(signal),
   };
 }

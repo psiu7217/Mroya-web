@@ -2,7 +2,7 @@
 export interface ApiUser { id:number; username:string; email:string; first_name:string; last_name:string; timezone:string }
 export interface ApiMessage { id:string; sequence:number; role:'user'|'assistant'; content:string; status:string; created_at:string; completed_at:string|null }
 export interface HistoryResponse { conversation_id:string; messages:ApiMessage[]; next_before:number|null }
-export interface Capabilities { api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean }
+export interface Capabilities { api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean }
 // Canonical statements deliberately retain provenance/revisions without pretending to be UI cards.
 export type CanonicalMemory = {uuid:string} & Record<string,unknown>;
 export interface MemoriesResponse { memories:CanonicalMemory[]; total:number }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {MroyaApi} from '../src/api/client.ts';
-import {ApiError,StreamInterruptedError} from '../src/api/errors.ts';
+import {ApiError,StreamInterruptedError,readAndClearAuthError,GOOGLE_AUTH_ERRORS} from '../src/api/errors.ts';
 import {createLiveSource} from '../src/providers/liveSource.ts';
 import {createDesignSource} from '../src/demo/source.ts';
 import {isProductionHost} from '../src/providers/mode.ts';
@@ -62,4 +62,86 @@ test('default transport calls browser fetch with its global receiver',async()=>{
 
 test('malformed successful session cannot become an authenticated user',async()=>{
  await assert.rejects(createLiveSource(new MroyaApi(fakeFetch(()=>json({user:{username:'invalid'}})))).session(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+});
+
+test('startGoogleAuth verifies capabilities, gets CSRF and submits HTML form', async () => {
+  const calls: string[] = [];
+  const api = new MroyaApi(fakeFetch((url) => {
+    calls.push(url);
+    if (url.endsWith('capabilities/')) return json({ api_version: 'v1', chat: true, memory_read: true, memory_mutations_via_chat: true, memory_mutations_rest: false, calendar_rest: false, connections_rest: false, reminders: false, local_recurrence: false, sse_token_streaming: false, google_oauth: true });
+    if (url.endsWith('csrf/')) return json({ csrf_token: 'google-csrf-token' });
+    return json({});
+  }));
+
+  let submitted = false;
+  let formAction = '';
+  let formMethod = '';
+  let tokenValue = '';
+  const fakeForm = {
+    method: '',
+    action: '',
+    style: { display: '' },
+    appendChild(child: Record<string, string>) {
+      if (child.name === 'csrfmiddlewaretoken') tokenValue = child.value;
+    },
+    submit() {
+      submitted = true;
+      formAction = this.action;
+      formMethod = this.method;
+    }
+  };
+  const fakeDoc = {
+    createElement(tag: string) {
+      if (tag === 'form') return fakeForm;
+      if (tag === 'input') return { type: '', name: '', value: '' };
+      return {};
+    },
+    body: { appendChild() {} }
+  };
+  const originalDoc = (globalThis as unknown as Record<string, unknown>).document;
+  (globalThis as unknown as Record<string, unknown>).document = fakeDoc;
+  try {
+    await api.startGoogleAuth();
+    assert.ok(submitted);
+    assert.equal(formAction, '/api/v1/auth/google/start/');
+    assert.equal(formMethod, 'POST');
+    assert.equal(tokenValue, 'google-csrf-token');
+    assert.ok(calls.some(u => u.endsWith('capabilities/')));
+    assert.ok(calls.some(u => u.endsWith('csrf/')));
+  } finally {
+    (globalThis as unknown as Record<string, unknown>).document = originalDoc;
+  }
+});
+
+test('startGoogleAuth rejects when google_oauth capability is absent', async () => {
+  const api = new MroyaApi(fakeFetch((url) => {
+    if (url.endsWith('capabilities/')) return json({ api_version: 'v1', chat: true, memory_read: true, memory_mutations_via_chat: true, memory_mutations_rest: false, calendar_rest: false, connections_rest: false, reminders: false, local_recurrence: false, sse_token_streaming: false, google_oauth: false });
+    return json({});
+  }));
+  await assert.rejects(api.startGoogleAuth(), (e: unknown) => e instanceof ApiError && e.code === 'oauth_unavailable');
+});
+
+test('readAndClearAuthError formats documented auth errors and cleans URL', () => {
+  const originalWindow = (globalThis as unknown as Record<string, unknown>).window;
+  let replacedUrl = '';
+  (globalThis as unknown as Record<string, unknown>).window = {
+    location: {
+      search: '?auth_error=google_cancelled&other=1',
+      pathname: '/',
+      hash: '',
+    },
+    history: {
+      state: null,
+      replaceState(_state: unknown, _title: string, url: string) {
+        replacedUrl = url;
+      }
+    }
+  };
+  try {
+    const msg = readAndClearAuthError();
+    assert.equal(msg, GOOGLE_AUTH_ERRORS.google_cancelled);
+    assert.equal(replacedUrl, '/?other=1');
+  } finally {
+    (globalThis as unknown as Record<string, unknown>).window = originalWindow;
+  }
 });

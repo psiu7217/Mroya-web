@@ -11,4 +11,5 @@ export interface WorkspaceSource {
   capabilities(signal?:AbortSignal):Promise<Capabilities>;
   send(content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options?:SendOptions):Promise<void>;
   turn(id:string,signal?:AbortSignal):Promise<TurnResponse>;
+  startGoogleAuth?(signal?:AbortSignal):Promise<void>;
 }

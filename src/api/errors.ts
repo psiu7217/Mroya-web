@@ -6,3 +6,26 @@ export class ApiError extends Error {
 export class StreamInterruptedError extends Error {
   constructor() { super('The response stream was interrupted. Reload turn/history before retrying the same submission.');this.name='StreamInterruptedError'; }
 }
+
+export const GOOGLE_AUTH_ERRORS: Record<string, string> = {
+  google_cancelled: 'Google sign-in was cancelled.',
+  google_failed: 'Google sign-in failed. Please try again.',
+  google_account_conflict: 'An account with this email already exists. Please sign in with your password.',
+  google_already_authenticated: 'You are already signed in.',
+};
+
+export function readAndClearAuthError(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('auth_error');
+    if (!code) return null;
+    params.delete('auth_error');
+    const query = params.toString();
+    const cleanUrl = window.location.pathname + (query ? `?${query}` : '') + window.location.hash;
+    window.history.replaceState(window.history.state, '', cleanUrl);
+    return GOOGLE_AUTH_ERRORS[code] ?? null;
+  } catch {
+    return null;
+  }
+}

@@ -24,6 +24,7 @@ import {
   Square,
   Bell,
 } from 'lucide-react';
+import { AssistantMarkdown } from './AssistantMarkdown';
 import { BrandMark } from './BrandMark';
 import {
   Conversation,
@@ -662,9 +663,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       <div className="w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] space-y-3.5">
-                        <p className="text-[15px] sm:text-[16px] leading-[24px] sm:leading-[25px] text-[var(--mroya-text)]">
-                          {msg.content}
-                        </p>
+                        <AssistantMarkdown content={msg.content} />
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">Sign in</button>}
                         {/* Structured recalled details if present */}

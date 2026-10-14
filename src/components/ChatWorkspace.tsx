@@ -607,34 +607,25 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   );
                 }
 
-                // Assistant message (Mroya): starts flush with zero left indent on mobile
+                // Assistant message (Mroya): top header with icon + Mroya, full width response below
                 return (
-                  <div key={msg.id} className="w-full flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3.5">
-                    {/* Desktop-only side avatar (hidden on mobile to eliminate left indent) */}
-                    <div className="hidden sm:block shrink-0 mt-0.5">
+                  <div key={msg.id} className="w-full space-y-2.5 sm:space-y-3">
+                    <div className="flex items-center gap-2">
                       <BrandMark size="sm" />
+                      <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                        Mroya
+                      </span>
+                      <span
+                        className="text-[11px] text-[var(--mroya-text-muted)]"
+                        aria-hidden="true"
+                      >
+                        ·
+                      </span>
+                      <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
+                        {msg.timestamp}
+                      </span>
+                      {msg.status && msg.status!=='completed' && <span role="status" className="text-xs text-[var(--mroya-text-muted)]">{msg.status==='failed'?'Reply failed':msg.status==='streaming'?'Receiving reply…':'Processing…'}</span>}
                     </div>
-
-                    <div className="flex-1 min-w-0 space-y-2.5 sm:space-y-3 w-full">
-                      <div className="flex items-center gap-2">
-                        {/* Inline brand mark on mobile so text starts without side column margin */}
-                        <div className="sm:hidden shrink-0">
-                          <BrandMark size="sm" />
-                        </div>
-                        <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                          Mroya
-                        </span>
-                        <span
-                          className="text-[11px] text-[var(--mroya-text-muted)]"
-                          aria-hidden="true"
-                        >
-                          ·
-                        </span>
-                        <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
-                          {msg.timestamp}
-                        </span>
-                        {msg.status && msg.status!=='completed' && <span role="status" className="text-xs text-[var(--mroya-text-muted)]">{msg.status==='failed'?'Reply failed':msg.status==='streaming'?'Receiving reply…':'Processing…'}</span>}
-                      </div>
 
                       {/* Optional "Saved to memory" quiet acknowledgement */}
                       {msg.savedMemoryNotice && (
@@ -749,7 +740,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           </div>
                         )}
                       </div>
-                    </div>
                   </div>
                 );
               })}

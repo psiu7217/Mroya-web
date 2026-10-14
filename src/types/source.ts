@@ -1,4 +1,4 @@
-import type {TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
+import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
   readonly kind:'design'|'live';
@@ -16,5 +16,7 @@ export interface WorkspaceSource {
   telegramStatus?(signal?:AbortSignal):Promise<TelegramConnectionStatus>;
   createTelegramLink?(signal?:AbortSignal):Promise<TelegramLinkResponse>;
   disconnectTelegram?(signal?:AbortSignal):Promise<TelegramDisconnectResponse>;
+  reportChatIssue?(context:ReportContext,signal?:AbortSignal):Promise<IssueReportResponse>;
+  getChatErrorReport?(turnId:string,signal?:AbortSignal):Promise<string>;
   startGoogleAuth?(signal?:AbortSignal):Promise<void>;
 }

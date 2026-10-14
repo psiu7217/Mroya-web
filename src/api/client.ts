@@ -1,4 +1,5 @@
-import type {TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
+import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
+import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {readChatStream} from './sse.ts';
 function checkedUser(value: unknown): ApiUser {
@@ -32,11 +33,12 @@ export class MroyaApi {
     throw new ApiError(response.status,typeof body?.error?.code==='string'?body.error.code:'http_error',typeof body?.error?.message==='string'?body.error.message:`HTTP ${response.status}`,
       fields && typeof fields==='object' && !Array.isArray(fields) ? fields : undefined);
   }
-  private async json<T>(path:string,body?:unknown,signal?:AbortSignal,method:'POST'|'PATCH'|'DELETE'='POST'):Promise<T> {
+  private async json<T>(path:string,body?:unknown,signal?:AbortSignal,method:'POST'|'PATCH'|'DELETE'='POST',acceptStatus?:(status:number)=>void):Promise<T> {
     if(body!==undefined&&!this.token)await this.csrf(signal);
     const response=await this.fetcher('/api/v1/'+path,{method:body===undefined?'GET':method,credentials:'same-origin',cache:'no-store',redirect:'error',signal,
       headers:body===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':this.token},body:body===undefined?undefined:JSON.stringify(body)});
     await this.check(response);
+    acceptStatus?.(response.status);
     if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON, received a different response');
     try{return await response.json() as T;}catch(error){if(signal?.aborted||(error instanceof Error&&error.name==='AbortError'))throw error;throw new ApiError(502,'invalid_response','Invalid API JSON');}
   }
@@ -70,6 +72,40 @@ export class MroyaApi {
     if(keys.some(key=>key!=='theme'&&key!=='nickname'))throw new Error('Invalid preferences payload');
     const data=await this.json<{user:unknown}>('me/preferences/',changes,signal,'PATCH');
     return checkedUser(data.user);
+  }
+  async reportChatIssue(context:ReportContext,signal?:AbortSignal):Promise<IssueReportResponse>{
+    const snapshot=readReportContext(context);
+    if(!snapshot)throw new ApiError(400,'invalid_report','Invalid failure attempt');
+    let status=0;
+    const data=await this.json<unknown>('chat/turns/'+snapshot.turn_id+'/report/',{request_trace_id:snapshot.request_trace_id},signal,'POST',value=>{
+      status=value;if(value!==200&&value!==201)throw new ApiError(502,'invalid_response','Invalid report status');
+    });
+    const v=data as Partial<IssueReportResponse>|null,issue=v?.issue;
+    if(!v||Array.isArray(v)||typeof v.created!=='boolean'||v.created!==(status===201)||!issue||!isTurnUuid(issue.id)
+      ||issue.turn_id!==snapshot.turn_id||issue.request_trace_id!==snapshot.request_trace_id
+      ||!['new','investigating','resolved'].includes(issue.status)||typeof issue.created_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(issue.created_at)||!Number.isFinite(Date.parse(issue.created_at)))
+      throw new ApiError(502,'invalid_response','Invalid report confirmation');
+    return {issue:{id:issue.id,turn_id:issue.turn_id,request_trace_id:issue.request_trace_id,status:issue.status,created_at:issue.created_at},created:v.created};
+  }
+  async getChatErrorReport(turnId:string,signal?:AbortSignal):Promise<string>{
+    if(!isTurnUuid(turnId))throw new ApiError(400,'invalid_report','Invalid turn UUID');
+    const response=await this.fetcher('/api/v1/chat/turns/'+turnId+'/error/',{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal,headers:{Accept:'text/plain'}});
+    await this.check(response);
+    if(response.status!==200||response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='text/plain')
+      throw new ApiError(502,'invalid_response','Expected plain-text error report');
+    const limit=16*1024,length=response.headers.get('Content-Length');
+    if(length&&Number(length)>limit){await response.body?.cancel();throw new ApiError(502,'invalid_response','Error report exceeds limit');}
+    if(!response.body)throw new ApiError(502,'invalid_response','Missing error report');
+    const reader=response.body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let bytes=0,text='';
+    try{
+      while(true){signal?.throwIfAborted();const chunk=await reader.read();if(chunk.done)break;
+        bytes+=chunk.value.byteLength;if(bytes>limit)throw new ApiError(502,'invalid_response','Error report exceeds limit');
+        text+=decoder.decode(chunk.value,{stream:true});
+      }
+      text+=decoder.decode();signal?.throwIfAborted();
+      if(!text.trim())throw new ApiError(502,'invalid_response','Empty error report');
+      return text;
+    }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
   }
   async telegramStatus(signal?:AbortSignal):Promise<TelegramConnectionStatus>{
     const data=await this.json<unknown>('me/telegram/',undefined,signal);

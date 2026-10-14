@@ -8,7 +8,14 @@ export interface TelegramPresentation {
     openFallback:boolean; checking:boolean; error:string|null; link:import('./api').TelegramLinkResponse|null;
     onConnect:()=>void; onDisconnect:()=>void; onCheck:()=>void; onRetry:()=>void;
 }
+export interface DiagnosticActionState {available:boolean;reporting:boolean;reported:boolean;copying:boolean;copied:boolean}
+export interface ChatDiagnostics {
+    forMessage:(message:import('./mroya').ChatMessage)=>DiagnosticActionState;
+    onReport:(message:import('./mroya').ChatMessage)=>void;
+    onCopy:(message:import('./mroya').ChatMessage)=>void;
+}
 export interface WorkspaceRuntime {
+    diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
@@ -19,6 +26,7 @@ export interface WorkspaceRuntime {
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
 }
 export interface WorkspaceModel {
+    diagnostics?:ChatDiagnostics;
     runtime?:WorkspaceRuntime;
     feedback?:Pick<WorkspaceRuntime,'loading'|'busy'|'error'|'onRetry'>;
     account: AccountPresentation;

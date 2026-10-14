@@ -57,6 +57,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'chat' && (
           <>
             <ChatWorkspace
+              diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
               pending={runtime?.pending??feedback?.loading}
               onUnavailable={runtime?.onUnavailable}

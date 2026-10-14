@@ -1,6 +1,6 @@
 # Mroya Web
 
-Single React/Vite frontend for Mroya, designed to stay editable in Google AI Studio. This branch adds guest entry and a minimum session-backed workspace; it does not change the deployed application or approve a production cutover.
+Single React/Vite frontend for Mroya, designed to stay editable in Google AI Studio. Guest entry and a minimum session-backed workspace are implemented; production releases require explicit authorization.
 
 ## Local design preview
 
@@ -17,8 +17,8 @@ node scripts/check-production.mjs
 npm run build:design
 ```
 
-The markup regression test needs the pinned original Git commit (full history; `git fetch --unshallow` if necessary). GitHub Actions are intentionally disabled: use these checks explicitly when relevant. The existing Web deploy helper performs only its local Nginx HTTP smoke check.
+The markup regression test needs the pinned original Git commit (full history; `git fetch --unshallow` if necessary). GitHub Actions are intentionally disabled: use these checks explicitly when relevant. The proposed helper runs the minimal locked production build checks and local Nginx HTTP smoke described in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-Default production builds contain the real same-origin session/CSRF/API foundation and no demo root. The minimum live workspace is connected to existing API contracts: **real Django end-to-end verification and separate release review are required before deployment**. Existing production releases and rollback remain unchanged.
+Default production builds contain the real same-origin session/CSRF/API foundation and no demo root. The minimum live workspace is connected to existing API contracts: **real Django end-to-end verification and separate release review are required before deployment**. The proposed API-style helper removes automatic rollback; install it separately after review. Fix/revert a bad main commit and publish again. Legacy artifacts are retained.
 
 Read [guest/session behavior and remaining checks](docs/GUEST_CHAT.md), [architecture](docs/ARCHITECTURE_DECISION.md), [backend contracts and unsupported features](docs/BACKEND_CONTRACT.md), and [Studio review/synchronization workflow](docs/AI_STUDIO_WORKFLOW.md) before editing data logic or publishing.

@@ -22,7 +22,7 @@ This is the minimum supported workspace, not full feature parity. Rich memory pr
 
 ## Google OAuth status
 
-Backend Google start/callback and signup through Django sessions are already published. The current Web button remains visible and disabled with Coming soon; connecting it is a separate task. The authoritative routes, CSRF/form flow, callback, capabilities and limitations are in [BACKEND_CONTRACT](BACKEND_CONTRACT.md), which links the API OAuth documentation. Do not infer missing backend support from the disabled button.
+Backend Google start/callback and signup through Django sessions are already published. The Web button is enabled only when the public capability is true; it uses a fresh CSRF-protected same-origin form through the existing client. Design Mode simulates the action offline. Real Google consent/login remains a manual owner check. The authoritative routes, CSRF/form flow, callback, capabilities and limitations are in [BACKEND_CONTRACT](BACKEND_CONTRACT.md), which links the API OAuth documentation. Do not infer missing backend support from the disabled button.
 
 ## Verification and cutover
 
@@ -30,4 +30,4 @@ Automated checks cover bounded network-free guest exchange; capability gates; li
 
 Manual optimized-build checks use a temporary localhost-only HTTP contract server, not Django or real accounts: guest welcome/send/Memory gate; shared form/disabled Google; wrong password; successful cookie-session login; live SSE/history reload/memory/map; unsupported sections; logout; `/me/` server error/retry. Desktop and mobile checks and Design scenarios are recorded in the PR. This fixture server is not shipped in frontend bundles.
 
-The preparation checks above are isolated fixture evidence. Release reviewed main through the existing Web helper within explicit release authorization; verify HTTPS, guest entry, same-origin API and CSRF. Real account login/chat must be verified manually by the owner if credentials are not supplied. Do not create production test users or mutate existing user data. No real account credentials were supplied for this task, so fixture checks are not presented as real-account end-to-end proof. Google OAuth and full feature parity are not requirements for releasing the supported username/password minimum, but must remain explicitly unavailable.
+The preparation checks above are isolated fixture evidence. Release reviewed main through the existing Web helper within explicit release authorization; verify HTTPS, guest entry, same-origin API and CSRF. Real account login/chat must be verified manually by the owner if credentials are not supplied. Do not create production test users or mutate existing user data. No real account credentials were supplied for this task, so fixture checks are not presented as real-account end-to-end proof. Full feature parity is not required for the supported username/password workspace; absent backend features remain explicitly unavailable.

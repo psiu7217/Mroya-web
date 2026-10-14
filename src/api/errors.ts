@@ -10,7 +10,7 @@ export class StreamInterruptedError extends Error {
 export const GOOGLE_AUTH_ERRORS: Record<string, string> = {
   google_cancelled: 'Google sign-in was cancelled.',
   google_failed: 'Google sign-in failed. Please try again.',
-  google_account_conflict: 'An account with this email already exists. Please sign in with your password.',
+  google_account_conflict: 'An account with this email already exists. Please use its existing sign-in method.',
   google_already_authenticated: 'You are already signed in.',
 };
 
@@ -24,7 +24,7 @@ export function readAndClearAuthError(): string | null {
     const query = params.toString();
     const cleanUrl = window.location.pathname + (query ? `?${query}` : '') + window.location.hash;
     window.history.replaceState(window.history.state, '', cleanUrl);
-    return GOOGLE_AUTH_ERRORS[code] ?? null;
+    return Object.hasOwn(GOOGLE_AUTH_ERRORS, code) ? GOOGLE_AUTH_ERRORS[code] : null;
   } catch {
     return null;
   }

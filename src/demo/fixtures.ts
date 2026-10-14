@@ -127,58 +127,9 @@ export const INITIAL_CONVERSATIONS: Conversation[] = [
         id: 'msg-2',
         sender: 'assistant',
         timestamp: '2:14 PM',
+        status: 'failed',
         content:
-          'You agreed to send Sarah the revised proposal by Friday, October 16. The target budget was $14,500, and you discussed splitting payments into three milestones: 40%, 30%, and 30%.',
-        structuredPoints: [
-          { label: 'Deliverable deadline', value: 'Friday, October 16, 2026 (Revised written proposal)' },
-          { label: 'Agreed budget', value: '$14,500 total project fee' },
-          { label: 'Payment milestones', value: '40% ($5,800) kick-off · 30% ($4,350) design sign-off · 30% ($4,350) staging handoff' },
-          { label: 'Target handoff', value: 'Friday, November 20, 2026 (6 core templates + design system)' },
-        ],
-        citations: [
-          {
-            memoryId: 'mem-sarah-redesign',
-            label: 'Saved memory · Oct 8',
-            date: 'Oct 8, 2026',
-            sourceType: 'Call Notes',
-            relatedEventId: 'evt-oct16-proposal',
-            relatedNodeId: 'node-redesign',
-          },
-          {
-            memoryId: 'mem-oct16-commitment',
-            label: 'Related calendar event',
-            date: 'Oct 16, 2026',
-            sourceType: 'Calendar Event',
-            relatedEventId: 'evt-oct16-proposal',
-            relatedNodeId: 'node-oct16',
-          },
-        ],
-        actions: [
-          {
-            id: 'act-view-mem',
-            label: 'View memory',
-            type: 'view-memory',
-            targetMemoryId: 'mem-sarah-redesign',
-          },
-          {
-            id: 'act-add-cal',
-            label: 'Add to calendar',
-            type: 'add-calendar',
-            calendarPayload: {
-              title: 'Prep & send Harbor Labs proposal ($14,500)',
-              date: '2026-10-16',
-              time: '14:00',
-              category: 'deadline',
-              person: 'Sarah Chen',
-            },
-          },
-          {
-            id: 'act-show-related',
-            label: 'Show related memories',
-            type: 'show-memories',
-            targetMemoryId: 'mem-sarah-redesign',
-          },
-        ],
+          'Unable to complete reply. The assistant service encountered an unexpected error while retrieving your conversation context. The API backend may be temporarily unreachable. Please try again or submit an error report.',
       },
       {
         id: 'msg-3',

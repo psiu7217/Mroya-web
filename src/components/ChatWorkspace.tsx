@@ -23,6 +23,9 @@ import {
   Mic,
   Square,
   Bell,
+  AlertTriangle,
+  Flag,
+  Terminal,
 } from 'lucide-react';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { BrandMark } from './BrandMark';
@@ -59,6 +62,8 @@ export interface ChatWorkspaceProps {
   onToggleTheme: () => void;
   onNewChat: () => void;
   onOpenSettingsTab?: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
+  onReportError?: (messageId: string) => void;
+  isAdmin?: boolean;
 }
 
 const STARTER_SUGGESTIONS = [
@@ -87,6 +92,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onToggleTheme,
   onNewChat,
   onOpenSettingsTab,
+  onReportError,
+  isAdmin = true,
 }) => {
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -96,6 +103,22 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [reportedMessageIds, setReportedMessageIds] = useState<Set<string>>(new Set());
+  const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
+
+  const handleReportIssue = (messageId: string) => {
+    if (reportingMessageId || reportedMessageIds.has(messageId)) return;
+    setReportingMessageId(messageId);
+    setTimeout(() => {
+      setReportedMessageIds((prev) => {
+        const next = new Set(prev);
+        next.add(messageId);
+        return next;
+      });
+      setReportingMessageId(null);
+      onReportError?.(messageId);
+    }, 600);
+  };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -127,6 +150,48 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     copyTimeoutRef.current = setTimeout(() => {
       setCopiedMessageId(null);
     }, 2000);
+  };
+
+  const [copiedDiagnosticsId, setCopiedDiagnosticsId] = useState<string | null>(null);
+  const diagnosticsTimeoutRef = useRef<any>(null);
+
+  const handleCopyAdminDiagnostics = (msg: any) => {
+    const errorDiagnostics = {
+      error: 'Reply failed',
+      details: 'An error occurred while communicating with the assistant service or the model API is temporarily unreachable.',
+      message_id: msg.id,
+      conversation_id: conversation?.id ?? '',
+      timestamp: msg.timestamp,
+      status: msg.status,
+      content: msg.content,
+      diagnostics: {
+        timestamp_iso: new Date().toISOString(),
+        url: typeof window !== 'undefined' ? window.location.href : '',
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      },
+    };
+    const jsonText = JSON.stringify(errorDiagnostics, null, 2);
+    if (navigator && 'clipboard' in navigator && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(jsonText).catch(() => {});
+    } else {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = jsonText;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (e) {}
+    }
+    if (diagnosticsTimeoutRef.current) {
+      clearTimeout(diagnosticsTimeoutRef.current);
+    }
+    setCopiedDiagnosticsId(msg.id);
+    diagnosticsTimeoutRef.current = setTimeout(() => {
+      setCopiedDiagnosticsId(null);
+    }, 2500);
   };
 
   const sampleVoicePhrases = samples?.voicePhrases ?? [];
@@ -633,7 +698,17 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         Mroya
                       </span>
                       {msg.status && msg.status !== 'completed' && (
-                        <span role="status" className="text-xs text-[var(--mroya-text-muted)]">
+                        <span
+                          role="status"
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                            msg.status === 'failed'
+                              ? 'bg-[var(--mroya-surface-muted)] text-[var(--mroya-error)] border border-[var(--mroya-error)]/30'
+                              : 'text-[var(--mroya-text-muted)]'
+                          }`}
+                        >
+                          {msg.status === 'failed' && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-error)] shrink-0" />
+                          )}
                           {msg.status === 'failed'
                             ? 'Reply failed'
                             : msg.status === 'streaming'
@@ -662,7 +737,89 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
-                      <div className="w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] space-y-3.5">
+                      <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
+                        msg.status === 'failed'
+                          ? 'border-[var(--mroya-error)]/40'
+                          : 'border-[var(--mroya-divider)]'
+                      }`}>
+                        {msg.status === 'failed' && (
+                          <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-error)]/25 space-y-2.5">
+                            <div className="flex items-start gap-2.5">
+                              <AlertTriangle className="w-4 h-4 text-[var(--mroya-error)] shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                                  Reply failed
+                                </div>
+                                <p className="text-[12.5px] leading-relaxed text-[var(--mroya-text-muted)] mt-0.5">
+                                  An error occurred while communicating with the assistant service or the model API is temporarily unreachable.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2.5 pl-6.5">
+                              <button
+                                type="button"
+                                onClick={() => handleReportIssue(msg.id)}
+                                disabled={reportingMessageId === msg.id || reportedMessageIds.has(msg.id)}
+                                aria-label="Report issue to backend"
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] text-[12px] font-medium transition-colors cursor-pointer select-none ${
+                                  reportedMessageIds.has(msg.id)
+                                    ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] cursor-default'
+                                    : 'bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] shadow-2xs'
+                                }`}
+                              >
+                                {reportingMessageId === msg.id ? (
+                                  <>
+                                    <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+                                    <span>Sending report…</span>
+                                  </>
+                                ) : reportedMessageIds.has(msg.id) ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
+                                    <span>Report sent</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Flag className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
+                                    <span>Report issue</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyAdminDiagnostics(msg)}
+                                  title="Admin only: Copy complete error diagnostics payload to clipboard"
+                                  aria-label="Copy Error For Admin Diagnostics"
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] text-[12px] font-medium transition-colors cursor-pointer select-none ${
+                                    copiedDiagnosticsId === msg.id
+                                      ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] cursor-default'
+                                      : 'bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] shadow-2xs'
+                                  }`}
+                                >
+                                  {copiedDiagnosticsId === msg.id ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
+                                      <span>Diagnostics copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Terminal className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
+                                      <span>Copy Error For Admin Diagnostics</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+
+                              {reportedMessageIds.has(msg.id) && (
+                                <span className="text-[11px] text-[var(--mroya-text-muted)] animate-in fade-in duration-150">
+                                  Thank you. Error report sent to backend.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         <AssistantMarkdown content={msg.content} />
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">Sign in</button>}

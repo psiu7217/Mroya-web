@@ -9,6 +9,8 @@ function checkedUser(value: unknown): ApiUser {
   if(typeof user.nickname!=='string' || Array.from(user.nickname).length>80 || Array.isArray(user.preferences) || !user.preferences || typeof user.preferences!=='object'
     || !['system','light','dark'].includes((user.preferences as Record<string,unknown>).theme as ThemeMode))
     throw new ApiError(502,'invalid_response','Invalid API preferences');
+  const reasoning=(user.preferences as Record<string,unknown>).show_model_reasoning;
+  if(reasoning!==undefined&&typeof reasoning!=='boolean')throw new ApiError(502,'invalid_response','Invalid reasoning preference');
   return value as ApiUser;
 }
 // A link is a bearer credential. Never include its value in errors or persistence.
@@ -69,9 +71,12 @@ export class MroyaApi {
   async login(username:string,password:string,signal?:AbortSignal):Promise<ApiUser>{const data=await this.json<{user:ApiUser;csrf_token:string}>('auth/login/',{username,password},signal);if(typeof data.csrf_token!=='string'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing login fields');this.token=data.csrf_token;return checkedUser(data.user);}
   async savePreferences(changes:PreferencesPatch,signal?:AbortSignal):Promise<ApiUser>{
     const keys=Object.keys(changes);
-    if(keys.some(key=>key!=='theme'&&key!=='nickname'))throw new Error('Invalid preferences payload');
+    if(keys.some(key=>key!=='theme'&&key!=='nickname'&&key!=='show_model_reasoning'))throw new Error('Invalid preferences payload');
     const data=await this.json<{user:unknown}>('me/preferences/',changes,signal,'PATCH');
-    return checkedUser(data.user);
+    const user=checkedUser(data.user);
+    if(changes.show_model_reasoning!==undefined&&user.preferences.show_model_reasoning!==changes.show_model_reasoning)
+      throw new ApiError(502,'invalid_response','Reasoning preference was not confirmed');
+    return user;
   }
   async reportChatIssue(context:ReportContext,signal?:AbortSignal):Promise<IssueReportResponse>{
     const snapshot=readReportContext(context);

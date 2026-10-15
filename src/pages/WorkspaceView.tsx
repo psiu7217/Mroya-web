@@ -177,6 +177,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             live={!!runtime}
             telegram={runtime?.telegram}
             preferenceSave={runtime?.preferenceSave}
+            showModelReasoning={runtime?.showModelReasoning}
+            onToggleShowModelReasoning={runtime?.onToggleShowModelReasoning}
             onSaveNickname={runtime?.onSaveNickname}
             onClearNickname={runtime?.onClearNickname}
         account={account}

@@ -23,6 +23,7 @@ export interface WorkspaceRuntime {
     memoriesTotal:number; hasOlder:boolean; onOlder:()=>void; hasMoreMemories:boolean; onMoreMemories:()=>void;
     truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
     preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
+    showModelReasoning?:boolean; onToggleShowModelReasoning?:(enabled:boolean)=>void;
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
 }
 export interface WorkspaceModel {

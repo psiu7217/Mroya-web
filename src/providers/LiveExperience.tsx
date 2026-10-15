@@ -12,7 +12,7 @@ import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
- const {state,controller}=useLiveWorkspace(source,onExpired);
+ const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
  const preferences=useUserPreferences(source,user,onExpired);
 
  const layout=useWorkspaceLayout({theme:preferences.theme,onThemeChange:preferences.setTheme});
@@ -22,7 +22,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice);
- const logout=()=>{diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{controller.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...user,nickname:preferences.nickname});
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map)),graph=graphPresentation(state.map);
@@ -48,6 +48,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
    truncated:state.map.truncated===true||state.map.stats?.truncated===true,notice,onCloseNotice:()=>setNotice(null),
    onUnavailable:unavailable,onLogout:logout,
    preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry},
+   showModelReasoning:preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,

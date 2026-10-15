@@ -3,13 +3,14 @@ import {ApiError} from '../api/errors.ts';
 import type {ApiUser,PreferencesPatch,ThemeMode} from '../types/api.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 
-type Saved = {theme:ThemeMode;nickname:string};
+type Saved = {theme:ThemeMode;nickname:string;show_model_reasoning:boolean};
 export type PreferenceView = Saved & {status:'saved'|'saving'|'unsaved';error:string|null};
-const values=(user:ApiUser):Saved=>({theme:user.preferences.theme,nickname:user.nickname});
+const values=(user:ApiUser):Saved=>({theme:user.preferences.theme,nickname:user.nickname,show_model_reasoning:user.preferences.show_model_reasoning??false});
 const difference=(desired:Saved,confirmed:Saved):PreferencesPatch=>{
   const patch:PreferencesPatch={};
   if(desired.theme!==confirmed.theme)patch.theme=desired.theme;
   if(desired.nickname!==confirmed.nickname)patch.nickname=desired.nickname;
+  if(desired.show_model_reasoning!==confirmed.show_model_reasoning)patch.show_model_reasoning=desired.show_model_reasoning;
   return patch;
 };
 const validation=(error:ApiError):string=>{
@@ -33,8 +34,8 @@ export class UserPreferenceStore {
   private csrfRequired=false;
   private csrfController:AbortController|null=null;
   private validationError:string|null=null;
-  private dirty={theme:false,nickname:false};
-  private revisions={theme:0,nickname:0};
+  private dirty={theme:false,nickname:false,show_model_reasoning:false};
+  private revisions={theme:0,nickname:0,show_model_reasoning:0};
   private source:WorkspaceSource;
   private userId:number;
   private onExpired:()=>void;
@@ -47,6 +48,7 @@ export class UserPreferenceStore {
   readonly subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
   private emit(next:PreferenceView){if(!this.active)return;this.current=next;this.listeners.forEach(listener=>listener());}
   setTheme=(theme:ThemeMode)=>{if(!['system','light','dark'].includes(theme))return;this.edit({theme});};
+  setShowModelReasoning=(enabled:boolean)=>{if(typeof enabled==='boolean')this.edit({show_model_reasoning:enabled});};
   setNickname=(nickname:string)=>{
     nickname=typeof nickname==='string'?nickname.trim():nickname;
     if(typeof nickname!=='string'||Array.from(nickname).length>80){
@@ -107,7 +109,7 @@ export class UserPreferenceStore {
   private accept(user:ApiUser,patch:PreferencesPatch={},sent=this.revisions){
     this.confirmed=values(user);
     let next={...this.current};
-    for(const field of ['theme','nickname'] as const){
+    for(const field of ['theme','nickname','show_model_reasoning'] as const){
       if(!this.dirty[field]||(patch[field]!==undefined&&this.revisions[field]===sent[field])){
         next={...next,[field]:this.confirmed[field]};this.dirty[field]=false;
       }else if(next[field]===this.confirmed[field])this.dirty[field]=false;
@@ -154,5 +156,5 @@ export function useUserPreferences(source:WorkspaceSource,user:ApiUser,onExpired
   const store=useMemo(()=>new UserPreferenceStore(source,user.id,user,onExpired),[source,user.id,onExpired]);
   useEffect(()=>()=>store.dispose(),[store]);
   const view=useSyncExternalStore(store.subscribe,store.snapshot,store.snapshot);
-  return {...view,setTheme:store.setTheme,saveNickname:store.setNickname,retry:store.retry,stop:()=>store.dispose()};
+  return {...view,setTheme:store.setTheme,saveNickname:store.setNickname,setShowModelReasoning:store.setShowModelReasoning,retry:store.retry,stop:()=>store.dispose()};
 }

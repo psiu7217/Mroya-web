@@ -65,6 +65,7 @@ export interface ChatWorkspaceProps {
   onOpenSettingsTab?: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
   diagnostics?:ChatDiagnostics;
   isAdmin?: boolean;
+  isThinking?: boolean;
 }
 
 const STARTER_SUGGESTIONS = [
@@ -95,6 +96,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onOpenSettingsTab,
   diagnostics,
   isAdmin = true,
+  isThinking = false,
 }) => {
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -104,6 +106,17 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [localThinking, setLocalThinking] = useState(false);
+
+  useEffect(() => {
+    if (conversation?.messages.length) {
+      const last = conversation.messages[conversation.messages.length - 1];
+      if (last.sender === 'assistant') {
+        setLocalThinking(false);
+      }
+    }
+  }, [conversation?.messages]);
+
   const handleReportIssue = (message:ChatMessage) => diagnostics?.onReport(message);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -224,6 +237,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleStopAndSend = () => {
     const text = stopRecordingInternal();
     if (text.trim()) {
+      setLocalThinking(true);
       onSendMessage(text.trim());
       setInput('');
       setAttachedFile(null);
@@ -271,9 +285,13 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const lastMsg = conversation?.messages && conversation.messages.length > 0 ? conversation.messages[conversation.messages.length - 1] : undefined;
+  const isLastUser = lastMsg?.sender === 'user';
+  const showThinking = (isThinking || localThinking) && isLastUser;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  }, [conversation?.messages.length, conversation?.id]);
+  }, [conversation?.messages.length, conversation?.id, showThinking]);
 
   // Auto-resize multiline textarea
   useEffect(() => {
@@ -287,6 +305,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     if (e) e.preventDefault();
     const trimmed = input.trim();
     if (pending || (!trimmed && !attachedFile)) return;
+    setLocalThinking(true);
     onSendMessage(
       trimmed || `Shared attachment: ${attachedFile}`,
       attachedFile || undefined
@@ -312,6 +331,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       );
       textareaRef.current?.focus();
     } else {
+      setLocalThinking(true);
       onSendMessage(promptText);
     }
   };
@@ -882,6 +902,28 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </div>
                 );
               })}
+              {showThinking && (
+                <div className="w-full space-y-2.5 sm:space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2">
+                    <BrandMark size="sm" />
+                    <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                      Mroya
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-brand-honey)] animate-pulse shrink-0" />
+                      Thinking…
+                    </span>
+                  </div>
+
+                  <div className="w-fit min-w-[72px] px-4 py-3 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] flex items-center justify-center">
+                    <div role="status" aria-label="Mroya is thinking" className="flex items-center gap-1.5 py-0.5">
+                      <span className="guest-dot" />
+                      <span className="guest-dot" />
+                      <span className="guest-dot" />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           ) : intro ? null : (

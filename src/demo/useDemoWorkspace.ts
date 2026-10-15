@@ -512,6 +512,7 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
       };
     }
 
+    const targetConvId = activeConversationId ?? `conv-${Date.now()}`;
     if (activeConversationId) {
       setConversations((prev) =>
         prev.map((c) =>
@@ -519,26 +520,39 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
             ? {
                 ...c,
                 updatedAt: 'Just now',
-                messages: [...c.messages, userMsg, assistantReply],
+                messages: [...c.messages, userMsg],
               }
             : c
         )
       );
     } else {
-      const newConvId = `conv-${Date.now()}`;
       const newConv: Conversation = {
-        id: newConvId,
+        id: targetConvId,
         title: content.length > 42 ? `${content.slice(0, 42)}...` : content,
         group: 'Today',
         updatedAt: 'Just now',
         relatedMemoryIds: ['mem-sarah-redesign', 'mem-schedule-pref', 'mem-oct16-commitment'],
         relatedEventId: 'evt-oct16-proposal',
         relatedNodeId: 'node-redesign',
-        messages: [userMsg, assistantReply],
+        messages: [userMsg],
       };
       setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(newConvId);
+      setActiveConversationId(targetConvId);
     }
+
+    setTimeout(() => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === targetConvId
+            ? {
+                ...c,
+                updatedAt: 'Just now',
+                messages: [...c.messages, assistantReply],
+              }
+            : c
+        )
+      );
+    }, 1000);
   };
 
   const handleCitationClick = (memoryId: string) => {

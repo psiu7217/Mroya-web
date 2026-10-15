@@ -45,8 +45,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
       {/* Center Primary Workspace + Optional Contextual Memory Details */}
       <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
-        {feedback && (feedback.error || feedback.loading || feedback.busy) && <div role={feedback.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-          {feedback.error??(feedback.busy?'Mroya is working…':'Loading your workspace…')}
+        {feedback && (feedback.error || feedback.loading) && <div role={feedback.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
+          {feedback.error ?? 'Loading your workspace…'}
           {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">Check server status</button>}
         </div>}
         {runtime && !runtime.loading && !runtime.error && ((activeSection==='calendar'&&!runtime.calendarAvailable)||(activeSection==='reminders'&&!runtime.remindersAvailable)||(activeSection==='chat'&&!runtime.chatAvailable)||((activeSection==='memory'||activeSection==='memory-map')&&!runtime.memoryAvailable)) && <p role="status" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">Not available yet. No changes have been saved.</p>}
@@ -60,6 +60,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
               pending={runtime?.pending??feedback?.loading}
+              isThinking={runtime?.busy ?? feedback?.busy}
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}
               account={account}

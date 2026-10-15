@@ -81,6 +81,7 @@ export interface ChatMessage {
   report_context?:import('./api').ReportContext;
   signInPrompt?: boolean;
   status?: string;
+  reasoning?: string | string[];
   id: string;
   sender: 'user' | 'assistant';
   timestamp: string;

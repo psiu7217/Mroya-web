@@ -12,7 +12,10 @@ import {
   Menu,
   PanelLeftOpen,
   ChevronDown,
+  Brain,
 } from 'lucide-react';
+import { BrandMark } from './BrandMark';
+import { ModelReasoningBlock } from './ModelReasoningBlock';
 import {
   ServiceConnection,
   SubscriptionPlan,
@@ -70,6 +73,8 @@ export interface ConnectionsSettingsViewProps {
   onSaveNickname?: (nickname: string) => void;
   onClearNickname?: () => void;
   onChangeTimezone?: (timezone: string) => void;
+  showModelReasoning?: boolean;
+  onToggleShowModelReasoning?: (enabled: boolean) => void;
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
@@ -91,7 +96,16 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   onSaveNickname,
   onClearNickname,
   onChangeTimezone,
+  showModelReasoning: controlledShowModelReasoning,
+  onToggleShowModelReasoning,
 }) => {
+  const [localShowModelReasoning, setLocalShowModelReasoning] = React.useState(false);
+  const showModelReasoning = controlledShowModelReasoning ?? localShowModelReasoning;
+  const handleToggleShowModelReasoning = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVal = e.target.checked;
+    setLocalShowModelReasoning(nextVal);
+    onToggleShowModelReasoning?.(nextVal);
+  };
   const [nicknameDraft, setNicknameDraft] = React.useState(account.nickname || '');
   const [selectedTimezone, setSelectedTimezone] = React.useState(account.timezone || 'UTC');
   const [saveStatus, setSaveStatus] = React.useState<string | null>(null);
@@ -157,7 +171,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     { id: 'plan', label: 'My plan' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'profile', label: 'Profile' },
-    { id: 'settings', label: 'Memory preferences' },
+    { id: 'settings', label: 'Assistant preferences' },
   ];
 
   return (
@@ -546,21 +560,110 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
           )}
 
           {activeTab === 'settings' && (
-            <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-[var(--mroya-primary)]" />
-                <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                  Memory transparency & control
-                </h2>
+            <div className="space-y-5">
+              <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">
+                <div className="flex items-center gap-2.5">
+                  <Brain className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
+                  <div>
+                    <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+                      Assistant preferences
+                    </h2>
+                    <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
+                      Configure AI assistant behavior and model reasoning display.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Show model reasoning setting */}
+                <div className="pt-4 border-t border-[var(--mroya-divider)]">
+                  <label className="flex items-start gap-3 cursor-pointer group select-none">
+                    <input
+                      type="checkbox"
+                      checked={showModelReasoning}
+                      onChange={handleToggleShowModelReasoning}
+                      className="mt-0.5 w-4 h-4 rounded border-[var(--mroya-divider)] text-[var(--mroya-primary)] accent-[var(--mroya-primary)] focus:ring-[var(--mroya-primary)] cursor-pointer"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="text-[13.5px] font-medium text-[var(--mroya-text)] group-hover:text-[var(--mroya-text)]">
+                        Show model reasoning
+                      </span>
+                      <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
+                        See the model&apos;s reasoning as it is generated, when available. Not all AI models provide visible reasoning.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Chat preview */}
+                <div className="pt-4 border-t border-[var(--mroya-divider)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                      Chat preview
+                    </div>
+                    <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
+                      {showModelReasoning ? 'Preview with reasoning' : 'Standard preview'}
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-[12px] bg-[var(--mroya-bg)] border border-[var(--mroya-divider)] space-y-3.5">
+                    {/* User message example */}
+                    <div className="flex flex-col items-end">
+                      <div className="max-w-[88%] sm:max-w-[78%] px-3.5 py-2.5 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[13.5px] leading-[21px] text-[var(--mroya-text)] shadow-xs">
+                        Запомни, что у меня есть друг Сашка.
+                      </div>
+                      <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
+                        12:00
+                      </span>
+                    </div>
+
+                    {/* Assistant message example */}
+                    <div className="w-full space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <BrandMark size="sm" />
+                        <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                          Mroya
+                        </span>
+                      </div>
+
+                      {/* Model reasoning block (visible only when Show model reasoning is ON) */}
+                      {showModelReasoning && (
+                        <ModelReasoningBlock
+                          reasoning={[
+                            'Пользователь сообщил информацию о друге. Нужно проверить, есть ли этот человек в существующей памяти.',
+                            'Перед сохранением нового факта необходимо выполнить поиск.',
+                            'Поиск не обнаружил подходящей записи. Можно перейти к созданию нового факта.',
+                            'Теперь необходимо сохранить сведения и дождаться подтверждения.',
+                          ]}
+                          isIllustrativeExample={true}
+                          defaultExpanded={true}
+                        />
+                      )}
+
+                      {/* Final Assistant Response */}
+                      <div className="w-full p-3.5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] text-[13.5px] leading-[21px] text-[var(--mroya-text)]">
+                        Запомнила, что у тебя есть друг Сашка.
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-                {live ? 'Ask Mroya in chat to update or forget memories. Memory preference controls are not available yet.' : 'Every fact Mroya remembers includes a verifiable source citation and date. You can edit or permanently forget any memory at any time from the Memory section or directly from chat citations.'}
-              </p>
-              <div className="pt-2 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[13px]">
-                <span className="font-medium text-[var(--mroya-text)]">
-                  Show inline &ldquo;Saved to memory&rdquo; confirmations in chat
-                </span>
-                <span className="text-[var(--mroya-primary)] font-semibold">{live ? 'Coming soon' : 'Enabled'}</span>
+
+              <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[var(--mroya-primary)]" />
+                  <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+                    Memory transparency & control
+                  </h2>
+                </div>
+                <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
+                  {live ? 'Ask Mroya in chat to update or forget memories. Memory preference controls are not available yet.' : 'Every fact Mroya remembers includes a verifiable source citation and date. You can edit or permanently forget any memory at any time from the Memory section or directly from chat citations.'}
+                </p>
+                <div className="pt-2 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[13px]">
+                  <span className="font-medium text-[var(--mroya-text)]">
+                    Show inline &ldquo;Saved to memory&rdquo; confirmations in chat
+                  </span>
+                  <span className="text-[var(--mroya-primary)] font-semibold">{live ? 'Coming soon' : 'Enabled'}</span>
+                </div>
               </div>
             </div>
           )}

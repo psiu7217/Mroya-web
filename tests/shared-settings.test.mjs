@@ -19,7 +19,7 @@ const account={displayName:'Real account',initials:'RA',email:'real@example.test
 const settings={account,connections:[],plan:'free',onSelectPlan:noop,theme:'system',onSelectTheme:noop,activeTab:'connections',onChangeTab:noop,isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,onToggleConnection:noop};
 const sidebar={account,activeSection:'connections',onSelectSection:noop,conversations:[],activeConversationId:null,onSelectConversation:noop,onNewChat:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,isCollapsed:false,onToggleCollapse:noop,mobileOpen:false,onCloseMobile:noop,memoriesCount:0,upcomingEventsCount:0,pendingRemindersCount:0,onOpenSettingsTab:noop};
 const markup=props=>renderToStaticMarkup(React.createElement(ConnectionsSettingsView,{...settings,...props}));
-const labels=['Connected accounts','My plan','Appearance','Profile','Memory preferences'];
+const labels=['Connected accounts','My plan','Appearance','Profile','Assistant preferences'];
 test('both workspace pages render the same five settings tabs in order',()=>{
  function Design(){const model=useDemoWorkspace();return React.createElement(WorkspaceView,{model:{...model,activeSection:'connections'}});}
  const design=renderToStaticMarkup(React.createElement(Design));

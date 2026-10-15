@@ -121,7 +121,7 @@ test('shared card structure/styles and all five tabs remain; Design actions are 
  const live=view({});
  const cardClass='p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-start justify-between gap-4';
  assert.equal((design.split(cardClass).length-1),INITIAL_CONNECTIONS.length);assert.equal((live.split(cardClass).length-1),3);
- for(const html of [design,live])for(const label of ['Connected accounts','My plan','Appearance','Profile','Memory preferences'])assert.ok(html.includes(label));
+ for(const html of [design,live])for(const label of ['Connected accounts','My plan','Appearance','Profile','Assistant preferences'])assert.ok(html.includes(label));
  assert.doesNotMatch(design,/https:\/\/t\.me|start=/);assert.match(design,/Disconnect preview/);
  const source=fs.readFileSync('src/hooks/useTelegramConnection.ts','utf8');
  assert.doesNotMatch(source,/localStorage|sessionStorage|indexedDB|document\.cookie|console\.|setInterval/);

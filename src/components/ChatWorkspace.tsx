@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { BrandMark } from './BrandMark';
+import { ModelReasoningBlock } from './ModelReasoningBlock';
 import {
   ChatMessage,
   Conversation,
@@ -702,6 +703,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             Review
                           </button>
                         </div>
+                      )}
+
+                      {/* Optional model reasoning block when model provides reasoning */}
+                      {msg.reasoning && (
+                        <ModelReasoningBlock
+                          reasoning={msg.reasoning}
+                          isStreaming={msg.status === 'streaming'}
+                          defaultExpanded={true}
+                        />
                       )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}

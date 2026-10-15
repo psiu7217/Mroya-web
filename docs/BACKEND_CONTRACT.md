@@ -11,8 +11,8 @@ All paths below are relative to the fixed same-origin `/api/v1/` on app.heymroya
 | GET auth/csrf/ | Public; csrf_token and CSRF cookie |
 | POST auth/login/ | username/password JSON + X-CSRFToken; user and rotated csrf_token |
 | POST auth/logout/ | Session + CSRF; status logged_out and rotated token |
-| GET me/ | user (numeric id, username/email/names/timezone/nickname/preferences.theme); 401 means guest |
-| PATCH me/preferences/ | Authenticated CSRF JSON theme/nickname; returns updated user; theme system/light/dark, nickname up to 80 or empty to clear |
+| GET me/ | user (numeric id, username/email/names/timezone/nickname/preferences.theme/preferences.show_model_reasoning); 401 means guest |
+| PATCH me/preferences/ | Authenticated CSRF JSON theme/nickname/show_model_reasoning; returns updated user; theme system/light/dark, nickname up to 80 or empty to clear |
 | POST auth/google/start/ | CSRF-protected ordinary HTML form; 302 to Google |
 | GET auth/google/callback/ | Google's code/state; verified Django session then redirect to Web |
 | GET chat/messages/ | limit 1..200/default50, before sequence; conversation_id, messages, next_before |
@@ -123,3 +123,46 @@ same-origin full path returned 404 not_found, whereas the short path requires
 a session. Full endpoint deployment is not confirmed; a missing route must not
 silently fall back. Confirm API PR #11 deployment before publishing this frontend.
 No real forensic data was read and no deployment was run for this change.
+
+
+## Model reasoning (API PRs #12–14, main e4a5755)
+
+Verified against [API.md](https://github.com/psiu7217/Mroya-api/blob/e4a5755a16029552b63ba00114b60c5c7530c648/docs/API.md)
+and [AGENT-STREAMING.md](https://github.com/psiu7217/Mroya-api/blob/e4a5755a16029552b63ba00114b60c5c7530c648/docs/AGENT-STREAMING.md).
+me/login/PATCH return user.preferences.show_model_reasoning (boolean, default false).
+PATCH accepts actual booleans including false, alongside independent theme/nickname
+fields. The existing serialized preference queue, error/unsaved/retry, CSRF/session
+handling and account invalidation apply. Older responses lacking the field read as
+false for compatibility; a PATCH of this field requires an explicit matching boolean
+response before confirming success. No localStorage or Chat request flag is added.
+
+The existing Studio checkbox receives controlled props only in LiveExperience /
+WorkspaceView; Design retains the component's local demonstration behavior.
+No changes to components, ModelReasoningBlock, preview, classes, styles or layout.
+
+SSE accepts reasoning_delta {turn_number,sequence,text} and tool_activity
+{sequence,activity:{kind,status,title}}. Positive integer sequence strictly increases
+across both event types; provider turn_number is positive and nondecreasing.
+Malformed JSON/DTO/order/UTF-8, error or EOF without done reject the stream.
+tool_activity is accepted without a new UI and is never used to invent reasoning.
+
+Reasoning deltas create the current transient assistant reply before answer delta.
+The shared adapter passes real streamed text to existing ChatMessage.reasoning /
+ModelReasoningBlock. It remains in memory only, scoped to the current controller.
+After completion/history refresh, retain text only on an unambiguous newly returned
+adjacent canonical user/assistant pair matching the submitted question and accepted
+answer, excluding all pre-submission message IDs. The API does not expose submission
+or turn IDs on successful history messages; ambiguous matching deliberately drops
+reasoning rather than assigning it to another message. Once bound, subsequent history
+updates use canonical message IDs, never array positions or final-answer-only matches.
+Failures/interruption clear provisional reasoning and streaming state; logout,
+account/controller replacement and page reload discard all transient reasoning.
+No reasoning is sent back to Backend or recovered from history/replay.
+
+Visible reasoning requires BOTH the server streaming flag and this saved preference,
+latched when the request is reserved. Changes affect new requests. No readable
+reasoning is a valid normal answer (no extra AI request/fabricated fallback).
+Failed streaming submissions cannot be automatically replayed, even with retry:true;
+use existing owned turn/history recovery. Deployment of the flag and preference
+migration identity.0004_user_show_model_reasoning is a separate Backend concern.
+This frontend PR does not deploy or perform paid/provider calls.

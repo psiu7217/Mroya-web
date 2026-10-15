@@ -76,17 +76,50 @@ Design retains local connection toggles with no requests or real bearer links. T
 
 Manual acceptance after a separately authorized merge/deploy: an existing owner account creates a link, presses Start, verifies Connected on return and optionally Disconnect; verify shared text history/memory separately. This PR creates no production accounts or bindings and does not deploy either runtime.
 
-## AI Error Reporting (repository contract, API a41fd3d)
+## AI Error Reporting (repository contract, API 471f771)
 
-Verified read-only against [AI diagnostics](https://github.com/psiu7217/Mroya-api/blob/a41fd3d0cdff92f84dc5ab28bc0ec5d41e0e7b78/docs/AI-DIAGNOSTICS.md), API routes/views and Chat reporting/error-reporting code. API PR #7 is merged; deployment and migration chat.0003_reportedissue still require the owner's separate confirmation. No production errors or forensic records were accessed for this integration.
+Verified read-only against [AI diagnostics](https://github.com/psiu7217/Mroya-api/blob/a41fd3d0cdff92f84dc5ab28bc0ec5d41e0e7b78/docs/AI-DIAGNOSTICS.md), API routes/views and Chat reporting/error-reporting code. API PR #7 introduced reporting; API PR #11 adds full copy without migrations. Repository merge does not confirm either runtime deployment. No production errors or forensic records were accessed for this integration.
 
 - Failed assistant history, failed Turn activity and SSE trace may provide report_context: {turn_id:UUID, request_trace_id:positive safe JS integer, report_url:exact /api/v1/chat/turns/{turn_id}/report/ path}. Invalid/missing context disables actions. Message ID and submission_id never substitute for turn_id.
 - POST chat/turns/{turn_id}/report/ uses session + CSRF and exactly {request_trace_id}. HTTP 201 with created:true creates the issue; 200 with created:false replays it. Validate issue UUID, matching turn/trace, status new/investigating/resolved and created_at timestamp. Other success statuses, malformed JSON/DTOs and wrong MIME are errors.
 - 400 invalid_json/invalid_report, 401 session expiry, 403 CSRF, 404 missing/foreign, 409 report_trace_mismatch/turn_not_failed, 503 report_temporarily_unavailable, plus standard 405/413. No automatic POST retry or retargeting. A manual click after 403 refreshes CSRF first. Network/503 retry uses the same captured pair. Diagnostics errors use the existing Workspace notice slot; they never start an Agent retry.
 - GET chat/turns/{turn_id}/error/ is owner-bound text/plain, not forensic JSON/Admin. The client requires HTTP 200, validates MIME and bounds the stream to 16 KiB (the backend short report is <=2049 characters). A reused turn can point to a newer trace: before clipboard handoff verify the backend's ChatTurn: and RequestTrace: metadata lines match the captured pair. Copy the original server text unchanged; never construct local JSON, collect browser URL/user-agent/messages, or fetch private Admin data. 404 after successful Retry has no substitute report.
 
-The existing ChatWorkspace buttons/layout/classes/icons/text remain Studio-owned. Shared typed diagnostics presentation/actions pass through WorkspaceModel/WorkspaceRuntime and WorkspaceView. Live state is account-local in useChatDiagnostics and keyed by turn_id + request_trace_id. History adapters validate and preserve the context; current failed SSE/Turn recovery can retain it while canonical history is unavailable. A late response updates only its original attempt, and logout/session expiry/account change abort and invalidate pending work. Only successful report POST shows Report sent. No reported-status GET exists: reload starts unconfirmed. Confirmation flags live only in current session memory, never persistent storage. Studio's isAdmin display hint is not an authorization claim: live Copy uses the same owner-bound session endpoint, irrespective of Admin permissions. The original Studio tooltip remains unchanged; it does not describe or grant a forensic API.
+The existing ChatWorkspace buttons/layout/classes/icons/text remain Studio-owned. Shared typed diagnostics presentation/actions pass through WorkspaceModel/WorkspaceRuntime and WorkspaceView. Live state is account-local in useChatDiagnostics and keyed by turn_id + request_trace_id. History adapters validate and preserve the context; current failed SSE/Turn recovery can retain it while canonical history is unavailable. A late response updates only its original attempt, and logout/session expiry/account change abort and invalidate pending work. Only successful report POST shows Report sent. No reported-status GET exists: reload starts unconfirmed. Confirmation flags live only in current session memory, never persistent storage. Studio's isAdmin display hint is not an authorization claim; only Backend permissions authorize full reports.
 
 Clipboard: invoke navigator.clipboard.write synchronously in the click stack with a ClipboardItem whose text/plain value is a Promise<Blob>. Resolve only the validated server report. This avoids awaiting fetch before the native write request. See [WebKit user gesture rules / promised data](https://webkit.org/blog/10855/async-clipboard-api/) and [ClipboardItem constructor](https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem). If write/ClipboardItem is absent, use writeText after fetching; activation/permission policy can still reject it. No automatic fallback after a native denial, retry loop, hidden textarea or execCommand is added for diagnostics. Diagnostics copied! appears only after the native operation resolves and clears using the original temporary copied state. Cancellation before Blob handoff prevents old-session text delivery; the browser provides no way to revoke a native clipboard write after it has already consumed the data. Late completion still cannot set state for another account.
 
 Design uses local demonstration state and a constant synthetic preview report through the same clipboard helper; no backend/real account/context is used. Production has no demo success or local JSON substitute. All API, clipboard, concurrency and visual tests use synthetic/mocked data. Chromium (Codex in-app browser) was checked with native promised Clipboard write and a real paste of the exact synthetic server text into the existing composer, without sending it. Permission rejection, report failure/manual retry, reload, desktop/mobile 390px and Light/Dark were also checked. Firefox/Safari/iOS activation and native clipboard policy still require manual verification. Owner-bound production acceptance requires separately confirmed backend deployment/migrations and approved frontend publication; no real error investigation is authorized.
+
+### Full Copy (API PR #11)
+
+Verified against [canonical report renderer](https://github.com/psiu7217/Mroya-api/blob/471f771dfd2849c40df8bf87c6fad4c397ac9a43/apps/agent/failure_diagnostics.py) and [full endpoint contract](https://github.com/psiu7217/Mroya-api/blob/471f771dfd2849c40df8bf87c6fad4c397ac9a43/docs/API.md#full-diagnostic-text-authorized-owner-only).
+The existing Copy callback first GETs chat/turns/{turn_id}/error/full/ using the
+same session, no CSRF or additional identifiers. Active staff ownership plus
+agent.view_failurediagnostic (or superuser) and an unexpired current failed
+diagnostic are checked by Django. HTTP 200 is the exact text/plain render_report()
+used by Admin Download report, with server redaction.
+
+Only 403 with code forbidden triggers one short /error/ GET; this expected
+permission denial does not mark CSRF stale. All other errors, including 401,
+404, other 403 codes, 5xx, bad MIME/UTF-8, size/stream errors and invalid Metadata
+fail without fallback. No automatic retries or frontend role inference.
+The shared streaming reader requires 200/text/plain and counts actual bytes:
+full <=8 MiB, short <=16 KiB, including untrusted/missing Content-Length.
+Fatal streaming UTF-8 decoding preserves split characters; no partial report
+is returned. Cancellation and account generation guards apply to both reads.
+
+Before returning the unchanged full text to the existing promised ClipboardItem,
+require BEGIN/END MROYA ERROR REPORT markers and the first canonical ## Metadata
+section, decode its matching backtick-fenced JSON (the renderer lengthens fences),
+and compare chat_turn_id plus numeric trace_id with the immutable clicked
+report_context. Never find IDs inside user/provider text or retarget a reused turn.
+No payload enters persistent state/storage/logging; only transient clipboard
+loading memory. Native clipboard success remains the sole Copied confirmation.
+Design, Report issue and all Studio JSX/styles/text remain unchanged.
+
+Release gate: on 2026-10-15 an unauthenticated synthetic-UUID probe of the public
+same-origin full path returned 404 not_found, whereas the short path requires
+a session. Full endpoint deployment is not confirmed; a missing route must not
+silently fall back. Confirm API PR #11 deployment before publishing this frontend.
+No real forensic data was read and no deployment was run for this change.

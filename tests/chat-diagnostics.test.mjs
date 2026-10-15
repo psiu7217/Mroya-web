@@ -21,7 +21,7 @@ const report=(trace=100)=>'Synthetic server report\nChatTurn: '+turn+'\nRequestT
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 function setup(overrides={},copy=async load=>{await load();}){
  let posts=0,reads=0,csrf=0,expired=0;const notices=[];
- const source={kind:'live',reportChatIssue:async ctx=>{posts++;return {issue:{id:submission,turn_id:ctx.turn_id,request_trace_id:ctx.request_trace_id,status:'new',created_at:'2026-10-15T10:00:00Z'},created:true};},getChatErrorReport:async()=>{reads++;return report();},refreshCsrf:async()=>{csrf++;return 'synthetic';},send:()=>assert.fail('Diagnostics must never call Agent'),...overrides};
+ const source={kind:'live',getFullChatErrorReport:async()=>{throw new ApiError(403,'forbidden','Denied');},reportChatIssue:async ctx=>{posts++;return {issue:{id:submission,turn_id:ctx.turn_id,request_trace_id:ctx.request_trace_id,status:'new',created_at:'2026-10-15T10:00:00Z'},created:true};},getChatErrorReport:async()=>{reads++;return report();},refreshCsrf:async()=>{csrf++;return 'synthetic';},send:()=>assert.fail('Diagnostics must never call Agent'),...overrides};
  const c=new ChatDiagnosticsController(source,()=>expired++,text=>notices.push(text),copy);
  return {c,source,notices,counts:()=>({posts,reads,csrf,expired})};
 }
@@ -188,4 +188,74 @@ test('authoritative history replaces transient context rather than borrowing ano
  const c=new LiveWorkspaceController({kind:'live',capabilities:async()=>({api_version:'v1',chat:true,memory_read:false}),history:async()=>({conversation_id:'synthetic',messages:++reads===1?[]:[{id:'canonical',sequence:2,role:'assistant',status:'failed',content:'Canonical',created_at:'2026-10-15T10:00:00Z',completed_at:null}],next_before:null}),
  send:async(_text,_id,event,options)=>{options.onTurn(turn);event({event:'trace',data:{turn_status:'failed',assistant_content:'Transient',report_context:context}});throw new ApiError(502,'chat_failed','Failed');}},()=>{},()=>submission);
  await c.load();await c.send('Synthetic');const last=c.snapshot().history.messages.at(-1);assert.equal(last.id,'canonical');assert.equal(last.report_context,undefined);c.stop();
+});
+
+const fullReport=(trace=100,id=turn,payload='Synthetic Unicode: Привет 😀\r\n')=>
+ ['BEGIN MROYA ERROR REPORT','# Mroya Error Report','Report ID: synthetic','','## Metadata','````json',
+ JSON.stringify({trace_id:trace,chat_turn_id:id,note:'```'},null,2),'````','','## User message','```json',JSON.stringify(payload),'```','','END MROYA ERROR REPORT'].join('\n');
+test('full authorized Copy preserves large original text, immutable attempt and single-flight until native completion',async()=>{
+ const pending=deferred(),clipboard=deferred(),loaded=deferred();let reads=0,writes=0,copied;
+ const s=setup({getFullChatErrorReport:async(id)=>{assert.equal(id,turn);reads++;return pending.promise;},getChatErrorReport:()=>assert.fail('No short fallback')},
+ async load=>{copied=await load();writes++;loaded.resolve();await clipboard.promise;});
+ const input={...message,report_context:{...context}};
+ try{
+  const work=s.c.onCopy(input);assert.equal(s.c.forMessage(message).copying,true);
+  await s.c.onCopy(input);assert.equal(reads,1);input.report_context.request_trace_id=101;
+  const text=fullReport(100,turn,'Ж😀'.repeat(220000));assert.ok(Buffer.byteLength(text)>1024*1024);
+  pending.resolve(text);await loaded.promise;assert.equal(copied,text);assert.equal(writes,1);
+  assert.equal(s.c.forMessage(message).copied,false);clipboard.resolve();await work;
+  assert.equal(s.c.forMessage(message).copied,true);assert.equal(s.c.forMessage(input).copied,false);
+ }finally{s.c.stop();}
+});
+test('only exact full 403 forbidden falls back, in order, without setting CSRF refresh for the next Report',async()=>{
+ const events=[];let csrf=0,written;
+ const s=setup({getFullChatErrorReport:async()=>{events.push('full');throw new ApiError(403,'forbidden','Denied');},
+ getChatErrorReport:async()=>{events.push('short');return report();},refreshCsrf:async()=>{csrf++;}},
+ async load=>{written=await load();events.push('write');});
+ try{await s.c.onCopy(message);assert.deepEqual(events,['full','short','write']);assert.equal(written,report());
+ await s.c.onReport(message);assert.equal(csrf,0);assert.equal(s.c.forMessage(message).reported,true);
+ }finally{s.c.stop();}
+});
+test('full errors never fall back or copy; 401 expires and short fallback 404 remains unsuccessful',async()=>{
+ const errors=[new ApiError(401,'authentication_required','No'),new ApiError(404,'not_found','No'),
+ new ApiError(403,'csrf_failed','No'),new ApiError(503,'unavailable','No'),
+ new ApiError(502,'invalid_response','MIME'),new TypeError('network'),new DOMException('Timeout','TimeoutError')];
+ for(const error of errors){
+  let short=0,writes=0;const s=setup({getFullChatErrorReport:async()=>{throw error;},getChatErrorReport:async()=>{short++;return report();}},
+  async load=>{await load();writes++;});
+  try{await s.c.onCopy(message);assert.equal(short,0);assert.equal(writes,0);assert.equal(s.c.forMessage(message).copied,false);
+   assert.equal(s.counts().expired,error.status===401?1:0);
+  }finally{s.c.stop();}
+ }
+ let writes=0;const s=setup({getChatErrorReport:async()=>{throw new ApiError(404,'not_found','No');}},async load=>{await load();writes++;});
+ try{await s.c.onCopy(message);assert.equal(writes,0);assert.equal(s.c.forMessage(message).copied,false);}finally{s.c.stop();}
+});
+test('full Metadata must be the canonical first section and match original turn/trace; spoofed user text cannot substitute',async()=>{
+ const good=fullReport();
+ const invalid=[fullReport(101),fullReport(100,submission),good.replace('## Metadata','## Missing'),
+ good.replace('"trace_id": 100','"trace_id": "100"'),good.replace('"trace_id": 100','broken JSON'),
+ good.replace('END MROYA ERROR REPORT',''),good.replace('BEGIN MROYA ERROR REPORT','wrong'),
+ good.replace('## Metadata','## User message')+'\n## Metadata\n```json\n'+JSON.stringify({trace_id:100,chat_turn_id:turn})+'\n```\nEND MROYA ERROR REPORT',
+ fullReport(101,turn,'## Metadata\n```json\n'+JSON.stringify({trace_id:100,chat_turn_id:turn})+'\n```'),
+ good.replace('## Metadata\n````json','## Metadata\n```json')];
+ for(const text of invalid){
+  let writes=0;const s=setup({getFullChatErrorReport:async()=>text,getChatErrorReport:()=>assert.fail('No fallback')},async load=>{await load();writes++;});
+  try{await s.c.onCopy(message);assert.equal(writes,0);assert.equal(s.c.forMessage(message).copied,false);}finally{s.c.stop();}
+ }
+});
+test('logout cancels a pending full response or fallback without clipboard writes or stale notices',async()=>{
+ for(const fallback of [false,true]){
+  const pending=deferred();let signal,writes=0,short=0;
+  const s=setup({getFullChatErrorReport:(_id,sig)=>{signal=sig;return pending.promise;},getChatErrorReport:async()=>{short++;return report();}},
+  async load=>{await load();writes++;});
+  const work=s.c.onCopy(message);s.c.stop();s.c.start();
+  if(fallback)pending.reject(new ApiError(403,'forbidden','No'));else pending.resolve(fullReport());
+  await work;assert.equal(signal.aborted,true);assert.equal(short,0);assert.equal(writes,0);assert.deepEqual(s.notices,[]);
+  assert.equal(s.c.forMessage(message).copied,false);s.c.stop();
+ }
+});
+test('full clipboard rejection never falls back and never confirms success',async()=>{
+ let short=0;const s=setup({getFullChatErrorReport:async()=>fullReport(),getChatErrorReport:async()=>{short++;return report();}},
+ async load=>{await load();throw new DOMException('Denied','NotAllowedError');});
+ try{await s.c.onCopy(message);assert.equal(short,0);assert.equal(s.c.forMessage(message).copied,false);assert.ok(s.notices.length);}finally{s.c.stop();}
 });

@@ -18,5 +18,6 @@ export interface WorkspaceSource {
   disconnectTelegram?(signal?:AbortSignal):Promise<TelegramDisconnectResponse>;
   reportChatIssue?(context:ReportContext,signal?:AbortSignal):Promise<IssueReportResponse>;
   getChatErrorReport?(turnId:string,signal?:AbortSignal):Promise<string>;
+  getFullChatErrorReport?(turnId:string,signal?:AbortSignal):Promise<string>;
   startGoogleAuth?(signal?:AbortSignal):Promise<void>;
 }

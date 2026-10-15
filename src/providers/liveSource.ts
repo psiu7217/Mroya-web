@@ -14,6 +14,7 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     disconnectTelegram:signal=>api.disconnectTelegram(signal),
     reportChatIssue:(context,signal)=>api.reportChatIssue(context,signal),
     getChatErrorReport:(turnId,signal)=>api.getChatErrorReport(turnId,signal),
+    getFullChatErrorReport:(turnId,signal)=>api.getFullChatErrorReport(turnId,signal),
     startGoogleAuth:signal=>api.startGoogleAuth(signal),
   };
 }

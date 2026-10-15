@@ -87,13 +87,19 @@ export class MroyaApi {
       throw new ApiError(502,'invalid_response','Invalid report confirmation');
     return {issue:{id:issue.id,turn_id:issue.turn_id,request_trace_id:issue.request_trace_id,status:issue.status,created_at:issue.created_at},created:v.created};
   }
-  async getChatErrorReport(turnId:string,signal?:AbortSignal):Promise<string>{
+  getChatErrorReport(turnId:string,signal?:AbortSignal):Promise<string>{
+    return this.readChatErrorReport(turnId,false,16*1024,signal);
+  }
+  getFullChatErrorReport(turnId:string,signal?:AbortSignal):Promise<string>{
+    return this.readChatErrorReport(turnId,true,8*1024*1024,signal);
+  }
+  private async readChatErrorReport(turnId:string,full:boolean,limit:number,signal?:AbortSignal):Promise<string>{
     if(!isTurnUuid(turnId))throw new ApiError(400,'invalid_report','Invalid turn UUID');
-    const response=await this.fetcher('/api/v1/chat/turns/'+turnId+'/error/',{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal,headers:{Accept:'text/plain'}});
+    const response=await this.fetcher('/api/v1/chat/turns/'+turnId+'/error/'+(full?'full/':''),{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal,headers:{Accept:'text/plain'}});
     await this.check(response);
     if(response.status!==200||response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='text/plain')
       throw new ApiError(502,'invalid_response','Expected plain-text error report');
-    const limit=16*1024,length=response.headers.get('Content-Length');
+    const length=response.headers.get('Content-Length');
     if(length&&Number(length)>limit){await response.body?.cancel();throw new ApiError(502,'invalid_response','Error report exceeds limit');}
     if(!response.body)throw new ApiError(502,'invalid_response','Missing error report');
     const reader=response.body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});let bytes=0,text='';

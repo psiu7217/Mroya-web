@@ -919,10 +919,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
                       Mroya
                     </span>
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-brand-honey)] animate-pulse shrink-0" />
-                      Thinking…
-                    </span>
                   </div>
 
                   <div className="w-fit min-w-[72px] px-4 py-3 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] flex items-center justify-center">

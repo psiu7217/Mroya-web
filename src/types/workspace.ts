@@ -113,7 +113,7 @@ export interface WorkspaceModel {
     onMemoryViewAskMroyaAbout: (memory: MemoryItem) => void;
     onMemoryViewExpandSidebar: () => void;
     onMemoryViewOpenMobileMenu: () => void;
-    onMemoryMapViewSelectNode: (nodeId: string) => void;
+    onMemoryMapViewSelectNode: (nodeId: string | null) => void;
     onMemoryMapViewOpenMemory: (memoryId: string) => void;
     onMemoryMapViewAskAboutNode: (node: GraphNode) => void;
     onMemoryMapViewExpandSidebar: () => void;

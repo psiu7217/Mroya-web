@@ -8,7 +8,7 @@ import './memory-map/memory-map.css';
 
 interface MemoryMapViewProps {
  nodes:GraphNode[];edges:GraphEdge[];selectedNodeId:string|null;
- onSelectNode:(id:string)=>void;onOpenMemory:(id:string)=>void;onAskAboutNode:(node:GraphNode)=>void;
+ onSelectNode:(id:string|null)=>void;onOpenMemory:(id:string)=>void;onAskAboutNode:(node:GraphNode)=>void;
  isSidebarCollapsed:boolean;onExpandSidebar:()=>void;onOpenMobileMenu:()=>void;
  loading?:boolean;error?:string|null;
 }
@@ -20,7 +20,8 @@ export function MemoryMapView({nodes,edges,selectedNodeId,onSelectNode,onOpenMem
  isSidebarCollapsed,onExpandSidebar,onOpenMobileMenu,loading,error}:MemoryMapViewProps){
  const host=useRef<HTMLDivElement>(null),renderer=useRef<Renderer|null>(null);
  const [ready,setReady]=useState(false),[renderError,setRenderError]=useState<string|null>(null);
- const [selection,setSelection]=useState(selectedNodeId),[mode,setMode]=useState<'global'|'local'>('global');
+ const selection=selectedNodeId;
+ const [mode,setMode]=useState<'global'|'local'>('global');
  const [depth,setDepth]=useState(2),[hideSelf,setHideSelf]=useState(false),[showcase,setShowcase]=useState(false);
  const [query,setQuery]=useState(''),[force,setForce]=useState({...defaults}),[count,setCount]=useState(0);
  const [tooltip,setTooltip]=useState<{text:string;x:number;y:number}|null>(null);
@@ -31,24 +32,30 @@ export function MemoryMapView({nodes,edges,selectedNodeId,onSelectNode,onOpenMem
  const display=useMemo(()=>presentationGraph(graph,hideSelf),[graph,hideSelf]);
  const active=display.nodes.find(n=>n.id===selection);
  const callbacks=useRef({onSelectNode});callbacks.current={onSelectNode};
+ // Dataset/filter reconciliation can emit null inside Pixi. Only user actions clear
+ // the controlled ID; an absent node may still be arriving (or be truncated/hidden).
+ const synchronizing=useRef(false);
+ const updateRenderer=(update:(instance:Renderer)=>void)=>{
+  if(!renderer.current)return;
+  synchronizing.current=true;
+  try{update(renderer.current);}finally{synchronizing.current=false;}
+ };
  useEffect(()=>{
   let cancelled=false,instance:Renderer|null=null;
   createMemoryMapRenderer(host.current!,{
-   onSelect:id=>{if(cancelled)return;setSelection(id);if(id)callbacks.current.onSelectNode(id);else setMode('global');},
+   onSelect:id=>{if(cancelled||synchronizing.current)return;callbacks.current.onSelectNode(id);if(id===null)setMode('global');},
    onTooltip:v=>{if(!cancelled)setTooltip(v);},onCount:n=>{if(!cancelled)setCount(n);},
    onExport:v=>{if(!cancelled)setDownload(v);},onHint:v=>{if(!cancelled)setHint(v);},
   }).then(value=>{instance=value;if(cancelled){value.destroy();return;}renderer.current=value;setReady(true);})
    .catch(()=>{if(!cancelled)setRenderError('The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.');});
   return()=>{cancelled=true;instance?.destroy();renderer.current=null;};
  },[]);
- useEffect(()=>{if(ready)renderer.current?.setGraph(graph);},[ready,graph]);
- useEffect(()=>{setSelection(selectedNodeId);},[selectedNodeId]);
- useEffect(()=>{if(ready)renderer.current?.select(selection);},[ready,selection]);
- useEffect(()=>{if(ready)renderer.current?.setOptions({mode,depth,hideSelf,showcase});},[ready,mode,depth,hideSelf,showcase]);
+ useEffect(()=>{if(ready&&!loading)updateRenderer(r=>r.setGraph(graph));},[ready,graph,loading]);
+ useEffect(()=>{if(ready)updateRenderer(r=>r.setOptions({mode,depth,hideSelf,showcase}));},[ready,graph,mode,depth,hideSelf,showcase]);
+ useEffect(()=>{if(ready&&!loading)updateRenderer(r=>r.select(active?.id??null));},[ready,display,selection,loading,mode,depth]);
  useEffect(()=>{if(ready)renderer.current?.setForce(force);},[ready,force]);
- useEffect(()=>{if(selection&&!display.nodes.some(n=>n.id===selection)){setSelection(null);setMode('global');}},[display,selection]);
- const choose=(id:string,focus=true)=>{setSelection(id);onSelectNode(id);renderer.current?.select(id,focus);setQuery('');};
- const close=()=>{setSelection(null);setMode('global');};
+ const choose=(id:string,focus=true)=>{onSelectNode(id);updateRenderer(r=>r.select(id,focus));setQuery('');};
+ const close=()=>{onSelectNode(null);setMode('global');};
  const stateMessage=loading?'Connecting your memories…':(error&&!nodes.length?error:null)||renderError||(!nodes.length?'Your map will grow as Mroya remembers more about your world.':!ready?'Preparing your memory map…':!display.nodes.length?'No nodes remain with Hide Self enabled.':null);
  const matches=query.trim()?display.nodes.filter(n=>n.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0,8):[];
  const facts=active?display.edges.filter(e=>e.source===active.id&&e.type==='memory'):[];

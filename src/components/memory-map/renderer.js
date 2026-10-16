@@ -9,7 +9,7 @@ export const defaults = { repulsion: 235, linkDistance: 126, center: 28 };
  * @param {{onSelect:(id:string|null)=>void, onTooltip:(value:{text:string,x:number,y:number}|null)=>void, onCount:(n:number)=>void, onExport:(value:{url:string,name:string}|null)=>void, onHint:(text:string)=>void}} callbacks
  */
 export async function createMemoryMapRenderer(host, callbacks) {
-const colors = [0x86cfc1, 0x8ea9dc, 0xd0a6b8, 0xb6c595, 0xc6b497, 0x9bbcd2];
+const colors = [0xd49b42, 0xd07252, 0xe2b260, 0x8fa37a, 0xc28d58, 0x94879e];
 
 const state = { graph: null, displayGraph: null, hideSelf: false, nodeById: new Map(), visible: [], links: [], selected: null, hovered: null, mode: "global",
   depth: 2, app: null, layer: null, edges: null, labels: null, simulation: null,
@@ -93,7 +93,7 @@ function hash(value) {
   for (const char of value || "") result = (result * 31 + char.codePointAt(0)) >>> 0;
   return result;
 }
-function tone(node) { return node.type === "memory" ? 0x708c98 : colors[hash(node.kind) % colors.length]; }
+function tone(node) { return node.type === "memory" ? 0xa89f91 : colors[hash(node.kind) % colors.length]; }
 function mixColor(a, b, t) {
   const mix = (shift) => Math.round(((a >> shift) & 255) * (1 - t) + ((b >> shift) & 255) * t);
   return (mix(16) << 16) | (mix(8) << 8) | mix(0);
@@ -151,8 +151,8 @@ function setVisible() {
     state.visuals.set(node.id, { alpha: 1, emphasis: 0, fromAlpha: 1, fromEmphasis: 0,
       targetAlpha: 1, targetEmphasis: 0 });
     if (node.type === "entity") {
-      const label = new Text({ text: node.label, style: { fontFamily: "Inter, system-ui, sans-serif",
-        fontSize: 12, fill: 0xc7d9de, fontWeight: "600" } });
+      const label = new Text({ text: node.label, style: { fontFamily: '"Plus Jakarta Sans", "Manrope", -apple-system, sans-serif',
+        fontSize: 12, fill: 0xf4efea, fontWeight: "600" } });
       label.anchor.set(0.5, 0); label.eventMode = "none"; state.labels.addChild(label);
       state.labelViews.set(node.id, label);
     }
@@ -261,8 +261,8 @@ function draw() {
     if (!source || !target || typeof source !== "object" || typeof target !== "object") continue;
     const visual = state.edgeVisuals.get(edge.id);
     state.edges.moveTo(source.x, source.y).lineTo(target.x, target.y).stroke({
-      color: mixColor(edge.type === "memory" ? 0x5c8290 : 0x7b9ba8, 0x90dfc9, visual.emphasis),
-      width: (edge.type === "memory" ? 0.75 : 1) + visual.emphasis * 0.65, alpha: visual.alpha,
+      color: mixColor(edge.type === "memory" ? 0x6e6255 : 0x8e8072, 0xecc682, visual.emphasis),
+      width: (edge.type === "memory" ? 0.75 : 1) + visual.emphasis * 0.75, alpha: visual.alpha,
     });
   }
   for (const node of state.visible) {
@@ -274,15 +274,15 @@ function draw() {
     const r = radius(node), color = tone(node);
     view.clear();
     if (node.type === "entity") {
-      view.circle(0, 0, r + 12 + accent * 5).fill({ color, alpha: (0.038 + accent * 0.047) * alpha });
-      view.circle(0, 0, r + 4 + accent * 3).fill({ color, alpha: (0.075 + accent * 0.095) * alpha });
-      view.circle(0, 0, r).fill({ color, alpha: (0.79 + accent * 0.21) * alpha });
+      view.circle(0, 0, r + 12 + accent * 5).fill({ color, alpha: (0.04 + accent * 0.06) * alpha });
+      view.circle(0, 0, r + 4 + accent * 3).fill({ color, alpha: (0.08 + accent * 0.12) * alpha });
+      view.circle(0, 0, r).fill({ color, alpha: (0.85 + accent * 0.15) * alpha });
       view.circle(0, 0, r + (node.id === state.selected ? 1.5 * accent : 0)).stroke({
-        color: 0xdfffee, alpha: (0.11 + accent * 0.56) * alpha, width: 0.7 + accent * 0.8 });
+        color: 0xfff2dc, alpha: (0.15 + accent * 0.65) * alpha, width: 0.8 + accent * 1.0 });
     } else {
       view.circle(0, 0, r + accent * 7).fill({ color, alpha: (0.45 - accent * 0.25) * alpha });
-      view.circle(0, 0, r + accent * 1.5).fill({ color: mixColor(color, 0xe2f8e9, accent),
-        alpha: (0.65 + accent * 0.29) * alpha });
+      view.circle(0, 0, r + accent * 1.5).fill({ color: mixColor(color, 0xfff2dc, accent),
+        alpha: (0.7 + accent * 0.3) * alpha });
     }
     view.position.set(node.x, node.y);
     const label = state.labelViews.get(node.id);
@@ -334,8 +334,8 @@ function drawEdgeLabels(focus) {
   for (const edge of labeled) {
     let label = state.edgeLabels.get(edge.id);
     if (!label) {
-      label = new Text({ text: relationLabel(edge), style: { fontFamily: "Inter, system-ui, sans-serif",
-        fontSize: 10, fill: 0xabcfc8 } });
+      label = new Text({ text: relationLabel(edge), style: { fontFamily: '"Plus Jakarta Sans", "Manrope", -apple-system, sans-serif',
+        fontSize: 10, fill: 0xd9cfc1 } });
       label.anchor.set(0.5); label.alpha = 0.78; label.eventMode = "none";
       state.labels.addChild(label); state.edgeLabels.set(edge.id, label);
     }
@@ -402,7 +402,7 @@ function exportImage(width, height) {
   const ctx = canvas.getContext("2d"); if (!ctx) return;
   const unit = width / 1920;
   const background = ctx.createRadialGradient(width * 0.5, height * 0.45, 0, width * 0.5, height * 0.45, width * 0.65);
-  background.addColorStop(0, "#142530"); background.addColorStop(0.65, "#0b151e"); background.addColorStop(1, "#081017");
+  background.addColorStop(0, "#23201b"); background.addColorStop(0.65, "#1a1714"); background.addColorStop(1, "#12100e");
   ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
   const xs = state.visible.map((node) => node.x), ys = state.visible.map((node) => node.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -413,7 +413,7 @@ function exportImage(width, height) {
   for (const edge of state.links) {
     const a = point(edge.source), b = point(edge.target);
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = edge.type === "memory" ? "#56808a45" : "#91b8bd61";
+    ctx.strokeStyle = edge.type === "memory" ? "#a89f9140" : "#ecc68255";
     ctx.lineWidth = (edge.type === "memory" ? 0.7 : 1.1) * unit; ctx.stroke();
   }
   const sorted = [...state.visible].sort((a, b) => (a.type === "entity") - (b.type === "entity"));
@@ -422,22 +422,22 @@ function exportImage(width, height) {
     const color = `#${tone(node).toString(16).padStart(6, "0")}`;
     if (node.type === "entity") {
       const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3.1);
-      glow.addColorStop(0, `${color}55`); glow.addColorStop(1, `${color}00`);
+      glow.addColorStop(0, `${color}44`); glow.addColorStop(1, `${color}00`);
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(p.x, p.y, r * 3.1, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = node.type === "entity" ? color : "#7898a0";
+    ctx.fillStyle = node.type === "entity" ? color : "#a89f91";
     ctx.globalAlpha = node.type === "entity" ? 0.92 : 0.66;
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     if (node.type === "entity" && ((node.degree || 0) >= 2 || state.visible.length < 45 || node.id === state.selected)) {
-      ctx.fillStyle = "#d5e7e8"; ctx.font = `600 ${Math.round(12 * unit)}px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = "#f4efea"; ctx.font = `600 ${Math.round(12 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
       ctx.textAlign = "center"; ctx.fillText(node.label, p.x, p.y + r + 19 * unit, 230 * unit);
     }
   }
-  ctx.fillStyle = "#83d8c2"; ctx.font = `600 ${Math.round(26 * unit)}px Inter, system-ui, sans-serif`;
-  ctx.textAlign = "left"; ctx.fillText("✳", 44 * unit, height - 51 * unit);
-  ctx.fillStyle = "#d8eae7"; ctx.font = `700 ${Math.round(14 * unit)}px Inter, system-ui, sans-serif`;
-  ctx.fillText("My Memory Map", 82 * unit, height - 63 * unit);
-  ctx.fillStyle = "#76919a"; ctx.font = `500 ${Math.round(10 * unit)}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = "#ecc682"; ctx.font = `600 ${Math.round(26 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
+  ctx.textAlign = "left"; ctx.fillText("✦", 44 * unit, height - 51 * unit);
+  ctx.fillStyle = "#f4efea"; ctx.font = `700 ${Math.round(14 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
+  ctx.fillText("Memory Map", 82 * unit, height - 63 * unit);
+  ctx.fillStyle = "#a89f91"; ctx.font = `500 ${Math.round(10 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
   ctx.fillText(`${state.displayGraph.stats.memories} MEMORIES  ·  ${state.displayGraph.stats.entities} ENTITIES  ·  ${state.displayGraph.stats.connections} CONNECTIONS`,
     82 * unit, height - 43 * unit);
   ctx.textAlign = "right"; ctx.fillText("MROYA", width - 44 * unit, height - 45 * unit);

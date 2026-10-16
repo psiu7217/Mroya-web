@@ -27,6 +27,8 @@ export interface WorkspaceRuntime {
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
 }
 export interface WorkspaceModel {
+    onSaveNickname?:(value:string)=>void;
+    onClearNickname?:()=>void;
     diagnostics?:ChatDiagnostics;
     runtime?:WorkspaceRuntime;
     feedback?:Pick<WorkspaceRuntime,'loading'|'busy'|'error'|'onRetry'>;

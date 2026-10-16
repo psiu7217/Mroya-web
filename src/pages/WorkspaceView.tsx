@@ -160,6 +160,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'memory-map' && (
           <MemoryMapView
+            theme={model.appearance ?? (theme === 'dark' ? 'dark' : 'light')}
+            displayName={account.displayName}
             loading={feedback?.loading}
             error={feedback?.error}
             nodes={nodes}
@@ -181,8 +183,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             preferenceSave={runtime?.preferenceSave}
             showModelReasoning={runtime?.showModelReasoning}
             onToggleShowModelReasoning={runtime?.onToggleShowModelReasoning}
-            onSaveNickname={runtime?.onSaveNickname}
-            onClearNickname={runtime?.onClearNickname}
+            onSaveNickname={runtime?.onSaveNickname ?? model.onSaveNickname}
+            onClearNickname={runtime?.onClearNickname ?? model.onClearNickname}
         account={account}
             connections={connections}
             onToggleConnection={onConnectionsSettingsViewToggleConnection}

@@ -2,6 +2,7 @@
 import { Application, Circle, Container, Graphics, Text } from "pixi.js";
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY } from "d3-force";
 import { localIds, nodeRadius, pngDimensions, presentationGraph } from "./graph.js";
+import { mapPalettes, mapNodeLabel, colorHex, paletteForTheme } from "./palette.js";
 export const defaults = { repulsion: 235, linkDistance: 126, center: 28 };
 /**
  * Instance-local renderer. React owns all controls/details; no transport or global DOM IDs.
@@ -9,7 +10,8 @@ export const defaults = { repulsion: 235, linkDistance: 126, center: 28 };
  * @param {{onSelect:(id:string|null)=>void, onTooltip:(value:{text:string,x:number,y:number}|null)=>void, onCount:(n:number)=>void, onExport:(value:{url:string,name:string}|null)=>void, onHint:(text:string)=>void}} callbacks
  */
 export async function createMemoryMapRenderer(host, callbacks) {
-const colors = [0xd49b42, 0xd07252, 0xe2b260, 0x8fa37a, 0xc28d58, 0x94879e];
+let palette = mapPalettes.dark, theme = 'dark', displayName = '';
+const labelFor = node => mapNodeLabel(node, displayName);
 
 const state = { graph: null, displayGraph: null, hideSelf: false, nodeById: new Map(), visible: [], links: [], selected: null, hovered: null, mode: "global",
   depth: 2, app: null, layer: null, edges: null, labels: null, simulation: null,
@@ -36,16 +38,17 @@ const observer=new ResizeObserver(()=>{
   app.renderer.resize(Math.max(1,host.clientWidth),Math.max(1,host.clientHeight)); fit();
 }); observer.observe(host);
 const events=new AbortController(), pointers=new Map();
-let gesture=null;
+let gesture=null, hoverPoint=null;
 const point=e=>{const b=host.getBoundingClientRect();return {x:e.clientX-b.left,y:e.clientY-b.top};};
 const hit=p=>[...state.visible].reverse().find(n=>Math.hypot(
   p.x-state.layer.x-n.x*state.layer.scale.x,p.y-state.layer.y-n.y*state.layer.scale.y)
   <=(radius(n)+12)*state.layer.scale.x);
 function hoverAt(p){
+  hoverPoint=p;
   const n=hit(p), id=n?.id??null;
   host.style.cursor=n?'pointer':'grab';
   if(id!==state.hovered){state.hovered=id;setVisualTargets();}
-  callbacks.onTooltip(n?{text:n.type==="memory"?`${relationLabel(n)}: ${n.label}`:n.label,
+  callbacks.onTooltip(n?{text:n.type==="memory"?`${relationLabel(n)}: ${labelFor(n)}`:labelFor(n),
     x:Math.max(8,Math.min(p.x+16,host.clientWidth-190)),y:Math.max(8,Math.min(p.y+14,host.clientHeight-45))}:null);
 }
 function release(){
@@ -93,7 +96,7 @@ function hash(value) {
   for (const char of value || "") result = (result * 31 + char.codePointAt(0)) >>> 0;
   return result;
 }
-function tone(node) { return node.type === "memory" ? 0xa89f91 : colors[hash(node.kind) % colors.length]; }
+function tone(node) { return node.type === "memory" ? palette.memory : palette.nodes[hash(node.kind) % palette.nodes.length]; }
 function mixColor(a, b, t) {
   const mix = (shift) => Math.round(((a >> shift) & 255) * (1 - t) + ((b >> shift) & 255) * t);
   return (mix(16) << 16) | (mix(8) << 8) | mix(0);
@@ -151,8 +154,8 @@ function setVisible() {
     state.visuals.set(node.id, { alpha: 1, emphasis: 0, fromAlpha: 1, fromEmphasis: 0,
       targetAlpha: 1, targetEmphasis: 0 });
     if (node.type === "entity") {
-      const label = new Text({ text: node.label, style: { fontFamily: '"Plus Jakarta Sans", "Manrope", -apple-system, sans-serif',
-        fontSize: 12, fill: 0xf4efea, fontWeight: "600" } });
+      const label = new Text({ text: labelFor(node), style: { fontFamily: '"Plus Jakarta Sans", "Manrope", -apple-system, sans-serif',
+        fontSize: 12, fill: palette.label, fontWeight: "600" } });
       label.anchor.set(0.5, 0); label.eventMode = "none"; state.labels.addChild(label);
       state.labelViews.set(node.id, label);
     }
@@ -261,8 +264,8 @@ function draw() {
     if (!source || !target || typeof source !== "object" || typeof target !== "object") continue;
     const visual = state.edgeVisuals.get(edge.id);
     state.edges.moveTo(source.x, source.y).lineTo(target.x, target.y).stroke({
-      color: mixColor(edge.type === "memory" ? 0x6e6255 : 0x8e8072, 0xecc682, visual.emphasis),
-      width: (edge.type === "memory" ? 0.75 : 1) + visual.emphasis * 0.75, alpha: visual.alpha,
+      color: mixColor(edge.type === "memory" ? palette.memoryEdge : palette.edge, palette.accent, visual.emphasis),
+      width: (edge.type === "memory" ? 0.75 : 1) + visual.emphasis * 0.75, alpha: Math.min(1, visual.alpha * palette.edgeAlpha),
     });
   }
   for (const node of state.visible) {
@@ -278,15 +281,17 @@ function draw() {
       view.circle(0, 0, r + 4 + accent * 3).fill({ color, alpha: (0.08 + accent * 0.12) * alpha });
       view.circle(0, 0, r).fill({ color, alpha: (0.85 + accent * 0.15) * alpha });
       view.circle(0, 0, r + (node.id === state.selected ? 1.5 * accent : 0)).stroke({
-        color: 0xfff2dc, alpha: (0.15 + accent * 0.65) * alpha, width: 0.8 + accent * 1.0 });
+        color: palette.ring, alpha: (0.15 + accent * 0.65) * alpha, width: 0.8 + accent * 1.0 });
     } else {
       view.circle(0, 0, r + accent * 7).fill({ color, alpha: (0.45 - accent * 0.25) * alpha });
-      view.circle(0, 0, r + accent * 1.5).fill({ color: mixColor(color, 0xfff2dc, accent),
+      view.circle(0, 0, r + accent * 1.5).fill({ color: mixColor(color, palette.ring, accent),
         alpha: (0.7 + accent * 0.3) * alpha });
     }
     view.position.set(node.x, node.y);
     const label = state.labelViews.get(node.id);
     if (label) {
+      label.text = labelFor(node);
+      label.style.fill = palette.label;
       const important = (node.degree || 0) >= 3 || (node.memory_count || 0) >= 3;
       const hub = (node.degree || 0) >= 7 || (node.memory_count || 0) >= 9;
       const dim = alpha < 0.5;
@@ -335,10 +340,11 @@ function drawEdgeLabels(focus) {
     let label = state.edgeLabels.get(edge.id);
     if (!label) {
       label = new Text({ text: relationLabel(edge), style: { fontFamily: '"Plus Jakarta Sans", "Manrope", -apple-system, sans-serif',
-        fontSize: 10, fill: 0xd9cfc1 } });
+        fontSize: 10, fill: palette.edgeLabel } });
       label.anchor.set(0.5); label.alpha = 0.78; label.eventMode = "none";
       state.labels.addChild(label); state.edgeLabels.set(edge.id, label);
     }
+    label.style.fill = palette.edgeLabel;
     const point = screenPoint((edge.source.x + edge.target.x) / 2, (edge.source.y + edge.target.y) / 2);
     label.position.set(point.x, point.y - 11);
   }
@@ -402,7 +408,7 @@ function exportImage(width, height) {
   const ctx = canvas.getContext("2d"); if (!ctx) return;
   const unit = width / 1920;
   const background = ctx.createRadialGradient(width * 0.5, height * 0.45, 0, width * 0.5, height * 0.45, width * 0.65);
-  background.addColorStop(0, "#23201b"); background.addColorStop(0.65, "#1a1714"); background.addColorStop(1, "#12100e");
+  background.addColorStop(0, palette.background[0]); background.addColorStop(0.65, palette.background[1]); background.addColorStop(1, palette.background[2]);
   ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
   const xs = state.visible.map((node) => node.x), ys = state.visible.map((node) => node.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -413,31 +419,31 @@ function exportImage(width, height) {
   for (const edge of state.links) {
     const a = point(edge.source), b = point(edge.target);
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = edge.type === "memory" ? "#a89f9140" : "#ecc68255";
+    ctx.strokeStyle = edge.type === "memory" ? palette.exportMemoryEdge : palette.exportEdge;
     ctx.lineWidth = (edge.type === "memory" ? 0.7 : 1.1) * unit; ctx.stroke();
   }
   const sorted = [...state.visible].sort((a, b) => (a.type === "entity") - (b.type === "entity"));
   for (const node of sorted) {
     const p = point(node), r = radius(node) * unit * (node.type === "memory" ? 0.8 : 1);
-    const color = `#${tone(node).toString(16).padStart(6, "0")}`;
+    const color = colorHex(tone(node));
     if (node.type === "entity") {
       const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3.1);
       glow.addColorStop(0, `${color}44`); glow.addColorStop(1, `${color}00`);
       ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(p.x, p.y, r * 3.1, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = node.type === "entity" ? color : "#a89f91";
+    ctx.fillStyle = node.type === "entity" ? color : colorHex(palette.memory);
     ctx.globalAlpha = node.type === "entity" ? 0.92 : 0.66;
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     if (node.type === "entity" && ((node.degree || 0) >= 2 || state.visible.length < 45 || node.id === state.selected)) {
-      ctx.fillStyle = "#f4efea"; ctx.font = `600 ${Math.round(12 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
-      ctx.textAlign = "center"; ctx.fillText(node.label, p.x, p.y + r + 19 * unit, 230 * unit);
+      ctx.fillStyle = colorHex(palette.label); ctx.font = `600 ${Math.round(12 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
+      ctx.textAlign = "center"; ctx.fillText(labelFor(node), p.x, p.y + r + 19 * unit, 230 * unit);
     }
   }
-  ctx.fillStyle = "#ecc682"; ctx.font = `600 ${Math.round(26 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
+  ctx.fillStyle = colorHex(palette.accent); ctx.font = `600 ${Math.round(26 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
   ctx.textAlign = "left"; ctx.fillText("✦", 44 * unit, height - 51 * unit);
-  ctx.fillStyle = "#f4efea"; ctx.font = `700 ${Math.round(14 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
+  ctx.fillStyle = colorHex(palette.label); ctx.font = `700 ${Math.round(14 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
   ctx.fillText("Memory Map", 82 * unit, height - 63 * unit);
-  ctx.fillStyle = "#a89f91"; ctx.font = `500 ${Math.round(10 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
+  ctx.fillStyle = palette.exportMuted; ctx.font = `500 ${Math.round(10 * unit)}px "Plus Jakarta Sans", "Manrope", sans-serif`;
   ctx.fillText(`${state.displayGraph.stats.memories} MEMORIES  ·  ${state.displayGraph.stats.entities} ENTITIES  ·  ${state.displayGraph.stats.connections} CONNECTIONS`,
     82 * unit, height - 43 * unit);
   ctx.textAlign = "right"; ctx.fillText("MROYA", width - 44 * unit, height - 45 * unit);
@@ -459,6 +465,25 @@ function exportImage(width, height) {
 
 
 return {
+  /** Redraw presentation only. No scene rebuild, force restart or camera operation.
+   * @param {{theme:'light'|'dark',displayName:string}} next */
+  setPresentation(next){
+    if(disposed || theme===next.theme && displayName===next.displayName)return;
+    theme=next.theme;displayName=next.displayName;
+    const styles=getComputedStyle(host);
+    palette=paletteForTheme(theme,token=>styles.getPropertyValue(token));
+    // A prepared/in-flight PNG belongs to the old theme/name.
+    state.exportRevision++;
+    if(state.exportUrl)URL.revokeObjectURL(state.exportUrl);
+    state.exportUrl=null;callbacks.onExport(null);
+    callbacks.onHint("Drag to explore · Scroll to zoom · Select to inspect");
+    draw();
+    if(state.hovered && hoverPoint){
+      const node=state.visible.find(n=>n.id===state.hovered);
+      if(node)callbacks.onTooltip({text:node.type==='memory'?`${relationLabel(node)}: ${labelFor(node)}`:labelFor(node),
+        x:Math.max(8,Math.min(hoverPoint.x+16,host.clientWidth-190)),y:Math.max(8,Math.min(hoverPoint.y+14,host.clientHeight-45))});
+    }
+  },
   /** @param {import('./mapModel').RenderGraph} graph */
   setGraph(graph){if(disposed)return;state.graph=graph;setVisible();},
   /** @param {string|null} id */

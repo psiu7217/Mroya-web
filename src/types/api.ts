@@ -7,7 +7,9 @@ export interface ApiUser { id:number; username:string; email:string; first_name:
 export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode;show_model_reasoning:boolean}>;
 export interface ReportContext {turn_id:string;request_trace_id:number;report_url:string}
 export interface IssueReportResponse {issue:{id:string;turn_id:string;request_trace_id:number;status:'new'|'investigating'|'resolved';created_at:string};created:boolean}
-export interface ApiMessage { /** Transient live reasoning, never sent or persisted. */ reasoning?:string; report_context?:ReportContext; id:string; sequence:number; role:'user'|'assistant'; content:string; status:string; created_at:string; completed_at:string|null }
+// Confirmed legacy public SSE; no call_id, phase, input/output or duration.
+export interface ToolActivityEvent {sequence:number;activity:{kind:string;status:'success'|'failure'|'neutral';title:string}}
+export interface ApiMessage { /** Controller-local, never a history/write DTO. */ timeline?:import('./mroya').ChatTimelineEntry[]; /** Transient live reasoning, never sent or persisted. */ reasoning?:string; report_context?:ReportContext; id:string; sequence:number; role:'user'|'assistant'; content:string; status:string; created_at:string; completed_at:string|null }
 export interface HistoryResponse { conversation_id:string; messages:ApiMessage[]; next_before:number|null }
 export interface Capabilities { api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean }
 // Canonical statements deliberately retain provenance/revisions without pretending to be UI cards.

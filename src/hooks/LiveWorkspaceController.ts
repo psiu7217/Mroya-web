@@ -1,5 +1,6 @@
 import type {WorkspaceSource} from '../types/source.ts';
-import type {HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
+import type {ChatTimelineEntry} from '../types/mroya.ts';
+import type {ToolActivityEvent,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
 import {readReportContext} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
 export interface LiveState {
@@ -12,22 +13,36 @@ export class LiveWorkspaceController {
  private abort=new AbortController();private epoch=0;private turnId:string|null=null;private replyId:string|null=null;
  // Reasoning is request-local. Canonical history has no reasoning field.
  private reasoningByMessage=new Map<string,string>();
+ private timelineByMessage=new Map<string,ChatTimelineEntry[]>();
  private sentHistoryIds=new Set<string>();
  private sentContent='';
  private historyWithReasoning(history:HistoryResponse):HistoryResponse{
   const pending=this.state.history.messages.find(message=>message.id===this.replyId);
   // Bind only an unambiguous new, adjacent canonical user/assistant pair; never by list position alone.
-  if(pending?.reasoning&&pending.status==='completed'&&history.conversation_id===this.state.history.conversation_id){
+  if((pending?.reasoning||pending?.timeline?.length)&&pending?.status==='completed'&&history.conversation_id===this.state.history.conversation_id){
    const candidates=history.messages.filter((message,index)=>{
     const user=history.messages[index-1];
     return message.role==='assistant'&&message.status==='completed'&&message.content===pending.content
      &&!this.sentHistoryIds.has(message.id)&&user?.role==='user'&&user.content===this.sentContent
      &&!this.sentHistoryIds.has(user.id)&&message.sequence===user.sequence+1;
    });
-   if(candidates.length===1)this.reasoningByMessage.set(candidates[0].id,pending.reasoning);
+   if(candidates.length===1){
+    if(pending.reasoning)this.reasoningByMessage.set(candidates[0].id,pending.reasoning);
+    if(pending.timeline?.length)this.timelineByMessage.set(candidates[0].id,pending.timeline);
+   }
+  }
+  if(pending?.status==='failed'&&pending.timeline?.length){
+   const context=readReportContext(pending.report_context);
+   if(context&&context.turn_id===this.turnId){
+    const candidates=history.messages.filter(message=>{
+     const candidate=readReportContext(message.report_context);
+     return message.role==='assistant'&&message.status==='failed'&&candidate?.turn_id===context.turn_id&&candidate.request_trace_id===context.request_trace_id;
+    });
+    if(candidates.length===1)this.timelineByMessage.set(candidates[0].id,pending.timeline.filter(entry=>entry.kind==='tool'));
+   }
   }
   // Ignore any server-supplied reasoning: only local SSE text for a bound message is eligible.
-  return {...history,messages:history.messages.map(message=>({...message,reasoning:message.role==='assistant'?this.reasoningByMessage.get(message.id):undefined}))};
+  return {...history,messages:history.messages.map(message=>({...message,reasoning:message.role==='assistant'?this.reasoningByMessage.get(message.id):undefined,timeline:message.role==='assistant'?this.timelineByMessage.get(message.id):undefined}))};
  }
  private source:WorkspaceSource;private expired:()=>void;private uuid:()=>string;
  constructor(source:WorkspaceSource,expired:()=>void,uuid:()=>string=()=>crypto.randomUUID()){this.source=source;this.expired=expired;this.uuid=uuid;}
@@ -36,7 +51,7 @@ export class LiveWorkspaceController {
  private set(patch:Partial<LiveState>){this.state={...this.state,...patch};for(const fn of this.listeners)fn();}
  private failure(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}this.set({error:error instanceof Error?error.message:'Workspace unavailable'});}
  start(){if(this.abort.signal.aborted)this.abort=new AbortController();void this.load();}
- stop(){this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined}))}});}
+ stop(){this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  async load(){
   const epoch=this.epoch;this.set({loading:true,error:null});
   try {
@@ -62,20 +77,32 @@ export class LiveWorkspaceController {
   const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
   let answer='',reasoning='',failedActivity=false,completed=false;
+  let timeline:ChatTimelineEntry[]=[];let previousEvent='';
   try {
    await this.source.send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
+    const adjacentReasoning=previousEvent==='reasoning_delta';previousEvent=event.event;
     if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
      failedActivity=true;
      const context=readReportContext(event.data.report_context);
-     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',created_at:now,completed_at:null,
+     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(timeline.length?{timeline:timeline.filter(entry=>entry.kind==='tool')}:{ }),created_at:now,completed_at:null,
       ...(context&&(!this.turnId||context.turn_id===this.turnId)?{report_context:context}:{})}]}});
      return;
     }
-    if(event.event==='tool_activity')return;
-    if(event.event==='reasoning_delta'&&typeof event.data.text==='string')reasoning+=event.data.text;
+    if(event.event==='tool_activity'){
+     const data=event.data as unknown as ToolActivityEvent;
+     // sequence is a local React key, not a fabricated Backend call_id.
+     timeline=[...timeline,{kind:'tool',id:'tool:'+data.sequence,sequence:data.sequence,toolKind:data.activity.kind,title:data.activity.title,status:data.activity.status}];
+    }
+    if(event.event==='reasoning_delta'&&typeof event.data.text==='string'){
+     reasoning+=event.data.text;
+     const last=timeline.at(-1),turnNumber=event.data.turn_number as number,sequence=event.data.sequence as number;
+     if(adjacentReasoning&&last?.kind==='reasoning'&&last.turnNumber===turnNumber)
+      timeline=[...timeline.slice(0,-1),{...last,text:last.text+event.data.text}];
+     else timeline=[...timeline,{kind:'reasoning',id:'reasoning:'+sequence,sequence,turnNumber,text:event.data.text}];
+    }
     if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
     if(event.event==='done'||event.event==='replay')completed=true;
-    if((answer||reasoning)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{})}]}});
+    if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{})}]}});
    },{signal:this.abort.signal,onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
      if(this.turnId&&this.turnId!==turnId)throw new ApiError(502,'invalid_stream','Chat turn changed during streaming');
      this.turnId=turnId;
@@ -84,7 +111,7 @@ export class LiveWorkspaceController {
   }catch(error){
    if(epoch!==this.epoch)return;
    // Provisional reasoning must not keep a failed/interrupted reply in Thinking/success state.
-   this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',reasoning:undefined}:message)}});
+   this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',reasoning:undefined,timeline:message.timeline?.filter(entry=>entry.kind==='tool')}:message)}});
    this.failure(error);if(epoch!==this.epoch)return;
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));

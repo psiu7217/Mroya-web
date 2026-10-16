@@ -8,7 +8,7 @@ export function accountPresentation(user:ApiUser):AccountPresentation {
  return {displayName:name,initials:name.split(/\s+/).map(v=>Array.from(v)[0]).slice(0,2).join('').toUpperCase(),email:user.email,description:'',timezone:user.timezone,spaceDescription:'Personal space',nickname:user.nickname};
 }
 export function chatPresentation(id:string,messages:ApiMessage[]):Conversation {
- return {id,title:'Your conversation',group:'Today',updatedAt:messages.at(-1)?.created_at??'',relatedMemoryIds:[],messages:messages.map(m=>({id:m.id,sender:m.role,content:m.content||(m.status==='failed'?'This reply could not be completed.':''),status:m.status,...(m.role==='assistant'&&m.reasoning?{reasoning:m.reasoning}:{}),...(m.role==='assistant'&&m.status==='failed'?{report_context:readReportContext(m.report_context)}:{}),timestamp:new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}))};
+ return {id,title:'Your conversation',group:'Today',updatedAt:messages.at(-1)?.created_at??'',relatedMemoryIds:[],messages:messages.map(m=>({id:m.id,sender:m.role,content:m.content||(m.status==='failed'?'This reply could not be completed.':''),status:m.status,...(m.role==='assistant'&&m.timeline?.length?{timeline:m.timeline}:{}),...(m.role==='assistant'&&m.reasoning?{reasoning:m.reasoning}:{}),...(m.role==='assistant'&&m.status==='failed'?{report_context:readReportContext(m.report_context)}:{}),timestamp:new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}))};
 }
 export function memoryPresentation(m:CanonicalMemory,map:MemoryMapResponse):MemoryItem {
  const subject=text(m.subject),predicate=text(m.predicate||m.predicate_key),value=text(m.object_label??m.literal_value);

@@ -9,6 +9,7 @@ export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(ev
       if(line.startsWith('event:'))event=line.slice(6).trim();
       if(line.startsWith('data:'))data.push(line.slice(5).replace(/^ /,''));
     }
+    if(new TextEncoder().encode(text).byteLength>2*1024*1024)throw new ApiError(502,'invalid_stream','Stream frame exceeds limit');
     if(!data.length)return;
     if(!['trace','delta','done','error','reasoning_delta','tool_activity'].includes(event))return;
     let value:unknown;
@@ -25,7 +26,11 @@ export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(ev
         turnNumber=payload.turn_number as number;
       }else{
         const activity=payload.activity as Record<string,unknown>|null;
-        if(!activity||typeof activity!=='object'||Array.isArray(activity)||!['kind','status','title'].every(key=>typeof activity[key]==='string'))
+        if(Object.keys(payload).some(key=>key!=='sequence'&&key!=='activity'))
+          throw new ApiError(502,'invalid_stream','Unsupported tool activity schema');
+        if(!activity||typeof activity!=='object'||Array.isArray(activity)||!['kind','status','title'].every(key=>typeof activity[key]==='string')
+          ||Object.keys(activity).some(key=>!['kind','status','title'].includes(key))
+          ||!['success','failure','neutral'].includes(activity.status as string)||!(activity.kind as string).trim()||!(activity.title as string).trim())
           throw new ApiError(502,'invalid_stream','Invalid tool activity');
       }
     }
@@ -41,7 +46,7 @@ export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(ev
       const chunk=await reader.read();buffer+=decoder.decode(chunk.value,{stream:!chunk.done});
       let boundary:RegExpExecArray|null;
       while((boundary=/\r?\n\r?\n/.exec(buffer))) {frame(buffer.slice(0,boundary.index));buffer=buffer.slice(boundary.index+boundary[0].length);}
-      if(buffer.length>2*1024*1024)throw new ApiError(502,'invalid_stream','Stream frame exceeds limit');
+      if(new TextEncoder().encode(buffer).byteLength>2*1024*1024)throw new ApiError(502,'invalid_stream','Stream frame exceeds limit');
       if(chunk.done)break;
     }
     if(!terminal)throw new StreamInterruptedError();

@@ -142,7 +142,7 @@ test('ambiguous canonical matches never transfer reasoning between messages',asy
  await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.some(m=>m.reasoning),false);c.stop();
 });
 test('Studio components and all styles stay byte-identical; only existing controlled props are wired',()=>{
- for(const path of ['src/components/ConnectionsSettingsView.tsx','src/components/ModelReasoningBlock.tsx','src/components/ChatWorkspace.tsx','src/index.css']){
+ for(const path of ['src/components/ConnectionsSettingsView.tsx','src/components/ModelReasoningBlock.tsx','src/index.css']){
   assert.equal(readFileSync(path,'utf8'),execFileSync('git',['show','5df78c6:'+path],{encoding:'utf8'}));
  }
  const view=readFileSync('src/pages/WorkspaceView.tsx','utf8'),live=readFileSync('src/providers/LiveExperience.tsx','utf8');

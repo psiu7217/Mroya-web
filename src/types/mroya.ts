@@ -77,7 +77,18 @@ export interface ChatAction {
   };
 }
 
+// Presentation-only timeline. Optional details are UI slots, not an unapproved API DTO.
+export interface ToolPayload {text:string;format:'text'|'json';truncated?:boolean}
+export interface ToolTimelineEntry {
+  kind:'tool';id:string;sequence:number;toolKind:string;title:string;
+  status:'success'|'failure'|'neutral'|'running'|'skipped'|'interrupted'|'unknown';
+  description?:string;input?:ToolPayload;output?:ToolPayload;durationMs?:number;
+}
+export interface ReasoningTimelineEntry {kind:'reasoning';id:string;sequence:number;turnNumber:number;text:string}
+export type ChatTimelineEntry = ToolTimelineEntry | ReasoningTimelineEntry;
+
 export interface ChatMessage {
+  timeline?:ChatTimelineEntry[];
   report_context?:import('./api').ReportContext;
   signInPrompt?: boolean;
   status?: string;

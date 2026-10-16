@@ -30,6 +30,7 @@ import {
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { BrandMark } from './BrandMark';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
+import { ChatActivityTimeline } from './ChatActivityTimeline';
 import {
   ChatMessage,
   Conversation,
@@ -706,7 +707,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {msg.reasoning && (
+                      {msg.timeline?.some(entry=>entry.kind==='tool') ? (
+                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'}/>
+                      ) : msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
                           isStreaming={msg.status === 'streaming'}

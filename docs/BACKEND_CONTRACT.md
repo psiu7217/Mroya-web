@@ -166,3 +166,58 @@ Failed streaming submissions cannot be automatically replayed, even with retry:t
 use existing owned turn/history recovery. Deployment of the flag and preference
 migration identity.0004_user_show_model_reasoning is a separate Backend concern.
 This frontend PR does not deploy or perform paid/provider calls.
+
+
+## Live Tool Activity compatibility (API main 82bdba4)
+
+Verified against [Agent streaming](https://github.com/psiu7217/Mroya-api/blob/82bdba4db0729c28cd9b02acee591b9de08d63ad/docs/AGENT-STREAMING.md)
+and the current activity/loop/Chat services code. The only public event is:
+tool_activity {sequence, activity:{kind,status,title}}. Status is success, failure,
+or neutral; the Agent explicitly selects only these three activity fields after
+recording the executor result. The event is a confirmed outcome, not started.
+There is no public call_id, phase, tool arguments, result payload or duration.
+Do not expose internal trace/forensic fields to fill these gaps.
+
+The existing SSE parser preserves the shared strictly increasing sequence across
+reasoning/tool events, validates confirmed fields/statuses, rejects duplicates,
+nonpositive/out-of-order sequence, unsupported lifecycle/payload fields, frames
+over the local 2 MiB UTF-8 safety limit (including complete frames), and terminal/
+JSON/UTF-8/EOF violations. It makes no new requests or automatic Agent retries.
+
+Controller-local ChatTimelineEntry is a presentation model, not a proposed public
+Backend DTO. A legacy tool outcome creates a separate completed entry with a local
+React key based on sequence, never a fabricated server call_id. Same-name tools
+remain separate. Adjacent reasoning may merge only within the same provider turn
+and without an intervening tool. The shared ChatActivityTimeline uses the unchanged
+ModelReasoningBlock for each segment and a collapsed ToolActivityBlock for tools;
+when tools exist it replaces the aggregate reasoning block, above the existing
+final response card. Only the last active reasoning segment shows Thinking.
+Without tools, the previous Reasoning UX and markup remain unchanged.
+
+The new compact tool component has presentation-only slots for Input/Output,
+duration, description and lifecycle statuses. They are NOT populated from today's
+SSE. No fake payload, duration or started is rendered. Expanded missing payload
+slots say Data unavailable and have no Copy button. Available explicitly supplied
+presentation text/JSON is React-escaped; long display is capped at 12000 characters
+with a truncation notice and bounded scrolling. Copy uses only available text and
+confirms Copied after native clipboard success; failures stay unconfirmed. Backend
+payload approval/redaction is a prerequisite for future production detail mapping.
+
+Completed local timelines use PR #18's cautious canonical question/answer
+reconciliation and then canonical message IDs. Failed timelines retain only
+confirmed tool outcomes, bound to canonical failed replies only by an exact
+turn_id/request_trace_id report_context. An interruption clears provisional
+reasoning and streaming state but does not invent failure for confirmed tools.
+No legacy running state exists to infer on disconnect. Recovery is unchanged.
+Ambiguous association drops the timeline; reload/logout/account disposal erase it.
+No storage, logs, analytics, history writes or extra provider calls.
+
+Design uses the same components offline. Synthetic UI tests/preview may supply
+presentation-only details; that does not establish a Backend contract.
+
+This compatible frontend PR is NOT READY FOR MERGE for the full requested
+lifecycle. Backend must first publish reviewed call identity, started/finished
+semantics, valid transitions/anomaly handling, safely exposed input/output,
+truncation and duration schemas/limits. Only then can Frontend map those fields
+and merge started/finished on a real server call_id. No such DTO or pairing logic
+has been fabricated here. Backend and deployments are unchanged.

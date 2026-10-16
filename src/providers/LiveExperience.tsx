@@ -1,4 +1,4 @@
-import React,{useState} from 'react';
+import React,{useState,useMemo} from 'react';
 import {WorkspaceView} from '../pages/WorkspaceView';
 import {useLiveWorkspace} from '../hooks/useLiveWorkspace';
 import {useWorkspaceLayout} from '../hooks/useWorkspaceLayout';
@@ -25,7 +25,8 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const logout=()=>{controller.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...user,nickname:preferences.nickname});
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
- const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map)),graph=graphPresentation(state.map);
+ const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map));
+ const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('This feature is not available on the current server. No changes have been saved.');
  const select=(next:NavSection)=>{if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
  const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(tab);};

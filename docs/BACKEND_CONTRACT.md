@@ -144,7 +144,7 @@ SSE accepts reasoning_delta {turn_number,sequence,text} and tool_activity
 {sequence,activity:{kind,status,title}}. Positive integer sequence strictly increases
 across both event types; provider turn_number is positive and nondecreasing.
 Malformed JSON/DTO/order/UTF-8, error or EOF without done reject the stream.
-tool_activity is accepted without a new UI and is never used to invent reasoning.
+tool_activity is rendered through the Tool Activity timeline below and never used to invent reasoning.
 
 Reasoning deltas create the current transient assistant reply before answer delta.
 The shared adapter passes real streamed text to existing ChatMessage.reasoning /
@@ -166,3 +166,93 @@ Failed streaming submissions cannot be automatically replayed, even with retry:t
 use existing owned turn/history recovery. Deployment of the flag and preference
 migration identity.0004_user_show_model_reasoning is a separate Backend concern.
 This frontend PR does not deploy or perform paid/provider calls.
+
+
+## Live Tool Activity (API main f759501)
+
+Verified read-only against [the published contract](https://github.com/psiu7217/Mroya-api/blob/f75950126ece0ce760c14ec0e7f2e94cf4f88e33/docs/AGENT-STREAMING.md)
+and apps/agent/live_tool_activity.py, Agent loop and Chat services at that commit.
+Backend PR #18 is merged; this frontend change does not deploy or call a Provider.
+
+### Wire contract and validation
+
+The existing SSE event remains tool_activity {sequence,activity}. Legacy activity
+is exactly {kind,status,title}, with success/failure/neutral, and creates one
+completed local entry per real sequence. It never fabricates a server call_id.
+
+Expanded activity has exactly call_id, tool_name, turn_number, phase, status,
+kind, title, input, output, duration_ms and truncated. call_id is
+t<positive Provider turn>-c<positive call position>, consistent with turn_number,
+request-local and unrelated to native Provider IDs. Known tool_name/kind pairs
+are checked against the Backend implementation.
+
+- started: status running, allowlisted input or null, output/duration_ms null.
+- finished executed: success/failure, input null, nonnegative integer duration_ms.
+- finished/not_executed: input/duration_ms null; may arrive without started.
+- Mixed/partial forms, extra fields, malformed IDs, unexpected statuses,
+  duplicate/backward sequence, mismatched or repeated call transitions and unknown
+  executed finished are rejected. not_executed without started is explicitly valid.
+  A started call cannot resolve through a preflight not_executed; it must finish
+  execution or become locally uncertain.
+- reasoning/tool events retain the shared increasing sequence. Started calls
+  advance Provider turn order; finishing a known card retains its original position.
+  Done with unresolved started calls is invalid; error/EOF never becomes success.
+  Existing 2 MiB UTF-8 SSE-frame bounds and terminal/JSON/UTF-8 handling remain.
+
+The API helper validates exact nested allowlists before any detail is serialized
+for UI. Search/prepare queries and facts, expanded entities/directions/facts,
+proposed write/revision facts, write/reuse/revision/forget result counts/actions/
+search_ready, resolve reason/missing_dimension and decision flags follow the
+canonical table. Failure exposes only tool_execution_failed (or null);
+not_executed uses only the documented error-code enum (or null).
+Calendar, echo, generic tools and forget input have no invented detail schemas.
+Unknown/provenance/provider/header/secret fields are rejected, never displayed.
+
+Preview limits: <=4 items per collection, <=240 Unicode code points per display
+string, detail depth <=6, and <=8192 ASCII-normalized serialized activity bytes
+using default JSON separators, excluding the SSE envelope. Counts can exceed
+preview lengths. Null projections are valid: sanitization/projection failure may
+omit any detail. Backend owns privacy/redaction; Frontend is not a substitute for it.
+
+### Request-local state and UI
+
+The existing controller/lifecycle guards own the timeline. A real started creates
+one running entry keyed by call_id within that send. Finished updates that entry
+in place, retaining input and chronological position while applying the exact
+Backend title/status/output/duration. Distinct IDs remain distinct even for the
+same tool name. Standalone not_executed creates one Not executed card without
+Running/duration. Legacy and expanded events can coexist without merging by name.
+
+The existing ToolActivityBlock and ChatActivityTimeline are reused; no redesign
+or new component. Only the existing description/input/output/duration/status slots
+receive validated fields. Title remains server text. Some details are shortened
+or unavailable is a neutral truncation/omission notice, including when both
+projections are null; missing Input/Output shows Data unavailable without Copy.
+JSON is React text, with the existing bounded wrapping/scrolling, available-data
+Copy and native resolve-only Copied protection. No changes to ModelReasoningBlock,
+layout, classes, preview, navigation, auth or settings.
+
+Proposed input is not proof of persistence. Memory change not confirmed/failure
+stays Failed even if the Agent subsequently produces an accepted answer.
+prepare/resolve/reused_existing do not imply new memory creation. search_ready
+false/null does not undo a canonical write and is displayed without reinterpretation.
+
+Interruption or Chat failure replaces still-running local entries with Interrupted,
+removes provisional reasoning and stops animation. This does not assert executor
+entry, success, failure or rollback; started precedes actual executor entry.
+Confirmed finished outcomes retain their server status. Canonical failed-message
+retention includes only confirmed finished/legacy outcomes, using the existing
+exact turn_id/request_trace_id guard. Local interrupted/provisional entries are
+not persisted onto failed history. Successful canonical association remains
+PR #18/#19's cautious new question/answer pair match, then canonical message IDs.
+Ambiguity drops transient data. Recover/submission/retry semantics and API requests
+are unchanged: never automatically re-run Agent after disconnection.
+
+Timeline/projections remain in controller memory only. Logout/account disposal
+clears them; old callbacks cannot affect a new send/account. Reload can remove
+them. No localStorage, sessionStorage, IndexedDB, logs, analytics, history writes,
+extra endpoints, parameters or paid calls. Design stays offline with the same UI.
+
+Readiness here means tested frontend implementation against the merged Backend
+repository contract. Production flag/deployment and actual provider/account
+acceptance are separate owner-authorized checks.

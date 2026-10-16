@@ -3,7 +3,7 @@ import Markdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
-export interface AssistantMarkdownProps { content: string }
+export interface AssistantMarkdownProps { content: string; variant?: 'assistant' | 'user' }
 
 /** Narrow the library's safe URL policy; inspect encoded/control-character schemes too. */
 export function assistantUrlTransform(url: string): string {
@@ -25,8 +25,10 @@ export function assistantUrlTransform(url: string): string {
   return defaultUrlTransform(url);
 }
 
-export function AssistantMarkdown({content}: AssistantMarkdownProps) {
-  return <div className="mroya-markdown text-[15px] sm:text-[16px] leading-[24px] sm:leading-[25px] text-[var(--mroya-text)]">
+export function AssistantMarkdown({content, variant = 'assistant'}: AssistantMarkdownProps) {
+  return <div className={variant === 'user'
+    ? 'mroya-markdown mroya-markdown-user text-[15px] leading-[23px] text-inherit'
+    : 'mroya-markdown text-[15px] sm:text-[16px] leading-[24px] sm:leading-[25px] text-[var(--mroya-text)]'}>
     <Markdown skipHtml remarkPlugins={[remarkGfm, remarkBreaks]} urlTransform={assistantUrlTransform}
       components={{
         a: ({href, children}) => href

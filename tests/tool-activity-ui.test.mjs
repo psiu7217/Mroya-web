@@ -67,3 +67,21 @@ test('expanded null projections have a neutral omission notice, no Copy, and rea
  const failed=markup({activity:{...tool,title:'Memory change not confirmed',status:'failure',durationMs:0}});
  assert.match(failed,/Memory change not confirmed/);assert.match(failed,/Failed/);assert.match(failed,/0 ms/);assert.doesNotMatch(failed,/Success/);
 });
+
+test('failed reasoning/tool chronology is static above unchanged Reply failed diagnostics buttons',()=>{
+ const context={turn_id:'00000000-0000-4000-8000-000000000001',request_trace_id:100,report_url:'/api/v1/chat/turns/00000000-0000-4000-8000-000000000001/report/'};
+ const failed={...message,status:'failed',content:'Safe server failure',report_context:context,reasoning:'BeforeAfter',timeline:[
+  {kind:'reasoning',id:'r1',sequence:1,turnNumber:1,text:'Before'},tool,
+  {kind:'reasoning',id:'r3',sequence:3,turnNumber:1,text:'After'},
+  {...tool,id:'tool:4',sequence:4,status:'interrupted'},
+ ]};
+ const diagnostics={forMessage:()=>({available:true,reporting:false,reported:false,copying:false,copied:false}),onCopy:noop,onReport:noop};
+ const html=renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,live:true,diagnostics,conversation:{...props.conversation,messages:[failed]}}));
+ assert.ok(html.indexOf('Before')<html.indexOf('Checked memory'));assert.ok(html.indexOf('Checked memory')<html.indexOf('After'));
+ assert.ok(html.indexOf('After')<html.lastIndexOf('Reply failed'));assert.match(html,/Interrupted/);
+ assert.match(html,/Report issue/);assert.match(html,/Copy Error For Admin Diagnostics/);
+ assert.doesNotMatch(html,/Thinking…|Generating reasoning|animate-spin|BeforeAfter/);
+ for(const path of ['src/hooks/liveAdapters.ts','src/components/ChatActivityTimeline.tsx','src/components/ChatWorkspace.tsx','src/components/ToolActivityBlock.tsx','src/hooks/useChatDiagnostics.ts','src/utils/diagnosticsClipboard.ts']){
+  assert.equal(fs.readFileSync(path,'utf8'),execFileSync('git',['show','374dd33:'+path],{encoding:'utf8'}));
+ }
+});

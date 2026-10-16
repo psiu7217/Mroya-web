@@ -116,13 +116,13 @@ test('reasoning appears before final answer and survives authoritative refresh o
  const reloaded=new LiveWorkspaceController(source({history:async()=>({...history,messages:canonical()})}),()=>{});
  await reloaded.load();assert.equal(reloaded.snapshot().history.messages.at(-1)!.reasoning,undefined);reloaded.stop();c.stop();
 });
-test('failed/interrupted reasoning is provisional, has no successful/Thinking status and does not leak into next turn',async()=>{
+test('failed/interrupted reasoning stays static, has no successful/Thinking status and does not leak into next turn',async()=>{
  for(const failure of [new StreamInterruptedError(),new ApiError(502,'chat_failed','Failed')]){
   let sends=0;const c=new LiveWorkspaceController(source({send:async(_t,_id,emit,options)=>{
    options?.onTurn?.(turn);if(++sends===1){emit(reasoning());throw failure;}
    emit({event:'delta',data:{text:'No reasoning'}});emit({event:'done',data:{}});
-  }}),()=>{},()=>turn);
-  await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.some(m=>m.reasoning),false);
+  }}),()=>{},()=> 'submission-'+sends);
+  await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.at(-1)!.reasoning,'Real synthetic reasoning');
   assert.equal(c.snapshot().history.messages.some(m=>m.status==='streaming'||m.status==='completed'),false);
   if(c.snapshot().uncertain)await c.recover();
   await c.send('Next');assert.equal(c.snapshot().history.messages.some(m=>m.reasoning),false);c.stop();
@@ -155,11 +155,11 @@ test('normal accepted answer without reasoning remains valid',async()=>{
  let reads=0;const c=new LiveWorkspaceController(source({history:async()=>({...history,messages:++reads===1?[]:canonical()}),send:async(_t,_id,emit)=>{emit({event:'delta',data:{text:'Accepted'}});emit({event:'done',data:{}});}}),()=>{},()=>turn);
  await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.at(-1)!.content,'Accepted');assert.equal(c.snapshot().history.messages.at(-1)!.reasoning,undefined);assert.equal(c.snapshot().error,null);c.stop();
 });
-test('unexpected ChatTurn change rejects and clears the previous turn reasoning',async()=>{
+test('unexpected ChatTurn change keeps reasoning on the original failed reply only',async()=>{
  const c=new LiveWorkspaceController(source({send:async(_t,_id,emit,options)=>{
   options?.onTurn?.(turn);emit(reasoning());options?.onTurn?.('00000000-0000-4000-8000-000000000002');
  }}),()=>{},()=>turn);
- await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.some(m=>m.reasoning),false);assert.equal(c.snapshot().uncertain,true);c.stop();
+ await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.at(-1)!.reasoning,'Real synthetic reasoning');assert.equal(c.snapshot().uncertain,true);c.stop();
 });
 test('reasoning preference late response cannot change a disposed account',async()=>{
  let finish!:(u:ApiUser)=>void;const old=new UserPreferenceStore(source({savePreferences:async()=>new Promise(r=>{finish=r;})}),7,user,()=>{});

@@ -140,12 +140,12 @@ test('interrupted running is local uncertainty; prior confirmed outcomes stay in
  }}),()=>{},()=>id);
  await c.load();const sending=c.send('Question');release();await sending;
  const reply=c.snapshot().history.messages.at(-1)!,tools=reply.timeline!.filter(e=>e.kind==='tool');
- assert.equal(reply.reasoning,undefined);assert.equal(c.snapshot().uncertain,true);
+ assert.equal(reply.reasoning,'Synthetic reasoning');assert.equal(c.snapshot().uncertain,true);
  assert.deepEqual(tools.map(e=>e.status),['success','interrupted']);assert.equal(tools[1].phase,'started');assert.equal(tools[1].durationMs,undefined);
  c.stop();emit(event(5,finish({call_id:'t1-c2'})));assert.equal(c.snapshot().history.messages.at(-1)!.timeline,undefined);
  const other=new LiveWorkspaceController(source({}),()=>{});await other.load();assert.deepEqual(other.snapshot().history.messages,[]);other.stop();
 });
-test('failed canonical message retains only finished outcomes matched to exact attempt',async()=>{
+test('failed canonical message retains received activity matched to exact attempt',async()=>{
  const context={turn_id:id,request_trace_id:100,report_url:'/api/v1/chat/turns/'+id+'/report/'};
  let reads=0;
  const c=new LiveWorkspaceController(source({history:async()=>({...empty,messages:++reads===1?[]:[canonical[0],{...canonical[1],status:'failed',report_context:context}]}),send:async(_t,_id,emit,options)=>{
@@ -154,7 +154,7 @@ test('failed canonical message retains only finished outcomes matched to exact a
  throw new ApiError(502,'chat_failed','Failed');
  }}),()=>{},()=>id);
  await c.load();await c.send('Question');const tools=c.snapshot().history.messages.at(-1)!.timeline!.filter(e=>e.kind==='tool');
- assert.equal(tools.length,1);assert.equal(tools[0].phase,'finished');assert.equal(tools[0].status,'success');c.stop();
+ assert.equal(tools.length,2);assert.equal(tools[0].phase,'finished');assert.equal(tools[0].status,'success');assert.equal(tools[1].status,'interrupted');c.stop();
 });
 
 test('a fresh send may reuse call_id without inheriting the previous call or accepting late callbacks',async()=>{

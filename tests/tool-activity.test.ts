@@ -63,12 +63,12 @@ test('tool-only stream creates a reply and binds completed timeline without inve
  await c.load();await c.send('Question');const reply=c.snapshot().history.messages.at(-1)!;
  assert.equal(reply.reasoning,undefined);assert.equal(reply.timeline?.length,1);assert.equal(reply.status,'completed');c.stop();
 });
-test('interruption retains only confirmed tool outcomes, clears Thinking, never replays Agent, and ignores late account callbacks',async()=>{
+test('interruption retains received reasoning and confirmed tool outcomes, clears Thinking, never replays Agent, and ignores late account callbacks',async()=>{
  let sends=0,emit!:(e:ChatStreamEvent)=>void;
  const c=new LiveWorkspaceController(source({send:async(_t,_id,onEvent,options)=>{sends++;emit=onEvent;options?.onTurn?.(id);onEvent(reason(1,'Provisional'));onEvent(tool(2));throw new StreamInterruptedError();}}),()=>{},()=>id);
  await c.load();await c.send('Question');let reply=c.snapshot().history.messages.at(-1)!;
- assert.equal(c.snapshot().uncertain,true);assert.equal(reply.status,'failed');assert.equal(reply.reasoning,undefined);
- assert.deepEqual(reply.timeline?.map(e=>e.kind),['tool']);assert.equal(reply.timeline?.[0].kind==='tool'&&reply.timeline[0].status,'success');
+ assert.equal(c.snapshot().uncertain,true);assert.equal(reply.status,'failed');assert.equal(reply.reasoning,'Provisional');
+ assert.deepEqual(reply.timeline?.map(e=>e.kind),['reasoning','tool']);assert.equal(reply.timeline?.[1].kind==='tool'&&reply.timeline[1].status,'success');
  await c.send('Do not replay');assert.equal(sends,1);c.stop();emit(tool(3));
  reply=c.snapshot().history.messages.at(-1)!;assert.equal(reply.timeline,undefined);
  const other=new LiveWorkspaceController(source({}),()=>{});await other.load();assert.deepEqual(other.snapshot().history.messages,[]);other.stop();

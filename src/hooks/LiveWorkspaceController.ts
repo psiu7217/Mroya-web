@@ -1,11 +1,11 @@
 import type {WorkspaceSource} from '../types/source.ts';
 import type {ChatTimelineEntry} from '../types/mroya.ts';
-import type {HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
+import type {ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
 import {readReportContext} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
-function interruptedTools(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
- return timeline.filter(entry=>entry.kind==='tool').map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
+function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
+ return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
 export interface LiveState {
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
@@ -18,6 +18,7 @@ export class LiveWorkspaceController {
  // Reasoning is request-local. Canonical history has no reasoning field.
  private reasoningByMessage=new Map<string,string>();
  private timelineByMessage=new Map<string,ChatTimelineEntry[]>();
+ private failedAttemptsByMessage=new Map<string,ReportContext>();
  private sentHistoryIds=new Set<string>();
  private sentContent='';
  private historyWithReasoning(history:HistoryResponse):HistoryResponse{
@@ -35,18 +36,37 @@ export class LiveWorkspaceController {
     if(pending.timeline?.length)this.timelineByMessage.set(candidates[0].id,pending.timeline);
    }
   }
-  if(pending?.status==='failed'&&pending.timeline?.length){
+  if(pending?.status==='failed'&&(pending.reasoning||pending.timeline?.length)&&history.conversation_id===this.state.history.conversation_id){
    const context=readReportContext(pending.report_context);
    if(context&&context.turn_id===this.turnId){
     const candidates=history.messages.filter(message=>{
      const candidate=readReportContext(message.report_context);
      return message.role==='assistant'&&message.status==='failed'&&candidate?.turn_id===context.turn_id&&candidate.request_trace_id===context.request_trace_id;
     });
-    if(candidates.length===1)this.timelineByMessage.set(candidates[0].id,pending.timeline.filter(entry=>entry.kind==='tool'&&entry.phase!=='started'));
+    if(candidates.length===1){
+     const id=candidates[0].id;
+     this.failedAttemptsByMessage.set(id,context);
+     if(pending.reasoning)this.reasoningByMessage.set(id,pending.reasoning);
+     if(pending.timeline?.length)this.timelineByMessage.set(id,settleFailedTimeline(pending.timeline));
+    }else if(!history.messages.some(message=>readReportContext(message.report_context)?.turn_id===context.turn_id)){
+     // History may lag the failed stream. Keep its own local reply, without binding to another message.
+     return this.state.history;
+    }
+   }else if(!context){
+    // Without a confirmed attempt pair, retain the transient reply instead of guessing a canonical target.
+    return this.state.history;
    }
   }
-  // Ignore any server-supplied reasoning: only local SSE text for a bound message is eligible.
-  return {...history,messages:history.messages.map(message=>({...message,reasoning:message.role==='assistant'?this.reasoningByMessage.get(message.id):undefined,timeline:message.role==='assistant'?this.timelineByMessage.get(message.id):undefined}))};
+  // A reused canonical message ID is not proof of the same failed attempt after Retry.
+  return {...history,messages:history.messages.map(message=>{
+   const expected=this.failedAttemptsByMessage.get(message.id),actual=readReportContext(message.report_context);
+   if(expected&&(message.role!=='assistant'||message.status!=='failed'||history.conversation_id!==this.state.history.conversation_id
+    ||actual?.turn_id!==expected.turn_id||actual.request_trace_id!==expected.request_trace_id)){
+    this.failedAttemptsByMessage.delete(message.id);this.reasoningByMessage.delete(message.id);this.timelineByMessage.delete(message.id);
+   }
+   // Never accept reasoning/timeline supplied by history itself.
+   return {...message,reasoning:message.role==='assistant'?this.reasoningByMessage.get(message.id):undefined,timeline:message.role==='assistant'?this.timelineByMessage.get(message.id):undefined};
+  })};
  }
  private source:WorkspaceSource;private expired:()=>void;private uuid:()=>string;
  constructor(source:WorkspaceSource,expired:()=>void,uuid:()=>string=()=>crypto.randomUUID()){this.source=source;this.expired=expired;this.uuid=uuid;}
@@ -55,7 +75,7 @@ export class LiveWorkspaceController {
  private set(patch:Partial<LiveState>){this.state={...this.state,...patch};for(const fn of this.listeners)fn();}
  private failure(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}this.set({error:error instanceof Error?error.message:'Workspace unavailable'});}
  start(){if(this.abort.signal.aborted)this.abort=new AbortController();void this.load();}
- stop(){this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
+ stop(){this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  async load(){
   const epoch=this.epoch;this.set({loading:true,error:null});
   try {
@@ -88,7 +108,7 @@ export class LiveWorkspaceController {
     if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
      failedActivity=true;
      const context=readReportContext(event.data.report_context);
-     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(timeline.length?{timeline:interruptedTools(timeline)}:{ }),created_at:now,completed_at:null,
+     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(reasoning?{reasoning}:{}),...(timeline.length?{timeline:settleFailedTimeline(timeline)}:{ }),created_at:now,completed_at:null,
       ...(context&&(!this.turnId||context.turn_id===this.turnId)?{report_context:context}:{})}]}});
      return;
     }
@@ -131,8 +151,8 @@ export class LiveWorkspaceController {
    if(epoch===this.epoch){await this.load();this.set({uncertain:false});}
   }catch(error){
    if(epoch!==this.epoch)return;
-   // Provisional reasoning must not keep a failed/interrupted reply in Thinking/success state.
-   this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',reasoning:undefined,timeline:message.timeline?interruptedTools(message.timeline):undefined}:message)}});
+   // Keep received activity as static failed context; discard any unconfirmed answer delta.
+   this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',content:failedActivity?message.content:'',timeline:message.timeline?settleFailedTimeline(message.timeline):undefined}:message)}});
    this.failure(error);if(epoch!==this.epoch)return;
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));
@@ -145,7 +165,17 @@ export class LiveWorkspaceController {
   const epoch=this.epoch;
   try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='failed'){
     const context=readReportContext(turn.report_context);
-    let messages=this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:context?.turn_id===this.turnId?context:undefined}:message);
+    let messages=this.state.history.messages.map(message=>{
+     if(message.id!==this.replyId)return message;
+     const previous=readReportContext(message.report_context);
+     const sameAttempt=!previous||(context?.turn_id===previous.turn_id&&context.request_trace_id===previous.request_trace_id);
+     const hasActivity=!!message.reasoning||!!message.timeline?.length;
+     // GET follows a reused turn's current trace. It cannot prove an unknown original trace.
+     const confirmedContext=context?.turn_id===this.turnId&&(previous||!hasActivity)?context:undefined;
+     return {...message,status:'failed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,
+      reasoning:sameAttempt?message.reasoning:undefined,timeline:sameAttempt&&message.timeline?settleFailedTimeline(message.timeline):undefined,
+      report_context:confirmedContext};
+    });
     const pending=messages.at(-1);
     if(this.replyId&&context?.turn_id===this.turnId&&typeof turn.assistant_content==='string'&&pending?.id==='pending:'+this.replyId.slice(6)){
      messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context}];

@@ -155,7 +155,7 @@ answer, excluding all pre-submission message IDs. The API does not expose submis
 or turn IDs on successful history messages; ambiguous matching deliberately drops
 reasoning rather than assigning it to another message. Once bound, subsequent history
 updates use canonical message IDs, never array positions or final-answer-only matches.
-Failures/interruption clear provisional reasoning and streaming state; logout,
+Failures/interruption retain received reasoning as static failed context and stop streaming; logout,
 account/controller replacement and page reload discard all transient reasoning.
 No reasoning is sent back to Backend or recovered from history/replay.
 
@@ -238,12 +238,15 @@ prepare/resolve/reused_existing do not imply new memory creation. search_ready
 false/null does not undo a canonical write and is displayed without reinterpretation.
 
 Interruption or Chat failure replaces still-running local entries with Interrupted,
-removes provisional reasoning and stops animation. This does not assert executor
+retains received reasoning in order as static context and stops animation. This does not assert executor
 entry, success, failure or rollback; started precedes actual executor entry.
 Confirmed finished outcomes retain their server status. Canonical failed-message
-retention includes only confirmed finished/legacy outcomes, using the existing
-exact turn_id/request_trace_id guard. Local interrupted/provisional entries are
-not persisted onto failed history. Successful canonical association remains
+association retains the received reasoning and timeline only for an exact
+turn_id/request_trace_id match. Local Interrupted remains local uncertainty, not a
+server outcome. Cached failed activity is invalidated if Retry reuses the canonical
+message ID with another trace/status. Without a provable original attempt pair,
+keep the failed transient reply unbound instead of guessing a canonical target.
+Recovery GET cannot prove a previously unknown trace for a reused turn. Successful canonical association remains
 PR #18/#19's cautious new question/answer pair match, then canonical message IDs.
 Ambiguity drops transient data. Recover/submission/retry semantics and API requests
 are unchanged: never automatically re-run Agent after disconnection.

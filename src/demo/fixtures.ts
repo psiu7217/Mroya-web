@@ -633,6 +633,7 @@ export const INITIAL_REMINDERS: ReminderItem[] = [
 export const INITIAL_GRAPH_NODES: GraphNode[] = [
   {
     id: 'node-alex',
+    is_self: true,
     label: 'Alex Lindqvist',
     subtitle: 'Personal Space Owner',
     category: 'person',

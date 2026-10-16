@@ -19,13 +19,16 @@ const vite=await createServer({mode:'design',server:{middlewareMode:true},appTyp
 }]});
 after(async()=>{delete globalThis[key];await vite.close();});
 const {MemoryMapView}=await vite.ssrLoadModule('/src/components/MemoryMapView.tsx');
+const {accountPresentation}=await vite.ssrLoadModule('/src/hooks/liveAdapters.ts');
 const node=id=>({id,label:id,type:'entity',kind:'person',category:'person',subtitle:'',summary:'',source:'',dateRecorded:'',connectionsCount:0});
 const same=(a,b)=>a&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
 function mount(initial){
  const slots=[],changes=[];let cursor=0,effects=[],dirty=false,tree,callbacks;
  let props={edges:[],nodes:[],selectedNodeId:null,isSidebarCollapsed:false,onOpenMemory(){},onAskAboutNode(){},onExpandSidebar(){},onOpenMobileMenu(){},...initial};
  props.onSelectNode=id=>{changes.push(id);props={...props,selectedNodeId:id};dirty=true;};
- const renderer={selected:null,selections:[],setGraph(){callbacks.onSelect(null);},setOptions(){},
+ const renderer={selected:null,selections:[],creations:0,graphs:0,presentations:[],
+  setGraph(){this.graphs++;callbacks.onSelect(null);},setOptions(){},
+  setPresentation(value){this.presentations.push(value);},
   select(id){this.selected=id;this.selections.push(id);},setForce(){},destroy(){}};
  const harness={
   useState(initial){const i=cursor++;slots[i]??={value:typeof initial==='function'?initial():initial};return [slots[i].value,value=>{
@@ -34,7 +37,7 @@ function mount(initial){
   useRef(value){const i=cursor++;slots[i]??={current:value};return slots[i];},
   useMemo(factory,deps){const i=cursor++;if(!same(slots[i]?.deps,deps))slots[i]={deps,value:factory()};return slots[i].value;},
   useEffect(effect,deps){const i=cursor++;if(!same(slots[i]?.deps,deps)){const previous=slots[i];slots[i]={deps};effects.push(()=>{previous?.cleanup?.();slots[i].cleanup=effect();});}},
-  createRenderer(value){callbacks=value;return renderer;},
+  createRenderer(value){callbacks=value;renderer.creations++;return renderer;},
  };
  function flush(){globalThis[key]=harness;let passes=0;do{assert.ok(++passes<15,'effects settle');dirty=false;cursor=0;tree=MemoryMapView(props);const pending=effects;effects=[];pending.forEach(f=>f());}while(dirty);}
  return {changes,renderer,get props(){return props;},get tree(){return tree;},flush,
@@ -73,4 +76,25 @@ test('panel close and canvas deselection clear parent selection; returning to ma
  returned.userSelect('target');assert.equal(returned.props.selectedNodeId,'target');assert.equal(returned.renderer.selected,'target');
  returned.userSelect(null);assert.equal(returned.props.selectedNodeId,null);assert.equal(returned.renderer.selected,null);
  assert.deepEqual(returned.changes,['target',null]);returned.unmount();
+});
+
+test('theme and profile nickname update existing graph; only is_self labels change in UI/search',async()=>{
+ const user={nickname:'Aurora',first_name:'Ada',last_name:'Lovelace',username:'ada',email:'',timezone:'UTC'};
+ const own={...node('own'),is_self:true,label:'Self'},other={...node('other'),label:'Self'};
+ const view=mount({nodes:[own,other],selectedNodeId:'own',theme:'dark',displayName:accountPresentation(user).displayName});await view.start();
+ assert.equal(find(view.tree,e=>e.type==='h2').props.children,'Aurora');
+ assert.ok(find(view.tree,e=>e.type==='li'&&e.props.children==='Self'),'other literal Self untouched');
+ const graphs=view.renderer.graphs;
+ view.update({theme:'light',displayName:accountPresentation({...user,nickname:'New name'}).displayName});
+ assert.equal(view.renderer.creations,1);assert.equal(view.renderer.graphs,graphs);
+ assert.deepEqual(view.renderer.presentations.at(-1),{theme:'light',displayName:'New name'});
+ assert.equal(find(view.tree,e=>e.type==='h2').props.children,'New name');
+ find(view.tree,e=>e.type==='input'&&e.props['aria-label']==='Search map nodes').props.onChange({target:{value:'New name'}});view.flush();
+ assert.ok(find(view.tree,e=>e.type==='button'&&find(e,c=>c.type==='span'&&c.props.children==='New name')));
+ view.update({theme:'dark',displayName:accountPresentation({...user,nickname:''}).displayName});
+ assert.equal(find(view.tree,e=>e.type==='h2').props.children,'Ada Lovelace');
+ view.update({displayName:accountPresentation({...user,nickname:'',first_name:'',last_name:''}).displayName});
+ assert.equal(find(view.tree,e=>e.type==='h2').props.children,'ada');
+ assert.equal(view.renderer.creations,1);assert.equal(view.renderer.graphs,graphs);assert.equal(view.renderer.selected,'own');
+ assert.equal(own.label,'Self');view.unmount();
 });

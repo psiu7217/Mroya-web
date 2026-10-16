@@ -19,6 +19,7 @@ import type { GraphNode, GraphEdge } from '../types/mroya';
 import { createMemoryMapRenderer, defaults } from './memory-map/renderer.js';
 import { renderGraph } from './memory-map/mapModel';
 import { presentationGraph } from './memory-map/graph.js';
+import { mapNodeLabel } from './memory-map/palette.js';
 import './memory-map/memory-map.css';
 
 interface MemoryMapViewProps {
@@ -33,6 +34,8 @@ interface MemoryMapViewProps {
   onOpenMobileMenu: () => void;
   loading?: boolean;
   error?: string | null;
+  theme?: 'light' | 'dark';
+  displayName?: string;
 }
 
 type Renderer = Awaited<ReturnType<typeof createMemoryMapRenderer>>;
@@ -53,6 +56,8 @@ export function MemoryMapView({
   onOpenMobileMenu,
   loading,
   error,
+  theme = 'dark',
+  displayName = '',
 }: MemoryMapViewProps) {
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<Renderer | null>(null);
@@ -72,7 +77,10 @@ export function MemoryMapView({
   const search = useRef<HTMLInputElement>(null);
 
   const graph = useMemo(() => renderGraph(nodes, edges), [nodes, edges]);
-  const display = useMemo(() => presentationGraph(graph, hideSelf), [graph, hideSelf]);
+  const display = useMemo(() => {
+    const filtered = presentationGraph(graph, hideSelf);
+    return {...filtered, nodes: filtered.nodes.map(node => ({...node, label: mapNodeLabel(node, displayName)}))};
+  }, [graph, hideSelf, displayName]);
   const active = display.nodes.find((n) => n.id === selection);
 
   const callbacks = useRef({ onSelectNode });
@@ -135,6 +143,10 @@ export function MemoryMapView({
       renderer.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (ready) renderer.current?.setPresentation({theme, displayName});
+  }, [ready, theme, displayName]);
 
   useEffect(() => {
     if (ready && !loading) updateRenderer((r) => r.setGraph(graph));
@@ -208,6 +220,7 @@ export function MemoryMapView({
   return (
     <section
       className={`mroya-memory-map${showcase ? ' map-showcase' : ''}`}
+      data-map-theme={theme}
       aria-label="Memory Map"
       onKeyDown={(e) => {
         if (e.key === 'Escape') {

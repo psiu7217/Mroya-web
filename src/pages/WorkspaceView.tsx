@@ -160,6 +160,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'memory-map' && (
           <MemoryMapView
+            loading={feedback?.loading}
+            error={feedback?.error}
             nodes={nodes}
             edges={edges}
             selectedNodeId={selectedGraphNodeId}

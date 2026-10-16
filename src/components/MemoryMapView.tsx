@@ -1,441 +1,111 @@
-import React, { useState } from 'react';
-import {
-  Search,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  BookOpen,
-  MessageSquare,
-  X,
-  Menu,
-  PanelLeftOpen,
-} from 'lucide-react';
-import { GraphNode, GraphEdge, GraphNodeCategory } from '../types/mroya';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import {Menu,PanelLeftOpen} from 'lucide-react';
+import type {GraphNode,GraphEdge} from '../types/mroya';
+import {createMemoryMapRenderer,defaults} from './memory-map/renderer.js';
+import {renderGraph} from './memory-map/mapModel';
+import {presentationGraph} from './memory-map/graph.js';
+import './memory-map/memory-map.css';
 
 interface MemoryMapViewProps {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  selectedNodeId: string | null;
-  onSelectNode: (nodeId: string) => void;
-  onOpenMemory: (memoryId: string) => void;
-  onAskAboutNode: (node: GraphNode) => void;
-  isSidebarCollapsed: boolean;
-  onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
+ nodes:GraphNode[];edges:GraphEdge[];selectedNodeId:string|null;
+ onSelectNode:(id:string|null)=>void;onOpenMemory:(id:string)=>void;onAskAboutNode:(node:GraphNode)=>void;
+ isSidebarCollapsed:boolean;onExpandSidebar:()=>void;onOpenMobileMenu:()=>void;
+ loading?:boolean;error?:string|null;
 }
+type Renderer=Awaited<ReturnType<typeof createMemoryMapRenderer>>;
+const relation=(n:{predicate?:string;relationship?:string;polarity?:string})=>`${n.polarity==='negative'?'Not ':''}${n.predicate||n.relationship||''}`;
 
-export const MemoryMapView: React.FC<MemoryMapViewProps> = ({
-  nodes,
-  edges,
-  selectedNodeId,
-  onSelectNode,
-  onOpenMemory,
-  onAskAboutNode,
-  isSidebarCollapsed,
-  onExpandSidebar,
-  onOpenMobileMenu,
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | GraphNodeCategory>('all');
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-  if (!nodes.length) return <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--mroya-bg)] text-[var(--mroya-text)]"><header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center gap-3"><button aria-label="Open navigation" onClick={onOpenMobileMenu} className="lg:hidden"><Menu className="w-5 h-5"/></button><h1 className="font-semibold">Memory Map</h1></header><p className="m-auto text-sm text-[var(--mroya-text-muted)]">No memories to map yet.</p></div>;
-
-  const activeNode =
-    nodes.find((n) => n.id === selectedNodeId) ||
-    nodes.find((n) => n.id === 'node-redesign') ||
-    nodes[0];
-
-  const connectedEdges = edges.filter(
-    (e) => e.source === activeNode.id || e.target === activeNode.id
-  );
-
-  const connectedNodeIds = new Set<string>([
-    activeNode.id,
-    ...connectedEdges.map((e) => (e.source === activeNode.id ? e.target : e.source)),
-  ]);
-
-  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    if ((e.target as HTMLElement).tagName === 'svg' || (e.target as HTMLElement).dataset.bg === 'true') {
-      setIsDraggingCanvas(true);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!isDraggingCanvas) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
-  };
-
-  const handleMouseUp = () => {
-    setIsDraggingCanvas(false);
-  };
-
-  const getNodeStroke = (cat: GraphNodeCategory, isSelected: boolean) => {
-    if (isSelected) return 'var(--mroya-primary)';
-    switch (cat) {
-      case 'agreement':
-        return 'var(--mroya-brand-honey)';
-      case 'person':
-        return 'var(--mroya-primary)';
-      case 'event':
-        return 'var(--mroya-input-outline)';
-      default:
-        return 'var(--mroya-divider)';
-    }
-  };
-
-  const categoryLabels: Record<GraphNodeCategory, string> = {
-    person: 'Person',
-    agreement: 'Agreement',
-    event: 'Commitment / Date',
-    organization: 'Organization',
-    preference: 'Preference / Rule',
-  };
-
-  return (
-    <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
-      {/* Header */}
-      <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label="Open navigation"
-            className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
-              Memory Map
-            </h1>
-            <span className="hidden sm:inline text-[var(--mroya-text-muted)]">·</span>
-            <span className="hidden sm:inline text-[13px] text-[var(--mroya-text-muted)] tabular-nums">
-              {nodes.length} nodes · {edges.length} relationships
-            </span>
-          </div>
-        </div>
-
-        {/* Search & Zoom Controls */}
-        <div className="flex items-center gap-2">
-          <div className="relative hidden sm:block w-60">
-            <Search className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter graph nodes..."
-              aria-label="Filter graph nodes"
-              className="w-full pl-8 pr-7 py-1.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)]"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--mroya-text-muted)]"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-0.5">
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.min(z + 0.15, 1.6))}
-              title="Zoom in"
-              aria-label="Zoom in"
-              className="w-7 h-7 inline-flex items-center justify-center rounded text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.max(z - 0.15, 0.65))}
-              title="Zoom out"
-              aria-label="Zoom out"
-              className="w-7 h-7 inline-flex items-center justify-center rounded text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setZoom(1);
-                setPan({ x: 0, y: 0 });
-              }}
-              title="Reset view"
-              aria-label="Reset view"
-              className="w-7 h-7 inline-flex items-center justify-center rounded text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Graph Workspace + Right Node Inspector */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        {/* Interactive Relationship Graph Canvas */}
-        <div className="flex-1 relative bg-[var(--mroya-bg)] overflow-hidden flex flex-col">
-          {/* Category Filter Bar */}
-          <div className="px-4 py-2.5 border-b border-[var(--mroya-divider)]/60 flex items-center gap-1.5 overflow-x-auto bg-[var(--mroya-bg)]/90 z-10">
-            {(
-              [
-                ['all', 'All entities'],
-                ['person', 'People'],
-                ['agreement', 'Agreements'],
-                ['event', 'Commitments'],
-                ['organization', 'Organizations'],
-                ['preference', 'Preferences'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setCategoryFilter(key)}
-                className={`px-3 py-1 rounded-[8px] text-[12px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  categoryFilter === key
-                    ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold'
-                    : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex-1 relative select-none">
-            <svg
-              viewBox="0 0 820 560"
-              className={`w-full h-full ${isDraggingCanvas ? 'cursor-grabbing' : 'cursor-grab'}`}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-            >
-              <rect
-                width="820"
-                height="560"
-                fill="transparent"
-                data-bg="true"
-              />
-              <g
-                transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
-                style={{ transformOrigin: '410px 280px' }}
-              >
-                {/* Relationship Edges */}
-                {edges.map((edge) => {
-                  const sourceNode = nodes.find((n) => n.id === edge.source);
-                  const targetNode = nodes.find((n) => n.id === edge.target);
-                  if (!sourceNode || !targetNode) return null;
-
-                  const isHighlighted =
-                    edge.source === activeNode.id || edge.target === activeNode.id;
-
-                  const midX = (sourceNode.x + targetNode.x) / 2;
-                  const midY = (sourceNode.y + targetNode.y) / 2;
-
-                  return (
-                    <g key={edge.id}>
-                      <line
-                        x1={sourceNode.x}
-                        y1={sourceNode.y}
-                        x2={targetNode.x}
-                        y2={targetNode.y}
-                        stroke={
-                          isHighlighted
-                            ? 'var(--mroya-brand-honey)'
-                            : 'var(--mroya-divider)'
-                        }
-                        strokeWidth={isHighlighted ? 2.2 : 1.2}
-                        strokeOpacity={isHighlighted ? 0.95 : 0.55}
-                      />
-                      {isHighlighted && (
-                        <text
-                          x={midX}
-                          y={midY - 6}
-                          textAnchor="middle"
-                          fill="var(--mroya-text-muted)"
-                          fontSize="10"
-                          fontWeight="500"
-                        >
-                          {edge.relationship}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-
-                {/* Graph Nodes (sized by connection count) */}
-                {nodes.map((node) => {
-                  const isSelected = node.id === activeNode.id;
-                  const isNeighbor = connectedNodeIds.has(node.id);
-                  const matchesSearch =
-                    !searchQuery.trim() ||
-                    node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    node.subtitle.toLowerCase().includes(searchQuery.toLowerCase());
-                  const matchesCat =
-                    categoryFilter === 'all' || node.category === categoryFilter;
-
-                  const dimmed = !matchesSearch || !matchesCat || (!isNeighbor && !searchQuery);
-                  const radius = 16 + node.connectionsCount * 2.4;
-
-                  return (
-                    <g
-                      key={node.id}
-                      transform={`translate(${node.x}, ${node.y})`}
-                      onClick={() => onSelectNode(node.id)}
-                      className="cursor-pointer transition-opacity"
-                      style={{ opacity: dimmed && !isSelected ? 0.42 : 1 }}
-                    >
-                      {/* Outer halo when selected */}
-                      {isSelected && (
-                        <circle
-                          r={radius + 7}
-                          fill="var(--mroya-brand-honey)"
-                          fillOpacity={0.18}
-                        />
-                      )}
-
-                      <circle
-                        r={radius}
-                        fill={
-                          isSelected
-                            ? 'var(--mroya-surface-active)'
-                            : 'var(--mroya-surface)'
-                        }
-                        stroke={getNodeStroke(node.category, isSelected)}
-                        strokeWidth={isSelected ? 2.8 : 1.8}
-                      />
-
-                      {/* Connection count badge inside node */}
-                      <text
-                        textAnchor="middle"
-                        dy="4"
-                        fill="var(--mroya-text)"
-                        fontSize="11"
-                        fontWeight="600"
-                      >
-                        {node.connectionsCount}
-                      </text>
-
-                      {/* Node Label below circle */}
-                      <text
-                        y={radius + 16}
-                        textAnchor="middle"
-                        fill="var(--mroya-text)"
-                        fontSize={isSelected ? '13' : '12'}
-                        fontWeight={isSelected ? '700' : '600'}
-                      >
-                        {node.label}
-                      </text>
-                      <text
-                        y={radius + 30}
-                        textAnchor="middle"
-                        fill="var(--mroya-text-muted)"
-                        fontSize="10.5"
-                      >
-                        {node.subtitle}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
-            </svg>
-
-            <div className="absolute bottom-3 left-4 text-[12px] text-[var(--mroya-text-muted)] pointer-events-none">
-              Click any node to inspect relationships · Drag canvas to pan
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side Panel: Selected Node Details */}
-        <aside className="w-full lg:w-[340px] border-t lg:border-t-0 lg:border-l border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)] p-4 sm:p-5 overflow-y-auto shrink-0 space-y-4">
-          <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-3">
-            <div className="text-[12px] text-[var(--mroya-text-muted)] flex items-center gap-1.5 tabular-nums">
-              <span>{categoryLabels[activeNode.category]}</span>
-              <span aria-hidden="true">·</span>
-              <span>{activeNode.connectionsCount} connections</span>
-            </div>
-
-            <div>
-              <h2 className="text-[17px] font-semibold text-[var(--mroya-text)]">
-                {activeNode.label}
-              </h2>
-              <div className="text-[13px] text-[var(--mroya-text-muted)]">
-                {activeNode.subtitle}
-              </div>
-            </div>
-
-            <p className="text-[13px] text-[var(--mroya-text)] leading-[20px]">
-              {activeNode.summary}
-            </p>
-
-            <div className="pt-2.5 border-t border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text-muted)] tabular-nums">
-              Source: {activeNode.source} · {activeNode.dateRecorded}
-            </div>
-
-            <div className="pt-2 flex flex-col gap-2">
-              {activeNode.linkedMemoryId && (
-                <button
-                  type="button"
-                  onClick={() => onOpenMemory(activeNode.linkedMemoryId!)}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer"
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                  <span>Open linked entry in Memory</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onAskAboutNode(activeNode)}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-colors cursor-pointer"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Ask Mroya in Chat</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Connected Nodes List */}
-          <div className="space-y-2">
-            <h3 className="text-[12px] font-semibold text-[var(--mroya-text-muted)]">
-              Direct relationships ({connectedEdges.length})
-            </h3>
-            <div className="space-y-1.5">
-              {connectedEdges.map((edge) => {
-                const otherId =
-                  edge.source === activeNode.id ? edge.target : edge.source;
-                const otherNode = nodes.find((n) => n.id === otherId);
-                if (!otherNode) return null;
-                return (
-                  <button
-                    key={edge.id}
-                    type="button"
-                    onClick={() => onSelectNode(otherNode.id)}
-                    className="w-full text-left p-2.5 rounded-[10px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
-                  >
-                    <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                      {otherNode.label}
-                    </div>
-                    <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                      {edge.relationship} · {otherNode.subtitle}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-};
+/** One Pixi scene for offline Studio and live Mroya; only typed props/actions cross this boundary. */
+export function MemoryMapView({nodes,edges,selectedNodeId,onSelectNode,onOpenMemory,onAskAboutNode,
+ isSidebarCollapsed,onExpandSidebar,onOpenMobileMenu,loading,error}:MemoryMapViewProps){
+ const host=useRef<HTMLDivElement>(null),renderer=useRef<Renderer|null>(null);
+ const [ready,setReady]=useState(false),[renderError,setRenderError]=useState<string|null>(null);
+ const selection=selectedNodeId;
+ const [mode,setMode]=useState<'global'|'local'>('global');
+ const [depth,setDepth]=useState(2),[hideSelf,setHideSelf]=useState(false),[showcase,setShowcase]=useState(false);
+ const [query,setQuery]=useState(''),[force,setForce]=useState({...defaults}),[count,setCount]=useState(0);
+ const [tooltip,setTooltip]=useState<{text:string;x:number;y:number}|null>(null);
+ const [download,setDownload]=useState<{url:string;name:string}|null>(null);
+ const [hint,setHint]=useState('Drag to explore · Scroll to zoom · Select to inspect');
+ const search=useRef<HTMLInputElement>(null);
+ const graph=useMemo(()=>renderGraph(nodes,edges),[nodes,edges]);
+ const display=useMemo(()=>presentationGraph(graph,hideSelf),[graph,hideSelf]);
+ const active=display.nodes.find(n=>n.id===selection);
+ const callbacks=useRef({onSelectNode});callbacks.current={onSelectNode};
+ // Dataset/filter reconciliation can emit null inside Pixi. Only user actions clear
+ // the controlled ID; an absent node may still be arriving (or be truncated/hidden).
+ const synchronizing=useRef(false);
+ const updateRenderer=(update:(instance:Renderer)=>void)=>{
+  if(!renderer.current)return;
+  synchronizing.current=true;
+  try{update(renderer.current);}finally{synchronizing.current=false;}
+ };
+ useEffect(()=>{
+  let cancelled=false,instance:Renderer|null=null;
+  createMemoryMapRenderer(host.current!,{
+   onSelect:id=>{if(cancelled||synchronizing.current)return;callbacks.current.onSelectNode(id);if(id===null)setMode('global');},
+   onTooltip:v=>{if(!cancelled)setTooltip(v);},onCount:n=>{if(!cancelled)setCount(n);},
+   onExport:v=>{if(!cancelled)setDownload(v);},onHint:v=>{if(!cancelled)setHint(v);},
+  }).then(value=>{instance=value;if(cancelled){value.destroy();return;}renderer.current=value;setReady(true);})
+   .catch(()=>{if(!cancelled)setRenderError('The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.');});
+  return()=>{cancelled=true;instance?.destroy();renderer.current=null;};
+ },[]);
+ useEffect(()=>{if(ready&&!loading)updateRenderer(r=>r.setGraph(graph));},[ready,graph,loading]);
+ useEffect(()=>{if(ready)updateRenderer(r=>r.setOptions({mode,depth,hideSelf,showcase}));},[ready,graph,mode,depth,hideSelf,showcase]);
+ useEffect(()=>{if(ready&&!loading)updateRenderer(r=>r.select(active?.id??null));},[ready,display,selection,loading,mode,depth]);
+ useEffect(()=>{if(ready)renderer.current?.setForce(force);},[ready,force]);
+ const choose=(id:string,focus=true)=>{onSelectNode(id);updateRenderer(r=>r.select(id,focus));setQuery('');};
+ const close=()=>{onSelectNode(null);setMode('global');};
+ const stateMessage=loading?'Connecting your memories…':(error&&!nodes.length?error:null)||renderError||(!nodes.length?'Your map will grow as Mroya remembers more about your world.':!ready?'Preparing your memory map…':!display.nodes.length?'No nodes remain with Hide Self enabled.':null);
+ const matches=query.trim()?display.nodes.filter(n=>n.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).slice(0,8):[];
+ const facts=active?display.edges.filter(e=>e.source===active.id&&e.type==='memory'):[];
+ const outgoing=active?display.edges.filter(e=>e.source===active.id&&e.type==='relation'):[];
+ const incoming=active?display.edges.filter(e=>e.target===active.id&&e.type==='relation'):[];
+ const section=(title:string,relations:typeof display.edges,inbound=false)=>relations.length>0&&<section className="map-detail-section"><h3>{title}</h3>{relations.map(e=>{
+  const target=display.nodes.find(n=>n.id===(inbound?e.source:e.target));
+  return <div className="map-detail-row" key={e.id}>{target&&<button type="button" className="map-detail-link" onClick={()=>choose(target.id)}>{target.label}</button>}<small>{relation(e)}</small></div>;
+ })}</section>;
+ return <section className={`mroya-memory-map${showcase?' map-showcase':''}`} aria-label="Memory Map" onKeyDown={e=>{
+  if(e.key==='Escape'){if(showcase)setShowcase(false);else{setQuery('');close();}}
+  if(e.key==='/'&&!(e.target instanceof HTMLInputElement)){e.preventDefault();search.current?.focus();}
+ }}>
+  <header className="map-heading"><div className="map-heading-title">
+   <button type="button" className="map-nav-button map-mobile-menu" aria-label="Open navigation" onClick={onOpenMobileMenu}><Menu size={20}/></button>
+   {isSidebarCollapsed&&<button type="button" className="map-nav-button" aria-label="Expand sidebar" onClick={onExpandSidebar}><PanelLeftOpen size={20}/></button>}
+   <div><p className="map-eyebrow">MROYA <span>/</span> MEMORY</p><h1>Memory Map<span className="map-heading-dot">.</span></h1><p>The people, places and details that make up your world.</p></div>
+  </div><button type="button" className="map-primary-button" onClick={()=>setShowcase(true)}>Showcase <span>↗</span></button></header>
+  <div className="map-workspace">
+   <div ref={host} className="map-canvas" role="img" aria-label="Interactive graph of your personal memories. Use search and Memory for non-visual navigation."/>
+   <div className="map-halo map-halo-one" aria-hidden="true"/><div className="map-halo map-halo-two" aria-hidden="true"/>
+   <div className="map-toolbar" aria-label="Map controls">
+    <div className="map-toolbar-line"><span className="map-live-dot"/><span>YOUR UNIVERSE</span><span className="map-toolbar-divider"/><span className="map-visible-count">{count} nodes</span></div>
+    <div className="map-mode" role="group" aria-label="Graph mode"><button type="button" className={mode==='global'?'active':''} aria-pressed={mode==='global'} onClick={()=>setMode('global')}>Global</button><button type="button" className={mode==='local'?'active':''} aria-pressed={mode==='local'} disabled={!display.nodes.length} onClick={()=>{
+     if(!active){const first=display.nodes.find(n=>n.type==='entity'&&n.degree>0)||display.nodes[0];if(first)choose(first.id,false);}setMode('local');
+    }}>Local</button><select aria-label="Local graph depth" value={depth} onChange={e=>setDepth(Number(e.target.value))}><option value={1}>1 hop</option><option value={2}>2 hops</option></select></div>
+    <label className="map-search-wrap"><span className="map-search-icon">⌕</span><input ref={search} type="search" placeholder="Find a person, place, memory…" autoComplete="off" maxLength={100} aria-label="Search map nodes" value={query} onChange={e=>setQuery(e.target.value)}/><kbd>/</kbd></label>
+    {query.trim()&&<div className="map-search-results">{matches.length?matches.map(n=><button type="button" key={n.id} onClick={()=>choose(n.id)}>{n.label}<small>{n.kind||n.predicate}</small></button>):<p>No matching nodes</p>}</div>}
+    <details className="map-force"><summary>Graph settings <span>⌄</span></summary>
+     {graph.nodes.some(n=>n.is_self)&&<label className="map-hide-self"><span>Hide Self <small>Experimental</small></span><input type="checkbox" checked={hideSelf} onChange={e=>setHideSelf(e.target.checked)}/></label>}
+     {([['repulsion','Repulsion',80,500],['linkDistance','Link distance',60,220],['center','Center pull',0,100]] as const).map(([key,label,min,max])=><label key={key}>{label}<input aria-label={label} type="range" min={min} max={max} value={force[key]} onChange={e=>setForce({...force,[key]:Number(e.target.value)})}/></label>)}
+     <button type="button" onClick={()=>setForce({...defaults})}>Reset defaults</button>
+    </details>
+   </div>
+   <div className="map-right-controls"><label className="map-export-label">Export image <select aria-label="Export map image resolution" value="" onChange={e=>{if(e.target.value){const [w,h]=e.target.value.split('x').map(Number);renderer.current?.exportImage(w,h);}}}><option value="">Choose size…</option><option value="1920x1080">Full HD · 1920 × 1080</option><option value="2560x1440">QHD · 2560 × 1440</option><option value="3840x2160">4K · 3840 × 2160</option><option value="2160x2160">Square · 2160 × 2160</option></select></label></div>
+   {download&&<a className="map-download-link" href={download.url} download={download.name}>Download PNG ↓</a>}
+   {active&&<aside className="map-sidebar" aria-label="Selected memory detail"><button className="map-sidebar-close" type="button" aria-label="Close detail" onClick={close}>×</button>
+    <p className="map-detail-eyebrow">{active.type==='entity'?'Entity · current memory':'Memory · current claim'}</p><h2>{active.type==='entity'?active.label:relation(active)||active.label}</h2><p className="map-detail-kind">{active.type==='entity'?active.kind:active.literal_type}</p>
+    {active.type==='memory'&&<><p className="map-detail-main-value">{active.label}</p>{active.subject&&display.nodes.some(n=>n.id===active.subject)&&<section className="map-detail-section"><h3>About</h3><button className="map-detail-link" onClick={()=>choose(active.subject!)}>{display.nodes.find(n=>n.id===active.subject)?.label}</button></section>}</>}
+    {(active.valid_from||active.valid_to||active.learned_at||active.evidence_count!==undefined)&&<section className="map-detail-section"><h3>Context</h3>{(active.valid_from||active.valid_to)&&<p className="map-detail-note">Effective: {active.valid_from||'…'} — {active.valid_to||'…'}</p>}{active.learned_at&&<p className="map-detail-note">Learned: {active.learned_at}</p>}{active.evidence_count!==undefined&&<p className="map-detail-note">{active.evidence_count} sources</p>}</section>}
+    <div className="map-detail-actions">{active.linkedMemoryId&&<button type="button" onClick={()=>onOpenMemory(active.linkedMemoryId!)}>Open Memory</button>}<button type="button" onClick={()=>onAskAboutNode(active)}>Ask Mroya in Chat</button><button type="button" onClick={()=>renderer.current?.select(active.id,true)}>Center node</button></div>
+    {section('Current facts',facts)}{section('Connections from',outgoing)}{section('Connected by',incoming,true)}
+    {active.type==='entity'&&<p className="map-detail-note">{active.memory_count} memories · {active.degree} connections</p>}
+   </aside>}
+   <div className="map-bottom-left"><div><strong>{display.stats.entities} entities · {display.stats.memories} memories · {display.stats.connections} connections</strong><span>{hint}</span></div></div>
+   <div className="map-bottom-right"><button type="button" aria-label="Zoom in" onClick={()=>renderer.current?.zoom(1.2)}>+</button><button type="button" aria-label="Zoom out" onClick={()=>renderer.current?.zoom(.82)}>−</button><button type="button" aria-label="Fit graph to view" onClick={()=>renderer.current?.fit()}>⤢</button></div>
+   {tooltip&&<div className="map-tooltip" style={{left:tooltip.x,top:tooltip.y}}>{tooltip.text}</div>}
+   {stateMessage&&<div className="map-state" role="status">{(loading||(!ready&&!renderError))&&<span className="map-loader"/>}<p>{stateMessage}</p></div>}
+   <div className="map-showcase-brand" aria-hidden="true"><div><strong>My Memory Map</strong><small>MROYA · {display.stats.entities} ENTITIES · {display.stats.memories} MEMORIES</small></div></div>
+   <button className="map-showcase-export" type="button" onClick={()=>renderer.current?.exportImage(3840,2160)}>Export 4K ↗</button><button className="map-showcase-exit" type="button" onClick={()=>setShowcase(false)}>Exit showcase <span>×</span></button>
+  </div>
+ </section>;
+}

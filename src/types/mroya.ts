@@ -158,12 +158,16 @@ export interface CalendarEvent {
 export type GraphNodeCategory = 'person' | 'agreement' | 'event' | 'organization' | 'preference';
 
 export interface GraphNode {
+  type?: 'entity'|'memory'; kind?: string; is_self?: boolean; degree?: number; memory_count?: number;
+  subject?: string; statement_id?: string; predicate?: string; predicate_key?: string; polarity?: string;
+  literal_type?: string; valid_from?: string|null; valid_to?: string|null; learned_at?: string|null;
+  evidence_count?: number; resolution_state?: string|null;
   id: string;
   label: string;
   subtitle: string;
   category: GraphNodeCategory;
-  x: number;
-  y: number;
+  x?: number;
+  y?: number;
   connectionsCount: number;
   summary: string;
   dateRecorded: string;
@@ -172,6 +176,8 @@ export interface GraphNode {
 }
 
 export interface GraphEdge {
+  type?: 'relation'|'memory'; statement_id?: string; predicate?: string; predicate_key?: string;
+  polarity?: string; valid_from?: string|null; valid_to?: string|null; learned_at?: string|null; evidence_count?: number;
   id: string;
   source: string;
   target: string;

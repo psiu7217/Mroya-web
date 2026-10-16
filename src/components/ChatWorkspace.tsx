@@ -650,7 +650,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   return (
                     <div key={msg.id} className="flex flex-col items-end">
                       <div className="max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
-                        {msg.content}
+                        <AssistantMarkdown content={msg.content} variant="user" />
                       </div>
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                         {msg.timestamp}

@@ -111,7 +111,7 @@ select:focus-visible {
 @keyframes guest-welcome-in {from {opacity:0;transform:translateY(4px)} to {opacity:1;transform:translateY(0)}}
 @media (prefers-reduced-motion: reduce) {.guest-dot,.guest-welcome {animation:none}}
 
-/* Assistant messages only; raw content remains in the chat model. */
+/* Shared message formatting; raw content remains in the chat model. */
 .mroya-markdown { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .mroya-markdown > * + * { margin-top: .8em; }
 .mroya-markdown :where(h1,h2,h3,h4,h5,h6) { font-weight: 650; line-height: 1.35; margin-top: 1em; }
@@ -140,3 +140,7 @@ select:focus-visible {
 .mroya-markdown th { font-weight: 650; background: var(--mroya-surface-muted); }
 .mroya-markdown hr { border: 0; border-top: 1px solid var(--mroya-divider); }
 .mroya-markdown-image { color: var(--mroya-text-muted); }
+.mroya-markdown-user > * + * { margin-top: .6em; }
+.mroya-markdown-user :where(h1,h2,h3,h4,h5,h6) { margin-top: .8em; }
+.mroya-markdown-user > :first-child { margin-top: 0; }
+.mroya-markdown-user pre { padding: .65em .8em; }

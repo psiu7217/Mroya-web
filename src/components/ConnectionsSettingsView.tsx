@@ -54,6 +54,56 @@ const PLANNED_CONNECTIONS: ServiceConnection[] = [
   {id:'telegram',name:'Telegram',category:'Personal text chat',description:'Chat privately with Mroya in Telegram using your existing account.',connected:false,capabilities:['Personal text chat with Mroya','Shared conversation history between Web and Telegram','Shared personal memory','Telegram replies only to messages sent in Telegram']},
   {id:'gmail',name:'Google Mail (Context Forwarding)',category:'Email & Proposals',description:'Email connections are not available yet.',connected:false,capabilities:[]},
 ];
+const PREVIEW_REASONING_TIMELINE = [
+  {
+    type: 'reasoning' as const,
+    text: 'Пользователь сообщил информацию о друге. Нужно проверить, есть ли этот человек в существующей памяти.',
+  },
+  {
+    type: 'tool' as const,
+    activity: {
+      id: 'preview-tool-search',
+      name: 'memory_search',
+      label: 'Memory Search',
+      description: 'Поиск совпадений по запросу «Сашка» в категории контактов',
+      status: 'success' as const,
+      duration: '140ms',
+      input: { query: 'Сашка', category: 'People & Clients', limit: 5 },
+      output: { found: false, matches: [], total: 0 },
+    },
+  },
+  {
+    type: 'reasoning' as const,
+    text: 'Поиск не обнаружил подходящей записи. Можно перейти к созданию нового факта.',
+  },
+  {
+    type: 'tool' as const,
+    activity: {
+      id: 'preview-tool-create',
+      name: 'create_memory',
+      label: 'Create Memory Fact',
+      description: 'Сохранение факта «друг Сашка» в личную память',
+      status: 'success' as const,
+      duration: '210ms',
+      input: {
+        category: 'People & Clients',
+        subject: 'Сашка',
+        predicate: 'друг пользователя',
+        source: 'chat',
+      },
+      output: {
+        id: 'mem_20261015_01',
+        status: 'created',
+        created_at: '2026-10-15T12:00:01Z',
+      },
+    },
+  },
+  {
+    type: 'reasoning' as const,
+    text: 'Теперь необходимо сохранить сведения и дождаться подтверждения.',
+  },
+];
+
 export interface ConnectionsSettingsViewProps {
   live?: boolean;
   telegram?: TelegramPresentation;

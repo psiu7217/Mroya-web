@@ -38,7 +38,7 @@ function Payload({label,payload}:{label:string;payload?:ToolPayload}){
   </div>
   {payload?<pre className="max-h-[220px] max-w-full overflow-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-[6px] bg-[var(--mroya-surface)] p-2.5 font-mono text-[11.5px] leading-[18px] text-[var(--mroya-text-muted)]">{text.slice(0,limit)}</pre>
    :<p className="text-[11.5px] text-[var(--mroya-text-muted)]">Data unavailable</p>}
-  {(payload?.truncated||truncated)&&<p className="text-[11px] text-[var(--mroya-text-muted)]">{payload?.truncated?'Backend data is truncated.':'Display truncated; Copy includes all available text.'}</p>}
+  {(payload?.truncated||truncated)&&<p className="text-[11px] text-[var(--mroya-text-muted)]">{payload?.truncated?'Some details are shortened or unavailable.':'Display truncated; Copy includes all available text.'}</p>}
   {state==='error'&&<p role="alert" className="text-[11px] text-[var(--mroya-error)]">Could not copy. Try again.</p>}
  </section>;
 }
@@ -62,6 +62,7 @@ export function ToolActivityBlock({activity,defaultExpanded=false}:{activity:Too
   {expanded&&<div className="min-w-0 space-y-3 px-3.5 pb-3.5 pt-2.5 border-t border-[var(--mroya-divider)]/60">
    <Payload label="Input" payload={activity.input}/>
    <Payload label="Output" payload={activity.output}/>
+   {activity.truncated&&<p className="text-[11px] text-[var(--mroya-text-muted)]">Some details are shortened or unavailable.</p>}
   </div>}
  </div>;
 }

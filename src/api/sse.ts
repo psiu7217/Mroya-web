@@ -1,8 +1,10 @@
 import type { ChatStreamEvent } from '../types/api.ts';
+import {readToolActivity,ToolActivityLifecycle} from './toolActivity.ts';
 import {ApiError, StreamInterruptedError} from './errors.ts';
 export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(event:ChatStreamEvent)=>void):Promise<void> {
   const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});
   let buffer='',terminal=false,sequence=0,turnNumber=0;
+  const tools=new ToolActivityLifecycle();
   function frame(text:string) {
     let event='message';const data:string[]=[];
     for(const line of text.split(/\r?\n/)) {
@@ -25,18 +27,21 @@ export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(ev
           throw new ApiError(502,'invalid_stream','Invalid reasoning event');
         turnNumber=payload.turn_number as number;
       }else{
-        const activity=payload.activity as Record<string,unknown>|null;
-        if(Object.keys(payload).some(key=>key!=='sequence'&&key!=='activity'))
-          throw new ApiError(502,'invalid_stream','Unsupported tool activity schema');
-        if(!activity||typeof activity!=='object'||Array.isArray(activity)||!['kind','status','title'].every(key=>typeof activity[key]==='string')
-          ||Object.keys(activity).some(key=>!['kind','status','title'].includes(key))
-          ||!['success','failure','neutral'].includes(activity.status as string)||!(activity.kind as string).trim()||!(activity.title as string).trim())
-          throw new ApiError(502,'invalid_stream','Invalid tool activity');
+        const {activity}=readToolActivity(payload);
+        if('call_id' in activity){
+          // Completion may update an earlier card; only new calls advance Provider order.
+          if(activity.phase==='started'||activity.status==='not_executed'){
+            if(activity.turn_number<turnNumber)throw new ApiError(502,'invalid_stream','Invalid tool provider turn');
+            turnNumber=activity.turn_number;
+          }
+          tools.accept(activity);
+        }
       }
     }
     if(event==='delta'&&typeof payload.text!=='string')throw new ApiError(502,'invalid_stream','Invalid answer event');
     const item={event,data:value} as ChatStreamEvent;
     if(terminal)throw new ApiError(502,'invalid_stream','Events after terminal frame');
+    if(event==='done')tools.complete();
     onEvent(item);
     if(event==='error') { terminal=true;throw new ApiError(502,'chat_failed',typeof item.data.message==='string'?item.data.message:'Chat failed'); }
     if(event==='done')terminal=true;

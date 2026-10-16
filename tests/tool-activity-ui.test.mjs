@@ -22,7 +22,7 @@ test('internal presentation slots render escaped JSON/text and explicit truncati
  const input={format:'json',text:'{"value":"<script>synthetic</script>"}'},output={format:'text',text:'x'.repeat(13000),truncated:true};
  const html=markup({activity:{...tool,input,output,durationMs:128},defaultExpanded:true});
  assert.match(html,/128 ms/);assert.match(html,/Copy tool input/);assert.match(html,/Copy tool output/);
- assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);assert.match(html,/Backend data is truncated/);
+ assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);assert.match(html,/Some details are shortened or unavailable/);
  assert.equal(toolPayloadText(input),JSON.stringify(JSON.parse(input.text),null,2));
  assert.match(markup({activity:{...tool,output:{format:'text',text:'x'.repeat(13000)}},defaultExpanded:true}),/Display truncated/);
 });
@@ -54,4 +54,16 @@ test('Design stays offline and unrelated components/styles have no changes',asyn
  for(const path of ['src/components/ModelReasoningBlock.tsx','src/components/Sidebar.tsx','src/components/ConnectionsSettingsView.tsx','src/index.css']){
   assert.equal(fs.readFileSync(path,'utf8'),execFileSync('git',['show','981a5ab:'+path],{encoding:'utf8'}));
  }
+});
+
+test('expanded null projections have a neutral omission notice, no Copy, and real mapped statuses/duration',()=>{
+ const unavailable=markup({activity:{...tool,status:'skipped',truncated:true},defaultExpanded:true});
+ assert.match(unavailable,/Not executed/);assert.match(unavailable,/Some details are shortened or unavailable/);
+ assert.doesNotMatch(unavailable,/Copy|Running|\d+ ms/);
+ const running=markup({activity:{...tool,status:'running',phase:'started'}});
+ assert.match(running,/Running/);assert.match(running,/animate-spin/);assert.doesNotMatch(running,/Success/);
+ const unknown=markup({activity:{...tool,status:'interrupted',phase:'started'}});
+ assert.match(unknown,/Interrupted/);assert.doesNotMatch(unknown,/animate-spin|Success|Failed/);
+ const failed=markup({activity:{...tool,title:'Memory change not confirmed',status:'failure',durationMs:0}});
+ assert.match(failed,/Memory change not confirmed/);assert.match(failed,/Failed/);assert.match(failed,/0 ms/);assert.doesNotMatch(failed,/Success/);
 });

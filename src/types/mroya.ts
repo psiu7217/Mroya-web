@@ -77,11 +77,12 @@ export interface ChatAction {
   };
 }
 
-// Presentation-only timeline. Optional details are UI slots, not an unapproved API DTO.
+// Controller-local presentation. Server fields originate only in validated SSE projections.
 export interface ToolPayload {text:string;format:'text'|'json';truncated?:boolean}
 export interface ToolTimelineEntry {
   kind:'tool';id:string;sequence:number;toolKind:string;title:string;
   status:'success'|'failure'|'neutral'|'running'|'skipped'|'interrupted'|'unknown';
+  callId?:string;toolName?:string;turnNumber?:number;phase?:'started'|'finished';truncated?:boolean;
   description?:string;input?:ToolPayload;output?:ToolPayload;durationMs?:number;
 }
 export interface ReasoningTimelineEntry {kind:'reasoning';id:string;sequence:number;turnNumber:number;text:string}

@@ -1,8 +1,12 @@
 import type {WorkspaceSource} from '../types/source.ts';
 import type {ChatTimelineEntry} from '../types/mroya.ts';
-import type {ToolActivityEvent,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
+import type {HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
 import {readReportContext} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
+import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
+function interruptedTools(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
+ return timeline.filter(entry=>entry.kind==='tool').map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
+}
 export interface LiveState {
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
  history:HistoryResponse;memories:MemoriesResponse;map:MemoryMapResponse;
@@ -38,7 +42,7 @@ export class LiveWorkspaceController {
      const candidate=readReportContext(message.report_context);
      return message.role==='assistant'&&message.status==='failed'&&candidate?.turn_id===context.turn_id&&candidate.request_trace_id===context.request_trace_id;
     });
-    if(candidates.length===1)this.timelineByMessage.set(candidates[0].id,pending.timeline.filter(entry=>entry.kind==='tool'));
+    if(candidates.length===1)this.timelineByMessage.set(candidates[0].id,pending.timeline.filter(entry=>entry.kind==='tool'&&entry.phase!=='started'));
    }
   }
   // Ignore any server-supplied reasoning: only local SSE text for a bound message is eligible.
@@ -77,21 +81,37 @@ export class LiveWorkspaceController {
   const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
   let answer='',reasoning='',failedActivity=false,completed=false;
-  let timeline:ChatTimelineEntry[]=[];let previousEvent='';
+  let timeline:ChatTimelineEntry[]=[];let previousEvent='';const toolLifecycle=new ToolActivityLifecycle();
   try {
    await this.source.send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
     const adjacentReasoning=previousEvent==='reasoning_delta';previousEvent=event.event;
     if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
      failedActivity=true;
      const context=readReportContext(event.data.report_context);
-     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(timeline.length?{timeline:timeline.filter(entry=>entry.kind==='tool')}:{ }),created_at:now,completed_at:null,
+     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(timeline.length?{timeline:interruptedTools(timeline)}:{ }),created_at:now,completed_at:null,
       ...(context&&(!this.turnId||context.turn_id===this.turnId)?{report_context:context}:{})}]}});
      return;
     }
     if(event.event==='tool_activity'){
-     const data=event.data as unknown as ToolActivityEvent;
-     // sequence is a local React key, not a fabricated Backend call_id.
-     timeline=[...timeline,{kind:'tool',id:'tool:'+data.sequence,sequence:data.sequence,toolKind:data.activity.kind,title:data.activity.title,status:data.activity.status}];
+     const data=readToolActivity(event.data),activity=data.activity;
+     if('call_id' in activity){
+      toolLifecycle.accept(activity);
+      const index=timeline.findIndex(entry=>entry.kind==='tool'&&entry.callId===activity.call_id);
+      const previous=index>=0&&timeline[index].kind==='tool'?timeline[index]:undefined;
+      const entry:ChatTimelineEntry={
+       kind:'tool',id:previous?.id??'tool:'+activity.call_id,sequence:previous?.sequence??data.sequence,
+       callId:activity.call_id,toolName:activity.tool_name,turnNumber:activity.turn_number,phase:activity.phase,
+       toolKind:activity.kind,title:activity.title,description:activity.tool_name,
+       status:activity.status==='not_executed'?'skipped':activity.status,
+       input:activity.input===null?previous?.input:{format:'json',text:JSON.stringify(activity.input,null,2)},
+       output:activity.output===null?undefined:{format:'json',text:JSON.stringify(activity.output,null,2)},
+       durationMs:activity.duration_ms??undefined,truncated:activity.truncated||previous?.truncated===true,
+      };
+      if(index<0)timeline=[...timeline,entry];else timeline=timeline.map((value,i)=>i===index?entry:value);
+     }else{
+      // Legacy sequence is a local React key, never a fabricated Backend call_id.
+      timeline=[...timeline,{kind:'tool',id:'tool:'+data.sequence,sequence:data.sequence,toolKind:activity.kind,title:activity.title,status:activity.status}];
+     }
     }
     if(event.event==='reasoning_delta'&&typeof event.data.text==='string'){
      reasoning+=event.data.text;
@@ -101,6 +121,7 @@ export class LiveWorkspaceController {
      else timeline=[...timeline,{kind:'reasoning',id:'reasoning:'+sequence,sequence,turnNumber,text:event.data.text}];
     }
     if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
+    if(event.event==='done')toolLifecycle.complete();
     if(event.event==='done'||event.event==='replay')completed=true;
     if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{})}]}});
    },{signal:this.abort.signal,onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
@@ -111,7 +132,7 @@ export class LiveWorkspaceController {
   }catch(error){
    if(epoch!==this.epoch)return;
    // Provisional reasoning must not keep a failed/interrupted reply in Thinking/success state.
-   this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',reasoning:undefined,timeline:message.timeline?.filter(entry=>entry.kind==='tool')}:message)}});
+   this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',reasoning:undefined,timeline:message.timeline?interruptedTools(message.timeline):undefined}:message)}});
    this.failure(error);if(epoch!==this.epoch)return;
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));

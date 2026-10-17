@@ -110,3 +110,54 @@ test('grouping uses profile timezone across midnight/month/year and retains serv
  const rows=[{...summary(a,''),updated_at:'2027-01-01T00:30:00Z'},{...summary(b,'B'),updated_at:'2026-12-28T12:00:00Z'},{...summary(c,'C'),updated_at:'2025-11-01T12:00:00Z'}];
  const view=conversationListPresentation(rows,'America/New_York',new Date('2027-01-01T01:00:00Z'));assert.deepEqual(view.map(v=>v.group),['Today','Previous 7 Days','November 2025']);assert.equal(view[0].title,'New chat');assert.deepEqual(view.map(v=>v.id),[a,b,c]);
 });
+
+test('lost DELETE response closes only after fresh absence confirmation; failed GET stays uncertain without another DELETE',async()=>{
+ const s=server(),ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();
+ const remove=s.source.deleteConversation!;
+ s.source.deleteConversation=async(id,signal)=>{await remove(id,signal);throw new TypeError('Response lost');};
+ // A replacement history error must not conceal the confirmed deletion.
+ const history=s.source.conversationHistory!;
+ s.source.conversationHistory=async(id,before,signal)=>{if(id===b)throw new ApiError(503,'unavailable','History unavailable');return history(id,before,signal);};
+ assert.equal(await ctrl.deleteConversation(a),true);assert.equal(ctrl.snapshot().activeConversationId,b);
+ assert.deepEqual(ctrl.snapshot().conversations.map(row=>row.id),[b]);assert.equal(ctrl.snapshot().error,'History unavailable');
+ const list=s.source.conversations!;
+ s.source.conversations=async()=>{throw new TypeError('GET lost');};
+ assert.equal(await ctrl.deleteConversation(b),false);assert.equal(ctrl.snapshot().operationUncertain,true);
+ assert.equal(s.calls.filter(call=>call.kind==='delete').length,2);
+ assert.equal(await ctrl.deleteConversation(b),false);assert.equal(s.calls.filter(call=>call.kind==='delete').length,2);
+ s.source.conversations=list;await ctrl.recover();assert.deepEqual(ctrl.snapshot().conversations,[]);assert.equal(ctrl.snapshot().activeConversationId,null);
+ assert.equal(s.calls.filter(call=>call.kind==='delete').length,2);ctrl.stop();
+});
+test('lost PATCH response uses confirmed server metadata, never a guessed title or automatic PATCH retry',async()=>{
+ const s=server(),ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();const rename=s.source.renameConversation!;let patches=0;
+ s.source.renameConversation=async(id,title,signal)=>{patches++;await rename(id,title,signal);throw new TypeError('Response lost');};
+ assert.equal(await ctrl.renameConversation(a,'  Confirmed title  '),true);
+ assert.equal(ctrl.snapshot().conversations.find(row=>row.id===a)!.title,'Confirmed title');assert.equal(ctrl.snapshot().error,null);
+ s.source.renameConversation=async(id,_title,signal)=>{patches++;await rename(id,'Different server title',signal);throw new TypeError('Unknown outcome');};
+ assert.equal(await ctrl.renameConversation(a,'Unconfirmed draft'),false);
+ assert.equal(ctrl.snapshot().conversations.find(row=>row.id===a)!.title,'Different server title');assert.equal(patches,2);
+ for(const status of [403,409]){
+  const reads=s.calls.filter(call=>call.kind==='list').length;
+  s.source.renameConversation=async()=>{patches++;throw new ApiError(status,'rejected','Rejected');};
+  assert.equal(await ctrl.renameConversation(a,'Rejected title'),false);
+  assert.equal(s.calls.filter(call=>call.kind==='list').length,reads);
+  assert.equal(ctrl.snapshot().conversations.find(row=>row.id===a)!.title,'Different server title');
+ }
+ assert.equal(patches,4);ctrl.stop();
+});
+test('offset traversal refreshes the first page once, preferring fresh metadata/order and deduplicating UUIDs without loading all histories',async()=>{
+ const s=server(),offsets:number[]=[],fresh={...summary(b,'Updated B'),updated_at:'2026-10-19T00:00:00Z'};
+ s.source.conversations=async(offset=0)=>{
+  offsets.push(offset);
+  if(offset>0)return {conversations:[summary(a),summary(c)],next_offset:null};
+  if(offsets.length===1)return {conversations:[summary(a),summary(b,'Stale B')],next_offset:2};
+  return {conversations:[fresh,summary(a)],next_offset:2};
+ };
+ const ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();
+ assert.deepEqual(offsets,[0,2,0]);assert.deepEqual(ctrl.snapshot().conversations,[fresh,summary(a),summary(c)]);
+ assert.deepEqual(s.calls.filter(call=>call.kind==='history').map(call=>call.id),[b]);
+ // A refreshed head that is now a complete list replaces stale tail entries.
+ offsets.length=0;
+ s.source.conversations=async(offset=0)=>{offsets.push(offset);return offsets.length===3?{conversations:[],next_offset:null}:offset?{conversations:[summary(c)],next_offset:null}:{conversations:[summary(a)],next_offset:1};};
+ await ctrl.load();assert.deepEqual(offsets,[0,1,0]);assert.deepEqual(ctrl.snapshot().conversations,[]);assert.equal(ctrl.snapshot().activeConversationId,null);ctrl.stop();
+});

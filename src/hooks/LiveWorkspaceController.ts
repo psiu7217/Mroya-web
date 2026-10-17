@@ -95,7 +95,7 @@ export class LiveWorkspaceController {
  }
  private async refreshConversations(epoch=this.epoch){
   if(!this.source.conversations)return;
-  const all:ConversationSummary[]=[];let offset=0;
+  let all:ConversationSummary[]=[];let offset=0;
   while(true){
    const page=await this.source.conversations(offset,this.abort.signal);if(epoch!==this.epoch)return;
    for(const item of page.conversations)if(!all.some(c=>c.id===item.id))all.push(item);
@@ -103,12 +103,20 @@ export class LiveWorkspaceController {
    if(page.next_offset<=offset||page.next_offset>100000)throw new ApiError(502,'invalid_response','Invalid conversation cursor');
    offset=page.next_offset;
   }
+  // Offset pages can shift during concurrent activity. Refresh the head once,
+  // keeping its current metadata/order ahead of the deduplicated older pages.
+  if(offset>0){
+   const first=await this.source.conversations(0,this.abort.signal);if(epoch!==this.epoch)return;
+   const head=first.conversations.filter((item,index,items)=>items.findIndex(c=>c.id===item.id)===index);
+   all=first.next_offset===null?head:[...head,...all.filter(item=>!head.some(c=>c.id===item.id))];
+  }
   this.set({conversations:all,operationUncertain:false});
   if(!this.state.activeConversationId||!all.some(c=>c.id===this.state.activeConversationId)){
    this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();
    this.turnId=null;this.replyId=null;this.sentContent='';
    const id=all[0]?.id??null;this.set({activeConversationId:id,history:{conversation_id:id??'',messages:[],next_before:null}});
   }
+  return all;
  }
  private chatLocked(){
   if(this.state.busy||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain){this.set({error:'Wait for the current operation or check server status before managing chats.'});return true;}return false;
@@ -122,8 +130,17 @@ export class LiveWorkspaceController {
   finally{if(epoch===this.epoch)this.set({loading:false});}
  }
  private async reconcileMissing(epoch:number){
-  try{await this.refreshConversations(epoch);if(epoch!==this.epoch)return;const history=await this.readHistory();if(epoch===this.epoch)this.set({history:this.historyWithReasoning(history)});}
-  catch(error){if(epoch===this.epoch)this.failure(error);}
+  let conversations:ConversationSummary[]|undefined;
+  try{
+   conversations=await this.refreshConversations(epoch);if(epoch!==this.epoch)return;
+   const history=await this.readHistory();if(epoch!==this.epoch)return;
+   this.set({history:this.historyWithReasoning(history)});
+   return conversations?{conversations,historyLoaded:true}:undefined;
+  }catch(error){
+   if(epoch!==this.epoch)return;this.failure(error);
+   // A history error does not invalidate a successfully reconciled chat list.
+   return epoch===this.epoch&&conversations?{conversations,historyLoaded:false}:undefined;
+  }
  }
  createConversation=()=>this.manageConversation('create');
  renameConversation=(id:string,title:string)=>this.manageConversation('rename',id,title);
@@ -149,8 +166,13 @@ export class LiveWorkspaceController {
    // Never replay writes automatically. Resolve the server list before another deliberate write.
    if(!(error instanceof ApiError)||error.status>=500||error.status===404){
     this.set({operationUncertain:true});
-    await this.reconcileMissing(epoch);
-    if(epoch===this.epoch)this.set({error:'The chat change was not confirmed. Review the refreshed server list before trying again.'});
+    const confirmed=await this.reconcileMissing(epoch);if(epoch!==this.epoch)return false;
+    const row=confirmed?.conversations.find(c=>c.id===id);
+    if(confirmed&&(action==='delete'&&!row||action==='rename'&&row?.title===title!.trim())){
+     if(confirmed.historyLoaded)this.set({error:null});
+     return true;
+    }
+    if(confirmed?.historyLoaded)this.set({error:'The chat change was not confirmed. Review the refreshed server list before trying again.'});
    }
    return false;
   }finally{if(epoch===this.epoch)this.set({conversationBusy:false});}

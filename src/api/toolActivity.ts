@@ -11,7 +11,7 @@ const scalar=(v:unknown)=>nullableText(v)||typeof v==='boolean'||typeof v==='num
 const list=(v:unknown,valid:(item:unknown)=>boolean):boolean=>Array.isArray(v)&&v.length<=4&&v.every(valid);
 const fact=(v:unknown)=>keys(v,['subject','predicate','value'])&&nullableText(v.subject)&&nullableText(v.predicate)&&scalar(v.value);
 const kinds:Record<string,string>={
- search_memory:'memory_search',prepare_memory_write:'persistence_check',expand_memory_entities:'memory_search',
+ search_memory:'memory_search',fast_search_memory:'memory_search',prepare_memory_write:'persistence_check',expand_memory_entities:'memory_search',
  write_statements:'memory_write',revise_memory_statements:'memory_write',forget_memory_statements:'memory_write',resolve_memory_write:'no_write',
  echo:'tool',tool:'tool',search_calendar_events:'calendar_search',get_calendar_events:'calendar_search',
  create_calendar_events:'calendar_write',update_calendar_events:'calendar_write',delete_calendar_events:'calendar_write',
@@ -22,7 +22,7 @@ const errors=['tool_budget_exhausted','search_before_write_required','unknown_to
 function input(name:string,v:unknown):boolean{
  if(v===null)return true;
  switch(name){
-  case 'search_memory':case 'prepare_memory_write':return keys(v,['queries'])&&list(v.queries,q=>keys(q,['query'])&&nullableText(q.query));
+  case 'search_memory':case 'fast_search_memory':case 'prepare_memory_write':return keys(v,['queries'])&&list(v.queries,q=>keys(q,['query'])&&nullableText(q.query));
   case 'expand_memory_entities':return keys(v,['entities'])&&list(v.entities,e=>keys(e,['label','direction'])&&nullableText(e.label)&&(e.direction===null||['outgoing','incoming','both'].includes(e.direction as string)));
   case 'write_statements':case 'revise_memory_statements':return keys(v,['facts'])&&list(v.facts,fact);
   case 'resolve_memory_write':return keys(v,['reason','missing_dimension'])&&(v.reason===null||reasons.includes(v.reason as string))&&(v.missing_dimension===null||dimensions.includes(v.missing_dimension as string));
@@ -34,7 +34,7 @@ function output(name:string,status:string,v:unknown):boolean{
  if(status==='not_executed')return keys(v,['error_code'])&&errors.includes(v.error_code as string);
  if(status==='failure')return keys(v,['error_code'])&&v.error_code==='tool_execution_failed';
  switch(name){
-  case 'search_memory':case 'prepare_memory_write':return keys(v,['facts'],['result_count'])&&(!Object.hasOwn(v,'result_count')||count(v.result_count))&&list(v.facts,fact);
+  case 'search_memory':case 'fast_search_memory':case 'prepare_memory_write':return keys(v,['facts'],['result_count'])&&(!Object.hasOwn(v,'result_count')||count(v.result_count))&&list(v.facts,fact);
   case 'expand_memory_entities':return keys(v,['entities'],['result_count'])&&(!Object.hasOwn(v,'result_count')||count(v.result_count))&&list(v.entities,e=>keys(e,['label','facts'])&&nullableText(e.label)&&list(e.facts,fact));
   case 'write_statements':case 'revise_memory_statements':case 'forget_memory_statements':{
    const counters=name==='write_statements'?['created_count','reused_existing_count']:name==='revise_memory_statements'?['revised_count']:['forgotten_count'];

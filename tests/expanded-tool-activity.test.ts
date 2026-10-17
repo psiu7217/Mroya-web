@@ -31,6 +31,19 @@ const source=(partial:Partial<WorkspaceSource>):WorkspaceSource=>({
  history:async()=>empty,memories:async()=>({memories:[],total:0}),map:async()=>({nodes:[],edges:[]}),
  turn:async()=>({turn_status:'completed',summary:'',events:[]}),send:async()=>{},...partial,
 });
+test('Fast Search accepts started/finished projections and completes the SSE stream through done',async()=>{
+ const started=start({tool_name:'fast_search_memory'}),finished=finish({tool_name:'fast_search_memory'});
+ for(const [index,activity] of [started,finished].entries())
+  assert.deepEqual(readToolActivity({sequence:index+1,activity}).activity,activity);
+ const stream=[{event:'trace',data:{turn_status:'running'}} as ChatStreamEvent,reasoning(1),
+  event(2,started),event(3,finished),reasoning(4,'After Fast Search'),answer,done];
+ assert.deepEqual(await parse(stream),stream);
+ // The additional tool name inherits the same strict schema and lifecycle checks.
+ assert.throws(()=>readToolActivity({sequence:1,activity:start({tool_name:'fast_search_memory',input:{queries:[],token:'hidden'}})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:2,activity:finish({tool_name:'fast_search_memory',output:{facts:[],result_count:-1}})}),ApiError);
+ await assert.rejects(parse([event(1,started),done]),ApiError);
+});
+
 test('strict legacy/expanded forms and phase invariants; no mixed schemas or secret/unknown fields',()=>{
  const good=[start(),finish(),finish({status:'failure',output:{error_code:'tool_execution_failed'}}),
  finish({status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})];

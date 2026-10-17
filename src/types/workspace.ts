@@ -1,6 +1,6 @@
 // Stable shared UI contract. Only coordinated, reviewed changes should alter this interface.
 import type React from 'react';
-import { NavSection, SubscriptionPlan, ThemeMode, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
+import { NavSection, SubscriptionPlan, ThemeMode, ConversationListItem, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
 export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string; nickname?:string }
 export interface TelegramPresentation {
     status:import('./api').TelegramConnectionStatus|null;
@@ -17,6 +17,7 @@ export interface ChatDiagnostics {
 export interface WorkspaceRuntime {
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
+    conversationLocked?:boolean;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
     calendarAvailable:false; remindersAvailable:false; // No agreed REST contracts yet.
@@ -42,7 +43,7 @@ export interface WorkspaceModel {
     appearance?: 'light'|'dark';
     plan: SubscriptionPlan;
     planModalOpen: boolean;
-    conversations: Conversation[];
+    conversations: ConversationListItem[];
     activeConversationId: string | null;
     memories: MemoryItem[];
     events: CalendarEvent[];
@@ -76,8 +77,8 @@ export interface WorkspaceModel {
     edges: import("./mroya").GraphEdge[];
     onSidebarSelectSection: (section: NavSection) => void;
     onSidebarSelectConversation: (id: string) => void;
-    onSidebarRenameConversation?: (id: string, newTitle: string) => void;
-    onSidebarDeleteConversation?: (id: string) => void;
+    onSidebarRenameConversation?: (id: string, newTitle: string) => void | boolean | Promise<boolean>;
+    onSidebarDeleteConversation?: (id: string) => void | boolean | Promise<boolean>;
     onSidebarTogglePlan: () => void;
     onSidebarOpenPlanModal: () => void;
     onSidebarToggleTheme: () => void;

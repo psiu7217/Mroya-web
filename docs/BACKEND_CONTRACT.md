@@ -46,7 +46,7 @@ Submit an ordinary same-origin POST form to auth/google/start/; do not fetch-fol
 
 Available: chat, memory_read, memory_mutations_via_chat. google_oauth is configuration-dependent (currently true on the published API). Unavailable: memory_mutations_rest, calendar_rest, connections_rest, reminders, local_recurrence, sse_token_streaming. Missing/unknown flags mean unsupported.
 
-Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, attachment/voice upload, chat cancellation or conversation CRUD endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
+Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, attachment/voice upload, chat cancellation endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
 
 Design Mode remains a separate offline build with fictional data/accounts. Production cannot be switched into Design Mode through query strings, storage or a user control. Preserve all visual screens and responsive layout; live unavailable features remain explicitly unavailable. See [AI Studio workflow](AI_STUDIO_WORKFLOW.md) and [guest/live behavior](GUEST_CHAT.md).
 
@@ -259,3 +259,66 @@ extra endpoints, parameters or paid calls. Design stays offline with the same UI
 Readiness here means tested frontend implementation against the merged Backend
 repository contract. Production flag/deployment and actual provider/account
 acceptance are separate owner-authorized checks.
+
+
+## Multi-chat Web integration (Backend PR #25)
+
+Verified against Backend merge `5fdbc3ea2cedf5bf2934accdd2ddffdea02f325b`
+(PR head `3c0bf24000b0da7a19650c18b8608d8511779e0a`). The canonical
+[MULTI-CHAT handoff](https://github.com/psiu7217/Mroya-api/blob/5fdbc3ea2cedf5bf2934accdd2ddffdea02f325b/docs/MULTI-CHAT.md)
+contains deletion/provenance and concurrency details. Paths below are relative to
+same-origin `/api/v1/chat/`; Django session and CSRF remain unchanged.
+
+| Method/path | Response |
+| --- | --- |
+| GET conversations/?offset=0&limit=100 | 200 `{conversations: ConversationSummary[], next_offset: number|null}` |
+| POST conversations/ with `{}` | 201 `{conversation: ConversationSummary}`; truly empty chat |
+| PATCH conversations/{uuid}/ with `{title}` | 200 `{conversation: ConversationSummary}` |
+| DELETE conversations/{uuid}/ with no body | 204 with no JSON; permanent deletion |
+| GET conversations/{uuid}/messages/?before=... | Existing history DTO, matching conversation_id |
+| POST conversations/{uuid}/send/ | Existing submission JSON, SSE or completed JSON replay |
+
+ConversationSummary contains only `id` (UUID), `title`, `created_at`, `updated_at`
+(ISO8601); there is no public manual-title flag or messages array in list items.
+List order is updated_at DESC, created_at DESC, id ASC. Limit is 1..100; offset
+0..100000. Follow next_offset, deduplicate UUIDs, refresh the list after sends and
+when a write outcome is unknown. Web loads summary pages, never all transcripts.
+The selected chat is session-local; a reload selects the first server-listed chat.
+Sidebar searches loaded titles only and groups server dates in the profile timezone.
+
+Initial empty title is displayed as New chat. The first send may auto-title; manual
+Rename is trimmed, 1..100 Unicode code points, rejects angle brackets/internal C0
+and DEL. Rename does not change activity order and future sends retain manual titles.
+Only server-confirmed names replace local metadata.
+
+History retains per-chat before/next_before pagination, ascending message sequences,
+including empty histories. Send body remains `{content, submission_id, retry?, timezone?}`;
+unknown fields are rejected as invalid_submission. No operation ID is sent. SSE,
+X-Chat-Turn-ID, turn recovery and diagnostic turn/trace pairs are unchanged. Legacy
+chat/messages and chat/send remain for compatibility; authenticated multi-chat Web
+uses explicit UUID paths for both history and send, never the primary-chat adapters.
+
+Delete removes the chat/messages and provably associated diagnostic records, while
+shared personal memory and independent calendar data are preserved. No archive,
+trash, soft delete or restore. A foreign/missing chat returns 404 not_found. Deleting
+the last chat leaves no active chat: the user must explicitly create one before send.
+DELETE can return 409 conversation_busy or conversation_delete_conflict. Other errors:
+400 invalid_conversation/invalid_title/invalid_pagination/invalid_json and existing send
+errors; 401 authentication_required; 403 csrf_failed; 5xx/network/schema failures.
+401 invokes session expiration. Writes are never automatically replayed on 403 or
+unknown outcomes. 404/unknown results trigger list/history reconciliation before a
+new deliberate write; failed/unknown DELETE is never announced as confirmed success.
+
+The controller blocks chat management during busy/uncertain sends and pins requests,
+cursors, submission/turn/reply IDs and transient activity to the selected UUID. Switching
+aborts read requests, advances the request epoch and clears reasoning/timeline/failed
+attempt maps. Late callbacks cannot attach to another chat. Composer remounts on UUID
+change, clearing unsent drafts. Diagnostics also change lifecycle scope with the UUID,
+while requests still use their original turn_id + request_trace_id. Transient activity
+is never persisted; returning to a chat may omit previously streamed reasoning/tools.
+Design uses the same Studio Sidebar/dialogs and Workspace locally without HTTP.
+
+**Backend-first rollout is mandatory.** Before publishing this frontend: all five
+isolated PostgreSQL concurrency tests must pass, Backend migrations/deployment must
+complete, and new endpoints/existing history must be verified. A merged Backend PR
+alone is not production-readiness confirmation. This frontend PR performs no deployment.

@@ -1,5 +1,5 @@
 import {useDemoDiagnostics} from './useDemoDiagnostics';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 import {
   NavSection,
@@ -203,14 +203,18 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
         e.id === activeConversation?.relatedEventId
     ) || events.find((e) => e.id === 'evt-oct16-proposal') || null;
 
+  const manualTitles=useRef(new Set<string>());
   const handleNewChat = () => {
-    setActiveConversationId(null);
+    const id=crypto.randomUUID();
+    setConversations(prev=>[{id,title:'New chat',group:'Today',updatedAt:new Date().toISOString(),messages:[],relatedMemoryIds:[]},...prev]);
+    setActiveConversationId(id);
     setActiveSection('chat');
   };
 
   const handleRenameConversation = (id: string, newTitle: string) => {
     const trimmed = newTitle.trim();
-    if (!trimmed) return;
+    if (!trimmed || Array.from(trimmed).length>100 || /[<>\u0000-\u001f\u007f]/.test(trimmed)) return false;
+    manualTitles.current.add(id);
     setConversations((prev) =>
       prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c))
     );
@@ -228,6 +232,7 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
 
   // Simulated intelligent Mroya response generator grounded in saved memories
   const handleSendMessage = (content: string, attachmentName?: string) => {
+    if(!activeConversationId)return;
     const nowTime = '2:24 PM';
     const userMsg: ChatMessage = {
       id: `msg-u-${Date.now()}`,
@@ -534,33 +539,10 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
       };
     }
 
-    const targetConvId = activeConversationId ?? `conv-${Date.now()}`;
-    if (activeConversationId) {
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === activeConversationId
-            ? {
-                ...c,
-                updatedAt: 'Just now',
-                messages: [...c.messages, userMsg],
-              }
-            : c
-        )
-      );
-    } else {
-      const newConv: Conversation = {
-        id: targetConvId,
-        title: content.length > 42 ? `${content.slice(0, 42)}...` : content,
-        group: 'Today',
-        updatedAt: 'Just now',
-        relatedMemoryIds: ['mem-sarah-redesign', 'mem-schedule-pref', 'mem-oct16-commitment'],
-        relatedEventId: 'evt-oct16-proposal',
-        relatedNodeId: 'node-redesign',
-        messages: [userMsg],
-      };
-      setConversations((prev) => [newConv, ...prev]);
-      setActiveConversationId(targetConvId);
-    }
+    const targetConvId = activeConversationId;
+    setConversations(prev=>prev.map(c=>c.id===targetConvId?{...c,
+      title:c.messages.length===0&&!manualTitles.current.has(c.id)?Array.from(content).slice(0,100).join(''):c.title,
+      updatedAt:new Date().toISOString(),messages:[...c.messages,userMsg]}:c));
 
     setTimeout(() => {
       setConversations((prev) =>

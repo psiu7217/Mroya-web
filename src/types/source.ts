@@ -1,4 +1,4 @@
-import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
+import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
   readonly kind:'design'|'live';
@@ -7,6 +7,12 @@ export interface WorkspaceSource {
   logout(signal?:AbortSignal):Promise<void>;
   savePreferences?(changes:PreferencesPatch,signal?:AbortSignal):Promise<ApiUser>;
   refreshCsrf?(signal?:AbortSignal):Promise<string>;
+  conversations?(offset?:number,signal?:AbortSignal):Promise<ConversationPage>;
+  createConversation?(signal?:AbortSignal):Promise<ConversationSummary>;
+  renameConversation?(id:string,title:string,signal?:AbortSignal):Promise<ConversationSummary>;
+  deleteConversation?(id:string,signal?:AbortSignal):Promise<void>;
+  conversationHistory?(id:string,before?:number,signal?:AbortSignal):Promise<HistoryResponse>;
+  sendConversation?(id:string,content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options?:SendOptions):Promise<void>;
   history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>;
   memories(options?:{state?:'active'|'history'|'all';q?:string;offset?:number;limit?:number},signal?:AbortSignal):Promise<MemoriesResponse>;
   map(signal?:AbortSignal):Promise<MemoryMapResponse>;

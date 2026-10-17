@@ -110,10 +110,11 @@ export interface ChatMessage {
   actions?: ChatAction[];
 }
 
+export type ConversationListItem = Pick<Conversation,'id'|'title'|'group'|'updatedAt'>;
 export interface Conversation {
   id: string;
   title: string;
-  group: 'Today' | 'Previous 7 Days' | 'Earlier in October';
+  group: string;
   updatedAt: string;
   messages: ChatMessage[];
   relatedMemoryIds: string[];

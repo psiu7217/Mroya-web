@@ -98,9 +98,9 @@ export class ChatDiagnosticsController {
    .finally(()=>{this.requests.delete(abort);if(current())this.set(key,{copying:false});abort.abort();});
  };
 }
-export function useChatDiagnostics(source:WorkspaceSource,userId:number,onExpired:()=>void,onError:(message:string)=>void):ChatDiagnostics&{stop:()=>void}{
+export function useChatDiagnostics(source:WorkspaceSource,userId:number,onExpired:()=>void,onError:(message:string)=>void,conversationId?:string|null):ChatDiagnostics&{stop:()=>void}{
  const callbacks=useRef({onExpired,onError});callbacks.current={onExpired,onError};
- const controller=useMemo(()=>new ChatDiagnosticsController(source,()=>callbacks.current.onExpired(),message=>callbacks.current.onError(message)),[source,userId]);
+ const controller=useMemo(()=>new ChatDiagnosticsController(source,()=>callbacks.current.onExpired(),message=>callbacks.current.onError(message)),[source,userId,conversationId]);
  useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
  useEffect(()=>{controller.start();return controller.stop;},[controller]);
  return {forMessage:controller.forMessage,onReport:message=>{void controller.onReport(message);},onCopy:message=>{void controller.onCopy(message);},stop:controller.stop};

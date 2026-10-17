@@ -30,6 +30,8 @@ export type ExpandedToolActivity = {
 );
 export interface ToolActivityEvent {sequence:number;activity:LegacyToolActivity|ExpandedToolActivity}
 export interface ApiMessage { /** Controller-local, never a history/write DTO. */ timeline?:import('./mroya').ChatTimelineEntry[]; /** Transient live reasoning, never sent or persisted. */ reasoning?:string; report_context?:ReportContext; id:string; sequence:number; role:'user'|'assistant'; content:string; status:string; created_at:string; completed_at:string|null }
+export interface ConversationSummary {id:string;title:string;created_at:string;updated_at:string}
+export interface ConversationPage {conversations:ConversationSummary[];next_offset:number|null}
 export interface HistoryResponse { conversation_id:string; messages:ApiMessage[]; next_before:number|null }
 export interface Capabilities { api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean }
 // Canonical statements deliberately retain provenance/revisions without pretending to be UI cards.

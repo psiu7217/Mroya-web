@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {
-  Conversation,
+  ConversationListItem,
   NavSection,
   SubscriptionPlan,
   ThemeMode,
@@ -37,12 +37,13 @@ export interface SidebarProps {
   live?: boolean;
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
-  conversations: Conversation[];
+  conversations: ConversationListItem[];
   activeConversationId: string | null;
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
-  onRenameConversation?: (id: string, newTitle: string) => void;
-  onDeleteConversation?: (id: string) => void;
+  onRenameConversation?: (id: string, newTitle: string) => void | boolean | Promise<boolean>;
+  onDeleteConversation?: (id: string) => void | boolean | Promise<boolean>;
+  conversationLocked?: boolean;
   plan: SubscriptionPlan;
   onTogglePlan: () => void;
   onOpenPlanModal: () => void;
@@ -71,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewChat,
   onRenameConversation,
   onDeleteConversation,
+  conversationLocked = false,
   plan,
   onTogglePlan,
   onOpenPlanModal,
@@ -85,13 +87,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingRemindersCount,
   onOpenSettingsTab,
 }) => {
+  const [saving, setSaving] = useState(false);
+  const actionPending = useRef(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [logoutToast, setLogoutToast] = useState(false);
   const [openMenuConvId, setOpenMenuConvId] = useState<string | null>(null);
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const [deletingConversation, setDeletingConversation] = useState<Conversation | null>(null);
+  const [deletingConversation, setDeletingConversation] = useState<ConversationListItem | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const convMenuRef = useRef<HTMLDivElement>(null);
@@ -139,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (!deletingConversation) return;
     cancelDeleteBtnRef.current?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !actionPending.current) {
         setDeletingConversation(null);
       }
     };
@@ -147,53 +151,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [deletingConversation]);
 
-  const handleStartRename = (conv: Conversation) => {
+  const handleStartRename = (conv: ConversationListItem) => {
     setOpenMenuConvId(null);
     setEditingConvId(conv.id);
     setEditingTitle(conv.title);
   };
 
-  const handleSaveRename = (id: string) => {
-    const trimmed = editingTitle.trim();
-    if (trimmed) {
-      onRenameConversation?.(id, trimmed);
-    }
-    setEditingConvId(null);
-    setEditingTitle('');
+  const handleSaveRename = async (id: string) => {
+    if (actionPending.current || conversationLocked || !editingTitle.trim()) return;
+    actionPending.current = true;setSaving(true);
+    try {
+      if(!onRenameConversation)return;
+      const success = await onRenameConversation(id, editingTitle);
+      if (success !== false) {setEditingConvId(null);setEditingTitle('');}
+    } finally {actionPending.current = false;setSaving(false);}
   };
 
   const handleCancelRename = () => {
+    if(actionPending.current)return;
     setEditingConvId(null);
     setEditingTitle('');
   };
 
-  const handleOpenDelete = (conv: Conversation) => {
+  const handleOpenDelete = (conv: ConversationListItem) => {
     setOpenMenuConvId(null);
     setDeletingConversation(conv);
   };
 
-  const handleConfirmDelete = () => {
-    if (deletingConversation) {
-      const id = deletingConversation.id;
-      setDeletingConversation(null);
-      onDeleteConversation?.(id);
-    }
+  const handleConfirmDelete = async () => {
+    if (!deletingConversation || actionPending.current || conversationLocked) return;
+    actionPending.current = true;setSaving(true);
+    try {
+      if(!onDeleteConversation)return;
+      const success = await onDeleteConversation(deletingConversation.id);
+      if(success !== false)setDeletingConversation(null);
+    } finally {actionPending.current = false;setSaving(false);}
   };
 
-  const filteredConversations = conversations.filter((conv) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      conv.title.toLowerCase().includes(q) ||
-      conv.messages.some((m) => m.content.toLowerCase().includes(q))
-    );
-  });
-
-  const groups: ('Today' | 'Previous 7 Days' | 'Earlier in October')[] = [
-    'Today',
-    'Previous 7 Days',
-    'Earlier in October',
-  ];
+  const filteredConversations = conversations.filter(conv => conv.title.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+  const groups = [...new Set(filteredConversations.map(c => c.group || 'Today'))];
 
   const navItems: {
     id: NavSection;
@@ -378,9 +374,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={() => {
-                onNewChat();
+                if(conversationLocked)return;
+              onNewChat();
                 onCloseMobile();
               }}
+              disabled={conversationLocked}
               title="New chat"
               aria-label="New chat"
               className="w-10 h-10 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] active:scale-[0.96] text-[var(--mroya-on-primary)] flex items-center justify-center transition-all shadow-xs cursor-pointer shrink-0"
@@ -542,7 +540,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="px-3.5 space-y-2.5 pb-3 shrink-0">
           <button
             type="button"
+            disabled={conversationLocked}
             onClick={() => {
+              if(conversationLocked)return;
               onNewChat();
               onCloseMobile();
             }}
@@ -669,16 +669,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               <button
                                 type="button"
                                 onClick={handleCancelRename}
+                                disabled={saving}
                                 className="h-6 px-2 rounded-[5px] border border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)] text-[11.5px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] transition-colors cursor-pointer"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="submit"
-                                disabled={!editingTitle.trim()}
+                                disabled={saving || conversationLocked || !editingTitle.trim()}
                                 className="h-6 px-2.5 rounded-[5px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[11.5px] font-semibold transition-colors cursor-pointer disabled:opacity-40"
                               >
-                                Save
+                                {saving ? 'Saving…' : 'Save'}
                               </button>
                             </div>
                           </form>
@@ -698,10 +699,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <button
                             type="button"
                             onClick={() => {
+                              if(conversationLocked)return;
                               onSelectConversation(conv.id);
                               onSelectSection('chat');
                               onCloseMobile();
                             }}
+                            disabled={conversationLocked}
                             className="flex-1 min-w-0 text-left px-2.5 py-2 text-[13px] leading-[18px] cursor-pointer focus:outline-none"
                           >
                             <span className="truncate block">{conv.title}</span>
@@ -742,7 +745,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   role="menuitem"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleStartRename(conv);
+                                    if(!conversationLocked)handleStartRename(conv);
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                                 >
@@ -754,7 +757,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   role="menuitem"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleOpenDelete(conv);
+                                    if(!conversationLocked)handleOpenDelete(conv);
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--mroya-error)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                                 >
@@ -856,7 +859,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           aria-modal="true"
           aria-labelledby="delete-chat-dialog-title"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setDeletingConversation(null)}
+          onClick={() => {if(!actionPending.current)setDeletingConversation(null);}}
         >
           <div
             className="w-full max-w-[420px] rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-5 sm:p-6 shadow-[var(--mroya-shadow-elevated)] space-y-4 animate-in zoom-in-95 duration-150 text-[var(--mroya-text)]"
@@ -876,7 +879,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setDeletingConversation(null)}
+                onClick={() => {if(!actionPending.current)setDeletingConversation(null);}}
                 aria-label="Close dialog"
                 className="p-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
               >
@@ -892,17 +895,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 ref={cancelDeleteBtnRef}
-                onClick={() => setDeletingConversation(null)}
+                onClick={() => {if(!actionPending.current)setDeletingConversation(null);}}
                 className="px-3.5 py-2 rounded-[8px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[13px] font-medium text-[var(--mroya-text)] transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={saving || conversationLocked}
                 onClick={handleConfirmDelete}
                 className="px-3.5 py-2 rounded-[8px] bg-[var(--mroya-error)] hover:opacity-90 active:scale-[0.98] text-white text-[13px] font-semibold transition-all cursor-pointer shadow-2xs"
               >
-                Delete
+                {saving ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

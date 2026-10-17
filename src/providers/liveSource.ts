@@ -4,6 +4,12 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     kind:'live',
+    conversations:(offset,signal)=>api.conversations(offset,signal),
+    createConversation:signal=>api.createConversation(signal),
+    renameConversation:(id,title,signal)=>api.renameConversation(id,title,signal),
+    deleteConversation:(id,signal)=>api.deleteConversation(id,signal),
+    conversationHistory:(id,before,signal)=>api.conversationHistory(id,before,signal),
+    sendConversation:(id,content,submissionId,onEvent,options)=>api.sendConversation(id,content,submissionId,onEvent,options),
     session:async(signal):Promise<SessionState>=>{try{return {status:'authenticated',user:(await api.me(signal)).user};}catch(error){if(error instanceof ApiError&&error.status===401)return {status:'guest'};throw error;}},
     login:(username,password,signal)=>api.login(username,password,signal),logout:signal=>api.logout(signal),
     savePreferences:(changes,signal)=>api.savePreferences(changes,signal),refreshCsrf:signal=>api.csrf(signal),

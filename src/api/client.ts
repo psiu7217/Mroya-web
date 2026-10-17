@@ -1,6 +1,7 @@
 import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
 import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
+import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
@@ -143,16 +144,43 @@ export class MroyaApi {
     return {connected:false};
   }
   async logout(signal?:AbortSignal):Promise<void>{const data=await this.json<{status:'logged_out';csrf_token:string}>('auth/logout/',{},signal);if(data.status!=='logged_out'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing logout fields');this.token=data.csrf_token;}
+  async conversations(offset=0,signal?:AbortSignal){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000)throw new ApiError(400,'invalid_pagination','Invalid conversation offset');
+    return readConversationPage(await this.json('chat/conversations/?limit=100&offset='+offset,undefined,signal,'POST',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Invalid list status');}),offset);
+  }
+  async createConversation(signal?:AbortSignal){
+    const data=await this.json<{conversation:unknown}>('chat/conversations/',{},signal,'POST',status=>{if(status!==201)throw new ApiError(502,'invalid_response','Invalid create status');});
+    return readConversation(data?.conversation);
+  }
+  async renameConversation(id:string,title:string,signal?:AbortSignal){
+    const data=await this.json<{conversation:unknown}>('chat/conversations/'+conversationId(id)+'/',{title:conversationTitle(title)},signal,'PATCH',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Invalid rename status');});
+    const confirmed=readConversation(data?.conversation);if(confirmed.id!==id)throw new ApiError(502,'invalid_response','Conversation changed during rename');return confirmed;
+  }
+  async deleteConversation(id:string,signal?:AbortSignal):Promise<void>{
+    const path='chat/conversations/'+conversationId(id)+'/';
+    if(!this.token)await this.csrf(signal);
+    const response=await this.fetcher('/api/v1/'+path,{method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error',signal,headers:{Accept:'application/json','X-CSRFToken':this.token}});
+    await this.check(response);
+    if(response.status!==204)throw new ApiError(502,'invalid_response','Invalid delete confirmation');
+  }
+  async conversationHistory(id:string,before?:number,signal?:AbortSignal):Promise<HistoryResponse>{
+    const path='chat/conversations/'+conversationId(id)+'/messages/';
+    if(before!==undefined&&(!Number.isSafeInteger(before)||before<1))throw new ApiError(400,'invalid_pagination','Invalid history cursor');
+    return readConversationHistory(await this.json(path+(before===undefined?'':'?before='+before),undefined,signal,'POST',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Invalid history status');}),id);
+  }
+  sendConversation(id:string,content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={}):Promise<void>{
+    return this.send(content,submissionId,onEvent,options,'chat/conversations/'+conversationId(id)+'/send/');
+  }
   history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal);}
   memories(options:{state?:'active'|'history'|'all';q?:string;offset?:number;limit?:number}={},signal?:AbortSignal):Promise<MemoriesResponse>{const query=new URLSearchParams(Object.entries(options).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]));return this.json('memories/'+(query.size?'?'+query:''),undefined,signal);}
   map(signal?:AbortSignal):Promise<MemoryMapResponse>{return this.json('memories/map/',undefined,signal);}
   capabilities(signal?:AbortSignal):Promise<Capabilities>{return this.json('capabilities/',undefined,signal);}
   turn(id:string,signal?:AbortSignal):Promise<TurnResponse>{if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))throw new Error('Invalid turn UUID');return this.json('chat/turns/'+id+'/',undefined,signal);}
-  async send(content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={}):Promise<void>{
+  async send(content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={},path='chat/send/'):Promise<void>{
     if(!content.trim()||content.length>16000)throw new Error('Message must contain 1–16000 characters');
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submissionId))throw new Error('Invalid submission UUID');
     if(!this.token)await this.csrf(options.signal);
-    const response=await this.fetcher('/api/v1/chat/send/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,
+    const response=await this.fetcher('/api/v1/'+path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,
       headers:{Accept:'text/event-stream, application/json','Content-Type':'application/json','X-CSRFToken':this.token},
       body:JSON.stringify({content,submission_id:submissionId,...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
     await this.check(response);

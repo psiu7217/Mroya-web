@@ -3,6 +3,7 @@ import {WorkspaceView} from '../pages/WorkspaceView';
 import {useLiveWorkspace} from '../hooks/useLiveWorkspace';
 import {useWorkspaceLayout} from '../hooks/useWorkspaceLayout';
 import {useTelegramConnection} from '../hooks/useTelegramConnection';
+import {conversationListPresentation} from '../hooks/conversationPresentation';
 import {useChatDiagnostics} from '../hooks/useChatDiagnostics';
 import {useUserPreferences} from '../hooks/useUserPreferences';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
@@ -21,10 +22,12 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
- const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice);
+ const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
  const logout=()=>{controller.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...user,nickname:preferences.nickname});
+ const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
+ if(conversation&&metadata)conversation.title=metadata.title||'New chat';
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map));
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('This feature is not available on the current server. No changes have been saved.');
@@ -37,10 +40,17 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  };
  const openMap=(id:string)=>{if(!id){setNotice('This memory has no displayed map node.');return;}setSelectedNode(id);select('memory-map');};
  const ask=(text:string)=>{select('chat');void controller.send(text);};
- const newChat=()=>{select('chat');setNotice('This server currently uses one conversation. Your history is preserved.');};
+ const newChat=()=>{select('chat');void controller.createConversation();};
+ const selectChat=(id:string)=>{
+  const current=controller.snapshot();
+  if(id===current.activeConversationId){select('chat');return;}
+  if(current.busy||current.uncertain||current.conversationBusy||current.operationUncertain||!current.conversations.some(c=>c.id===id))return;
+  diagnostics.stop();select('chat');void controller.selectConversation(id);
+ };
  const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}setFocusedMemoryId(id);setContextOpen(true);};
  const model:WorkspaceModel={
-  runtime:{diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.capabilities?.chat!==true,
+  runtime:{diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||!state.activeConversationId||state.capabilities?.chat!==true,
+   conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
    calendarAvailable:false,remindersAvailable:false,memoriesTotal:state.memories.total,
@@ -53,7 +63,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
-  conversations:conversation?[conversation]:[],activeConversationId:conversation?.id??null,activeConversation:conversation,
+  conversations:conversationListPresentation(state.conversations,user.timezone),activeConversationId:state.activeConversationId,activeConversation:conversation,
   memories,nodes:graph.nodes,edges:graph.edges,events:[],reminders:[],connections:[],
   reminderModalOpen:false,editingReminder:null,reminderPreselectedEventId:undefined,
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
@@ -62,8 +72,8 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   handleNewChat:newChat,handleSendMessage:content=>void controller.send(content),handleCitationClick:focusMemory,handleChatActionClick:unavailable,
   handleAddOrUpdateReminder:unavailable,handleDeleteReminder:unavailable,handleToggleCompleteReminder:unavailable,
   handleTogglePauseReminder:unavailable,handleUnlinkReminder:unavailable,handleSimulateGoogleSync:unavailable,
-  onSidebarSelectSection:select,onSidebarSelectConversation:()=>select('chat'),
-  onSidebarRenameConversation:unavailable,onSidebarDeleteConversation:unavailable,
+  onSidebarSelectSection:select,onSidebarSelectConversation:selectChat,
+  onSidebarRenameConversation:controller.renameConversation,onSidebarDeleteConversation:controller.deleteConversation,
   onSidebarTogglePlan:unavailable,
   onSidebarOpenPlanModal:()=>openSettings('plan'),onSidebarToggleTheme:layout.toggleTheme,onSidebarToggleCollapse:layout.toggleCollapse,
   onSidebarCloseMobile:layout.closeMobile,onSidebarOpenSettingsTab:openSettings,

@@ -20,6 +20,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       {/* Left Navigation Sidebar */}
       <Sidebar
         account={account}
+        conversationLocked={runtime?.conversationLocked}
         live={!!runtime}
         onLogout={runtime?.onLogout}
         activeSection={activeSection}
@@ -59,9 +60,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'chat' && (
           <>
             <ChatWorkspace
+              key={activeConversationId ?? 'no-chat'}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
-              pending={runtime?.pending??feedback?.loading}
+              pending={runtime?.pending??feedback?.loading??!activeConversationId}
               isThinking={runtime?.busy ?? feedback?.busy}
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}

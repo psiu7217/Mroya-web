@@ -18,6 +18,9 @@ import {
   X,
   ChevronUp,
   Bell,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {
@@ -38,6 +41,8 @@ export interface SidebarProps {
   activeConversationId: string | null;
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
+  onRenameConversation?: (id: string, newTitle: string) => void;
+  onDeleteConversation?: (id: string) => void;
   plan: SubscriptionPlan;
   onTogglePlan: () => void;
   onOpenPlanModal: () => void;
@@ -64,6 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeConversationId,
   onSelectConversation,
   onNewChat,
+  onRenameConversation,
+  onDeleteConversation,
   plan,
   onTogglePlan,
   onOpenPlanModal,
@@ -81,7 +88,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [logoutToast, setLogoutToast] = useState(false);
+  const [openMenuConvId, setOpenMenuConvId] = useState<string | null>(null);
+  const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [deletingConversation, setDeletingConversation] = useState<Conversation | null>(null);
+
   const menuRef = useRef<HTMLDivElement>(null);
+  const convMenuRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const cancelDeleteBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -92,6 +107,78 @@ export const Sidebar: React.FC<SidebarProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!openMenuConvId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (convMenuRef.current && !convMenuRef.current.contains(e.target as Node)) {
+        setOpenMenuConvId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenMenuConvId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openMenuConvId]);
+
+  useEffect(() => {
+    if (editingConvId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [editingConvId]);
+
+  useEffect(() => {
+    if (!deletingConversation) return;
+    cancelDeleteBtnRef.current?.focus();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDeletingConversation(null);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [deletingConversation]);
+
+  const handleStartRename = (conv: Conversation) => {
+    setOpenMenuConvId(null);
+    setEditingConvId(conv.id);
+    setEditingTitle(conv.title);
+  };
+
+  const handleSaveRename = (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (trimmed) {
+      onRenameConversation?.(id, trimmed);
+    }
+    setEditingConvId(null);
+    setEditingTitle('');
+  };
+
+  const handleCancelRename = () => {
+    setEditingConvId(null);
+    setEditingTitle('');
+  };
+
+  const handleOpenDelete = (conv: Conversation) => {
+    setOpenMenuConvId(null);
+    setDeletingConversation(conv);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deletingConversation) {
+      const id = deletingConversation.id;
+      setDeletingConversation(null);
+      onDeleteConversation?.(id);
+    }
+  };
 
   const filteredConversations = conversations.filter((conv) => {
     if (!searchQuery.trim()) return true;
@@ -535,8 +622,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Recent Conversations History */}
         <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
-          {groups.map((groupName) => {
-            const items = filteredConversations.filter((c) => c.group === groupName);
+          {Array.from(
+            new Set([...groups, ...filteredConversations.map((c) => c.group || 'Today')])
+          ).map((groupName) => {
+            const items = filteredConversations.filter(
+              (c) => (c.group || 'Today') === groupName
+            );
             if (items.length === 0) return null;
             return (
               <div key={groupName}>
@@ -547,23 +638,133 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {items.map((conv) => {
                     const isCurrent =
                       activeSection === 'chat' && activeConversationId === conv.id;
+                    const isEditing = editingConvId === conv.id;
+                    const isMenuOpen = openMenuConvId === conv.id;
+
+                    if (isEditing) {
+                      return (
+                        <li key={conv.id} className="py-0.5">
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleSaveRename(conv.id);
+                            }}
+                            className="p-1.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-xs space-y-1.5"
+                          >
+                            <input
+                              ref={renameInputRef}
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation();
+                                  handleCancelRename();
+                                }
+                              }}
+                              aria-label="Conversation title"
+                              className="w-full h-7 px-2 text-[13px] bg-transparent text-[var(--mroya-text)] border border-[var(--mroya-divider)] focus:border-[var(--mroya-primary)] rounded-[6px] outline-none transition-colors"
+                            />
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={handleCancelRename}
+                                className="h-6 px-2 rounded-[5px] border border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)] text-[11.5px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={!editingTitle.trim()}
+                                className="h-6 px-2.5 rounded-[5px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[11.5px] font-semibold transition-colors cursor-pointer disabled:opacity-40"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </form>
+                        </li>
+                      );
+                    }
+
                     return (
-                      <li key={conv.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onSelectConversation(conv.id);
-                            onSelectSection('chat');
-                            onCloseMobile();
-                          }}
-                          className={`w-full text-left px-2.5 py-2 rounded-[8px] text-[13px] leading-[18px] transition-colors cursor-pointer flex items-center justify-between gap-2 ${
+                      <li key={conv.id} className="relative group/conv">
+                        <div
+                          className={`relative w-full flex items-center justify-between rounded-[8px] transition-colors ${
                             isCurrent
                               ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold'
                               : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/50'
                           }`}
                         >
-                          <span className="truncate">{conv.title}</span>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectConversation(conv.id);
+                              onSelectSection('chat');
+                              onCloseMobile();
+                            }}
+                            className="flex-1 min-w-0 text-left px-2.5 py-2 text-[13px] leading-[18px] cursor-pointer focus:outline-none"
+                          >
+                            <span className="truncate block">{conv.title}</span>
+                          </button>
+
+                          {/* Subtle three-dot menu trigger */}
+                          <div className="relative shrink-0 flex items-center pr-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuConvId(isMenuOpen ? null : conv.id);
+                              }}
+                              aria-label={`Options for ${conv.title}`}
+                              aria-haspopup="menu"
+                              aria-expanded={isMenuOpen}
+                              title="Conversation options"
+                              className={`p-1 rounded-[6px] transition-all cursor-pointer ${
+                                isMenuOpen
+                                  ? 'opacity-100 bg-[var(--mroya-surface-muted)] text-[var(--mroya-text)]'
+                                  : 'opacity-0 group-hover/conv:opacity-100 focus:opacity-100 max-lg:opacity-75 hover:bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
+                              }`}
+                            >
+                              <MoreHorizontal className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {isMenuOpen && (
+                              <div
+                                ref={convMenuRef}
+                                role="menu"
+                                aria-label="Conversation actions"
+                                className="absolute right-0 top-full mt-1 w-32 py-1 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-50 animate-in fade-in zoom-in-95 duration-100"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartRename(conv);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                                >
+                                  <Pencil className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
+                                  <span>Rename</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDelete(conv);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--mroya-error)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-[var(--mroya-error)] shrink-0" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </li>
                     );
                   })}
@@ -645,6 +846,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
             aria-hidden="true"
           />
           <div className="relative z-10 h-full">{renderSidebar(false)}</div>
+        </div>
+      )}
+
+      {/* Delete Conversation Confirmation Dialog */}
+      {deletingConversation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-chat-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setDeletingConversation(null)}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-5 sm:p-6 shadow-[var(--mroya-shadow-elevated)] space-y-4 animate-in zoom-in-95 duration-150 text-[var(--mroya-text)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h3
+                  id="delete-chat-dialog-title"
+                  className="text-[16px] font-semibold text-[var(--mroya-text)] tracking-[-0.01em]"
+                >
+                  Delete conversation?
+                </h3>
+                <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
+                  {deletingConversation.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingConversation(null)}
+                aria-label="Close dialog"
+                className="p-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[13.5px] leading-[20px] text-[var(--mroya-text-muted)]">
+              Permanently delete this chat and all its messages? This cannot be undone. Your saved memories will not be affected.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                ref={cancelDeleteBtnRef}
+                onClick={() => setDeletingConversation(null)}
+                className="px-3.5 py-2 rounded-[8px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[13px] font-medium text-[var(--mroya-text)] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-3.5 py-2 rounded-[8px] bg-[var(--mroya-error)] hover:opacity-90 active:scale-[0.98] text-white text-[13px] font-semibold transition-all cursor-pointer shadow-2xs"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

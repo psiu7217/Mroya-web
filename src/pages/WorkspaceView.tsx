@@ -28,6 +28,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         activeConversationId={activeConversationId}
         onSelectConversation={onSidebarSelectConversation}
         onNewChat={handleNewChat}
+        onRenameConversation={model.onSidebarRenameConversation}
+        onDeleteConversation={model.onSidebarDeleteConversation}
         plan={plan}
         onTogglePlan={onSidebarTogglePlan}
         onOpenPlanModal={onSidebarOpenPlanModal}

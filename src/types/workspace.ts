@@ -76,6 +76,8 @@ export interface WorkspaceModel {
     edges: import("./mroya").GraphEdge[];
     onSidebarSelectSection: (section: NavSection) => void;
     onSidebarSelectConversation: (id: string) => void;
+    onSidebarRenameConversation?: (id: string, newTitle: string) => void;
+    onSidebarDeleteConversation?: (id: string) => void;
     onSidebarTogglePlan: () => void;
     onSidebarOpenPlanModal: () => void;
     onSidebarToggleTheme: () => void;

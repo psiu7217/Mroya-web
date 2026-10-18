@@ -44,7 +44,7 @@ Submit an ordinary same-origin POST form to auth/google/start/; do not fetch-fol
 
 ## Capabilities and boundaries
 
-Available: chat, memory_read, memory_mutations_via_chat. google_oauth is configuration-dependent (currently true on the published API). Unavailable: memory_mutations_rest, calendar_rest, connections_rest, reminders, local_recurrence, sse_token_streaming. Missing/unknown flags mean unsupported.
+Available in the original contract: chat, memory_read, memory_mutations_via_chat. google_oauth is configuration-dependent. Backend Calendar PR #28 additionally advertises calendar_rest, connections_rest and local_recurrence; enable these only from actual runtime capabilities, since older servers still return false. memory_mutations_rest, reminders and sse_token_streaming remain unsupported. Missing/unknown flags mean unsupported. See the Calendar section below.
 
 Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, attachment/voice upload, chat cancellation endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
 
@@ -72,7 +72,7 @@ The link is a one-use bearer credential, valid for 12 minutes. Re-generation inv
 
 Transport and DTO validation stay in MroyaApi/createLiveSource. The account-local useTelegramConnection hook owns status, request cancellation/generation guards, single-flight operations, errors, expiry and a transient link in memory only. WorkspaceRuntime passes typed presentation/actions to the existing common card; it is not a persistent/global store. Logout/user changes invalidate requests and erase link/identity. No storage, console/telemetry, Mroya query parameter or displayed token text. Never call telegram/webhook/ from Web; Bot Token/webhook secret belong only to API.
 
-Design retains local connection toggles with no requests or real bearer links. Telegram supports personal text chat, shared Web/Telegram history and personal memory. Telegram answers only Telegram messages: no Web forwarding, reminders/alerts, voice, attachments, calendar sync, groups or morning briefings. Google Calendar/Gmail remain Coming soon.
+Design retains local connection toggles with no requests or real bearer links. Telegram supports personal text chat, shared Web/Telegram history and personal memory. Telegram answers only Telegram messages: no Web forwarding, reminders/alerts, voice, attachments, calendar sync, groups or morning briefings. Google Calendar is separately capability-gated (see the Calendar section below); Gmail remains Coming soon.
 
 Manual acceptance after a separately authorized merge/deploy: an existing owner account creates a link, presses Start, verifies Connected on return and optionally Disconnect; verify shared text history/memory separately. This PR creates no production accounts or bindings and does not deploy either runtime.
 
@@ -329,3 +329,7 @@ Design uses the same Studio Sidebar/dialogs and Workspace locally without HTTP.
 isolated PostgreSQL concurrency tests must pass, Backend migrations/deployment must
 complete, and new endpoints/existing history must be verified. A merged Backend PR
 alone is not production-readiness confirmation. This frontend PR performs no deployment.
+
+## Calendar and Google Calendar
+
+The existing shared Calendar/Connections UI now has a capability-gated live adapter for Backend PR #28 (`e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac`). See [CALENDAR_INTEGRATION](CALENDAR_INTEGRATION.md) for the exact routes, DTO/recurrence mapping, mutation replay, Google state rules and first live check. The [pinned Backend contract](https://github.com/psiu7217/Mroya-api/blob/e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac/docs/CALENDAR-API.md) remains authoritative. Calendar availability depends on installed capabilities, not this documentation or the OAuth return hint. Reminders are still unavailable.

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import type {CalendarPresentation} from '../types/workspace';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -35,14 +36,18 @@ import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils
 
 interface CalendarViewProps {
   readOnly?:boolean;
+  live?:boolean;
+  calendar?:CalendarPresentation;
+  googleCalendarAvailable?:boolean;
+  googleCalendarNotice?:string;
   samples?:{person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
   events: CalendarEvent[];
   memories: MemoryItem[];
   reminders: ReminderItem[];
   selectedEventId: string | null;
-  onAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void;
-  onEditEvent?: (event: CalendarEvent) => void;
-  onDeleteEvent?: (id: string) => void;
+  onAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void|boolean|Promise<boolean>;
+  onEditEvent?: (event: CalendarEvent) => void|boolean|Promise<boolean>;
+  onDeleteEvent?: (id: string, version?:number) => void|boolean|Promise<boolean>;
   onOpenMemory: (memoryId: string) => void;
   onOpenConnections: () => void;
   onAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>) => void;
@@ -89,7 +94,7 @@ const SHORT_MONTH_NAMES = [
 
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
-  readOnly=false,
+  readOnly=false,live=false,calendar,googleCalendarAvailable=false,googleCalendarNotice,
   samples,
   events,
   memories,
@@ -109,13 +114,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
-  const googleStatus=readOnly?'Coming soon':{
+  const googleStatus=(readOnly||live&&!googleCalendarAvailable)?'Coming soon':{
     disconnected:'Disconnected',connecting:'Connecting',initial_syncing:'Initial syncing',
     connected_auto_off:'Connected · Automatic sync OFF',connected_auto_on:'Connected · Automatic sync ON',
     syncing:'Syncing',sync_error:'Sync error',conflict:'Conflict · Sync paused',reconnect_required:'Reconnect required',
   }[gcalSyncState];
   const googleStatusLabel=googleStatus+(!readOnly&&googleCalendarEmail&&!['disconnected','connecting'].includes(gcalSyncState)?` (${googleCalendarEmail})`:'');
-  const today=readOnly?new Date():new Date(2026,9,12);
+  const today=live||readOnly?new Date():new Date(2026,9,12);
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
   const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(today.getMonth());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'week'>('month');
@@ -131,7 +136,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Edit event form state
   const [editTitle, setEditTitle] = useState('');
-  const [editDay, setEditDay] = useState(12);
+  const [editDate, setEditDate] = useState('2026-10-12');
   const [editTime, setEditTime] = useState('14:00');
   const [editDuration, setEditDuration] = useState('1h');
   const [editCategory, setEditCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
@@ -141,7 +146,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // New event form state
   const [newTitle, setNewTitle] = useState('');
-  const [newDay, setNewDay] = useState(12);
+  const [newDate, setNewDate] = useState(calendarKey(today));
   const [newTime, setNewTime] = useState('14:00');
   const [newCategory, setNewCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
   const [newPerson, setNewPerson] = useState(samples?.person??'');
@@ -152,6 +157,36 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [addingReminderForEventId, setAddingReminderForEventId] = useState<string | null>(null);
   const [quickOffset, setQuickOffset] = useState<number>(30);
 
+  const draftSignatures=useRef({create:'',edit:'',delete:''});
+  draftSignatures.current={create:JSON.stringify([newTitle,newDate,newTime,newNotes,newCategory,newPerson,newEventRecurrence]),edit:JSON.stringify([editingEvent?.id,editTitle,editDate,editTime,editNotes,editCategory,editPerson,editDuration,editRecurrence]),delete:deletingEvent?.id??''};
+  const pendingForm=useRef<{kind:'create'|'edit'|'delete';signature:string}|null>(null);
+  const finishForm=(pending:NonNullable<typeof pendingForm.current>)=>{
+    if(!mounted.current||pending.signature!==draftSignatures.current[pending.kind])return;
+    if(pending.kind==='create'){setNewTitle('');setNewNotes('');setNewEventRecurrence(undefined);setNewReminderEnabled(false);setIsNewModalOpen(false);}
+    else if(pending.kind==='edit')setEditingEvent(null);else setDeletingEvent(null);
+  };
+  const retryCalendar=async()=>{
+    if(!calendar||mutationRef.current)return;
+    mutationRef.current=true;const pending=pendingForm.current;
+    try{if(await calendar.onRetry()){if(pending)finishForm(pending);pendingForm.current=null;}}
+    finally{mutationRef.current=false;}
+  };
+  const mutationRef=useRef(false),editEpoch=useRef(0),mounted=useRef(true);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;editEpoch.current++;};},[]);
+  useEffect(()=>{
+    if(!calendar?.onRangeChange)return;
+    const start=viewMode==='year'?calendarDate(currentYear,0,1):calendarWeek(calendarDate(currentYear,currentMonthIndex,1))[0];
+    const end=viewMode==='year'?calendarDate(currentYear,11,31):calendarWeek(new Date(currentYear,currentMonthIndex+1,0,12))[6];
+    calendar.onRangeChange(calendarKey(start),calendarKey(end));
+  },[calendar?.onRangeChange,currentYear,currentMonthIndex,viewMode]);
+  const validDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T12:00:00Z'))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;
+  const occurs=(event:CalendarEvent,date:string)=>{
+    if(!live)return doesEventOccurOnDate(event,date);
+    // Backend already expands recurrences. Never expand those instances a second time.
+    if(date<event.date)return false;
+    const end=event.api?.end_date??event.date;
+    return event.api?.time_kind==='all_day'&&event.api.end_date?date<end:date<=end;
+  };
   // Touch swipe support for iOS-like native gesture navigation
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
@@ -168,14 +203,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleSimulateSync = (reminderId: string) => {
-    if(readOnly||!['connected_auto_off','connected_auto_on'].includes(gcalSyncState))return;
+    if(live||readOnly||!['connected_auto_off','connected_auto_on'].includes(gcalSyncState))return;
     onSimulateGoogleSync(reminderId);
     setSyncToast('Demo schedule update applied locally');
     setTimeout(() => setSyncToast(null), 4000);
   };
 
   const handleQuickAddReminder = (event: CalendarEvent) => {
-    if(readOnly)return;
+    if(readOnly||live)return;
     const pad = (n: number) => String(n).padStart(2, '0');
     let calcTime = event.time;
     let calcDate = event.date;
@@ -227,7 +262,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const monthStr = String(monthIndex + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
     const dateStr = `${year}-${monthStr}-${dayStr}`;
-    return events.filter((e) => doesEventOccurOnDate(e, dateStr));
+    return events.filter((e) => occurs(e, dateStr));
   };
 
   const getEventsForMonthCount = (year: number, monthIndex: number) => {
@@ -237,31 +272,29 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     let count = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const dStr = `${prefix}-${String(d).padStart(2, '0')}`;
-      if (events.some((e) => doesEventOccurOnDate(e, dStr))) {
+      if (events.some((e) => occurs(e, dStr))) {
         count++;
       }
     }
     return count;
   };
 
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if(readOnly)return;
-    if (!newTitle.trim()) return;
-    const paddedMonth = String(currentMonthIndex + 1).padStart(2, '0');
-    const paddedDay = String(newDay).padStart(2, '0');
-    const eventDate = `${currentYear}-${paddedMonth}-${paddedDay}`;
-
-    onAddEvent(
+    if(readOnly||calendar?.busy||calendar?.mutationPending||mutationRef.current||!newTitle.trim()||!validDate(newDate))return;
+    mutationRef.current=true;
+    try {
+    pendingForm.current={kind:'create',signature:draftSignatures.current.create};
+    const accepted=await onAddEvent(
       {
         title: newTitle.trim(),
-        date: eventDate,
-        dayOfMonth: newDay,
+        date: newDate,
+        dayOfMonth: Number(newDate.slice(8)),
         time: newTime,
         duration: newCategory === 'deadline' ? 'Deadline' : '1h',
         category: newCategory,
         person: newPerson.trim() || undefined,
-        notes: newNotes.trim() || 'Added via Mroya Calendar.',
+        notes: newNotes.trim(),
         recurrence: newEventRecurrence,
         sourceName: 'Mroya',
         calendarSource: 'local',
@@ -270,21 +303,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       newReminderEnabled ? newReminderOffset : undefined
     );
 
-    setNewTitle('');
-    setNewNotes('');
-    setNewEventRecurrence(undefined);
-    setNewReminderEnabled(false);
-    setIsNewModalOpen(false);
-    setSelectedDay(newDay);
+    if(accepted===false||!mounted.current)return;
+    const submitted=pendingForm.current;pendingForm.current=null;
+    if(submitted&&submitted.signature===draftSignatures.current.create){finishForm(submitted);const [year,month,day]=newDate.split('-').map(Number);selectDate(year,month-1,day);}
+    }catch(error){if(mounted.current)setSyncToast(error instanceof Error?error.message:'Event was not saved.');}
+    finally{mutationRef.current=false;}
   };
 
-  const handleOpenEdit = (event: CalendarEvent) => {
-    if (readOnly || event.isReadOnly) return;
+  const handleOpenEdit = async (event: CalendarEvent) => {
+    if (readOnly || event.isReadOnly || mutationRef.current) return;
+    const epoch=++editEpoch.current;
+    if(calendar){const canonical=await calendar.onLoadEventForEdit(event);if(!canonical||!mounted.current||epoch!==editEpoch.current)return;event=canonical;}
+    if(event.isReadOnly)return;
     setEditingEvent(event);
     setViewingEvent(null);
     setEditTitle(event.title);
-    setEditDay(Number(event.date.slice(8,10)));
-    setEditTime(event.time);
+    setEditDate(event.date);
+    setEditTime(event.api?(event.api.start_time??'All day'):event.time);
     setEditDuration(event.duration || '1h');
     setEditCategory(event.category);
     setEditPerson(event.person || '');
@@ -292,21 +327,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setEditRecurrence(event.recurrence);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (readOnly || !editingEvent || !editTitle.trim()) return;
-    if(editingEvent.isReadOnly)return;
-    const [year,month]=editingEvent.date.split('-').map(Number);
-    if(!Number.isInteger(editDay)||month<1||month>12)return;
-    const date=calendarDate(year,month-1,editDay);
-    if(date.getFullYear()!==year||date.getMonth()!==month-1||date.getDate()!==editDay)return;
-    const updatedDate=calendarKey(date);
-
+    if (readOnly || calendar?.busy || calendar?.mutationPending || mutationRef.current || !editingEvent || editingEvent.isReadOnly || !editTitle.trim() || !validDate(editDate)) return;
+    const updatedDate=editDate;
     const updated: CalendarEvent = {
       ...editingEvent,
       title: editTitle.trim(),
       date: updatedDate,
-      dayOfMonth: editDay,
+      dayOfMonth: Number(editDate.slice(8)),
       time: editTime,
       duration: editCategory === 'deadline' ? 'Deadline' : editDuration,
       category: editCategory,
@@ -316,10 +345,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       syncStatus: 'local_only',
     };
 
-    onEditEvent?.(updated);
-    setEditingEvent(null);
-    setSyncToast('Commitment updated locally · Not yet synchronized');
-    setTimeout(() => setSyncToast(null), 3500);
+    mutationRef.current=true;
+    pendingForm.current={kind:'edit',signature:draftSignatures.current.edit};
+    try{const accepted=await onEditEvent?.(updated);if(accepted===false||!mounted.current)return;
+      const submitted=pendingForm.current;pendingForm.current=null;if(submitted)finishForm(submitted);setSyncToast(live?'Commitment saved in Mroya. Google sync is confirmed separately.':'Commitment updated locally · Not yet synchronized');
+      setTimeout(() => setSyncToast(null),3500);
+    }catch(error){if(mounted.current)setSyncToast(error instanceof Error?error.message:'Event was not saved.');}
+    finally{mutationRef.current=false;}
   };
 
   const handleOpenDelete = (event: CalendarEvent) => {
@@ -328,12 +360,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setViewingEvent(null);
   };
 
-  const handleConfirmDelete = () => {
-    if (readOnly || !deletingEvent) return;
-    onDeleteEvent?.(deletingEvent.id);
-    setDeletingEvent(null);
-    setSyncToast('Commitment permanently deleted from calendar');
-    setTimeout(() => setSyncToast(null), 3500);
+  const handleConfirmDelete = async () => {
+    if (readOnly || calendar?.busy || calendar?.mutationPending || mutationRef.current || !deletingEvent || deletingEvent.isReadOnly) return;
+    mutationRef.current=true;
+    pendingForm.current={kind:'delete',signature:draftSignatures.current.delete};
+    try{const accepted=await onDeleteEvent?.(deletingEvent.id,deletingEvent.api?.version);if(accepted===false||!mounted.current)return;
+      const submitted=pendingForm.current;pendingForm.current=null;if(submitted)finishForm(submitted);setSyncToast('Commitment permanently deleted from calendar');setTimeout(()=>setSyncToast(null),3500);
+    }catch(error){if(mounted.current)setSyncToast(error instanceof Error?error.message:'Event was not deleted.');}
+    finally{mutationRef.current=false;}
   };
 
   const renderSourceBadge = (ev: CalendarEvent) => {
@@ -374,6 +408,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </span>
       );
     }
+    if(live&&!ev.syncStatus)return null;
     if (ev.syncStatus === 'synced') {
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-[5px] border border-emerald-500/20 shrink-0">
@@ -430,7 +465,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleSelectMonthAndYear = (year: number, mIdx: number) => {
     selectDate(year,mIdx);
     setIsMonthPickerOpen(false);
-    if(!readOnly||viewMode!=='week')setViewMode('month');
+    if(!(live||readOnly)||viewMode!=='week')setViewMode('month');
   };
 
   // Touch gestures: swipe left/right to change month/year
@@ -477,6 +512,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
   const weekDays=calendarWeek(selectedDate);
   const availableYears=calendarYears(currentYear);
+
+  const calendarStatus=calendar&&(calendar.loading||calendar.error||calendar.busy)&&<div role={calendar.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
+        {calendar.error??(calendar.busy?'Saving calendar change…':'Loading calendar…')}
+        {calendar.error&&<button type="button" disabled={calendar.busy||calendar.loading} onClick={()=>void retryCalendar()} className="ml-3 underline">Retry / check calendar</button>}
+      </div>;
 
   return (
     <div
@@ -607,7 +647,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             onClick={handleJumpToToday}
-            title={readOnly?'Jump to today':'Jump to today (Oct 12)'}
+            title={live||readOnly?'Jump to today':'Jump to today (Oct 12)'}
             className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-[12px] font-bold text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] hover:bg-[var(--mroya-brand-honey)]/25 border border-[var(--mroya-brand-honey)]/40 shadow-2xs transition-all cursor-pointer shrink-0"
           >
             Today
@@ -1020,7 +1060,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       type="button"
                       disabled={readOnly}
                       onClick={() => {
-                        setNewDay(selectedDay);
+                        setNewDate(calendarKey(calendarDate(currentYear,currentMonthIndex,selectedDay)));
                         if(!readOnly)setIsNewModalOpen(true);
                       }}
                       className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
@@ -1136,6 +1176,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       </span>
                                       <button
                                         type="button"
+                                        disabled={live}
                                         onClick={() =>
                                           setAddingReminderForEventId(
                                             addingReminderForEventId === ev.id ? null : ev.id
@@ -1257,7 +1298,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         No Events
                       </div>
                       <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                        {readOnly ? 'Calendar API is not available yet.' : 'Protected deep work block · Tap + to schedule a commitment'}
+                        {readOnly ? 'Calendar API is not available yet.' : live?'Tap + to schedule a commitment':'Protected deep work block · Tap + to schedule a commitment'}
                       </div>
                     </div>
                   )}
@@ -1304,7 +1345,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </span>
                       </div>
                       <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                        {readOnly ? 'Calendar integration is not available yet.' : 'Mroya cross-references your calendar with saved client commitments and protects mornings before 11:00 AM.'}
+                        {readOnly ? 'Calendar integration is not available yet.' : live?'Mroya calendar · Google synchronization is managed by the backend.':'Mroya cross-references your calendar with saved client commitments and protects mornings before 11:00 AM.'}
                       </p>
                     </div>
                   </div>
@@ -1406,7 +1447,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           return (
                             <div
                               key={calendarKey(date)}
-                              data-calendar-date={readOnly?calendarKey(date):undefined}
+                              data-calendar-date={live||readOnly?calendarKey(date):undefined}
                               onClick={() => selectDate(year,month,day)}
                               className={`min-h-[240px] p-2.5 rounded-[10px] border cursor-pointer flex flex-col gap-2 ${
                                 isSelected
@@ -1415,7 +1456,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               }`}
                             >
                               <div className="text-[13px] font-semibold text-[var(--mroya-text)] tabular-nums border-b border-[var(--mroya-divider)] pb-1.5">
-                                {SHORT_MONTH_NAMES[month]} {day}{readOnly ? ', '+year : ''} {isToday ? '· Today' : ''}
+                                {SHORT_MONTH_NAMES[month]} {day}{live||readOnly ? ', '+year : ''} {isToday ? '· Today' : ''}
                               </div>
                               <div className="space-y-2">
                                 {evts.map((ev) => (
@@ -1461,7 +1502,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           type="button"
                           disabled={readOnly}
                           onClick={() => {
-                            setNewDay(selectedDay);
+                            setNewDate(calendarKey(calendarDate(currentYear,currentMonthIndex,selectedDay)));
                             if(!readOnly)setIsNewModalOpen(true);
                           }}
                           className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
@@ -1579,6 +1620,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         </div>
                                         <button
                                           type="button"
+                                          disabled={live}
                                           onClick={() =>
                                             setAddingReminderForEventId(
                                               addingReminderForEventId === ev.id ? null : ev.id
@@ -1766,7 +1808,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </div>
                       ) : (
                         <p className="text-[13px] text-[var(--mroya-text-muted)] py-3">
-                          {readOnly ? 'Calendar API is not available yet.' : <>No commitments scheduled for {MONTH_NAMES[currentMonthIndex]} {selectedDay}. Mornings before 11:00 AM are protected for deep work.</>}
+                          {readOnly ? 'Calendar API is not available yet.' : <>No commitments scheduled for {MONTH_NAMES[currentMonthIndex]} {selectedDay}. {!live&&'Mornings before 11:00 AM are protected for deep work.'}</>}
                         </p>
                       )}
                     </div>
@@ -1784,7 +1826,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             onClick={() => {
                               const [year,month,day]=ev.date.split('-').map(Number);
                               // Demo fixtures store recurring occurrence dayOfMonth separately from their series start date.
-                              selectDate(readOnly?year:today.getFullYear(),readOnly?month-1:today.getMonth(),readOnly?day:ev.dayOfMonth);
+                              selectDate(live||readOnly?year:today.getFullYear(),live||readOnly?month-1:today.getMonth(),live||readOnly?day:ev.dayOfMonth);
                               setViewMode('month');
                             }}
                             className="w-full py-2.5 first:pt-0 last:pb-0 text-left flex items-start justify-between gap-3 hover:opacity-85 transition-opacity cursor-pointer"
@@ -1799,7 +1841,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             </div>
                             <div className="text-right shrink-0 tabular-nums">
                               <div className="text-[12px] font-semibold text-[var(--mroya-primary)]">
-                                {SHORT_MONTH_NAMES[readOnly?Number(ev.date.slice(5,7))-1:today.getMonth()]} {readOnly?Number(ev.date.slice(8,10)):ev.dayOfMonth}{readOnly?', '+ev.date.slice(0,4):''}
+                                {SHORT_MONTH_NAMES[live||readOnly?Number(ev.date.slice(5,7))-1:today.getMonth()]} {live||readOnly?Number(ev.date.slice(8,10)):ev.dayOfMonth}{live||readOnly?', '+ev.date.slice(0,4):''}
                               </div>
                               <div className="text-[11px] text-[var(--mroya-text-muted)] flex items-center justify-end gap-1">
                                 <Clock className="w-3 h-3" />
@@ -1818,6 +1860,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       </div>
 
+      {!isNewModalOpen&&!editingEvent&&!deletingEvent&&calendarStatus}
+      {googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
@@ -1837,6 +1881,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateEvent} className="space-y-4">
+              {calendarStatus}
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   Commitment title *
@@ -1854,20 +1899,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Day of month (1-31)
+                    Date
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={newDay}
-                    onChange={(e) => setNewDay(Number(e.target.value))}
+                    type="date"
+                    required
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Time
+                    Time{live?` · ${editingEvent?.api?.timezone??calendar?.timezone??''} (HH:MM or All day)`:null}
                   </label>
                   <input
                     type="text"
@@ -1909,6 +1953,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   type="text"
                   placeholder={samples?.personPlaceholder??'Person or organization'}
                   value={newPerson}
+                  disabled={live}
                   onChange={(e) => setNewPerson(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                 />
@@ -1933,7 +1978,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   value={newEventRecurrence}
                   onChange={(rule) => setNewEventRecurrence(rule)}
                   baseTime={newTime}
-                  baseDate={`${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`}
+                  baseDate={newDate}
                 />
               </div>
 
@@ -1943,12 +1988,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <input
                     type="checkbox"
                     checked={newReminderEnabled}
+                    disabled={live}
                     onChange={(e) => setNewReminderEnabled(e.target.checked)}
                     className="w-4 h-4 rounded text-[var(--mroya-primary)] accent-[var(--mroya-primary)] cursor-pointer"
                   />
                   <span className="text-[12px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                     <Bell className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                    <span>Set a reminder for this commitment</span>
+                    <span>{live?'Reminders · Coming soon':'Set a reminder for this commitment'}</span>
                   </span>
                 </label>
                 {newReminderEnabled && (
@@ -1995,6 +2041,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={calendar?.busy||calendar?.mutationPending}
                   className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
                 >
                   Save commitment
@@ -2081,11 +2128,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <div className="text-[var(--mroya-text-muted)] text-[12px] font-medium">
                   Recurrence:
                 </div>
-                {viewingEvent.recurrence ? (
+                {(viewingEvent.recurrence||viewingEvent.api?.edit_scope==='series') ? (
                   <div className="p-2.5 rounded-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-900 dark:text-purple-200 text-[12px] space-y-1">
                     <div className="flex items-center gap-1.5 font-semibold">
                       <Repeat className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>Part of a recurring series ({formatRecurrence(viewingEvent.recurrence)})</span>
+                      <span>Part of a recurring series ({viewingEvent.recurrence?formatRecurrence(viewingEvent.recurrence):'Google provider rule'}). Changes apply to the whole series.</span>
                     </div>
                     <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
                       Modifications apply to the entire recurring series. Individual instance exceptions are not supported by Backend yet.
@@ -2155,7 +2202,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12.5px] font-semibold cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
                     <Pencil className="w-3.5 h-3.5" />
-                    <span>Edit commitment</span>
+                    <span>{viewingEvent.api?.edit_scope==='series'?'Edit entire series':'Edit commitment'}</span>
                   </button>
                 )}
               </div>
@@ -2197,6 +2244,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
+              {calendarStatus}
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   Commitment title *
@@ -2213,20 +2261,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Day of month (1-31)
+                    Date
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={new Date(Number(editingEvent.date.slice(0,4)),Number(editingEvent.date.slice(5,7)),0).getDate()}
-                    value={editDay}
-                    onChange={(e) => setEditDay(Number(e.target.value))}
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Time
+                    Time{live?` · ${editingEvent?.api?.timezone??calendar?.timezone??''} (HH:MM or All day)`:null}
                   </label>
                   <input
                     type="text"
@@ -2266,6 +2313,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <input
                   type="text"
                   value={editPerson}
+                  disabled={live}
                   onChange={(e) => setEditPerson(e.target.value)}
                   placeholder="Person or organization"
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
@@ -2286,7 +2334,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               {/* Recurrence Rule in Edit Modal */}
               <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
-                {editingEvent.recurrence && (
+                {(editingEvent.recurrence||editingEvent.api?.edit_scope==='series') && (
                   <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1 mb-1">
                     <Repeat className="w-3.5 h-3.5" />
                     <span>Part of a recurring series (Applies to all occurrences)</span>
@@ -2296,7 +2344,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   value={editRecurrence}
                   onChange={(rule) => setEditRecurrence(rule)}
                   baseTime={editTime}
-                  baseDate={`${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}-${String(editDay).padStart(2, '0')}`}
+                  baseDate={editDate}
                 />
               </div>
 
@@ -2310,6 +2358,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={calendar?.busy||calendar?.mutationPending}
                   className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
                 >
                   Save changes
@@ -2339,7 +2388,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   id="delete-event-dialog-title"
                   className="text-[16px] font-semibold text-[var(--mroya-text)] tracking-[-0.01em]"
                 >
-                  {deletingEvent.recurrence ? 'Delete recurring series?' : 'Delete commitment?'}
+                  {(deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series') ? 'Delete recurring series?' : 'Delete commitment?'}
                 </h3>
                 <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
                   {deletingEvent.title}
@@ -2356,11 +2405,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             <p className="text-[13.5px] leading-[20px] text-[var(--mroya-text-muted)]">
-              {deletingEvent.recurrence
+              {(deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series')
                 ? 'Permanently delete this recurring series and all its scheduled occurrences? This cannot be undone.'
                 : 'Permanently delete this commitment from your calendar? This cannot be undone.'}
             </p>
 
+            {calendarStatus}
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
@@ -2372,6 +2422,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmDelete}
+                disabled={calendar?.busy||calendar?.mutationPending}
                 className="px-3.5 py-2 rounded-[8px] bg-[var(--mroya-error)] hover:opacity-90 active:scale-[0.98] text-white text-[13px] font-semibold transition-all cursor-pointer shadow-2xs"
               >
                 Delete

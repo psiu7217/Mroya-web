@@ -113,6 +113,7 @@ const PREVIEW_REASONING_TIMELINE = [
 ];
 
 export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
+  'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   live?: boolean;
@@ -139,6 +140,8 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   live=false,
+  googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
+  onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
   importedCalendars=[],exportCalendar='primary',onChangeImportedCalendars,onChangeExportCalendar,
   onConnectGoogleCalendar:handleConnectGcal,onDisconnectGoogleCalendar:handleDisconnectGcal,
@@ -297,12 +300,18 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 {visibleConnections.map((conn) => {
                   // Explicit catalogue mapping: Studio and live IDs are deliberately different.
                   const isTelegram=conn.id===(live?'telegram':'conn-telegram');
-                  const isGoogleCalendar = !live && (conn.id === 'conn-gcal' || conn.id === 'google-calendar');
+                  const isGoogleCalendar = (!live||googleCalendarAvailable) && (conn.id === 'conn-gcal' || conn.id === 'google-calendar');
 
-                  // In Design Mode (!live), render the dedicated, rich Google Calendar sync block
+                  // Shared Google Calendar card: demo props or confirmed backend data.
                   if (isGoogleCalendar) {
                     const isConnected = gcalSyncState !== 'disconnected';
-                    const canSync = ['connected_auto_off','connected_auto_on'].includes(gcalSyncState);
+                    const canSync = !googleCalendarBusy&&['connected_auto_off','connected_auto_on'].includes(gcalSyncState);
+                    const selectedConnection=googleConnections.find(item=>item.id===selectedGoogleConnectionId);
+                    const canConfigure=!googleCalendarBusy&&(canSync||live&&gcalSyncState==='sync_error');
+                    const calendars=live?(selectedConnection?.calendars??[]):[
+                      {id:'primary',name:`Primary / Основной (${googleCalendarEmail})`,desc:'General schedule, appointments, personal commitments',available:true,read_only:false},
+                      {id:'work',name:'Work & Retainers (Работа и клиенты)',desc:'Harbor Labs, Nordic Studio, client calls',available:true,read_only:false},
+                      {id:'personal',name:'Family & Birthdays (Личное и праздники)',desc:'Family events, contacts birthdays',available:true,read_only:false}];
 
                     return (
                       <div
@@ -311,7 +320,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       >
                         <div className="w-full space-y-4">
                         {/* Design Mode State Switcher Toolbar */}
-                        <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
+                        {!live&&<div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-semibold tracking-wider uppercase text-[var(--mroya-text-muted)] flex items-center gap-1.5">
                               <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
@@ -347,7 +356,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               </button>
                             ))}
                           </div>
-                        </div>
+                        </div>}
 
                         {/* Card Header & Status */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--mroya-divider)]/60">
@@ -453,6 +462,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <button
                                 type="button"
                                 onClick={handleConnectGcal}
+                                disabled={googleCalendarBusy}
                                 className="px-5 py-2.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap shadow-xs shrink-0 self-start sm:self-center"
                               >
                                 Connect Google Calendar
@@ -460,6 +470,17 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             </div>
                           </div>
                         )}
+
+                        {live&&<div className="space-y-2">
+                          {googleConnections.length>0&&<select aria-label="Google Calendar account" value={selectedGoogleConnectionId??''} disabled={googleCalendarBusy} onChange={e=>onSelectGoogleConnection?.(e.target.value)} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]">
+                            {googleConnections.map(account=><option key={account.id} value={account.id}>{account.email||'Google account'} · {account.status}</option>)}
+                          </select>}
+                          {googleConnections.length>0&&<button disabled={googleCalendarBusy} onClick={onConnectAnotherGoogleCalendar} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">Connect another Google account</button>}
+                          {(googleCalendarBusy||googleCalendarError||googleCalendarNotice)&&<p role={googleCalendarError?'alert':'status'} className="text-[12px] text-[var(--mroya-text-muted)]">
+                            {googleCalendarError??(googleCalendarBusy?'Waiting for backend confirmation…':googleCalendarNotice)}
+                            <button disabled={googleCalendarBusy} onClick={onRefreshGoogleCalendar} className="ml-3 underline">Check status</button>
+                          </p>}
+                        </div>}
 
                         {/* CONNECTING STATE VIEW */}
                         {gcalSyncState === 'connecting' && (
@@ -513,7 +534,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 </div>
                               </div>
                               <div className="text-[12px] text-[var(--mroya-text-muted)] sm:text-right">
-                                <span className="font-medium text-[var(--mroya-text)]">Last synced:</span> {lastSyncedTime}
+                                <span className="font-medium text-[var(--mroya-text)]">Last synced:</span> {lastSyncedTime||'Not yet'}
                               </div>
                             </div>
 
@@ -525,12 +546,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   <span className="text-[13px] font-bold">Synchronization error</span>
                                 </div>
                                 <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  Unable to reach Google Calendar API (network timeout). Your local Mroya commitments are preserved and safe.
+                                  {live?(googleCalendarNotice||'The backend reported a synchronization problem. Check status before retrying.'): 'Unable to reach Google Calendar API (network timeout). Your local Mroya commitments are preserved and safe.'}
                                 </p>
                                 <div className="pt-1 flex items-center gap-2">
                                   <button
                                     type="button"
                                     onClick={handleSyncNow}
+                                    disabled={googleCalendarBusy}
                                     className="px-3 py-1.5 rounded-[6px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
                                   >
                                     Retry sync
@@ -567,6 +589,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   <button
                                     type="button"
                                     onClick={handleConnectGcal}
+                                disabled={googleCalendarBusy}
                                     className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12.5px] font-semibold cursor-pointer"
                                   >
                                     Reconnect Google Calendar
@@ -596,11 +619,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 Google Calendars to import:
                               </label>
                               <div className="space-y-1.5">
-                                {[
-                                  { id: 'primary', name: `Primary / Основной (${googleCalendarEmail})`, desc: 'General schedule, appointments, personal commitments' },
-                                  { id: 'work', name: 'Work & Retainers (Работа и клиенты)', desc: 'Harbor Labs, Nordic Studio, client calls' },
-                                  { id: 'personal', name: 'Family & Birthdays (Личное и праздники)', desc: 'Family events, contacts birthdays' },
-                                ].map((cal) => (
+                                {calendars.map((cal) => (
                                   <label
                                     key={cal.id}
                                     className="flex items-center justify-between p-2.5 rounded-[8px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] cursor-pointer transition-colors"
@@ -609,7 +628,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                       <input
                                         type="checkbox"
                                         checked={importedCalendars.includes(cal.id)}
-                                        disabled={!canSync}
+                                        disabled={!canConfigure||!cal.available}
                                         onChange={() => onChangeImportedCalendars?.(importedCalendars.includes(cal.id) ? importedCalendars.filter(id=>id!==cal.id) : [...importedCalendars,cal.id])}
                                         className="w-4 h-4 rounded text-[var(--mroya-primary)] accent-[var(--mroya-primary)] cursor-pointer"
                                       />
@@ -618,7 +637,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                           {cal.name}
                                         </div>
                                         <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
-                                          {cal.desc}
+                                          {live?(cal.available?'Available'+(cal.read_only?' · Read-only':''):'Unavailable'):('desc' in cal?cal.desc:'')}
                                         </div>
                                       </div>
                                     </div>
@@ -643,12 +662,12 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               </label>
                               <select
                                 value={exportCalendar}
-                                disabled={!canSync}
+                                disabled={!canConfigure}
                                 onChange={(e) => onChangeExportCalendar?.(e.target.value)}
                                 className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
                               >
-                                <option value="primary">Primary — {googleCalendarEmail}</option>
-                                <option value="work">Work & Retainers (Harbor Labs, Nordic Studio)</option>
+                                {live&&<option value="">Choose export calendar</option>}
+                                {calendars.filter(cal=>cal.available&&!cal.read_only&&(live||cal.id!=='personal')).map(cal=><option key={cal.id} value={cal.id}>{cal.name}</option>)}
                               </select>
                               <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
                                 Mroya events use this calendar for export after a successful sync; automatic sync must be enabled for automatic export.
@@ -678,7 +697,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 type="button"
                                 role="switch"
                                 aria-checked={autoSync}
-                                disabled={!canSync}
+                                disabled={googleCalendarBusy||(live?selectedConnection?.status!=='connected':!canSync)}
                                 onClick={handleToggleAutoSync}
                                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                                   autoSync ? 'bg-[var(--mroya-primary)]' : 'bg-[var(--mroya-divider)]'
@@ -705,13 +724,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   <span>{gcalSyncState === 'syncing' ? 'Syncing now…' : 'Sync now'}</span>
                                 </button>
                                 <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                  {lastSyncedTime}
+                                  {lastSyncedTime||'Not yet'}
                                 </span>
                               </div>
 
                               <button
                                 type="button"
                                 onClick={handleDisconnectGcal}
+                                disabled={googleCalendarBusy}
                                 className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer self-start sm:self-center"
                               >
                                 Disconnect

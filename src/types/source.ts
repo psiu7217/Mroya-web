@@ -1,6 +1,15 @@
+import type {MroyaApi} from '../api/client';
 import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
+  calendarEvents?:MroyaApi['calendarEvents'];
+  calendarEvent?:MroyaApi['calendarEvent'];
+  mutateCalendar?:MroyaApi['mutateCalendar'];
+  googleCalendarConnections?:MroyaApi['googleCalendarConnections'];
+  startCalendarGoogle?:MroyaApi['startCalendarGoogle'];
+  configureCalendarGoogle?:MroyaApi['configureCalendarGoogle'];
+  syncCalendarGoogle?:MroyaApi['syncCalendarGoogle'];
+  disconnectCalendarGoogle?:MroyaApi['disconnectCalendarGoogle'];
   readonly kind:'design'|'live';
   session(signal?:AbortSignal):Promise<SessionState>;
   login(username:string,password:string,signal?:AbortSignal):Promise<ApiUser>;

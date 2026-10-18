@@ -48,8 +48,12 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   diagnostics.stop();select('chat');void controller.selectConversation(id);
  };
  const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}setFocusedMemoryId(id);setContextOpen(true);};
+ const sendMessage=(content:string)=>new Promise<boolean>(resolve=>{
+  // Acknowledge the composer after CREATE is confirmed and the pending message is queued.
+  void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
+ });
  const model:WorkspaceModel={
-  runtime:{diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||!state.activeConversationId||state.capabilities?.chat!==true,
+  runtime:{diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
@@ -69,7 +73,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
   focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,
   relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:false,
-  handleNewChat:newChat,handleSendMessage:content=>void controller.send(content),handleCitationClick:focusMemory,handleChatActionClick:unavailable,
+  handleNewChat:newChat,handleSendMessage:sendMessage,handleCitationClick:focusMemory,handleChatActionClick:unavailable,
   handleAddOrUpdateReminder:unavailable,handleDeleteReminder:unavailable,handleToggleCompleteReminder:unavailable,
   handleTogglePauseReminder:unavailable,handleUnlinkReminder:unavailable,handleSimulateGoogleSync:unavailable,
   onSidebarSelectSection:select,onSidebarSelectConversation:selectChat,

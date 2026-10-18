@@ -22,6 +22,8 @@ export class LiveWorkspaceController {
  private failedAttemptsByMessage=new Map<string,ReportContext>();
  private sentHistoryIds=new Set<string>();
  private sentContent='';
+ private sendInProgress=false;
+ private unconfirmedCreate=false;
  private historyWithReasoning(history:HistoryResponse):HistoryResponse{
   const pending=this.state.history.messages.find(message=>message.id===this.replyId);
   // Bind only an unambiguous new, adjacent canonical user/assistant pair; never by list position alone.
@@ -93,7 +95,7 @@ export class LiveWorkspaceController {
    if(history.conversation_id!==id)throw new ApiError(502,'invalid_response','History belongs to another conversation');return history;
   });
  }
- private async refreshConversations(epoch=this.epoch){
+ private async refreshConversations(epoch=this.epoch,selectFallback=!this.unconfirmedCreate){
   if(!this.source.conversations)return;
   let all:ConversationSummary[]=[];let offset=0;
   while(true){
@@ -114,25 +116,26 @@ export class LiveWorkspaceController {
   if(!this.state.activeConversationId||!all.some(c=>c.id===this.state.activeConversationId)){
    this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();
    this.turnId=null;this.replyId=null;this.sentContent='';
-   const id=all[0]?.id??null;this.set({activeConversationId:id,history:{conversation_id:id??'',messages:[],next_before:null}});
+   const id=selectFallback?all[0]?.id??null:null;this.set({activeConversationId:id,history:{conversation_id:id??'',messages:[],next_before:null}});
   }
   return all;
  }
  private chatLocked(){
-  if(this.state.busy||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain){this.set({error:'Wait for the current operation or check server status before managing chats.'});return true;}return false;
+  if(this.sendInProgress||this.state.busy||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain){this.set({error:'Wait for the current operation or check server status before managing chats.'});return true;}return false;
  }
  async selectConversation(id:string){
   if(!this.multi||this.chatLocked()||id===this.state.activeConversationId)return false;
   if(!this.state.conversations.some(c=>c.id===id))return false;
+  this.unconfirmedCreate=false;
   this.resetChat(id);const epoch=this.epoch;this.set({loading:true});
   try{const history=await this.readHistory();if(epoch!==this.epoch)return false;this.set({history:this.historyWithReasoning(history)});return true;}
   catch(error){if(epoch===this.epoch){this.failure(error);if(error instanceof ApiError&&error.status===404)await this.reconcileMissing(epoch);}return false;}
   finally{if(epoch===this.epoch)this.set({loading:false});}
  }
- private async reconcileMissing(epoch:number){
+ private async reconcileMissing(epoch:number,preserveSelection=false){
   let conversations:ConversationSummary[]|undefined;
   try{
-   conversations=await this.refreshConversations(epoch);if(epoch!==this.epoch)return;
+   conversations=await this.refreshConversations(epoch,!preserveSelection);if(epoch!==this.epoch)return;
    const history=await this.readHistory();if(epoch!==this.epoch)return;
    this.set({history:this.historyWithReasoning(history)});
    return conversations?{conversations,historyLoaded:true}:undefined;
@@ -145,8 +148,8 @@ export class LiveWorkspaceController {
  createConversation=()=>this.manageConversation('create');
  renameConversation=(id:string,title:string)=>this.manageConversation('rename',id,title);
  deleteConversation=(id:string)=>this.manageConversation('delete',id);
- private async manageConversation(action:'create'|'rename'|'delete',id?:string,title?:string):Promise<boolean>{
-  if(!this.multi||this.chatLocked()||this.state.loading)return false;
+ private async manageConversation(action:'create'|'rename'|'delete',id?:string,title?:string,forSend=false):Promise<boolean>{
+  if(!this.multi||(!forSend&&this.chatLocked())||this.state.loading)return false;
   if(this.state.operationUncertain){this.set({error:'Check server status before repeating a chat change.'});return false;}
   const epoch=this.epoch;this.set({conversationBusy:true,error:null});
   try{
@@ -155,7 +158,7 @@ export class LiveWorkspaceController {
    if(action==='rename'){if(!this.source.renameConversation)throw new Error('Rename unavailable');const updated=await this.source.renameConversation(id!,title!,this.abort.signal);if(epoch!==this.epoch)return false;this.set({conversations:this.state.conversations.map(c=>c.id===id?updated:c)});}
    if(action==='delete'){if(!this.source.deleteConversation)throw new Error('Delete unavailable');await this.source.deleteConversation(id!,this.abort.signal);}
    if(epoch!==this.epoch)return false;
-   if(created){this.resetChat(created.id);this.set({conversations:[created,...this.state.conversations],conversationBusy:false});return true;}
+   if(created){this.unconfirmedCreate=false;this.resetChat(created.id);this.set({conversations:[created,...this.state.conversations],conversationBusy:false});return true;}
    if(action==='delete'){
     this.set({conversations:this.state.conversations.filter(c=>c.id!==id)});
     if(id===this.state.activeConversationId){this.resetChat(this.state.conversations[0]?.id??null);const current=this.epoch;this.set({loading:true,conversationBusy:false});try{const history=await this.readHistory();if(current===this.epoch)this.set({history:this.historyWithReasoning(history)});}catch(error){if(current===this.epoch)this.failure(error);}finally{if(current===this.epoch)this.set({loading:false});}return true;}
@@ -165,14 +168,16 @@ export class LiveWorkspaceController {
    if(epoch!==this.epoch)return false;this.failure(error);if(epoch!==this.epoch)return false;
    // Never replay writes automatically. Resolve the server list before another deliberate write.
    if(!(error instanceof ApiError)||error.status>=500||error.status===404){
+    if(action==='create')this.unconfirmedCreate=true;
     this.set({operationUncertain:true});
-    const confirmed=await this.reconcileMissing(epoch);if(epoch!==this.epoch)return false;
+    const confirmed=await this.reconcileMissing(epoch,action==='create'||this.unconfirmedCreate);if(epoch!==this.epoch)return false;
+    if(action==='create')this.set({operationUncertain:true,error:'The new chat could not be confirmed. Check server status, then select a chat or use New chat. Your message was not sent.'});
     const row=confirmed?.conversations.find(c=>c.id===id);
     if(confirmed&&(action==='delete'&&!row||action==='rename'&&row?.title===title!.trim())){
      if(confirmed.historyLoaded)this.set({error:null});
      return true;
     }
-    if(confirmed?.historyLoaded)this.set({error:'The chat change was not confirmed. Review the refreshed server list before trying again.'});
+    if(action!=='create'&&confirmed?.historyLoaded)this.set({error:'The chat change was not confirmed. Review the refreshed server list before trying again.'});
    }
    return false;
   }finally{if(epoch===this.epoch)this.set({conversationBusy:false});}
@@ -195,17 +200,30 @@ export class LiveWorkspaceController {
  }
  async older(){if(this.state.busy||this.state.loading||!this.state.history.next_before)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.readHistory(this.state.history.next_before);if(epoch===this.epoch)this.set({history:{...page,messages:[...this.historyWithReasoning(page).messages,...this.state.history.messages].filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
  async moreMemories(){if(this.state.loading||this.state.busy||this.state.memories.memories.length>=this.state.memories.total)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.source.memories({limit:25,offset:this.state.memories.memories.length},this.abort.signal);if(epoch===this.epoch)this.set({memories:{...page,memories:[...this.state.memories.memories,...page.memories].filter((m,i,a)=>a.findIndex(x=>x.uuid===m.uuid)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
- async send(content:string){
-  if(this.state.busy||this.state.loading||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain)return;
-  if(this.multi&&!this.state.activeConversationId){this.set({error:'Create a new chat before sending a message.'});return;}
-  if(this.state.capabilities?.chat!==true){this.set({error:'Chat is unavailable on this server.'});return;}
-  if(!content.trim()||content.length>16000){this.set({error:'Messages must contain 1–16000 characters.'});return;}
+ async send(content:string,onReady?:()=>void):Promise<boolean>{
+  if(this.sendInProgress||this.state.busy||this.state.loading||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain)return false;
+  if(this.state.capabilities?.chat!==true){this.set({error:'Chat is unavailable on this server.'});return false;}
+  if(!content.trim()||content.length>16000){this.set({error:'Messages must contain 1–16000 characters.'});return false;}
+  if(this.multi&&!this.state.activeConversationId&&this.unconfirmedCreate){this.set({error:'Select a chat or use New chat after checking server status. The previous creation was not confirmed; nothing is automatically resent.'});return false;}
+  this.sendInProgress=true;
+  try{
+   if(this.multi&&!this.state.activeConversationId){
+    const epoch=this.epoch;
+    if(!await this.manageConversation('create',undefined,undefined,true)||this.epoch!==epoch+1||this.abort.signal.aborted)return false;
+   }
+   await this.sendActive(content,onReady);
+   return true;
+  }finally{this.sendInProgress=false;}
+ }
+ // The send lock spans CREATE and dispatch; only a confirmed conversation reaches here.
+ private async sendActive(content:string,onReady?:()=>void){
   const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;this.replyId='reply:'+id;this.sentContent=content.trim();this.sentHistoryIds=new Set(this.state.history.messages.map(message=>message.id));
   const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
   let answer='',reasoning='',failedActivity=false,completed=false;
   let timeline:ChatTimelineEntry[]=[];let previousEvent='';const toolLifecycle=new ToolActivityLifecycle();
   try {
+   onReady?.();
    const send=this.multi?this.source.sendConversation?.bind(this.source,this.state.activeConversationId!):this.source.send.bind(this.source);
    if(!send)throw new Error('Conversation send unavailable');
    await send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
@@ -266,7 +284,7 @@ export class LiveWorkspaceController {
   }finally{if(epoch===this.epoch)this.set({busy:false});}
  }
  async recover(){
-  if(this.state.busy||this.state.conversationBusy)return;
+  if(this.sendInProgress||this.state.busy||this.state.conversationBusy)return;
   const epoch=this.epoch;
   try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='failed'){
     const context=readReportContext(turn.report_context);

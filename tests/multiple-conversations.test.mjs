@@ -142,6 +142,8 @@ test('Design creates empty chats, renames, switches and deletes last locally wit
   view.value.onSidebarSelectConversation(first);view.render();assert.equal(view.value.activeConversation.title,'Local title');
   view.value.onSidebarDeleteConversation(first);view.render();assert.equal(view.value.activeConversationId,second);
   view.value.onSidebarDeleteConversation(second);view.render();assert.equal(view.value.activeConversationId,null);assert.deepEqual(view.value.conversations,[]);
+  view.value.handleSendMessage('First local message');view.render();
+  assert.ok(view.value.activeConversationId);assert.equal(view.value.activeConversation.messages[0].content,'First local message');
  }finally{globalThis.fetch=original;}
 });
 test('Studio Rename/Delete keep Cancel, confirmed-only close, saving guards, and title-only search',async()=>{

@@ -60,10 +60,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'chat' && (
           <>
             <ChatWorkspace
-              key={activeConversationId ?? 'no-chat'}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
-              pending={runtime?.pending??feedback?.loading??!activeConversationId}
+              pending={runtime?.pending??feedback?.loading}
               isThinking={runtime?.busy ?? feedback?.busy}
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}

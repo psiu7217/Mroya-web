@@ -70,14 +70,17 @@ test('create is server-confirmed, duplicate click makes one POST, and unknown ou
  const s=server(),ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();const pending=gate<ConversationSummary>();let writes=0;
  s.source.createConversation=async()=>{writes++;return pending.promise;};const creating=ctrl.createConversation();assert.equal(await ctrl.createConversation(),false);assert.equal(ctrl.snapshot().activeConversationId,a);
  pending.resolve(summary(c,''));assert.equal(await creating,true);assert.equal(writes,1);assert.equal(ctrl.snapshot().activeConversationId,c);assert.deepEqual(ctrl.snapshot().history.messages,[]);
- s.source.createConversation=async()=>{writes++;throw new TypeError('Network lost');};assert.equal(await ctrl.createConversation(),false);assert.equal(writes,2);assert.ok(ctrl.snapshot().error?.includes('not confirmed'));assert.ok(s.calls.some(v=>v.kind==='list'));ctrl.stop();
+ s.source.createConversation=async()=>{writes++;throw new TypeError('Network lost');};assert.equal(await ctrl.createConversation(),false);assert.equal(writes,2);assert.ok(ctrl.snapshot().error?.includes('could not be confirmed'));assert.ok(s.calls.some(v=>v.kind==='list'));ctrl.stop();
 });
 test('rename waits for confirmation; errors retain old title; delete active/last never creates a replacement',async()=>{
  const s=server(),ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();const pending=gate<ConversationSummary>();s.source.renameConversation=async()=>pending.promise;
  const renaming=ctrl.renameConversation(a,'Manual');assert.equal(ctrl.snapshot().conversations[0].title,'Chat A');pending.resolve(summary(a,'Manual'));assert.equal(await renaming,true);assert.equal(ctrl.snapshot().conversations[0].title,'Manual');
  for(const status of [400,403,409]){s.source.renameConversation=async()=>{throw new ApiError(status,'synthetic','Rejected');};assert.equal(await ctrl.renameConversation(a,'Bad'),false);assert.equal(ctrl.snapshot().conversations[0].title,'Manual');}
  await ctrl.deleteConversation(a);assert.equal(ctrl.snapshot().activeConversationId,b);await ctrl.deleteConversation(b);assert.equal(ctrl.snapshot().activeConversationId,null);assert.deepEqual(ctrl.snapshot().conversations,[]);assert.deepEqual(ctrl.snapshot().history.messages,[]);
- await ctrl.send('Not allowed');assert.ok(ctrl.snapshot().error?.includes('Create'));assert.ok(!s.calls.some(v=>v.kind==='create'||v.kind==='send'));ctrl.stop();
+ assert.ok(!s.calls.some(v=>v.kind==='create'||v.kind==='send'));
+ assert.equal(await ctrl.send('First message after deletion'),true);
+ assert.equal(ctrl.snapshot().activeConversationId,c);assert.equal(s.calls.filter(v=>v.kind==='create').length,1);
+ assert.deepEqual(s.calls.filter(v=>v.kind==='send').map(v=>v.id),[c]);ctrl.stop();
 });
 test('late A history cannot overwrite B; logout drops late responses and another account starts empty',async()=>{
  const s=server(),ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();await ctrl.selectConversation(b);
@@ -160,4 +163,52 @@ test('offset traversal refreshes the first page once, preferring fresh metadata/
  offsets.length=0;
  s.source.conversations=async(offset=0)=>{offsets.push(offset);return offsets.length===3?{conversations:[],next_offset:null}:offset?{conversations:[summary(c)],next_offset:null}:{conversations:[summary(a)],next_offset:1};};
  await ctrl.load();assert.deepEqual(offsets,[0,1,0]);assert.deepEqual(ctrl.snapshot().conversations,[]);assert.equal(ctrl.snapshot().activeConversationId,null);ctrl.stop();
+});
+
+
+test('first startup creates nothing until send, confirms ID before dispatch and guards duplicate submissions',async()=>{
+ const s=server();await s.source.deleteConversation!(a);await s.source.deleteConversation!(b);
+ const ctrl=new LiveWorkspaceController(s.source,()=>{},()=>a);await ctrl.load();
+ assert.equal(ctrl.snapshot().activeConversationId,null);assert.equal(s.calls.filter(call=>call.kind==='create').length,0);
+ const create=s.source.createConversation!,confirmation=gate<ConversationSummary>();let creates=0,ready=0;
+ s.source.createConversation=async signal=>{creates++;await create(signal);return confirmation.promise;};
+ s.source.sendConversation=async(id,text,_submission,emit)=>{
+  s.calls.push({kind:'send',id});assert.equal(id,c);assert.equal(ready,1);
+  s.histories.set(id,[{...message(a),content:text},{...message(b,2),role:'assistant',content:'Reply'}]);
+  emit({event:'delta',data:{text:'Reply'}});emit({event:'done',data:{}});
+ };
+ const first=ctrl.send('First question',()=>ready++);
+ assert.equal(await ctrl.send('Duplicate Enter'),false);assert.equal(creates,1);assert.equal(ready,0);
+ assert.equal(s.calls.filter(call=>call.kind==='send').length,0);
+ confirmation.resolve(summary(c,''));assert.equal(await first,true);
+ assert.equal(ctrl.snapshot().conversations[0].id,c);assert.equal(ctrl.snapshot().history.messages[0].content,'First question');
+ assert.deepEqual(s.calls.filter(call=>call.kind==='send').map(call=>call.id),[c]);ctrl.stop();
+});
+test('failed first CREATE keeps no active chat and never sends; retry is deliberate, not automatic',async()=>{
+ const s=server();await s.source.deleteConversation!(a);await s.source.deleteConversation!(b);
+ const ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();let creates=0,ready=0;
+ const create=s.source.createConversation!;
+ s.source.createConversation=async()=>{creates++;throw new ApiError(403,'csrf_failed','Creation denied');};
+ assert.equal(await ctrl.send('Keep my draft',()=>ready++),false);assert.equal(ready,0);assert.equal(creates,1);
+ assert.equal(ctrl.snapshot().activeConversationId,null);assert.equal(ctrl.snapshot().error,'Creation denied');assert.ok(!s.calls.some(call=>call.kind==='send'));
+ s.source.createConversation=create;assert.equal(await ctrl.send('Keep my draft'),true);assert.equal(ctrl.snapshot().activeConversationId,c);ctrl.stop();
+});
+test('lost CREATE response cannot guess a destination or repeat POST, including after manual status refresh',async()=>{
+ const s=server();await s.source.deleteConversation!(a);await s.source.deleteConversation!(b);
+ const ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();const create=s.source.createConversation!;let creates=0;
+ s.source.createConversation=async signal=>{creates++;await create(signal);throw new TypeError('CREATE response lost');};
+ // Another conversation can become first while the ambiguous creation is reconciled.
+ const list=s.source.conversations!;s.source.conversations=async(offset,signal)=>{const page=await list(offset,signal);return page.conversations.length?{...page,conversations:[summary(b,'Concurrent chat'),...page.conversations]}:page;};
+ assert.equal(await ctrl.send('Do not send elsewhere'),false);assert.equal(ctrl.snapshot().activeConversationId,null);
+ assert.equal(ctrl.snapshot().operationUncertain,true);assert.ok(!s.calls.some(call=>call.kind==='send'));
+ assert.equal(await ctrl.send('Do not resend'),false);await ctrl.recover();assert.equal(ctrl.snapshot().activeConversationId,null);
+ assert.equal(await ctrl.send('Still no guess'),false);assert.equal(creates,1);
+ await ctrl.selectConversation(c);assert.equal(await ctrl.send('Explicit destination'),true);
+ assert.deepEqual(s.calls.filter(call=>call.kind==='send').map(call=>call.id),[c]);ctrl.stop();
+});
+test('logout during implicit CREATE ignores its late confirmation and never dispatches the first message',async()=>{
+ const s=server();await s.source.deleteConversation!(a);await s.source.deleteConversation!(b);
+ const ctrl=new LiveWorkspaceController(s.source,()=>{});await ctrl.load();const pending=gate<ConversationSummary>();s.source.createConversation=()=>pending.promise;
+ const sending=ctrl.send('Old account draft');ctrl.stop();pending.resolve(summary(c,''));assert.equal(await sending,false);
+ assert.equal(ctrl.snapshot().activeConversationId,null);assert.ok(!s.calls.some(call=>call.kind==='send'));
 });

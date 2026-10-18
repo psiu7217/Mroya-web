@@ -49,7 +49,7 @@ export interface ChatWorkspaceProps {
   samples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
   memoriesCount: number;
   conversation: Conversation | null;
-  onSendMessage: (content: string, attachmentName?: string) => void;
+  onSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
   onCitationClick: (memoryId: string) => void;
   onActionClick: (action: ChatAction) => void;
   addedActionIds: string[];
@@ -109,6 +109,34 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [liveTranscript, setLiveTranscript] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [localThinking, setLocalThinking] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submission = useRef(false), draftRevision = useRef(0);
+  const previousChat = useRef(conversation?.id ?? null);
+
+  useEffect(() => {
+    const id = conversation?.id ?? null;
+    if (id === previousChat.current) return;
+    const fromEmpty = previousChat.current === null && id !== null;
+    previousChat.current = id;
+    if (!fromEmpty) {
+      draftRevision.current++; setInput(''); setAttachedFile(null); setLocalThinking(false);
+    }
+    setCopiedMessageId(null); setHeaderMenuOpen(false); setMobileUserMenuOpen(false);
+  }, [conversation?.id]);
+
+  const submitMessage = async (content: string, attachmentName?: string) => {
+    if (pending || submission.current) return;
+    submission.current = true;
+    const revision = draftRevision.current;
+    setSubmitting(true); setLocalThinking(true);
+    try {
+      const accepted = await onSendMessage(content, attachmentName);
+      if (accepted === false) { setLocalThinking(false); return; }
+      if (revision === draftRevision.current) { setInput(''); setAttachedFile(null); }
+    } catch {
+      setLocalThinking(false);
+    } finally { submission.current = false; setSubmitting(false); }
+  };
 
   useEffect(() => {
     if (conversation?.messages.length) {
@@ -231,6 +259,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleStopAndInsertText = () => {
     const text = stopRecordingInternal();
     if (text) {
+      draftRevision.current++;
       setInput((prev) => (prev ? `${prev} ${text}` : text));
       textareaRef.current?.focus();
     }
@@ -239,10 +268,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleStopAndSend = () => {
     const text = stopRecordingInternal();
     if (text.trim()) {
-      setLocalThinking(true);
-      onSendMessage(text.trim());
-      setInput('');
-      setAttachedFile(null);
+      void submitMessage(text.trim());
     }
   };
 
@@ -307,16 +333,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     if (e) e.preventDefault();
     const trimmed = input.trim();
     if (pending || (!trimmed && !attachedFile)) return;
-    setLocalThinking(true);
-    onSendMessage(
+    void submitMessage(
       trimmed || `Shared attachment: ${attachedFile}`,
       attachedFile || undefined
     );
-    setInput('');
-    setAttachedFile(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -328,18 +348,19 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
   const handleStarterClick = (promptText: string) => {
     if (promptText === 'Remember something important') {
+      draftRevision.current++;
       setInput(
         samples?.memoryPrompt ?? 'Remember that '
       );
       textareaRef.current?.focus();
     } else {
-      setLocalThinking(true);
-      onSendMessage(promptText);
+      void submitMessage(promptText);
     }
   };
 
   const handleAttachSample = () => {
     if (!samples) {onUnavailable?.();return;}
+    draftRevision.current++;
     if (attachedFile) {
       setAttachedFile(null);
     } else {
@@ -1001,7 +1022,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 ref={textareaRef}
                 rows={1}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => { draftRevision.current++; setInput(e.target.value); }}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask Mroya anything..."
                 className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border-0 border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 max-h-40"
@@ -1115,7 +1136,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                 <button
                   type="submit"
-                  disabled={pending || (!input.trim() && !attachedFile)}
+                  disabled={pending || submitting || (!input.trim() && !attachedFile)}
                   aria-label="Send message"
                   className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >

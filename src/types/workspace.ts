@@ -70,7 +70,7 @@ export interface WorkspaceModel {
     relatedMemoriesForActiveChat: MemoryItem[];
     upcomingRelatedEvent: CalendarEvent | null;
     handleNewChat: () => void;
-    handleSendMessage: (content: string, attachmentName?: string) => void;
+    handleSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     googleCalendarConnected: boolean;

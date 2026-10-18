@@ -301,7 +301,11 @@ uses explicit UUID paths for both history and send, never the primary-chat adapt
 Delete removes the chat/messages and provably associated diagnostic records, while
 shared personal memory and independent calendar data are preserved. No archive,
 trash, soft delete or restore. A foreign/missing chat returns 404 not_found. Deleting
-the last chat leaves no active chat: the user must explicitly create one before send.
+the last chat leaves no active chat. Opening Chat does not create one; the first
+explicit Send creates a chat, waits for its confirmed UUID, then dispatches to that UUID.
+A failed CREATE retains the composer draft. An unknown CREATE outcome is reconciled
+without guessing a destination or repeating POST; status review and an explicit chat
+selection/New chat are required before continuing.
 DELETE can return 409 conversation_busy or conversation_delete_conflict. Other errors:
 400 invalid_conversation/invalid_title/invalid_pagination/invalid_json and existing send
 errors; 401 authentication_required; 403 csrf_failed; 5xx/network/schema failures.
@@ -312,8 +316,11 @@ new deliberate write; failed/unknown DELETE is never announced as confirmed succ
 The controller blocks chat management during busy/uncertain sends and pins requests,
 cursors, submission/turn/reply IDs and transient activity to the selected UUID. Switching
 aborts read requests, advances the request epoch and clears reasoning/timeline/failed
-attempt maps. Late callbacks cannot attach to another chat. Composer remounts on UUID
-change, clearing unsent drafts. Diagnostics also change lifecycle scope with the UUID,
+attempt maps. Late callbacks cannot attach to another chat. Composer clears drafts
+on real-chat switches, retaining the first-message draft
+while an empty workspace acquires a confirmed UUID. It clears the submitted draft
+only when the controller queues it for that confirmed chat; newer edits are retained.
+Diagnostics also change lifecycle scope with the UUID,
 while requests still use their original turn_id + request_trace_id. Transient activity
 is never persisted; returning to a chat may omit previously streamed reasoning/tools.
 Design uses the same Studio Sidebar/dialogs and Workspace locally without HTTP.

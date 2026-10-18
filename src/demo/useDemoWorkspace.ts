@@ -232,7 +232,6 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
 
   // Simulated intelligent Mroya response generator grounded in saved memories
   const handleSendMessage = (content: string, attachmentName?: string) => {
-    if(!activeConversationId)return;
     const nowTime = '2:24 PM';
     const userMsg: ChatMessage = {
       id: `msg-u-${Date.now()}`,
@@ -539,7 +538,11 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
       };
     }
 
-    const targetConvId = activeConversationId;
+    const targetConvId = activeConversationId ?? crypto.randomUUID();
+    if(!activeConversationId){
+      setConversations(prev=>[{id:targetConvId,title:Array.from(content).slice(0,100).join(''),group:'Today',updatedAt:new Date().toISOString(),messages:[userMsg],relatedMemoryIds:[]},...prev]);
+      setActiveConversationId(targetConvId);
+    } else
     setConversations(prev=>prev.map(c=>c.id===targetConvId?{...c,
       title:c.messages.length===0&&!manualTitles.current.has(c.id)?Array.from(content).slice(0,100).join(''):c.title,
       updatedAt:new Date().toISOString(),messages:[...c.messages,userMsg]}:c));

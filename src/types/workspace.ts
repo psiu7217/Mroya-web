@@ -32,7 +32,14 @@ export interface WorkspaceRuntime {
     showModelReasoning?:boolean; onToggleShowModelReasoning?:(enabled:boolean)=>void;
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
 }
+export interface ConnectionSamples {
+    googleCalendarId:string;
+    telegramId:string;
+    calendars:{id:string;name:string;desc:string;available:boolean;read_only:boolean;exportable:boolean}[];
+    scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
+}
 export interface WorkspaceModel {
+    connectionSamples?:ConnectionSamples;
     onSaveNickname?:(value:string)=>void;
     onClearNickname?:()=>void;
     diagnostics?:ChatDiagnostics;

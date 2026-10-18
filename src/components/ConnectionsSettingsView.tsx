@@ -62,58 +62,8 @@ const PLANNED_CONNECTIONS: ServiceConnection[] = [
   {id:'telegram',name:'Telegram',category:'Personal text chat',description:'Chat privately with Mroya in Telegram using your existing account.',connected:false,capabilities:['Personal text chat with Mroya','Shared conversation history between Web and Telegram','Shared personal memory','Telegram replies only to messages sent in Telegram']},
   {id:'gmail',name:'Google Mail (Context Forwarding)',category:'Email & Proposals',description:'Email connections are not available yet.',connected:false,capabilities:[]},
 ];
-const PREVIEW_REASONING_TIMELINE = [
-  {
-    type: 'reasoning' as const,
-    text: 'Пользователь сообщил информацию о друге. Нужно проверить, есть ли этот человек в существующей памяти.',
-  },
-  {
-    type: 'tool' as const,
-    activity: {
-      id: 'preview-tool-search',
-      name: 'memory_search',
-      label: 'Memory Search',
-      description: 'Поиск совпадений по запросу «Сашка» в категории контактов',
-      status: 'success' as const,
-      duration: '140ms',
-      input: { query: 'Сашка', category: 'People & Clients', limit: 5 },
-      output: { found: false, matches: [], total: 0 },
-    },
-  },
-  {
-    type: 'reasoning' as const,
-    text: 'Поиск не обнаружил подходящей записи. Можно перейти к созданию нового факта.',
-  },
-  {
-    type: 'tool' as const,
-    activity: {
-      id: 'preview-tool-create',
-      name: 'create_memory',
-      label: 'Create Memory Fact',
-      description: 'Сохранение факта «друг Сашка» в личную память',
-      status: 'success' as const,
-      duration: '210ms',
-      input: {
-        category: 'People & Clients',
-        subject: 'Сашка',
-        predicate: 'друг пользователя',
-        source: 'chat',
-      },
-      output: {
-        id: 'mem_20261015_01',
-        status: 'created',
-        created_at: '2026-10-15T12:00:01Z',
-      },
-    },
-  },
-  {
-    type: 'reasoning' as const,
-    text: 'Теперь необходимо сохранить сведения и дождаться подтверждения.',
-  },
-];
-
 export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
-  'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
+  'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   live?: boolean;
@@ -139,11 +89,11 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  live=false,
+  live=false,connectionSamples,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
-  importedCalendars=[],exportCalendar='primary',onChangeImportedCalendars,onChangeExportCalendar,
+  importedCalendars=[],exportCalendar='',onChangeImportedCalendars,onChangeExportCalendar,
   onConnectGoogleCalendar:handleConnectGcal,onDisconnectGoogleCalendar:handleDisconnectGcal,
   onSyncNowGoogleCalendar:handleSyncNow,onToggleAutoSyncGoogleCalendar:handleToggleAutoSync,onSetGcalSyncState,
   telegram,
@@ -299,8 +249,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
               <div className="grid grid-cols-1 gap-4">
                 {visibleConnections.map((conn) => {
                   // Explicit catalogue mapping: Studio and live IDs are deliberately different.
-                  const isTelegram=conn.id===(live?'telegram':'conn-telegram');
-                  const isGoogleCalendar = (!live||googleCalendarAvailable) && (conn.id === 'conn-gcal' || conn.id === 'google-calendar');
+                  const isTelegram=conn.id===(live?'telegram':connectionSamples?.telegramId);
+                  const isGoogleCalendar = (!live||googleCalendarAvailable) && conn.id===(live?'google-calendar':connectionSamples?.googleCalendarId);
 
                   // Shared Google Calendar card: demo props or confirmed backend data.
                   if (isGoogleCalendar) {
@@ -308,10 +258,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     const canSync = !googleCalendarBusy&&['connected_auto_off','connected_auto_on'].includes(gcalSyncState);
                     const selectedConnection=googleConnections.find(item=>item.id===selectedGoogleConnectionId);
                     const canConfigure=!googleCalendarBusy&&(canSync||live&&gcalSyncState==='sync_error');
-                    const calendars=live?(selectedConnection?.calendars??[]):[
-                      {id:'primary',name:`Primary / Основной (${googleCalendarEmail})`,desc:'General schedule, appointments, personal commitments',available:true,read_only:false},
-                      {id:'work',name:'Work & Retainers (Работа и клиенты)',desc:'Harbor Labs, Nordic Studio, client calls',available:true,read_only:false},
-                      {id:'personal',name:'Family & Birthdays (Личное и праздники)',desc:'Family events, contacts birthdays',available:true,read_only:false}];
+                    const calendars=live?(selectedConnection?.calendars??[]):(connectionSamples?.calendars??[]);
 
                     return (
                       <div
@@ -320,7 +267,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       >
                         <div className="w-full space-y-4">
                         {/* Design Mode State Switcher Toolbar */}
-                        {!live&&<div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
+                        {!live&&connectionSamples&&<div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-semibold tracking-wider uppercase text-[var(--mroya-text-muted)] flex items-center gap-1.5">
                               <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
@@ -331,21 +278,11 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {[
-                              { id: 'disconnected', label: 'Disconnected' },
-                              { id: 'connecting', label: 'Connecting' },
-                              { id: 'initial_syncing', label: 'Initial sync' },
-                              { id: 'connected_auto_off', label: 'Connected (Auto OFF)' },
-                              { id: 'connected_auto_on', label: 'Connected (Auto ON)' },
-                              { id: 'syncing', label: 'Syncing' },
-                              { id: 'sync_error', label: 'Sync error' },
-                              { id: 'conflict', label: 'Conflict' },
-                              { id: 'reconnect_required', label: 'Reconnect required' },
-                            ].map((st) => (
+                            {connectionSamples.scenarios.map((st) => (
                               <button
                                 key={st.id}
                                 type="button"
-                                onClick={() => onSetGcalSyncState?.(st.id as import('../types/mroya').GoogleSyncState)}
+                                onClick={() => onSetGcalSyncState?.(st.id)}
                                 className={`px-2.5 py-1 rounded-[6px] text-[11px] font-medium transition-all cursor-pointer border ${
                                   gcalSyncState === st.id
                                     ? 'bg-[var(--mroya-primary)] text-white border-[var(--mroya-primary)] font-semibold shadow-2xs'
@@ -667,7 +604,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
                               >
                                 {live&&<option value="">Choose export calendar</option>}
-                                {calendars.filter(cal=>cal.available&&!cal.read_only&&(live||cal.id!=='personal')).map(cal=><option key={cal.id} value={cal.id}>{cal.name}</option>)}
+                                {calendars.filter(cal=>cal.available&&!cal.read_only&&(!('exportable' in cal)||cal.exportable)).map(cal=><option key={cal.id} value={cal.id}>{cal.name}</option>)}
                               </select>
                               <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
                                 Mroya events use this calendar for export after a successful sync; automatic sync must be enabled for automatic export.

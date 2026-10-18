@@ -189,6 +189,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            connectionSamples={runtime?undefined:model.connectionSamples}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarBusy={model.googleCalendarBusy}
             googleCalendarNotice={model.googleCalendarNotice}

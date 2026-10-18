@@ -8,6 +8,7 @@ import {
   Conversation,
   MemoryItem,
   CalendarEvent,
+  GoogleSyncState,
   GraphNode,
   ChatAction,
   ChatMessage,
@@ -61,7 +62,63 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
   const [memories, setMemories] = useState<MemoryItem[]>(seed === 'empty' ? [] : INITIAL_MEMORIES);
   const [events, setEvents] = useState<CalendarEvent[]>(seed === 'empty' ? [] : INITIAL_EVENTS);
   const [nodes, setNodes] = useState<GraphNode[]>(seed === 'empty' ? [] : INITIAL_GRAPH_NODES);
-  const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
+  const [connectionCatalog, setConnections] = useState(INITIAL_CONNECTIONS);
+
+  // One Design-only Google Calendar state, shared by both pages. No transport/OAuth.
+  const [gcal, setGcal] = useState({state:'connected_auto_off' as GoogleSyncState,autoSync:false,
+    lastSyncedTime:'Demo · Oct 12, 2026, 12:45',
+    summary:{imported:14,exported:3,lastSynced:'Demo · Oct 12, 2026, 12:45'} as WorkspaceModel['syncSummary'],
+    email:'demo.calendar@example.test',importedCalendars:['primary','work'],exportCalendar:'primary'});
+  const gcalRef=useRef(gcal);gcalRef.current=gcal;
+  const eventsRef=useRef(events);eventsRef.current=events;
+  const gcalGeneration=useRef(0),gcalTimers=useRef(new Set<ReturnType<typeof setTimeout>>());
+  const updateGcal=(patch:Partial<typeof gcal>)=>{gcalRef.current={...gcalRef.current,...patch};setGcal(gcalRef.current);};
+  const cancelGcal=()=>{gcalGeneration.current++;for(const timer of gcalTimers.current)clearTimeout(timer);gcalTimers.current.clear();};
+  const settlePending=()=>setEvents(prev=>prev.map(event=>event.syncStatus==='pending'?{...event,syncStatus:'local_only'}:event));
+  useEffect(()=>()=>cancelGcal(),[]);
+  const scheduleGcal=(delay:number,operation:()=>void)=>{
+    const generation=gcalGeneration.current;
+    const timer=setTimeout(()=>{gcalTimers.current.delete(timer);if(generation===gcalGeneration.current)operation();},delay);
+    gcalTimers.current.add(timer);
+  };
+  const googleCalendarConnected=!['disconnected','connecting','reconnect_required'].includes(gcal.state);
+  const connections=connectionCatalog.map(entry=>entry.id==='conn-gcal'||entry.id==='google-calendar'?{...entry,connected:googleCalendarConnected}:entry);
+  const startGcalSync=(initial=false,extraIds:string[]=[])=>{
+    const ids=new Set([...eventsRef.current.filter(event=>!event.isReadOnly&&event.syncStatus!=='synced'&&event.syncStatus!=='conflict').map(event=>event.id),...extraIds]);
+    setEvents(prev=>prev.map(event=>ids.has(event.id)?{...event,syncStatus:'pending'}:event));
+    updateGcal({state:initial?'initial_syncing':'syncing'});
+    scheduleGcal(initial?1400:1000,()=>{
+      const lastSyncedTime=new Date().toISOString();
+      const exported=eventsRef.current.filter(event=>ids.has(event.id)&&event.syncStatus==='pending').length;
+      setEvents(prev=>prev.map(event=>ids.has(event.id)&&event.syncStatus==='pending'?{...event,syncStatus:'synced',syncError:undefined}:event));
+      updateGcal({state:gcalRef.current.autoSync?'connected_auto_on':'connected_auto_off',lastSyncedTime,
+        summary:{imported:gcalRef.current.importedCalendars.length?(initial?18:14):0,exported,lastSynced:lastSyncedTime}});
+    });
+  };
+  const onConnectGoogleCalendar=()=>{
+    if(!['disconnected','reconnect_required'].includes(gcalRef.current.state))return;
+    cancelGcal();settlePending();updateGcal({state:'connecting',autoSync:false,lastSyncedTime:'',summary:null});
+    scheduleGcal(600,()=>startGcalSync(true));
+  };
+  const onDisconnectGoogleCalendar=()=>{cancelGcal();settlePending();updateGcal({state:'disconnected',autoSync:false,lastSyncedTime:'',summary:null});};
+  const onSyncNowGoogleCalendar=()=>{
+    if(!['connected_auto_off','connected_auto_on','sync_error'].includes(gcalRef.current.state))return;
+    cancelGcal();startGcalSync();
+  };
+  const onToggleAutoSyncGoogleCalendar=()=>{
+    if(!['connected_auto_off','connected_auto_on'].includes(gcalRef.current.state))return;
+    const autoSync=!gcalRef.current.autoSync;updateGcal({autoSync,state:autoSync?'connected_auto_on':'connected_auto_off'});
+  };
+  const onSetGcalSyncState=(state:GoogleSyncState)=>{
+    cancelGcal();settlePending();
+    if(state==='disconnected'){onDisconnectGoogleCalendar();return;}
+    if(state==='connecting'){updateGcal({state:'disconnected'});onConnectGoogleCalendar();return;}
+    if(state==='initial_syncing'){updateGcal({autoSync:false,lastSyncedTime:'',summary:null});startGcalSync(true);return;}
+    if(state==='syncing'){updateGcal({state:'connected_auto_off',autoSync:false});startGcalSync();return;}
+    updateGcal({state,autoSync:state==='connected_auto_on',summary:null,lastSyncedTime:''});
+  };
+  const onChangeImportedCalendars=(ids:string[])=>{if(['connected_auto_off','connected_auto_on'].includes(gcalRef.current.state))updateGcal({importedCalendars:[...new Set(ids.filter(id=>['primary','work','personal'].includes(id)))]});};
+  const onChangeExportCalendar=(id:string)=>{if(['primary','work'].includes(id)&&['connected_auto_off','connected_auto_on'].includes(gcalRef.current.state))updateGcal({exportCalendar:id});};
 
   // Reminders state
   const [reminders, setReminders] = useState<ReminderItem[]>(seed === 'empty' ? [] : INITIAL_REMINDERS);
@@ -138,6 +195,7 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
 
   // Google Calendar shared schedule synchronization simulation
   const handleSimulateGoogleSync = (reminderId: string) => {
+    if(!['connected_auto_off','connected_auto_on'].includes(gcalRef.current.state))return;
     setReminders((prev) =>
       prev.map((r) => {
         if (
@@ -615,8 +673,6 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
     }
   };
 
-  const googleCalendarConnected =
-    connections.find((c) => c.id === 'conn-gcal')?.connected ?? true;
 
   const edges = seed === 'empty' ? [] : INITIAL_GRAPH_EDGES;
 
@@ -655,11 +711,15 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
                 setSelectedCalendarEventId(eventId);
                 setActiveSection('calendar');
               };
-  const onCalendarViewAddEvent: React.ComponentProps<typeof CalendarView>['onAddEvent'] = (newEvt) =>
-              setEvents((prev) => [...prev, { ...newEvt, id: `evt-${Date.now()}` }])
-            ;
+  const onCalendarViewAddEvent: React.ComponentProps<typeof CalendarView>['onAddEvent'] = (newEvt) => {
+    const id=crypto.randomUUID();
+    setEvents(prev=>[...prev,{...newEvt,id,syncStatus:'local_only'}]);
+    if(gcalRef.current.state==='connected_auto_on')startGcalSync(false,[id]);
+  };
   const onCalendarViewEditEvent = (updatedEvt: CalendarEvent) => {
-    setEvents((prev) => prev.map((e) => (e.id === updatedEvt.id ? updatedEvt : e)));
+    if(eventsRef.current.find(event=>event.id===updatedEvt.id)?.isReadOnly)return;
+    setEvents(prev=>prev.map(event=>event.id===updatedEvt.id?{...updatedEvt,syncStatus:'local_only'}:event));
+    if(gcalRef.current.state==='connected_auto_on')startGcalSync(false,[updatedEvt.id]);
   };
   const onCalendarViewDeleteEvent = (id: string) => {
     setEvents((prev) => prev.filter((e) => e.id !== id));
@@ -730,13 +790,13 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
             };
   const onMemoryMapViewExpandSidebar: React.ComponentProps<typeof MemoryMapView>['onExpandSidebar'] = () => setIsSidebarCollapsed(false);
   const onMemoryMapViewOpenMobileMenu: React.ComponentProps<typeof MemoryMapView>['onOpenMobileMenu'] = () => setMobileMenuOpen(true);
-  const onConnectionsSettingsViewToggleConnection: React.ComponentProps<typeof ConnectionsSettingsView>['onToggleConnection'] = (id) =>
-              setConnections((prev) =>
-                prev.map((c) =>
-                  c.id === id ? { ...c, connected: !c.connected } : c
-                )
-              )
-            ;
+  const onConnectionsSettingsViewToggleConnection: React.ComponentProps<typeof ConnectionsSettingsView>['onToggleConnection'] = (id) => {
+    if(id==='conn-gcal'||id==='google-calendar'){
+      if(gcalRef.current.state==='disconnected'||gcalRef.current.state==='reconnect_required')onConnectGoogleCalendar();else onDisconnectGoogleCalendar();
+      return;
+    }
+    setConnections(prev=>prev.map(connection=>connection.id===id?{...connection,connected:!connection.connected}:connection));
+  };
   const onConnectionsSettingsViewSelectPlan: React.ComponentProps<typeof ConnectionsSettingsView>['onSelectPlan'] = (p) => setPlan(p);
   const onConnectionsSettingsViewSelectTheme: React.ComponentProps<typeof ConnectionsSettingsView>['onSelectTheme'] = (t) => setTheme(t);
   const onConnectionsSettingsViewChangeTab: React.ComponentProps<typeof ConnectionsSettingsView>['onChangeTab'] = (tab) => setSettingsTab(tab);
@@ -756,5 +816,7 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
           setEditingReminder(null);
           setReminderPreselectedEventId(undefined);
         };
-  return {diagnostics,calendarSamples:{person:'Sarah Chen',titlePlaceholder:'e.g. Design token sprint with Sarah',personPlaceholder:'e.g. Sarah Chen',accountLabel:DEMO_ACCOUNT.email},composerSamples:{memoryPrompt:'Remember that Sarah prefers receiving a 1-page written summary 24 hours before any design review call.',attachmentName:'Harbor_Labs_Scope_Oct2026.pdf',voicePhrases:['Remember that Sarah confirmed we will review the design system tokens on Thursday at 2 PM.','Add a reminder to send the revised website proposal to Sarah Chen by Friday October 16.','Daniel mentioned he needs the updated typography scale and CSS custom properties by next Monday.','Elena Vance noted that all milestone invoices must include purchase order number HL-2026-09.','Remember that my protected deep work window is every morning before 11:00 AM.']},onSaveNickname:setNickname,onClearNickname:()=>setNickname(''),account,activeSection, isSidebarCollapsed, mobileMenuOpen, theme, appearance, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation: activeConversation as Conversation | null, focusedMemory: focusedMemory as MemoryItem | null, relatedMemoriesForActiveChat, upcomingRelatedEvent: upcomingRelatedEvent as CalendarEvent | null, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarRenameConversation: handleRenameConversation, onSidebarDeleteConversation: handleDeleteConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onChatWorkspaceOpenMobileMenu, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewEditEvent, onCalendarViewDeleteEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onCalendarViewOpenMobileMenu, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onRemindersViewOpenMobileMenu, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryViewOpenMobileMenu, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onMemoryMapViewOpenMobileMenu, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onConnectionsSettingsViewOpenMobileMenu, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose};
+  return {diagnostics,calendarSamples:{person:'Sarah Chen',titlePlaceholder:'e.g. Design token sprint with Sarah',personPlaceholder:'e.g. Sarah Chen',accountLabel:DEMO_ACCOUNT.email},composerSamples:{memoryPrompt:'Remember that Sarah prefers receiving a 1-page written summary 24 hours before any design review call.',attachmentName:'Harbor_Labs_Scope_Oct2026.pdf',voicePhrases:['Remember that Sarah confirmed we will review the design system tokens on Thursday at 2 PM.','Add a reminder to send the revised website proposal to Sarah Chen by Friday October 16.','Daniel mentioned he needs the updated typography scale and CSS custom properties by next Monday.','Elena Vance noted that all milestone invoices must include purchase order number HL-2026-09.','Remember that my protected deep work window is every morning before 11:00 AM.']},onSaveNickname:setNickname,onClearNickname:()=>setNickname(''),account,activeSection, isSidebarCollapsed, mobileMenuOpen, theme, appearance, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation: activeConversation as Conversation | null, focusedMemory: focusedMemory as MemoryItem | null, relatedMemoriesForActiveChat, upcomingRelatedEvent: upcomingRelatedEvent as CalendarEvent | null, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected,gcalSyncState:gcal.state,autoSync:gcal.autoSync,lastSyncedTime:gcal.lastSyncedTime,syncSummary:gcal.summary,
+    googleCalendarEmail:gcal.email,importedCalendars:gcal.importedCalendars,exportCalendar:gcal.exportCalendar,
+    onConnectGoogleCalendar,onDisconnectGoogleCalendar,onSyncNowGoogleCalendar,onToggleAutoSyncGoogleCalendar,onSetGcalSyncState,onChangeImportedCalendars,onChangeExportCalendar, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarRenameConversation: handleRenameConversation, onSidebarDeleteConversation: handleDeleteConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onChatWorkspaceOpenMobileMenu, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewEditEvent, onCalendarViewDeleteEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onCalendarViewOpenMobileMenu, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onRemindersViewOpenMobileMenu, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryViewOpenMobileMenu, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onMemoryMapViewOpenMobileMenu, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onConnectionsSettingsViewOpenMobileMenu, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose};
 }

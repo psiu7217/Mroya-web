@@ -82,6 +82,11 @@ export interface WorkspaceModel {
       exported: number;
       lastSynced: string;
     } | null;
+    googleCalendarEmail?: string;
+    importedCalendars?: string[];
+    exportCalendar?: string;
+    onChangeImportedCalendars?: (ids:string[]) => void;
+    onChangeExportCalendar?: (id:string) => void;
     onConnectGoogleCalendar?: () => void;
     onDisconnectGoogleCalendar?: () => void;
     onSyncNowGoogleCalendar?: () => void;

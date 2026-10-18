@@ -118,7 +118,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onDeleteReminder={handleDeleteReminder}
             onSimulateGoogleSync={handleSimulateGoogleSync}
             onNavigateToReminders={onCalendarViewNavigateToReminders}
-            googleCalendarConnected={googleCalendarConnected}
+            googleCalendarConnected={!!runtime?false:googleCalendarConnected}
+            gcalSyncState={runtime?undefined:model.gcalSyncState}
+            googleCalendarEmail={runtime?undefined:model.googleCalendarEmail}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onCalendarViewExpandSidebar}
             onOpenMobileMenu={onCalendarViewOpenMobileMenu}
@@ -183,6 +185,20 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            gcalSyncState={runtime?undefined:model.gcalSyncState}
+            autoSync={runtime?undefined:model.autoSync}
+            lastSyncedTime={runtime?undefined:model.lastSyncedTime}
+            syncSummary={runtime?undefined:model.syncSummary}
+            googleCalendarEmail={runtime?undefined:model.googleCalendarEmail}
+            importedCalendars={runtime?undefined:model.importedCalendars}
+            exportCalendar={runtime?undefined:model.exportCalendar}
+            onChangeImportedCalendars={runtime?undefined:model.onChangeImportedCalendars}
+            onChangeExportCalendar={runtime?undefined:model.onChangeExportCalendar}
+            onConnectGoogleCalendar={runtime?undefined:model.onConnectGoogleCalendar}
+            onDisconnectGoogleCalendar={runtime?undefined:model.onDisconnectGoogleCalendar}
+            onSyncNowGoogleCalendar={runtime?undefined:model.onSyncNowGoogleCalendar}
+            onToggleAutoSyncGoogleCalendar={runtime?undefined:model.onToggleAutoSyncGoogleCalendar}
+            onSetGcalSyncState={runtime?undefined:model.onSetGcalSyncState}
             live={!!runtime}
             telegram={runtime?.telegram}
             preferenceSave={runtime?.preferenceSave}

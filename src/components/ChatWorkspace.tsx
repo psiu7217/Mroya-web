@@ -119,6 +119,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     const fromEmpty = previousChat.current === null && id !== null;
     previousChat.current = id;
     if (!fromEmpty) {
+      handleCancelRecording();
       draftRevision.current++; setInput(''); setAttachedFile(null); setLocalThinking(false);
     }
     setCopiedMessageId(null); setHeaderMenuOpen(false); setMobileUserMenuOpen(false);
@@ -214,6 +215,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         recognition.lang = 'ru-RU,en-US';
 
         recognition.onresult = (event: any) => {
+          if (recognitionRef.current !== recognition) return;
           let current = '';
           for (let i = 0; i < event.results.length; i++) {
             current += event.results[i][0].transcript;
@@ -278,10 +280,13 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       timerIntervalRef.current = null;
     }
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+      const recognition = recognitionRef.current;
       recognitionRef.current = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      try {
+        recognition.stop();
+      } catch (e) {}
     }
     setIsRecording(false);
     setLiveTranscript('');

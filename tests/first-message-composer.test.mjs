@@ -31,6 +31,7 @@ function mount(onSendMessage){
   input(value){find(node=>node.type==='textarea').props.onChange({target:{value}});flush();},
   enter(){find(node=>node.type==='textarea').props.onKeyDown({key:'Enter',shiftKey:false,preventDefault(){}});},
   get draft(){return find(node=>node.type==='textarea').props.value;},
+  stateValues(){return slots.filter(slot=>Object.hasOwn(slot,'value')).map(slot=>slot.value);},
   unmount(){slots.forEach(slot=>slot.cleanup?.());},
  };
 }
@@ -52,4 +53,34 @@ test('Send button shares the submission guard; new edits survive a late acceptan
  view.input('New draft while creating');view.update({conversation:chat('confirmed')});
  pending.resolve(true);await tick();view.flush();assert.equal(view.draft,'New draft while creating');
  view.update({onSendMessage:async()=>{throw new Error('Rejected');}});view.enter();await tick();view.flush();assert.equal(view.draft,'New draft while creating');view.unmount();
+});
+
+test('Design chat switch cancels voice resources, resets recording state and ignores late recognition results',()=>{
+ const savedWindow=Object.getOwnPropertyDescriptor(globalThis,'window'),interval=globalThis.setInterval,clear=globalThis.clearInterval;
+ const timers=new Map(),recognitions=[];let sequence=0;
+ class Recognition {
+  constructor(){recognitions.push(this);this.stops=0;}
+  start(){}stop(){this.stops++;}
+ }
+ globalThis.window={SpeechRecognition:Recognition};
+ globalThis.setInterval=callback=>{const id=++sequence;timers.set(id,callback);return id;};
+ globalThis.clearInterval=id=>timers.delete(id);
+ const view=mount(noop);
+ const microphone=()=>view.find(node=>node.type==='button'&&node.props['aria-label']==='Записать голосовое сообщение');
+ try{
+  view.update({live:false,conversation:chat('A')});microphone().props.onClick();view.flush();
+  const first=recognitions[0],late=first.onresult;
+  late({results:[[{transcript:'Only chat A voice'}]]});[...timers.values()][0]();[...timers.values()][0]();view.flush();
+  assert.ok(view.stateValues().includes('Only chat A voice'));assert.ok(view.stateValues().includes(2));
+  view.update({conversation:chat('B')});
+  assert.ok(microphone());assert.equal(timers.size,0);assert.equal(first.stops,1);assert.equal(first.onresult,null);assert.equal(first.onerror,null);
+  assert.ok(!view.stateValues().includes('Only chat A voice'));assert.ok(!view.stateValues().includes(2));
+  // A new recording uses fresh resources; queued callbacks from A cannot change B.
+  microphone().props.onClick();view.flush();assert.equal(recognitions.length,2);assert.equal(timers.size,1);
+  late({results:[[{transcript:'Late chat A voice'}]]});view.flush();assert.ok(!view.stateValues().includes('Late chat A voice'));
+  view.update({conversation:chat('C')});assert.equal(recognitions[1].stops,1);assert.equal(timers.size,0);
+ }finally{
+  view.unmount();globalThis.setInterval=interval;globalThis.clearInterval=clear;
+  if(savedWindow)Object.defineProperty(globalThis,'window',savedWindow);else delete globalThis.window;
+ }
 });

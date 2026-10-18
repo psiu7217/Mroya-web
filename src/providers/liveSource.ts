@@ -4,6 +4,14 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     kind:'live',
+    calendarEvents:(start,end,offset,signal)=>api.calendarEvents(start,end,offset,signal),
+    calendarEvent:(id,signal)=>api.calendarEvent(id,signal),
+    mutateCalendar:(method,id,body,signal)=>api.mutateCalendar(method,id,body,signal),
+    googleCalendarConnections:signal=>api.googleCalendarConnections(signal),
+    startCalendarGoogle:(id,signal)=>api.startCalendarGoogle(id,signal),
+    configureCalendarGoogle:(id,changes,signal)=>api.configureCalendarGoogle(id,changes,signal),
+    syncCalendarGoogle:(id,signal)=>api.syncCalendarGoogle(id,signal),
+    disconnectCalendarGoogle:(id,signal)=>api.disconnectCalendarGoogle(id,signal),
     conversations:(offset,signal)=>api.conversations(offset,signal),
     createConversation:signal=>api.createConversation(signal),
     renameConversation:(id,title,signal)=>api.renameConversation(id,title,signal),

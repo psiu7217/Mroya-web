@@ -14,13 +14,18 @@ export interface ChatDiagnostics {
     onReport:(message:import('./mroya').ChatMessage)=>void;
     onCopy:(message:import('./mroya').ChatMessage)=>void;
 }
+export interface CalendarPresentation {
+    loading:boolean;busy:boolean;mutationPending:boolean;error:string|null;timezone:string;
+    onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;
+    onLoadEventForEdit:(event:CalendarEvent)=>Promise<CalendarEvent|null>;
+}
 export interface WorkspaceRuntime {
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
     conversationLocked?:boolean;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
-    calendarAvailable:false; remindersAvailable:false; // No agreed REST contracts yet.
+    calendarAvailable:boolean; remindersAvailable:false;
     memoriesTotal:number; hasOlder:boolean; onOlder:()=>void; hasMoreMemories:boolean; onMoreMemories:()=>void;
     truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
     preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
@@ -73,6 +78,16 @@ export interface WorkspaceModel {
     handleSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
+    calendar?:CalendarPresentation;
+    googleCalendarAvailable?:boolean;
+    googleCalendarBusy?:boolean;
+    googleCalendarNotice?:string;
+    googleCalendarError?:string|null;
+    googleConnections?:import('./calendarApi').GoogleConnectionDto[];
+    selectedGoogleConnectionId?:string|null;
+    onSelectGoogleConnection?:(id:string)=>void;
+    onRefreshGoogleCalendar?:()=>void;
+    onConnectAnotherGoogleCalendar?:()=>void;
     googleCalendarConnected: boolean;
     gcalSyncState?: import("./mroya").GoogleSyncState;
     autoSync?: boolean;
@@ -115,9 +130,9 @@ export interface WorkspaceModel {
     onMemoryContextPanelOpenInMemoryView: (memoryId: string) => void;
     onMemoryContextPanelOpenInMemoryMap: (nodeId: string) => void;
     onMemoryContextPanelOpenInCalendar: (eventId: string) => void;
-    onCalendarViewAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void;
-    onCalendarViewEditEvent?: (event: CalendarEvent) => void;
-    onCalendarViewDeleteEvent?: (id: string) => void;
+    onCalendarViewAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void|boolean|Promise<boolean>;
+    onCalendarViewEditEvent?: (event: CalendarEvent) => void|boolean|Promise<boolean>;
+    onCalendarViewDeleteEvent?: (id: string, version?:number) => void|boolean|Promise<boolean>;
     onCalendarViewOpenMemory: (memoryId: string) => void;
     onCalendarViewOpenConnections: () => void;
     onCalendarViewAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>) => void;

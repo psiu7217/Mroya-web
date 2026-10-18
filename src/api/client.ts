@@ -1,3 +1,5 @@
+import type {GoogleConfiguration} from '../types/calendarApi.ts';
+import {calendarUuid,readCalendarEvent,readCalendarPage,readCalendarOperation,readGoogleConnection,readGoogleConnections,googleAuthorizationUrl} from './calendar.ts';
 import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
 import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
@@ -24,6 +26,22 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async calendarEvents(start:string,end:string,offset=0,signal?:AbortSignal){
+    return readCalendarPage(await this.json('calendar/events/?'+new URLSearchParams({start_date:start,end_date:end,limit:'100',offset:String(offset)}),undefined,signal));
+  }
+  async calendarEvent(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid calendar UUID');const data=await this.json<{event:unknown}>('calendar/events/'+id+'/',undefined,signal);return readCalendarEvent(data.event);}
+  async mutateCalendar(method:'POST'|'PATCH'|'DELETE',id:string|null,body:unknown,signal?:AbortSignal){
+    if(method!=='POST'&&!calendarUuid(id))throw new Error('Invalid calendar UUID');
+    return readCalendarOperation(await this.json('calendar/events/'+(id?id+'/':''),body,signal,method),method==='DELETE');
+  }
+  async googleCalendarConnections(signal?:AbortSignal){return readGoogleConnections(await this.json('calendar/google/connections/',undefined,signal));}
+  async startCalendarGoogle(id?:string,signal?:AbortSignal){if(id!==undefined&&!calendarUuid(id))throw new Error('Invalid connection UUID');return googleAuthorizationUrl(await this.json('calendar/google/start/',id?{connection_id:id}:{},signal));}
+  async configureCalendarGoogle(id:string,changes:GoogleConfiguration,signal?:AbortSignal){
+    if(!calendarUuid(id))throw new Error('Invalid connection UUID');
+    const data=await this.json<{connection:unknown}>('calendar/google/connections/'+id+'/',changes,signal,'PATCH');return readGoogleConnection(data.connection);
+  }
+  async syncCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string}>('calendar/google/connections/'+id+'/sync/',{},signal);if(data.status!=='pending')throw new ApiError(502,'invalid_response','Sync request was not confirmed');}
+  async disconnectCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string}>('calendar/google/connections/'+id+'/',{},signal,'DELETE');if(data.status!=='disconnected')throw new ApiError(502,'invalid_response','Disconnect was not confirmed');}
   private token='';
   private csrfPending:Promise<void>|null=null;
   private fetcher:typeof fetch;

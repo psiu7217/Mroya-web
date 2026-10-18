@@ -1,3 +1,5 @@
+import {useLiveCalendar} from '../hooks/useLiveCalendar';
+import {googleSyncPresentation} from '../hooks/calendarAdapters';
 import React,{useState,useMemo} from 'react';
 import {WorkspaceView} from '../pages/WorkspaceView';
 import {useLiveWorkspace} from '../hooks/useLiveWorkspace';
@@ -22,8 +24,11 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
+ const calendar=useLiveCalendar(source,user.id,user.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const google=calendar.controller.connection;
+ const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{controller.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{controller.stop();calendar.controller.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...user,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -57,7 +62,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
-   calendarAvailable:false,remindersAvailable:false,memoriesTotal:state.memories.total,
+   calendarAvailable:calendar.state.available,remindersAvailable:false,memoriesTotal:state.memories.total,
    hasOlder:state.history.next_before!==null,onOlder:()=>void controller.older(),
    hasMoreMemories:memories.length<state.memories.total,onMoreMemories:()=>void controller.moreMemories(),
    truncated:state.map.truncated===true||state.map.stats?.truncated===true,notice,onCloseNotice:()=>setNotice(null),
@@ -68,11 +73,25 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
   conversations:conversationListPresentation(state.conversations,user.timezone),activeConversationId:state.activeConversationId,activeConversation:conversation,
-  memories,nodes:graph.nodes,edges:graph.edges,events:[],reminders:[],connections:[],
+  memories,nodes:graph.nodes,edges:graph.edges,events:calendar.state.events,reminders:[],connections:[],
   reminderModalOpen:false,editingReminder:null,reminderPreselectedEventId:undefined,
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
   focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,
-  relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:false,
+  relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:google?.status==='connected',
+  calendar:{loading:calendar.state.loading,busy:calendar.state.busy,mutationPending:calendar.state.mutationPending,error:calendar.state.error,timezone:user.timezone,
+   onRetry:calendar.controller.retry,onRangeChange:calendar.controller.setRange,onLoadEventForEdit:calendar.controller.loadForEdit},
+  googleCalendarAvailable:calendar.state.googleAvailable,googleCalendarBusy:calendar.state.googleBusy,
+  googleCalendarError:calendar.state.googleError,
+  googleCalendarNotice:[calendar.state.oauthNotice,googleView.notice].filter(Boolean).join(' · '),
+  googleConnections:calendar.state.connections,selectedGoogleConnectionId:calendar.state.selectedConnectionId,
+  onSelectGoogleConnection:calendar.controller.selectConnection,onRefreshGoogleCalendar:()=>void calendar.controller.loadConnections(),
+  onConnectAnotherGoogleCalendar:()=>void calendar.controller.connect(true),
+  gcalSyncState:googleView.state,autoSync:google?.sync_enabled??false,lastSyncedTime:google?.last_synced_at??'',syncSummary:null,
+  googleCalendarEmail:google?.email??'',importedCalendars:google?.calendars.filter(c=>c.selected).map(c=>c.id)??[],
+  exportCalendar:google?.calendars.find(c=>c.export_destination)?.id??'',
+  onConnectGoogleCalendar:()=>void calendar.controller.connect(),onDisconnectGoogleCalendar:()=>void calendar.controller.disconnect(),
+  onSyncNowGoogleCalendar:()=>void calendar.controller.sync(),onToggleAutoSyncGoogleCalendar:()=>void calendar.controller.toggleAuto(),
+  onChangeImportedCalendars:ids=>void calendar.controller.imports(ids),onChangeExportCalendar:id=>void calendar.controller.destination(id),
   handleNewChat:newChat,handleSendMessage:sendMessage,handleCitationClick:focusMemory,handleChatActionClick:unavailable,
   handleAddOrUpdateReminder:unavailable,handleDeleteReminder:unavailable,handleToggleCompleteReminder:unavailable,
   handleTogglePauseReminder:unavailable,handleUnlinkReminder:unavailable,handleSimulateGoogleSync:unavailable,
@@ -86,7 +105,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   onChatWorkspaceOpenPlanModal:()=>openSettings('plan'),onChatWorkspaceToggleTheme:layout.toggleTheme,onChatWorkspaceOpenSettingsTab:openSettings,
   onMemoryContextPanelClose:()=>setContextOpen(false),onMemoryContextPanelSelectMemory:focusMemory,
   onMemoryContextPanelOpenInMemoryView:openMemory,onMemoryContextPanelOpenInMemoryMap:openMap,onMemoryContextPanelOpenInCalendar:unavailable,
-  onCalendarViewAddEvent:unavailable,onCalendarViewEditEvent:unavailable,onCalendarViewDeleteEvent:unavailable,onCalendarViewOpenMemory:openMemory,onCalendarViewOpenConnections:()=>openSettings('connections'),
+  onCalendarViewAddEvent:calendar.controller.create,onCalendarViewEditEvent:calendar.controller.edit,onCalendarViewDeleteEvent:calendar.controller.remove,onCalendarViewOpenMemory:openMemory,onCalendarViewOpenConnections:()=>openSettings('connections'),
   onCalendarViewAddReminder:unavailable,onCalendarViewNavigateToReminders:()=>select('reminders'),
   onCalendarViewExpandSidebar:layout.expand,onCalendarViewOpenMobileMenu:layout.openMobile,
   onRemindersViewUpdateReminder:unavailable,onRemindersViewOpenCalendarEvent:unavailable,

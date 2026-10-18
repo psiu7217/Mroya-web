@@ -94,16 +94,16 @@ test('new events stay local until queued and confirmed; disconnect preserves pre
  finish(view);assert.equal(view.value.events[2].syncStatus,'synced');assert.equal(requests,0);view.unmount();
 });
 
-test('Calendar edit retains original year/month and recurrence; rejects invalid February day and external edits',()=>{
+test('Calendar edit supports a full date, preserves recurrence and rejects invalid civil dates/external edits',async()=>{
  const view=workspace(),edits=[];
  const recurring={...event,id:'old-month',date:'2024-02-12',dayOfMonth:12,recurrence:{frequency:'daily',interval:1,endCondition:'never'}};
  let props={...calendar(view.value),events:[recurring],onEditEvent:value=>edits.push(value)};
  const page=mount(()=>CalendarView(props));page.flush();
  button(page.value,'Month').props.onClick();page.flush();
  find(page.value,node=>node.type==='button'&&node.props.title==='Edit commitment').props.onClick();page.flush();
- let day=find(page.value,node=>node.type==='input'&&node.props.type==='number');assert.equal(day.props.value,12);assert.equal(day.props.max,29);
- day.props.onChange({target:{value:'31'}});page.flush();find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();assert.equal(edits.length,0);
- find(page.value,node=>node.type==='input'&&node.props.type==='number').props.onChange({target:{value:'28'}});page.flush();find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();
+ let day=find(page.value,node=>node.type==='input'&&node.props.type==='date');assert.equal(day.props.value,'2024-02-12');
+ day.props.onChange({target:{value:'2024-02-31'}});page.flush();await find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();assert.equal(edits.length,0);
+ find(page.value,node=>node.type==='input'&&node.props.type==='date').props.onChange({target:{value:'2024-02-28'}});page.flush();await find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();
  assert.equal(edits[0].date,'2024-02-28');assert.deepEqual(edits[0].recurrence,recurring.recurrence);assert.equal(edits[0].syncStatus,'local_only');assert.match(text(page.value),/Not yet synchronized/);
  props={...props,events:[{...recurring,isReadOnly:true}]};page.flush();assert.equal(all(page.value,node=>node.type==='button'&&node.props.title==='Edit commitment').length,0);
  page.unmount();view.unmount();timers.clear();
@@ -118,16 +118,39 @@ test('Production receives no demo Google props and shows Coming soon even for a 
 });
 
 
-test('Calendar create emits local_only even when connected; every shared status reaches both page layouts',()=>{
+test('Calendar create emits local_only even when connected; every shared status reaches both page layouts',async()=>{
  const view=workspace(),created=[];
  let props={...calendar(view.value),onAddEvent:event=>created.push(event)};
  const page=mount(()=>CalendarView(props));page.flush();
  button(page.value,'+ Add event').props.onClick();page.flush();
  find(page.value,node=>node.type==='input'&&node.props.required).props.onChange({target:{value:'New local event'}});page.flush();
- find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();
+ await find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();
  assert.equal(created.length,1);assert.equal(created[0].syncStatus,'local_only');
  for(const [state,label] of Object.entries({disconnected:'Disconnected',connecting:'Connecting',initial_syncing:'Initial syncing',syncing:'Syncing',sync_error:'Sync error',conflict:'Conflict',reconnect_required:'Reconnect required'})){
   props={...props,gcalSyncState:state};page.flush();assert.ok(text(page.value).includes(label),state);
  }
  page.unmount();view.unmount();assert.equal(requests,0);
+});
+
+test('live Connections uses the same Google card with real calendars, controlled ON/OFF and no scenario switcher',()=>{
+ const view=workspace();let toggles=0;
+ const account={id:'account-real',email:'owner@calendar.test',status:'connected',sync_enabled:false,calendars:[{id:'calendar-real',name:'Actual calendar',selected:true,available:true,read_only:false,is_primary:true,export_destination:true}]};
+ const model={...view.value,runtime:{calendarAvailable:true},googleCalendarAvailable:true,googleConnections:[account],selectedGoogleConnectionId:account.id,
+  googleCalendarEmail:account.email,importedCalendars:['calendar-real'],exportCalendar:'calendar-real',onToggleAutoSyncGoogleCalendar:()=>toggles++};
+ const props=settings(model),page=mount(()=>ConnectionsSettingsView(props));page.flush();
+ assert.match(text(page.value),/owner@calendar.test/);assert.match(text(page.value),/Actual calendar/);assert.doesNotMatch(text(page.value),/Design Mode ·|Harbor Labs|demo.calendar/);
+ find(page.value,node=>node.type==='button'&&node.props.role==='switch').props.onClick();assert.equal(toggles,1);
+ assert.ok(all(page.value,node=>node.type==='option'&&node.props.value==='calendar-real').length);page.unmount();view.unmount();
+});
+
+test('live Calendar retains failed creation draft; explicit retry confirms the original operation without another create',async()=>{
+ const view=workspace();let creates=0,retries=0;
+ const props={...calendar(view.value),readOnly:false,live:true,googleCalendarAvailable:true,
+  calendar:{loading:false,busy:false,mutationPending:false,error:'Lost response',timezone:'UTC',onRangeChange(){},onLoadEventForEdit:async()=>null,onRetry:async()=>{retries++;return true;}},onAddEvent:async()=>{creates++;return false;}};
+ const page=mount(()=>CalendarView(props));page.flush();button(page.value,'+ Add event').props.onClick();page.flush();
+ find(page.value,node=>node.type==='input'&&node.props.required&&node.props.type==='text').props.onChange({target:{value:'Retained appointment'}});page.flush();
+ await find(page.value,node=>node.type==='form').props.onSubmit({preventDefault(){}});page.flush();assert.equal(creates,1);
+ assert.equal(find(page.value,node=>node.type==='input'&&node.props.required&&node.props.type==='text').props.value,'Retained appointment');
+ button(page.value,'Retry / check calendar').props.onClick();await Promise.resolve();await Promise.resolve();page.flush();
+ assert.equal(retries,1);assert.equal(creates,1);assert.equal(all(page.value,node=>node.type==='form').length,0);page.unmount();view.unmount();
 });

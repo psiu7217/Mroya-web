@@ -104,7 +104,11 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'calendar' && (
           <CalendarView
             samples={model.calendarSamples}
-            readOnly={!!runtime}
+            readOnly={!!runtime&&!runtime.calendarAvailable}
+            live={!!runtime}
+            calendar={model.calendar}
+            googleCalendarAvailable={model.googleCalendarAvailable}
+            googleCalendarNotice={model.googleCalendarNotice}
             events={events}
             memories={memories}
             reminders={reminders}
@@ -118,9 +122,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onDeleteReminder={handleDeleteReminder}
             onSimulateGoogleSync={handleSimulateGoogleSync}
             onNavigateToReminders={onCalendarViewNavigateToReminders}
-            googleCalendarConnected={!!runtime?false:googleCalendarConnected}
-            gcalSyncState={runtime?undefined:model.gcalSyncState}
-            googleCalendarEmail={runtime?undefined:model.googleCalendarEmail}
+            googleCalendarConnected={runtime&&!model.googleCalendarAvailable?false:googleCalendarConnected}
+            gcalSyncState={runtime&&!model.googleCalendarAvailable?undefined:model.gcalSyncState}
+            googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onCalendarViewExpandSidebar}
             onOpenMobileMenu={onCalendarViewOpenMobileMenu}
@@ -185,19 +189,28 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
-            gcalSyncState={runtime?undefined:model.gcalSyncState}
-            autoSync={runtime?undefined:model.autoSync}
-            lastSyncedTime={runtime?undefined:model.lastSyncedTime}
-            syncSummary={runtime?undefined:model.syncSummary}
-            googleCalendarEmail={runtime?undefined:model.googleCalendarEmail}
-            importedCalendars={runtime?undefined:model.importedCalendars}
-            exportCalendar={runtime?undefined:model.exportCalendar}
-            onChangeImportedCalendars={runtime?undefined:model.onChangeImportedCalendars}
-            onChangeExportCalendar={runtime?undefined:model.onChangeExportCalendar}
-            onConnectGoogleCalendar={runtime?undefined:model.onConnectGoogleCalendar}
-            onDisconnectGoogleCalendar={runtime?undefined:model.onDisconnectGoogleCalendar}
-            onSyncNowGoogleCalendar={runtime?undefined:model.onSyncNowGoogleCalendar}
-            onToggleAutoSyncGoogleCalendar={runtime?undefined:model.onToggleAutoSyncGoogleCalendar}
+            googleCalendarAvailable={model.googleCalendarAvailable}
+            googleCalendarBusy={model.googleCalendarBusy}
+            googleCalendarNotice={model.googleCalendarNotice}
+            googleCalendarError={model.googleCalendarError}
+            googleConnections={model.googleConnections}
+            selectedGoogleConnectionId={model.selectedGoogleConnectionId}
+            onSelectGoogleConnection={model.onSelectGoogleConnection}
+            onRefreshGoogleCalendar={model.onRefreshGoogleCalendar}
+            onConnectAnotherGoogleCalendar={model.onConnectAnotherGoogleCalendar}
+            gcalSyncState={runtime&&!model.googleCalendarAvailable?undefined:model.gcalSyncState}
+            autoSync={runtime&&!model.googleCalendarAvailable?undefined:model.autoSync}
+            lastSyncedTime={runtime&&!model.googleCalendarAvailable?undefined:model.lastSyncedTime}
+            syncSummary={runtime&&!model.googleCalendarAvailable?undefined:model.syncSummary}
+            googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
+            importedCalendars={runtime&&!model.googleCalendarAvailable?undefined:model.importedCalendars}
+            exportCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.exportCalendar}
+            onChangeImportedCalendars={runtime&&!model.googleCalendarAvailable?undefined:model.onChangeImportedCalendars}
+            onChangeExportCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.onChangeExportCalendar}
+            onConnectGoogleCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.onConnectGoogleCalendar}
+            onDisconnectGoogleCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.onDisconnectGoogleCalendar}
+            onSyncNowGoogleCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.onSyncNowGoogleCalendar}
+            onToggleAutoSyncGoogleCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.onToggleAutoSyncGoogleCalendar}
             onSetGcalSyncState={runtime?undefined:model.onSetGcalSyncState}
             live={!!runtime}
             telegram={runtime?.telegram}

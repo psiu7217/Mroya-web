@@ -110,6 +110,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             reminders={reminders}
             selectedEventId={selectedCalendarEventId}
             onAddEvent={onCalendarViewAddEvent}
+            onEditEvent={model.onCalendarViewEditEvent}
+            onDeleteEvent={model.onCalendarViewDeleteEvent}
             onOpenMemory={onCalendarViewOpenMemory}
             onOpenConnections={onCalendarViewOpenConnections}
             onAddReminder={onCalendarViewAddReminder}

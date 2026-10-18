@@ -138,6 +138,32 @@ export interface MemoryItem {
   confidenceNote?: string;
 }
 
+export type GoogleSyncState =
+  | 'disconnected'
+  | 'connecting'
+  | 'initial_syncing'
+  | 'connected_auto_off'
+  | 'connected_auto_on'
+  | 'syncing'
+  | 'sync_error'
+  | 'conflict'
+  | 'reconnect_required';
+
+export interface GoogleCalendarItem {
+  id: string;
+  name: string;
+  primary?: boolean;
+  selectedForImport: boolean;
+  color?: string;
+}
+
+export interface GoogleSyncResult {
+  importedCount: number;
+  exportedCount: number;
+  lastSynced: string;
+  partialWarning?: string;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -154,6 +180,9 @@ export interface CalendarEvent {
   recurrence?: RecurrenceRule;
   isReadOnly?: boolean; // For external/read-only calendars like Google Contacts / Birthdays
   calendarSource?: 'primary' | 'google_birthdays' | 'google_work' | 'local';
+  sourceName?: string;
+  syncStatus?: 'synced' | 'pending' | 'sync_error' | 'local_only' | 'read_only';
+  syncError?: string;
 }
 
 export type GraphNodeCategory = 'person' | 'agreement' | 'event' | 'organization' | 'preference';

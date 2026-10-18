@@ -98,6 +98,8 @@ export interface WorkspaceModel {
     onMemoryContextPanelOpenInMemoryMap: (nodeId: string) => void;
     onMemoryContextPanelOpenInCalendar: (eventId: string) => void;
     onCalendarViewAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void;
+    onCalendarViewEditEvent?: (event: CalendarEvent) => void;
+    onCalendarViewDeleteEvent?: (id: string) => void;
     onCalendarViewOpenMemory: (memoryId: string) => void;
     onCalendarViewOpenConnections: () => void;
     onCalendarViewAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>) => void;

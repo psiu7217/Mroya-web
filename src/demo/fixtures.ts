@@ -318,6 +318,9 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     organization: 'City Health Clinic',
     locationOrLink: '742 Evergreen Terrace, Suite 300',
     notes: 'Annual routine health checkup. Google Calendar synced.',
+    calendarSource: 'google_work',
+    sourceName: 'Google Calendar (Work)',
+    syncStatus: 'synced',
   },
   {
     id: 'evt-weekly-meeting',
@@ -339,6 +342,8 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
       humanReadable: 'Every week on Monday',
     },
     calendarSource: 'google_work',
+    sourceName: 'Google Calendar (Work)',
+    syncStatus: 'synced',
   },
   {
     id: 'evt-annas-birthday',
@@ -360,6 +365,8 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     },
     isReadOnly: true,
     calendarSource: 'google_birthdays',
+    sourceName: 'Google Contacts',
+    syncStatus: 'read_only',
   },
   {
     id: 'evt-oct13-brief',
@@ -374,6 +381,9 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     locationOrLink: 'Personal focus block',
     notes: 'Remember: Sarah prefers concise written summaries 24 hours before any review.',
     linkedMemoryId: 'mem-sarah-profile',
+    calendarSource: 'local',
+    sourceName: 'Mroya',
+    syncStatus: 'local_only',
   },
   {
     id: 'evt-oct15-nordic',
@@ -395,6 +405,9 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
       endCondition: 'never',
       humanReadable: 'Every 2 weeks on Thursday',
     },
+    calendarSource: 'local',
+    sourceName: 'Mroya',
+    syncStatus: 'synced',
   },
   {
     id: 'evt-oct16-proposal',
@@ -409,6 +422,9 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     locationOrLink: 'Email + Shared Notion Doc',
     notes: 'Agreed $14,500 budget with 40% / 30% / 30% milestones and PO #HL-2026-09.',
     linkedMemoryId: 'mem-sarah-redesign',
+    calendarSource: 'local',
+    sourceName: 'Mroya',
+    syncStatus: 'pending',
   },
   {
     id: 'evt-oct19-daniel',
@@ -423,6 +439,9 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     locationOrLink: 'Figma + GitHub Spec',
     notes: 'Ahead of Oct 22 frontend engineering kick-off.',
     linkedMemoryId: 'mem-daniel-arch',
+    calendarSource: 'local',
+    sourceName: 'Mroya',
+    syncStatus: 'local_only',
   },
   {
     id: 'evt-oct22-kickoff',
@@ -437,6 +456,9 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     locationOrLink: 'Google Meet',
     notes: 'Issue 40% milestone invoice ($5,800) to billing@harborlabs.io with PO #HL-2026-09.',
     linkedMemoryId: 'mem-harbor-billing',
+    calendarSource: 'local',
+    sourceName: 'Mroya',
+    syncStatus: 'local_only',
   },
 ];
 

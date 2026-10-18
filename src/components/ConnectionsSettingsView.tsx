@@ -13,6 +13,14 @@ import {
   PanelLeftOpen,
   ChevronDown,
   Brain,
+  Calendar as CalendarIcon,
+  RefreshCw,
+  AlertTriangle,
+  AlertCircle,
+  RotateCw,
+  CheckCircle2,
+  ArrowRightLeft,
+  ExternalLink,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
@@ -183,6 +191,78 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     return list;
   }, [account.timezone]);
 
+  // Google Calendar Sync states for Design Mode
+  const [gcalSyncState, setGcalSyncState] = React.useState<
+    | 'disconnected'
+    | 'connecting'
+    | 'initial_syncing'
+    | 'connected_auto_off'
+    | 'connected_auto_on'
+    | 'syncing'
+    | 'sync_error'
+    | 'conflict'
+    | 'reconnect_required'
+  >('connected_auto_off');
+  const [importedCalendars, setImportedCalendars] = React.useState<string[]>(['primary', 'work']);
+  const [exportCalendar, setExportCalendar] = React.useState<string>('primary');
+  const [autoSync, setAutoSync] = React.useState<boolean>(false);
+  const [lastSyncedTime, setLastSyncedTime] = React.useState<string>('Today at 12:45 PM');
+  const [syncSummary, setSyncSummary] = React.useState<{
+    imported: number;
+    exported: number;
+    lastSynced: string;
+  } | null>({
+    imported: 14,
+    exported: 3,
+    lastSynced: 'Today at 12:45 PM',
+  });
+
+  const handleConnectGcal = () => {
+    setGcalSyncState('connecting');
+    setTimeout(() => {
+      setGcalSyncState('initial_syncing');
+      setTimeout(() => {
+        setGcalSyncState('connected_auto_off');
+        setAutoSync(false);
+        setLastSyncedTime('Just now');
+        setSyncSummary({
+          imported: 18,
+          exported: 4,
+          lastSynced: 'Just now',
+        });
+      }, 1400);
+    }, 600);
+  };
+
+  const handleDisconnectGcal = () => {
+    setGcalSyncState('disconnected');
+    setSyncSummary(null);
+  };
+
+  const handleSyncNow = () => {
+    if (gcalSyncState === 'syncing' || gcalSyncState === 'initial_syncing') return;
+    setGcalSyncState('syncing');
+    setTimeout(() => {
+      setGcalSyncState(autoSync ? 'connected_auto_on' : 'connected_auto_off');
+      setLastSyncedTime('Just now');
+      setSyncSummary({
+        imported: 14,
+        exported: 3,
+        lastSynced: 'Just now',
+      });
+    }, 1000);
+  };
+
+  const handleToggleAutoSync = () => {
+    const next = !autoSync;
+    setAutoSync(next);
+    if (gcalSyncState === 'connected_auto_off' && next) {
+      setGcalSyncState('connected_auto_on');
+    } else if (gcalSyncState === 'connected_auto_on' && !next) {
+      setGcalSyncState('connected_auto_off');
+    }
+  };
+
   const handleSaveNickname = () => {
     const value = nicknameDraft.trim();
     if (Array.from(value).length > 80) {
@@ -283,6 +363,451 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 {visibleConnections.map((conn) => {
                   // Explicit catalogue mapping: Studio and live IDs are deliberately different.
                   const isTelegram=conn.id===(live?'telegram':'conn-telegram');
+                  const isGoogleCalendar = !live && (conn.id === 'conn-gcal' || conn.id === 'google-calendar');
+
+                  // In Design Mode (!live), render the dedicated, rich Google Calendar sync block
+                  if (isGoogleCalendar) {
+                    const isConnected = gcalSyncState !== 'disconnected';
+                    const isBusy = gcalSyncState === 'connecting' || gcalSyncState === 'syncing';
+
+                    return (
+                      <div
+                        key={conn.id}
+                        className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                      >
+                        <div className="w-full space-y-4">
+                        {/* Design Mode State Switcher Toolbar */}
+                        <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold tracking-wider uppercase text-[var(--mroya-text-muted)] flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
+                              <span>Design Mode · Sync state switcher</span>
+                            </span>
+                            <span className="text-[11px] text-[var(--mroya-text-muted)]">
+                              Click any scenario to preview UI
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {[
+                              { id: 'disconnected', label: 'Disconnected' },
+                              { id: 'connecting', label: 'Connecting' },
+                              { id: 'initial_syncing', label: 'Initial sync' },
+                              { id: 'connected_auto_off', label: 'Connected (Auto OFF)' },
+                              { id: 'connected_auto_on', label: 'Connected (Auto ON)' },
+                              { id: 'syncing', label: 'Syncing' },
+                              { id: 'sync_error', label: 'Sync error' },
+                              { id: 'conflict', label: 'Conflict' },
+                              { id: 'reconnect_required', label: 'Reconnect required' },
+                            ].map((st) => (
+                              <button
+                                key={st.id}
+                                type="button"
+                                onClick={() => {
+                                  setGcalSyncState(st.id as any);
+                                  if (st.id === 'connected_auto_on') setAutoSync(true);
+                                  if (st.id === 'connected_auto_off') setAutoSync(false);
+                                  if (st.id === 'disconnected') setSyncSummary(null);
+                                  else if (!syncSummary) {
+                                    setSyncSummary({ imported: 14, exported: 3, lastSynced: 'Today at 12:45 PM' });
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-[6px] text-[11px] font-medium transition-all cursor-pointer border ${
+                                  gcalSyncState === st.id
+                                    ? 'bg-[var(--mroya-primary)] text-white border-[var(--mroya-primary)] font-semibold shadow-2xs'
+                                    : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)]'
+                                }`}
+                              >
+                                {st.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Card Header & Status */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--mroya-divider)]/60">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center shrink-0">
+                              <CalendarIcon className="w-5 h-5 text-[var(--mroya-primary)]" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-[16px] font-bold text-[var(--mroya-text)]">
+                                  {conn.name}
+                                </h3>
+                                <span className="text-[12px] text-[var(--mroya-text-muted)]">
+                                  · {conn.category}
+                                </span>
+                              </div>
+                              <p className="text-[12.5px] text-[var(--mroya-text-muted)]">
+                                Two-way schedule synchronization with Mroya calendar
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Top Status Pill */}
+                          <div className="shrink-0">
+                            {gcalSyncState === 'disconnected' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-medium bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
+                                <span className="w-2 h-2 rounded-full bg-[var(--mroya-text-muted)]" />
+                                <span>Disconnected</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'connecting' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
+                                <span>Connecting…</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'initial_syncing' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
+                                <span>Initial sync in progress</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'connected_auto_off' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Connected · Auto-sync OFF</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'connected_auto_on' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Connected · Auto-sync ON</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'syncing' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
+                                <span>Synchronizing…</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'sync_error' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                <span>Sync error</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'conflict' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                <span>Conflict detected</span>
+                              </span>
+                            )}
+                            {gcalSyncState === 'reconnect_required' && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                <span>Reconnect required</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* DISCONNECTED STATE VIEW */}
+                        {gcalSyncState === 'disconnected' && (
+                          <div className="space-y-4 pt-1 animate-in fade-in duration-150">
+                            <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[21px]">
+                              Connect your Google Calendar for two-way synchronization with Mroya. Your schedule, client meetings, and deadlines will be cross-referenced automatically while protecting morning deep work before 11:00 AM.
+                            </p>
+                            <ul className="space-y-1.5">
+                              {conn.capabilities.map((cap, i) => (
+                                <li
+                                  key={i}
+                                  className="text-[12.5px] text-[var(--mroya-text)] flex items-center gap-2"
+                                >
+                                  <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
+                                  <span>{cap}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]/40">
+                              <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
+                                Local events created in Mroya remain stored securely even when disconnected.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleConnectGcal}
+                                className="px-5 py-2.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap shadow-xs shrink-0 self-start sm:self-center"
+                              >
+                                Connect Google Calendar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* CONNECTING STATE VIEW */}
+                        {gcalSyncState === 'connecting' && (
+                          <div className="py-6 flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in">
+                            <RefreshCw className="w-7 h-7 text-[var(--mroya-primary)] animate-spin" />
+                            <div className="space-y-1">
+                              <h4 className="text-[14px] font-semibold text-[var(--mroya-text)]">
+                                Connecting to Google Calendar…
+                              </h4>
+                              <p className="text-[12px] text-[var(--mroya-text-muted)]">
+                                Authorizing account psiu7217@gmail.com and preparing two-way channel
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* INITIAL SYNCING STATE VIEW */}
+                        {gcalSyncState === 'initial_syncing' && (
+                          <div className="p-4 rounded-[12px] bg-blue-500/10 border border-blue-500/25 space-y-2.5 animate-in fade-in">
+                            <div className="flex items-center gap-2.5 text-blue-700 dark:text-blue-300">
+                              <RefreshCw className="w-4.5 h-4.5 animate-spin shrink-0 text-blue-600 dark:text-blue-400" />
+                              <h4 className="text-[14px] font-bold">
+                                Initial synchronization in progress
+                              </h4>
+                            </div>
+                            <p className="text-[13px] text-blue-800 dark:text-blue-200 leading-[19px]">
+                              Importing Google Calendar events and exporting your existing Mroya events.
+                            </p>
+                            <p className="text-[11.5px] text-[var(--mroya-text-muted)] pt-1 border-t border-blue-500/20">
+                              A one-time initial synchronization runs automatically after authorization, independent of the Automatic sync setting.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* CONNECTED & SUB-STATES (Auto-off, Auto-on, Syncing, Error, Conflict, Reconnect) */}
+                        {isConnected && gcalSyncState !== 'connecting' && (
+                          <div className="space-y-4 pt-1">
+                            {/* Connected Account & Last Synced Display */}
+                            <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-center font-bold text-[12px] text-[var(--mroya-primary)] shrink-0">
+                                  G
+                                </div>
+                                <div>
+                                  <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                                    psiu7217@gmail.com
+                                  </div>
+                                  <div className="text-[11.5px] text-[var(--mroya-text-muted)]">
+                                    Connected Google Account
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-[12px] text-[var(--mroya-text-muted)] sm:text-right">
+                                <span className="font-medium text-[var(--mroya-text)]">Last synced:</span> {lastSyncedTime}
+                              </div>
+                            </div>
+
+                            {/* SPECIAL NOTICES & BANNERS */}
+                            {gcalSyncState === 'sync_error' && (
+                              <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
+                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                  <span className="text-[13px] font-bold">Synchronization error</span>
+                                </div>
+                                <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
+                                  Unable to reach Google Calendar API (network timeout). Your local Mroya commitments are preserved and safe.
+                                </p>
+                                <div className="pt-1 flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleSyncNow}
+                                    className="px-3 py-1.5 rounded-[6px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
+                                  >
+                                    Retry sync
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {gcalSyncState === 'conflict' && (
+                              <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
+                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                  <span className="text-[13px] font-bold">Sync conflict detected</span>
+                                </div>
+                                <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
+                                  1 commitment was modified simultaneously in both Google Calendar and Mroya. Both versions have been preserved as separate commitments so no work is lost.
+                                </p>
+                                <div className="pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setGcalSyncState(autoSync ? 'connected_auto_on' : 'connected_auto_off')}
+                                    className="px-3 py-1.5 rounded-[6px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
+                                  >
+                                    Acknowledge & keep both
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {gcalSyncState === 'reconnect_required' && (
+                              <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
+                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                  <span className="text-[13px] font-bold">Reconnect required</span>
+                                </div>
+                                <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
+                                  Google Calendar authorization credentials expired or were revoked. Reconnect your account to resume automatic syncing.
+                                </p>
+                                <div className="pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={handleConnectGcal}
+                                    className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12.5px] font-semibold cursor-pointer"
+                                  >
+                                    Reconnect Google Calendar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Sync Result Summary (After completion) */}
+                            {syncSummary && gcalSyncState !== 'initial_syncing' && gcalSyncState !== 'sync_error' && gcalSyncState !== 'reconnect_required' && (
+                              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
+                                <div className="flex items-center gap-2 text-[var(--mroya-text)]">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span>
+                                    <strong>{syncSummary.imported}</strong> events imported · <strong>{syncSummary.exported}</strong> events exported
+                                  </span>
+                                </div>
+                                <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
+                                  Last synced: {syncSummary.lastSynced}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* 3. LIST OF GOOGLE CALENDARS FOR IMPORT */}
+                            <div className="space-y-2">
+                              <label className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
+                                Google Calendars to import:
+                              </label>
+                              <div className="space-y-1.5">
+                                {[
+                                  { id: 'primary', name: 'Primary / Основной (psiu7217@gmail.com)', desc: 'General schedule, appointments, personal commitments' },
+                                  { id: 'work', name: 'Work & Retainers (Работа и клиенты)', desc: 'Harbor Labs, Nordic Studio, client calls' },
+                                  { id: 'personal', name: 'Family & Birthdays (Личное и праздники)', desc: 'Family events, contacts birthdays' },
+                                ].map((cal) => (
+                                  <label
+                                    key={cal.id}
+                                    className="flex items-center justify-between p-2.5 rounded-[8px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] cursor-pointer transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={importedCalendars.includes(cal.id)}
+                                        onChange={() => {
+                                          setImportedCalendars((prev) =>
+                                            prev.includes(cal.id)
+                                              ? prev.filter((c) => c !== cal.id)
+                                              : [...prev, cal.id]
+                                          );
+                                        }}
+                                        className="w-4 h-4 rounded text-[var(--mroya-primary)] accent-[var(--mroya-primary)] cursor-pointer"
+                                      />
+                                      <div className="min-w-0">
+                                        <div className="text-[13px] font-medium text-[var(--mroya-text)] truncate">
+                                          {cal.name}
+                                        </div>
+                                        <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
+                                          {cal.desc}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <span
+                                      className={`text-[11px] font-medium shrink-0 ml-2 ${
+                                        importedCalendars.includes(cal.id)
+                                          ? 'text-[var(--mroya-primary)]'
+                                          : 'text-[var(--mroya-text-muted)]'
+                                      }`}
+                                    >
+                                      {importedCalendars.includes(cal.id) ? 'Active' : 'Ignored'}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* 4. CALENDAR SELECTION FOR EXPORTING MROYA EVENTS */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
+                                Export Mroya events to:
+                              </label>
+                              <select
+                                value={exportCalendar}
+                                onChange={(e) => setExportCalendar(e.target.value)}
+                                className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
+                              >
+                                <option value="primary">Primary — psiu7217@gmail.com</option>
+                                <option value="work">Work & Retainers (Harbor Labs, Nordic Studio)</option>
+                              </select>
+                              <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
+                                New commitments created inside Mroya will automatically be exported into this Google Calendar.
+                              </p>
+                            </div>
+
+                            {/* 5. AUTOMATIC SYNC TOGGLE SWITCH (ON / OFF, default OFF) */}
+                            <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex items-center justify-between gap-4">
+                              <div className="space-y-0.5">
+                                <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
+                                  <span>Automatic sync</span>
+                                  <span
+                                    className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
+                                      autoSync
+                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                        : 'bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]'
+                                    }`}
+                                  >
+                                    {autoSync ? 'ON' : 'OFF'}
+                                  </span>
+                                </div>
+                                <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[17px]">
+                                  Automatic sync is OFF by default. It controls continuous background exchange of schedule changes.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={autoSync}
+                                onClick={handleToggleAutoSync}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  autoSync ? 'bg-[var(--mroya-primary)]' : 'bg-[var(--mroya-divider)]'
+                                }`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                    autoSync ? 'translate-x-5' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                            </div>
+
+                            {/* 6. SYNC NOW & 8. DISCONNECT ACTION BUTTONS */}
+                            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]/60">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={handleSyncNow}
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer disabled:opacity-60"
+                                >
+                                  <RefreshCw className={`w-3.5 h-3.5 ${gcalSyncState === 'syncing' ? 'animate-spin text-[var(--mroya-primary)]' : ''}`} />
+                                  <span>{gcalSyncState === 'syncing' ? 'Syncing now…' : 'Sync now'}</span>
+                                </button>
+                                <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
+                                  {lastSyncedTime}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleDisconnectGcal}
+                                className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer self-start sm:self-center"
+                              >
+                                Disconnect
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Non-Google Calendar or live catalogue connection card
                   const state=live&&isTelegram?telegram:undefined;
                   const connected=state?.status?.connected??(!live&&conn.connected);
                   const busy=live&&isTelegram&&(!state||state.checking||state.phase==='loading'||state.phase==='creating'||state.phase==='disconnecting');

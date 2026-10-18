@@ -86,7 +86,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   onChatWorkspaceOpenPlanModal:()=>openSettings('plan'),onChatWorkspaceToggleTheme:layout.toggleTheme,onChatWorkspaceOpenSettingsTab:openSettings,
   onMemoryContextPanelClose:()=>setContextOpen(false),onMemoryContextPanelSelectMemory:focusMemory,
   onMemoryContextPanelOpenInMemoryView:openMemory,onMemoryContextPanelOpenInMemoryMap:openMap,onMemoryContextPanelOpenInCalendar:unavailable,
-  onCalendarViewAddEvent:unavailable,onCalendarViewOpenMemory:openMemory,onCalendarViewOpenConnections:()=>openSettings('connections'),
+  onCalendarViewAddEvent:unavailable,onCalendarViewEditEvent:unavailable,onCalendarViewDeleteEvent:unavailable,onCalendarViewOpenMemory:openMemory,onCalendarViewOpenConnections:()=>openSettings('connections'),
   onCalendarViewAddReminder:unavailable,onCalendarViewNavigateToReminders:()=>select('reminders'),
   onCalendarViewExpandSidebar:layout.expand,onCalendarViewOpenMobileMenu:layout.openMobile,
   onRemindersViewUpdateReminder:unavailable,onRemindersViewOpenCalendarEvent:unavailable,

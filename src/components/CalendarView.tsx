@@ -20,6 +20,13 @@ import {
   RefreshCw,
   Send,
   Repeat,
+  Pencil,
+  Trash2,
+  Eye,
+  AlertTriangle,
+  AlertCircle,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
 import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
@@ -34,6 +41,8 @@ interface CalendarViewProps {
   reminders: ReminderItem[];
   selectedEventId: string | null;
   onAddEvent: (event: Omit<CalendarEvent, 'id'>, initialReminderOffset?: number) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
+  onDeleteEvent?: (id: string) => void;
   onOpenMemory: (memoryId: string) => void;
   onOpenConnections: () => void;
   onAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>) => void;
@@ -83,8 +92,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   events,
   memories,
   reminders,
-  selectedEventId,
+  selectedEventId = null,
   onAddEvent,
+  onEditEvent,
+  onDeleteEvent,
   onOpenMemory,
   onOpenConnections,
   onAddReminder,
@@ -104,6 +115,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+
+  // Viewing, Editing, and Deleting event state
+  const [viewingEvent, setViewingEvent] = useState<CalendarEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [deletingEvent, setDeletingEvent] = useState<CalendarEvent | null>(null);
+
+  // Edit event form state
+  const [editTitle, setEditTitle] = useState('');
+  const [editDay, setEditDay] = useState(12);
+  const [editTime, setEditTime] = useState('14:00');
+  const [editDuration, setEditDuration] = useState('1h');
+  const [editCategory, setEditCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
+  const [editPerson, setEditPerson] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editRecurrence, setEditRecurrence] = useState<RecurrenceRule | undefined>(undefined);
 
   // New event form state
   const [newTitle, setNewTitle] = useState('');
@@ -229,6 +255,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         person: newPerson.trim() || undefined,
         notes: newNotes.trim() || 'Added via Mroya Calendar.',
         recurrence: newEventRecurrence,
+        sourceName: 'Mroya',
+        calendarSource: 'local',
+        syncStatus: googleCalendarConnected ? 'synced' : 'local_only',
       },
       newReminderEnabled ? newReminderOffset : undefined
     );
@@ -239,6 +268,129 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setNewReminderEnabled(false);
     setIsNewModalOpen(false);
     setSelectedDay(newDay);
+  };
+
+  const handleOpenEdit = (event: CalendarEvent) => {
+    if (readOnly || event.isReadOnly) return;
+    setEditingEvent(event);
+    setViewingEvent(null);
+    setEditTitle(event.title);
+    setEditDay(event.dayOfMonth);
+    setEditTime(event.time);
+    setEditDuration(event.duration || '1h');
+    setEditCategory(event.category);
+    setEditPerson(event.person || '');
+    setEditNotes(event.notes || '');
+    setEditRecurrence(event.recurrence);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (readOnly || !editingEvent || !editTitle.trim()) return;
+    const paddedMonth = String(currentMonthIndex + 1).padStart(2, '0');
+    const paddedDay = String(editDay).padStart(2, '0');
+    const updatedDate = `${currentYear}-${paddedMonth}-${paddedDay}`;
+
+    const updated: CalendarEvent = {
+      ...editingEvent,
+      title: editTitle.trim(),
+      date: updatedDate,
+      dayOfMonth: editDay,
+      time: editTime,
+      duration: editCategory === 'deadline' ? 'Deadline' : editDuration,
+      category: editCategory,
+      person: editPerson.trim() || undefined,
+      notes: editNotes.trim(),
+      recurrence: editRecurrence,
+    };
+
+    onEditEvent?.(updated);
+    setEditingEvent(null);
+    setSyncToast('Commitment updated · Synchronized with calendar');
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  const handleOpenDelete = (event: CalendarEvent) => {
+    if (readOnly || event.isReadOnly) return;
+    setDeletingEvent(event);
+    setViewingEvent(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (readOnly || !deletingEvent) return;
+    onDeleteEvent?.(deletingEvent.id);
+    setDeletingEvent(null);
+    setSyncToast('Commitment permanently deleted from calendar');
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  const renderSourceBadge = (ev: CalendarEvent) => {
+    const isGoogle = ev.calendarSource === 'google_work' || ev.calendarSource === 'primary' || (ev.sourceName && ev.sourceName.includes('Google'));
+    const isGoogleContacts = ev.calendarSource === 'google_birthdays' || (ev.sourceName && ev.sourceName.includes('Contacts'));
+    const sourceLabel = ev.sourceName || (isGoogleContacts ? 'Google Contacts' : isGoogle ? 'Google Calendar' : 'Mroya');
+
+    if (isGoogleContacts || ev.isReadOnly) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-700 dark:text-pink-300 bg-pink-500/10 px-2 py-0.5 rounded-full border border-pink-500/20 shrink-0">
+          <Lock className="w-3 h-3" />
+          <span>{sourceLabel} · Read-only</span>
+        </span>
+      );
+    }
+    if (isGoogle) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 shrink-0">
+          <CalendarIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+          <span>{sourceLabel}</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] px-2 py-0.5 rounded-full border border-[var(--mroya-divider)] shrink-0">
+        <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-primary)]" />
+        <span>Mroya (Local)</span>
+      </span>
+    );
+  };
+
+  const renderSyncStatusBadge = (ev: CalendarEvent) => {
+    if (ev.isReadOnly) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-1.5 py-0.5 rounded-[5px] border border-[var(--mroya-divider)] shrink-0">
+          <Lock className="w-2.5 h-2.5" />
+          <span>External</span>
+        </span>
+      );
+    }
+    if (ev.syncStatus === 'synced') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-[5px] border border-emerald-500/20 shrink-0">
+          <Check className="w-3 h-3 stroke-[2.5]" />
+          <span>Synced</span>
+        </span>
+      );
+    }
+    if (ev.syncStatus === 'pending') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-blue-700 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-[5px] border border-blue-500/20 shrink-0">
+          <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+          <span>Pending sync</span>
+        </span>
+      );
+    }
+    if (ev.syncStatus === 'sync_error') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-[5px] border border-amber-500/20 shrink-0">
+          <AlertTriangle className="w-2.5 h-2.5" />
+          <span>Sync error</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-1.5 py-0.5 rounded-[5px] border border-[var(--mroya-divider)] shrink-0">
+        <span>Local only</span>
+      </span>
+    );
   };
 
   const selectDate = (year:number,month:number,day=selectedDay) => {
@@ -900,15 +1052,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 <span className="text-[14px] font-semibold text-[var(--mroya-text)] leading-[19px]">
                                   {ev.title}
                                 </span>
+                                {renderSourceBadge(ev)}
+                                {renderSyncStatusBadge(ev)}
                                 {ev.recurrence && (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded-full border border-purple-500/20">
                                     <Repeat className="w-2.5 h-2.5" />
-                                    <span>{formatRecurrence(ev.recurrence)}</span>
-                                  </span>
-                                )}
-                                {ev.calendarSource === 'google_birthdays' && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-pink-600 dark:text-pink-400 bg-pink-500/10 px-1.5 py-0.2 rounded-full border border-pink-500/20">
-                                    🎂 Google Contacts · Annual
+                                    <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
                                   </span>
                                 )}
                               </div>
@@ -933,6 +1082,34 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   <span className="truncate">Memory: {linkedMem.title}</span>
                                 </button>
                               )}
+                              <div className="pt-1.5 flex items-center justify-between border-t border-[var(--mroya-divider)]/40">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingEvent(ev)}
+                                  className="text-[11px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer flex items-center gap-1"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>Details</span>
+                                </button>
+                                {!readOnly && !ev.isReadOnly && (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(ev)}
+                                      className="text-[11px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] p-0.5 cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenDelete(ev)}
+                                      className="text-[11px] text-red-500 hover:underline p-0.5 cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
 
                               {/* Reminders section for event (Mobile) */}
                               {(() => {
@@ -1232,12 +1409,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 {evts.map((ev) => (
                                   <div
                                     key={ev.id}
-                                    className="p-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] space-y-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingEvent(ev);
+                                    }}
+                                    className="p-2 rounded-[8px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[12px] space-y-1 cursor-pointer transition-colors"
                                   >
-                                    <div className="font-mono-tabular text-[11px] text-[var(--mroya-primary)]">
-                                      {ev.time}
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-mono-tabular text-[11px] text-[var(--mroya-primary)]">
+                                        {ev.time}
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        {ev.recurrence && <Repeat className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" />}
+                                        {ev.isReadOnly && <Lock className="w-2.5 h-2.5 text-[var(--mroya-text-muted)]" />}
+                                      </div>
                                     </div>
-                                    <div className="font-medium text-[var(--mroya-text)] leading-[16px]">
+                                    <div className="font-medium text-[var(--mroya-text)] leading-[16px] truncate">
                                       {ev.title}
                                     </div>
                                   </div>
@@ -1294,15 +1481,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   <span className="text-[14px] font-semibold text-[var(--mroya-text)]">
                                     {ev.title}
                                   </span>
+                                  {renderSourceBadge(ev)}
+                                  {renderSyncStatusBadge(ev)}
                                   {ev.recurrence && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
                                       <Repeat className="w-3 h-3" />
-                                      <span>{formatRecurrence(ev.recurrence)}</span>
-                                    </span>
-                                  )}
-                                  {ev.calendarSource === 'google_birthdays' && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-600 dark:text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full border border-pink-500/20">
-                                      🎂 Google Contacts · Annual
+                                      <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
                                     </span>
                                   )}
                                 </div>
@@ -1325,6 +1509,45 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     <span>Linked memory: {linkedMem.title}</span>
                                   </button>
                                 )}
+
+                                <div className="pt-2 flex items-center justify-between border-t border-[var(--mroya-divider)]/40">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingEvent(ev)}
+                                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>View details</span>
+                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    {!readOnly && !ev.isReadOnly && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEdit(ev)}
+                                          title="Edit commitment"
+                                          className="p-1 rounded-[5px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenDelete(ev)}
+                                          title="Delete commitment"
+                                          className="p-1 rounded-[5px] text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                    {ev.isReadOnly && (
+                                      <span className="text-[11px] text-[var(--mroya-text-muted)] flex items-center gap-1">
+                                        <Lock className="w-3 h-3" />
+                                        <span>Read-only</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
 
                                 {/* Reminders section for event (Desktop) */}
                                 {(() => {
@@ -1766,6 +1989,382 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW EVENT DETAILS MODAL */}
+      {viewingEvent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="view-event-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
+          onClick={() => setViewingEvent(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] px-2 py-0.5 rounded-[5px]">
+                    {viewingEvent.category}
+                  </span>
+                  {renderSourceBadge(viewingEvent)}
+                  {renderSyncStatusBadge(viewingEvent)}
+                </div>
+                <h2 id="view-event-title" className="text-[17px] font-bold text-[var(--mroya-text)] pt-1">
+                  {viewingEvent.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingEvent(null)}
+                aria-label="Close details"
+                className="p-1 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 divide-y divide-[var(--mroya-divider)]/60 text-[13px]">
+              {/* Date and Time */}
+              <div className="pt-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[var(--mroya-text)] font-medium">
+                  <Clock className="w-4 h-4 text-[var(--mroya-primary)] shrink-0" />
+                  <span>
+                    {viewingEvent.date} · {viewingEvent.time}
+                  </span>
+                </div>
+                <span className="text-[var(--mroya-text-muted)] text-[12px]">
+                  Duration: {viewingEvent.duration}
+                </span>
+              </div>
+
+              {/* Counterparty / Organization */}
+              {viewingEvent.person && (
+                <div className="pt-3 flex items-start gap-2">
+                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">With:</div>
+                  <div className="font-medium text-[var(--mroya-text)]">
+                    {viewingEvent.person}
+                    {viewingEvent.organization ? ` · ${viewingEvent.organization}` : ''}
+                  </div>
+                </div>
+              )}
+
+              {/* Location or Link */}
+              {viewingEvent.locationOrLink && (
+                <div className="pt-3 flex items-start gap-2">
+                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">Location:</div>
+                  <div className="font-medium text-[var(--mroya-text)]">
+                    {viewingEvent.locationOrLink}
+                  </div>
+                </div>
+              )}
+
+              {/* Recurrence Series */}
+              <div className="pt-3 space-y-1">
+                <div className="text-[var(--mroya-text-muted)] text-[12px] font-medium">
+                  Recurrence:
+                </div>
+                {viewingEvent.recurrence ? (
+                  <div className="p-2.5 rounded-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-900 dark:text-purple-200 text-[12px] space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <Repeat className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span>Part of a recurring series ({formatRecurrence(viewingEvent.recurrence)})</span>
+                    </div>
+                    <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
+                      Modifications apply to the entire recurring series. Individual instance exceptions are not supported by Backend yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-[12px] text-[var(--mroya-text-muted)]">
+                    Single commitment (does not repeat)
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
+              {viewingEvent.notes && (
+                <div className="pt-3 space-y-1">
+                  <div className="text-[var(--mroya-text-muted)] text-[12px] font-medium">
+                    Notes & Context:
+                  </div>
+                  <p className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)] text-[12.5px] leading-[19px] text-[var(--mroya-text)] whitespace-pre-wrap">
+                    {viewingEvent.notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Read-only notification */}
+              {viewingEvent.isReadOnly && (
+                <div className="pt-3">
+                  <div className="p-3 rounded-[10px] bg-pink-500/10 border border-pink-500/20 text-pink-900 dark:text-pink-200 text-[12px] flex items-start gap-2">
+                    <Lock className="w-4 h-4 text-pink-600 dark:text-pink-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold">Read-only external event</span>
+                      <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
+                        This commitment is imported from an external read-only calendar ({viewingEvent.sourceName || 'Google Contacts'}). Editing and deleting must be done in the source application.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--mroya-divider)]">
+              <div>
+                {!viewingEvent.isReadOnly && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDelete(viewingEvent)}
+                    className="px-3 py-1.5 rounded-[8px] border border-red-500/30 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewingEvent(null)}
+                  className="px-3.5 py-1.5 rounded-[8px] border border-[var(--mroya-divider)] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
+                >
+                  Close
+                </button>
+                {!viewingEvent.isReadOnly && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(viewingEvent)}
+                    className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12.5px] font-semibold cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit commitment</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EVENT MODAL */}
+      {editingEvent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-event-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
+          onClick={() => setEditingEvent(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 id="edit-event-title" className="text-[16px] font-semibold text-[var(--mroya-text)]">
+                  Edit commitment
+                </h2>
+                <p className="text-[11px] text-[var(--mroya-text-muted)]">
+                  {editingEvent.sourceName || 'Mroya Calendar'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingEvent(null)}
+                aria-label="Close edit modal"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  Commitment title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                    Day of month (1-31)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={editDay}
+                    onChange={(e) => setEditDay(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                    Time
+                  </label>
+                  <input
+                    type="text"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  Category
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setEditCategory(cat)}
+                      className={`py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer ${
+                        editCategory === cat
+                          ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)] text-[var(--mroya-primary)] font-semibold'
+                          : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  Person / Counterparty
+                </label>
+                <input
+                  type="text"
+                  value={editPerson}
+                  onChange={(e) => setEditPerson(e.target.value)}
+                  placeholder="Person or organization"
+                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  Notes & Context
+                </label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                />
+              </div>
+
+              {/* Recurrence Rule in Edit Modal */}
+              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
+                {editingEvent.recurrence && (
+                  <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1 mb-1">
+                    <Repeat className="w-3.5 h-3.5" />
+                    <span>Part of a recurring series (Applies to all occurrences)</span>
+                  </div>
+                )}
+                <RecurrenceEditor
+                  value={editRecurrence}
+                  onChange={(rule) => setEditRecurrence(rule)}
+                  baseTime={editTime}
+                  baseDate={`${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}-${String(editDay).padStart(2, '0')}`}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingEvent(null)}
+                  className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
+                >
+                  Save changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deletingEvent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-event-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setDeletingEvent(null)}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-5 sm:p-6 shadow-[var(--mroya-shadow-elevated)] space-y-4 animate-in zoom-in-95 duration-150 text-[var(--mroya-text)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h3
+                  id="delete-event-dialog-title"
+                  className="text-[16px] font-semibold text-[var(--mroya-text)] tracking-[-0.01em]"
+                >
+                  {deletingEvent.recurrence ? 'Delete recurring series?' : 'Delete commitment?'}
+                </h3>
+                <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
+                  {deletingEvent.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingEvent(null)}
+                aria-label="Close dialog"
+                className="p-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[13.5px] leading-[20px] text-[var(--mroya-text-muted)]">
+              {deletingEvent.recurrence
+                ? 'Permanently delete this recurring series and all its scheduled occurrences? This cannot be undone.'
+                : 'Permanently delete this commitment from your calendar? This cannot be undone.'}
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingEvent(null)}
+                className="px-3.5 py-2 rounded-[8px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[13px] font-medium text-[var(--mroya-text)] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-3.5 py-2 rounded-[8px] bg-[var(--mroya-error)] hover:opacity-90 active:scale-[0.98] text-white text-[13px] font-semibold transition-all cursor-pointer shadow-2xs"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

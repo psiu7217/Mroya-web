@@ -1,4 +1,4 @@
-import type { AccountPresentation, TelegramPresentation } from '../types/workspace';
+import type { AccountPresentation, TelegramPresentation, WorkspaceModel } from '../types/workspace';
 import React from 'react';
 import {
   Link2,
@@ -112,7 +112,9 @@ const PREVIEW_REASONING_TIMELINE = [
   },
 ];
 
-export interface ConnectionsSettingsViewProps {
+export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
+  'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
+  'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   live?: boolean;
   telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
@@ -137,6 +139,10 @@ export interface ConnectionsSettingsViewProps {
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   live=false,
+  gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
+  importedCalendars=[],exportCalendar='primary',onChangeImportedCalendars,onChangeExportCalendar,
+  onConnectGoogleCalendar:handleConnectGcal,onDisconnectGoogleCalendar:handleDisconnectGcal,
+  onSyncNowGoogleCalendar:handleSyncNow,onToggleAutoSyncGoogleCalendar:handleToggleAutoSync,onSetGcalSyncState,
   telegram,
   preferenceSave,
   account,
@@ -190,78 +196,6 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     }
     return list;
   }, [account.timezone]);
-
-  // Google Calendar Sync states for Design Mode
-  const [gcalSyncState, setGcalSyncState] = React.useState<
-    | 'disconnected'
-    | 'connecting'
-    | 'initial_syncing'
-    | 'connected_auto_off'
-    | 'connected_auto_on'
-    | 'syncing'
-    | 'sync_error'
-    | 'conflict'
-    | 'reconnect_required'
-  >('connected_auto_off');
-  const [importedCalendars, setImportedCalendars] = React.useState<string[]>(['primary', 'work']);
-  const [exportCalendar, setExportCalendar] = React.useState<string>('primary');
-  const [autoSync, setAutoSync] = React.useState<boolean>(false);
-  const [lastSyncedTime, setLastSyncedTime] = React.useState<string>('Today at 12:45 PM');
-  const [syncSummary, setSyncSummary] = React.useState<{
-    imported: number;
-    exported: number;
-    lastSynced: string;
-  } | null>({
-    imported: 14,
-    exported: 3,
-    lastSynced: 'Today at 12:45 PM',
-  });
-
-  const handleConnectGcal = () => {
-    setGcalSyncState('connecting');
-    setTimeout(() => {
-      setGcalSyncState('initial_syncing');
-      setTimeout(() => {
-        setGcalSyncState('connected_auto_off');
-        setAutoSync(false);
-        setLastSyncedTime('Just now');
-        setSyncSummary({
-          imported: 18,
-          exported: 4,
-          lastSynced: 'Just now',
-        });
-      }, 1400);
-    }, 600);
-  };
-
-  const handleDisconnectGcal = () => {
-    setGcalSyncState('disconnected');
-    setSyncSummary(null);
-  };
-
-  const handleSyncNow = () => {
-    if (gcalSyncState === 'syncing' || gcalSyncState === 'initial_syncing') return;
-    setGcalSyncState('syncing');
-    setTimeout(() => {
-      setGcalSyncState(autoSync ? 'connected_auto_on' : 'connected_auto_off');
-      setLastSyncedTime('Just now');
-      setSyncSummary({
-        imported: 14,
-        exported: 3,
-        lastSynced: 'Just now',
-      });
-    }, 1000);
-  };
-
-  const handleToggleAutoSync = () => {
-    const next = !autoSync;
-    setAutoSync(next);
-    if (gcalSyncState === 'connected_auto_off' && next) {
-      setGcalSyncState('connected_auto_on');
-    } else if (gcalSyncState === 'connected_auto_on' && !next) {
-      setGcalSyncState('connected_auto_off');
-    }
-  };
 
   const handleSaveNickname = () => {
     const value = nicknameDraft.trim();
@@ -368,7 +302,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   // In Design Mode (!live), render the dedicated, rich Google Calendar sync block
                   if (isGoogleCalendar) {
                     const isConnected = gcalSyncState !== 'disconnected';
-                    const isBusy = gcalSyncState === 'connecting' || gcalSyncState === 'syncing';
+                    const canSync = ['connected_auto_off','connected_auto_on'].includes(gcalSyncState);
 
                     return (
                       <div
@@ -402,15 +336,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <button
                                 key={st.id}
                                 type="button"
-                                onClick={() => {
-                                  setGcalSyncState(st.id as any);
-                                  if (st.id === 'connected_auto_on') setAutoSync(true);
-                                  if (st.id === 'connected_auto_off') setAutoSync(false);
-                                  if (st.id === 'disconnected') setSyncSummary(null);
-                                  else if (!syncSummary) {
-                                    setSyncSummary({ imported: 14, exported: 3, lastSynced: 'Today at 12:45 PM' });
-                                  }
-                                }}
+                                onClick={() => onSetGcalSyncState?.(st.id as import('../types/mroya').GoogleSyncState)}
                                 className={`px-2.5 py-1 rounded-[6px] text-[11px] font-medium transition-all cursor-pointer border ${
                                   gcalSyncState === st.id
                                     ? 'bg-[var(--mroya-primary)] text-white border-[var(--mroya-primary)] font-semibold shadow-2xs'
@@ -544,7 +470,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 Connecting to Google Calendar…
                               </h4>
                               <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                                Authorizing account psiu7217@gmail.com and preparing two-way channel
+                                Authorizing account {googleCalendarEmail} and preparing two-way channel
                               </p>
                             </div>
                           </div>
@@ -579,7 +505,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 </div>
                                 <div>
                                   <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                                    psiu7217@gmail.com
+                                    {googleCalendarEmail}
                                   </div>
                                   <div className="text-[11.5px] text-[var(--mroya-text-muted)]">
                                     Connected Google Account
@@ -620,16 +546,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   <span className="text-[13px] font-bold">Sync conflict detected</span>
                                 </div>
                                 <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  1 commitment was modified simultaneously in both Google Calendar and Mroya. Both versions have been preserved as separate commitments so no work is lost.
+                                  Conflicting changes were detected. Conflict information is retained by the backend; synchronization is paused until resolution. No duplicate events are created automatically.
                                 </p>
                                 <div className="pt-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => setGcalSyncState(autoSync ? 'connected_auto_on' : 'connected_auto_off')}
-                                    className="px-3 py-1.5 rounded-[6px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
-                                  >
-                                    Acknowledge & keep both
-                                  </button>
+                                  <span className="text-[12px] text-[var(--mroya-text-muted)]">No conflict-resolution endpoint is connected. Resolve support is not available here.</span>
                                 </div>
                               </div>
                             )}
@@ -656,7 +576,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             )}
 
                             {/* Sync Result Summary (After completion) */}
-                            {syncSummary && gcalSyncState !== 'initial_syncing' && gcalSyncState !== 'sync_error' && gcalSyncState !== 'reconnect_required' && (
+                            {syncSummary && canSync && (
                               <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
                                 <div className="flex items-center gap-2 text-[var(--mroya-text)]">
                                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -677,7 +597,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               </label>
                               <div className="space-y-1.5">
                                 {[
-                                  { id: 'primary', name: 'Primary / Основной (psiu7217@gmail.com)', desc: 'General schedule, appointments, personal commitments' },
+                                  { id: 'primary', name: `Primary / Основной (${googleCalendarEmail})`, desc: 'General schedule, appointments, personal commitments' },
                                   { id: 'work', name: 'Work & Retainers (Работа и клиенты)', desc: 'Harbor Labs, Nordic Studio, client calls' },
                                   { id: 'personal', name: 'Family & Birthdays (Личное и праздники)', desc: 'Family events, contacts birthdays' },
                                 ].map((cal) => (
@@ -689,13 +609,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                       <input
                                         type="checkbox"
                                         checked={importedCalendars.includes(cal.id)}
-                                        onChange={() => {
-                                          setImportedCalendars((prev) =>
-                                            prev.includes(cal.id)
-                                              ? prev.filter((c) => c !== cal.id)
-                                              : [...prev, cal.id]
-                                          );
-                                        }}
+                                        disabled={!canSync}
+                                        onChange={() => onChangeImportedCalendars?.(importedCalendars.includes(cal.id) ? importedCalendars.filter(id=>id!==cal.id) : [...importedCalendars,cal.id])}
                                         className="w-4 h-4 rounded text-[var(--mroya-primary)] accent-[var(--mroya-primary)] cursor-pointer"
                                       />
                                       <div className="min-w-0">
@@ -728,14 +643,15 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               </label>
                               <select
                                 value={exportCalendar}
-                                onChange={(e) => setExportCalendar(e.target.value)}
+                                disabled={!canSync}
+                                onChange={(e) => onChangeExportCalendar?.(e.target.value)}
                                 className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
                               >
-                                <option value="primary">Primary — psiu7217@gmail.com</option>
+                                <option value="primary">Primary — {googleCalendarEmail}</option>
                                 <option value="work">Work & Retainers (Harbor Labs, Nordic Studio)</option>
                               </select>
                               <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                New commitments created inside Mroya will automatically be exported into this Google Calendar.
+                                Mroya events use this calendar for export after a successful sync; automatic sync must be enabled for automatic export.
                               </p>
                             </div>
 
@@ -762,6 +678,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 type="button"
                                 role="switch"
                                 aria-checked={autoSync}
+                                disabled={!canSync}
                                 onClick={handleToggleAutoSync}
                                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                                   autoSync ? 'bg-[var(--mroya-primary)]' : 'bg-[var(--mroya-divider)]'
@@ -780,7 +697,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  disabled={isBusy}
+                                  disabled={!canSync}
                                   onClick={handleSyncNow}
                                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer disabled:opacity-60"
                                 >

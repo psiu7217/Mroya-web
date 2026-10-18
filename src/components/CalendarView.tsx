@@ -28,7 +28,7 @@ import {
   Lock,
   ShieldCheck,
 } from 'lucide-react';
-import { CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
+import { GoogleSyncState, CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
 import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils';
@@ -50,6 +50,8 @@ interface CalendarViewProps {
   onSimulateGoogleSync: (reminderId: string) => void;
   onNavigateToReminders?: () => void;
   googleCalendarConnected: boolean;
+  gcalSyncState?: GoogleSyncState;
+  googleCalendarEmail?: string;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
   onOpenMobileMenu: () => void;
@@ -102,11 +104,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onDeleteReminder,
   onSimulateGoogleSync,
   onNavigateToReminders,
-  googleCalendarConnected,
+  gcalSyncState='disconnected',googleCalendarEmail='',
   isSidebarCollapsed,
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
+  const googleStatus=readOnly?'Coming soon':{
+    disconnected:'Disconnected',connecting:'Connecting',initial_syncing:'Initial syncing',
+    connected_auto_off:'Connected · Automatic sync OFF',connected_auto_on:'Connected · Automatic sync ON',
+    syncing:'Syncing',sync_error:'Sync error',conflict:'Conflict · Sync paused',reconnect_required:'Reconnect required',
+  }[gcalSyncState];
+  const googleStatusLabel=googleStatus+(!readOnly&&googleCalendarEmail&&!['disconnected','connecting'].includes(gcalSyncState)?` (${googleCalendarEmail})`:'');
   const today=readOnly?new Date():new Date(2026,9,12);
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
   const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(today.getMonth());
@@ -160,9 +168,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleSimulateSync = (reminderId: string) => {
-    if(readOnly)return;
+    if(readOnly||!['connected_auto_off','connected_auto_on'].includes(gcalSyncState))return;
     onSimulateGoogleSync(reminderId);
-    setSyncToast('Updated from Google Calendar · Shared schedule synchronized with Mroya');
+    setSyncToast('Demo schedule update applied locally');
     setTimeout(() => setSyncToast(null), 4000);
   };
 
@@ -257,7 +265,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         recurrence: newEventRecurrence,
         sourceName: 'Mroya',
         calendarSource: 'local',
-        syncStatus: googleCalendarConnected ? 'synced' : 'local_only',
+        syncStatus: 'local_only',
       },
       newReminderEnabled ? newReminderOffset : undefined
     );
@@ -275,7 +283,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setEditingEvent(event);
     setViewingEvent(null);
     setEditTitle(event.title);
-    setEditDay(event.dayOfMonth);
+    setEditDay(Number(event.date.slice(8,10)));
     setEditTime(event.time);
     setEditDuration(event.duration || '1h');
     setEditCategory(event.category);
@@ -287,9 +295,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (readOnly || !editingEvent || !editTitle.trim()) return;
-    const paddedMonth = String(currentMonthIndex + 1).padStart(2, '0');
-    const paddedDay = String(editDay).padStart(2, '0');
-    const updatedDate = `${currentYear}-${paddedMonth}-${paddedDay}`;
+    if(editingEvent.isReadOnly)return;
+    const [year,month]=editingEvent.date.split('-').map(Number);
+    if(!Number.isInteger(editDay)||month<1||month>12)return;
+    const date=calendarDate(year,month-1,editDay);
+    if(date.getFullYear()!==year||date.getMonth()!==month-1||date.getDate()!==editDay)return;
+    const updatedDate=calendarKey(date);
 
     const updated: CalendarEvent = {
       ...editingEvent,
@@ -302,11 +313,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       person: editPerson.trim() || undefined,
       notes: editNotes.trim(),
       recurrence: editRecurrence,
+      syncStatus: 'local_only',
     };
 
     onEditEvent?.(updated);
     setEditingEvent(null);
-    setSyncToast('Commitment updated · Synchronized with calendar');
+    setSyncToast('Commitment updated locally · Not yet synchronized');
     setTimeout(() => setSyncToast(null), 3500);
   };
 
@@ -1262,7 +1274,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         Google Calendar
                       </div>
                       <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
-                        {googleCalendarConnected ? `Synced (${samples?.accountLabel??''})` : readOnly ? 'Coming soon' : 'Not connected'}
+                        {googleStatusLabel}
                       </div>
                     </div>
                   </div>
@@ -1288,7 +1300,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       <div className="text-[14px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                         <span>Google Calendar integration</span>
                         <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">
-                          · {googleCalendarConnected ? `Connected (${samples?.accountLabel??''})` : readOnly ? 'Coming soon' : 'Not connected'}
+                          · {googleStatusLabel}
                         </span>
                       </div>
                       <p className="text-[13px] text-[var(--mroya-text-muted)]">
@@ -2206,7 +2218,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <input
                     type="number"
                     min={1}
-                    max={31}
+                    max={new Date(Number(editingEvent.date.slice(0,4)),Number(editingEvent.date.slice(5,7)),0).getDate()}
                     value={editDay}
                     onChange={(e) => setEditDay(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"

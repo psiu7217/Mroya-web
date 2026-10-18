@@ -74,6 +74,19 @@ export interface WorkspaceModel {
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     googleCalendarConnected: boolean;
+    gcalSyncState?: import("./mroya").GoogleSyncState;
+    autoSync?: boolean;
+    lastSyncedTime?: string;
+    syncSummary?: {
+      imported: number;
+      exported: number;
+      lastSynced: string;
+    } | null;
+    onConnectGoogleCalendar?: () => void;
+    onDisconnectGoogleCalendar?: () => void;
+    onSyncNowGoogleCalendar?: () => void;
+    onToggleAutoSyncGoogleCalendar?: () => void;
+    onSetGcalSyncState?: (state: import("./mroya").GoogleSyncState) => void;
     edges: import("./mroya").GraphEdge[];
     onSidebarSelectSection: (section: NavSection) => void;
     onSidebarSelectConversation: (id: string) => void;

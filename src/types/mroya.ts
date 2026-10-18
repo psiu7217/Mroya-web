@@ -181,7 +181,7 @@ export interface CalendarEvent {
   isReadOnly?: boolean; // For external/read-only calendars like Google Contacts / Birthdays
   calendarSource?: 'primary' | 'google_birthdays' | 'google_work' | 'local';
   sourceName?: string;
-  syncStatus?: 'synced' | 'pending' | 'sync_error' | 'local_only' | 'read_only';
+  syncStatus?: 'synced' | 'pending' | 'sync_error' | 'local_only' | 'read_only' | 'conflict';
   syncError?: string;
 }
 

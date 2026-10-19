@@ -513,8 +513,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const weekDays=calendarWeek(selectedDate);
   const availableYears=calendarYears(currentYear);
 
-  const calendarStatus=calendar&&(calendar.loading||calendar.error||calendar.busy)&&<div role={calendar.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-        {calendar.error??(calendar.busy?'Saving calendar change…':'Loading calendar…')}
+  const calendarStatus=calendar&&(calendar.error||calendar.busy)&&<div role={calendar.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
+        {calendar.error??'Saving calendar change…'}
         {calendar.error&&<button type="button" disabled={calendar.busy||calendar.loading} onClick={()=>void retryCalendar()} className="ml-3 underline">Retry / check calendar</button>}
       </div>;
 
@@ -1911,7 +1911,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Time{live?` · ${editingEvent?.api?.timezone??calendar?.timezone??''} (HH:MM or All day)`:null}
+                    Time
                   </label>
                   <input
                     type="text"
@@ -2273,7 +2273,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Time{live?` · ${editingEvent?.api?.timezone??calendar?.timezone??''} (HH:MM or All day)`:null}
+                    Time
                   </label>
                   <input
                     type="text"

@@ -4,13 +4,14 @@ import {createServer} from 'vite';
 const key='__calendarDesignHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
  name:'calendar-design-hooks',enforce:'pre',
- transform(code,id){if(/\/(useDemoWorkspace|useDemoDiagnostics|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
+ transform(code,id){if(/\/(useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
  resolveId(id){if(id==='virtual:calendar-design-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:calendar-design-hooks')return `import React from 'react';
- ${['useState','useRef','useEffect','useMemo'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}
- export default {...React,useState,useRef,useEffect,useMemo};`;},
+ ${['useState','useRef','useEffect','useMemo','useSyncExternalStore'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}
+ export default {...React,useState,useRef,useEffect,useMemo,useSyncExternalStore};`;},
 }]});
 const {useDemoWorkspace}=await vite.ssrLoadModule('/src/demo/useDemoWorkspace.ts');
+const liveCalendarModule=await vite.ssrLoadModule('/src/hooks/useLiveCalendar.ts');
 const {CalendarView}=await vite.ssrLoadModule('/src/components/CalendarView.tsx');
 const {ConnectionsSettingsView}=await vite.ssrLoadModule('/src/components/ConnectionsSettingsView.tsx');
 const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
@@ -25,6 +26,7 @@ after(async()=>{for(const [key,descriptor] of Object.entries(originals)){if(desc
 function mount(render){
  const slots=[];let cursor=0,dirty=false,effects=[],value;
  const hooks={
+  useSyncExternalStore(subscribe,snapshot){return snapshot();},
   useState(initial){const i=cursor++;slots[i]??={value:typeof initial==='function'?initial():initial};return [slots[i].value,next=>{const value=typeof next==='function'?next(slots[i].value):next;if(!Object.is(value,slots[i].value)){slots[i].value=value;dirty=true;}}];},
   useRef(initial){const i=cursor++;slots[i]??={current:initial};return slots[i];},
   useEffect(effect,deps){const i=cursor++,previous=slots[i];if(!previous||!deps||deps.some((v,index)=>!Object.is(v,previous.deps[index]))){slots[i]={deps};effects.push(()=>{previous?.cleanup?.();slots[i].cleanup=effect();});}},
@@ -181,4 +183,63 @@ test('Design Profile custom timezone stays local and survives navigation',()=>{
  find(page.value,node=>node.type==='input'&&node.props['aria-label']==='Custom IANA timezone').props.onChange({target:{value:'Etc/GMT+12'}});page.flush();button(page.value,'Use timezone').props.onClick();view.flush();
  assert.equal(view.value.account.timezone,'Etc/GMT+12');page.unmount();props={...settings(view.value),activeTab:'profile'};
  const returned=mount(()=>ConnectionsSettingsView(props));returned.flush();assert.equal(find(returned.value,node=>node.type==='select'&&node.props.id==='mroya-timezone-select').props.value,'Etc/GMT+12');assert.equal(requests,0);returned.unmount();view.unmount();
+});
+
+for(const live of [false,true])for(const dialog of ['create','edit','delete'])test(`${live?'Production':'Design'} ${dialog}: background refresh leaves modal markup stable; errors and saving remain visible`,async()=>{
+ const view=workspace();let retries=0;
+ const today=new Date();
+ const date=live?`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`:'2024-02-12';
+ const existing={...event,id:'stable-modal',date,dayOfMonth:Number(date.slice(8)),recurrence:{frequency:'daily',interval:1,endCondition:'never'}};
+ let props={...calendar(view.value),events:[existing],live,readOnly:false,
+  calendar:{loading:false,busy:false,mutationPending:false,error:null,timezone:'Europe/Minsk',onRangeChange(){},onLoadEventForEdit:async()=>existing,onRetry:async()=>{retries++;return false;}}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ if(dialog==='create')button(page.value,'+ Add event').props.onClick();
+ else{
+  button(page.value,'Month').props.onClick();page.flush();
+  await find(page.value,node=>node.type==='button'&&node.props.title===(dialog==='edit'?'Edit commitment':'Delete commitment')).props.onClick();
+ }
+ page.flush();
+ // Compare native layout and text, excluding callback identities and internal component props.
+ const markup=node=>{
+  if(node===null||node===undefined||typeof node==='boolean')return null;
+  if(typeof node!=='object')return node;
+  return {type:typeof node.type==='string'?node.type:node.type.name, className:node.props?.className,role:node.props?.role,value:node.props?.value,
+   children:[node.props?.children].flat(Infinity).map(markup).filter(value=>value!==null)};
+ };
+ const before=markup(page.value);
+ props={...props,calendar:{...props.calendar,loading:true}};page.flush();
+ assert.deepEqual(markup(page.value),before,'background GET must not insert a strip or shift fields');
+ assert.doesNotMatch(text(page.value),/Loading calendar/);
+ if(dialog!=='delete'){
+  const form=find(page.value,node=>node.type==='form');
+  const grid=find(form,node=>node.props?.className==='grid grid-cols-2 gap-3'&&all(node,item=>item.type==='input'&&item.props.type==='date').length>0);
+  assert.deepEqual(all(grid,node=>node.type==='label').map(node=>text(node).trim()),['Date','Time']);
+  const inputs=all(grid,node=>node.type==='input');assert.equal(inputs[0].props.className,inputs[1].props.className);
+ }
+ props={...props,calendar:{...props.calendar,busy:true}};page.flush();assert.match(text(page.value),/Saving calendar change/);
+ props={...props,calendar:{...props.calendar,loading:false,busy:false,error:'Calendar backend unavailable'}};page.flush();
+ assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Calendar backend unavailable/);
+ button(page.value,'Retry / check calendar').props.onClick();await Promise.resolve();assert.equal(retries,1);
+ props={...props,calendar:{...props.calendar,error:null}};page.flush();assert.deepEqual(markup(page.value),before);
+ page.unmount();view.unmount();timers.clear();assert.equal(requests,0);
+});
+
+test('visible live Calendar still refreshes every 10 seconds and on focus/visibility; unmount cleans up',()=>{
+ const saved={window:globalThis.window,document:globalThis.document,setInterval:globalThis.setInterval,clearInterval:globalThis.clearInterval};
+ const listeners=new Map();let tick,delay,cleared=false,reads=0;
+ const {useLiveCalendar}=liveCalendarModule;
+ let page;
+ try{
+  globalThis.window={location:{href:'https://app.heymroya.com/'},history:{},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
+  globalThis.document={visibilityState:'visible',addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
+  globalThis.setInterval=(fn,ms)=>{tick=fn;delay=ms;return 123;};globalThis.clearInterval=id=>{assert.equal(id,123);cleared=true;};
+  const source={kind:'live',calendarEvents:async()=>{reads++;return {events:[],offset:0,limit:100};}};
+  page=mount(()=>useLiveCalendar(source,1,'UTC',true,false,true,()=>{}));page.flush();
+  const initial=reads;assert.equal(delay,10000);
+  tick();assert.equal(reads,initial+1);
+  listeners.get('focus')();assert.equal(reads,initial+2);
+  listeners.get('visibilitychange')();assert.equal(reads,initial+3);
+  globalThis.document.visibilityState='hidden';tick();assert.equal(reads,initial+3);
+  page.unmount();page=null;assert.equal(cleared,true);assert.equal(listeners.size,0);
+ }finally{page?.unmount();Object.assign(globalThis,saved);}
 });

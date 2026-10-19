@@ -27,8 +27,10 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { MemoryItem, MemoryCategory } from '../types/mroya';
+import type {MemoryInboxPresentation} from '../types/memoryInbox';
 
 export interface MemoryViewProps {
+  inbox?: MemoryInboxPresentation;
   readOnly?: boolean;
   memories: MemoryItem[];
   selectedMemoryId: string | null;
@@ -51,158 +53,9 @@ const CATEGORIES: ('All' | MemoryCategory)[] = [
   'Preferences',
 ];
 
-export type ProposalSourceType = 'Calendar' | 'Email' | 'Drive';
-
-export type ProposalStatus =
-  | 'new'
-  | 'reanalyzing'
-  | 'accepted'
-  | 'declined'
-  | 'applied'
-  | 'outdated'
-  | 'error';
-
-export interface MemoryMatch {
-  id: string;
-  name: string;
-  relation?: string;
-  similarity?: string;
-}
-
-export interface InboxProposal {
-  id: string;
-  title: string;
-  source: ProposalSourceType;
-  sourceResourceTitle: string;
-  sourceDate: string;
-  actionProposed: string;
-  explanation: string;
-  memoryMatches: MemoryMatch[];
-  status: ProposalStatus;
-  comment?: string;
-  draftComment?: string;
-  isCommentOpen?: boolean;
-  errorMessage?: string;
-  suggestedComment?: string;
-  isConfirmed?: boolean;
-}
-
-const INITIAL_PROPOSALS: InboxProposal[] = [
-  {
-    id: 'prop-1',
-    title: 'Марк день рождения — 14 января',
-    source: 'Calendar',
-    sourceResourceTitle: 'Событие «ДР Марка»',
-    sourceDate: '14 января (повторяется ежегодно)',
-    actionProposed: 'Создать контакт «Марк» и сохранить дату рождения: 14 января',
-    explanation: 'В календаре обнаружено ежегодное событие. В существующей памяти контакт «Марк» отсутствует. Модель предлагает создать новую сущность и зафиксировать факт даты рождения.',
-    memoryMatches: [],
-    status: 'new',
-    suggestedComment: 'Марк — мой сын',
-    isConfirmed: false,
-  },
-  {
-    id: 'prop-2',
-    title: 'Вадя день омона',
-    source: 'Calendar',
-    sourceResourceTitle: 'Событие «Вадя день омона»',
-    sourceDate: '22 ноября, 19:00',
-    actionProposed: 'Уточнить человека «Вадя» и контекст события',
-    explanation: 'Модель обнаружила упоминание возможного человека по имени «Вадя» в неформальном контексте. В памяти нет людей с таким именем. Требуется уточнить, кто он и какое отношение имеет к вам.',
-    memoryMatches: [],
-    status: 'new',
-    suggestedComment: 'Вадя — коллега по проекту из Минска',
-    isConfirmed: false,
-  },
-  {
-    id: 'prop-3',
-    title: 'Годовщина Мурашки',
-    source: 'Calendar',
-    sourceResourceTitle: 'Событие «Годовщина Мурашки»',
-    sourceDate: '18 сентября',
-    actionProposed: 'Установить участников события и связать с семьей Мурашко',
-    explanation: 'В названии события фигурирует фамилия Мурашко. В памяти обнаружены связанные контакты: Дмитрий Мурашко и Татьяна Мурашко. Модель предлагает связать событие с обоими участниками.',
-    memoryMatches: [
-      { id: 'match-dm', name: 'Дмитрий Мурашко', relation: 'Друг / Коллега', similarity: '88% совпадение' },
-      { id: 'match-tm', name: 'Татьяна Мурашко', relation: 'Супруга Дмитрия', similarity: '85% совпадение' },
-    ],
-    status: 'new',
-    suggestedComment: 'Дмитрий Мурашко и Татьяна Мурашко — мои друзья',
-    isConfirmed: false,
-  },
-  {
-    id: 'prop-4',
-    title: 'ДР Сашки',
-    source: 'Calendar',
-    sourceResourceTitle: 'Событие «ДР Сашки»',
-    sourceDate: '5 мая',
-    actionProposed: 'Связать событие с существующим контактом «Александр»',
-    explanation: 'Модель нашла существующего Александра в памяти и предлагает связать событие дня рождения с его карточкой.',
-    memoryMatches: [
-      { id: 'match-alex', name: 'Александр Белов (Сашка)', relation: 'Друг детства, архитектор', similarity: '94% совпадение' },
-    ],
-    status: 'new',
-    suggestedComment: 'Да, это Александр Белов',
-    isConfirmed: false,
-  },
-  {
-    id: 'prop-5',
-    title: 'Re: Обсуждение договора поставки',
-    source: 'Email',
-    sourceResourceTitle: 'Письмо «Договор поставки ООО Вектор.pdf»',
-    sourceDate: 'Вчера, 16:42',
-    actionProposed: 'Зафиксировать условие отсрочки платежа на 14 дней',
-    explanation: 'В цепочке писем обнаружено согласование финансового условия. Выполняется повторный анализ контекста письма с учетом вашего комментария.',
-    memoryMatches: [
-      { id: 'match-vektor', name: 'ООО Вектор', relation: 'Поставщик оборудования', similarity: '98% совпадение' },
-    ],
-    status: 'reanalyzing',
-    comment: 'Кирилл — представитель поставщика ООО Вектор',
-    isConfirmed: false,
-  },
-  {
-    id: 'prop-6',
-    title: 'Семейный отпуск — 1-15 августа',
-    source: 'Calendar',
-    sourceResourceTitle: 'Событие «Отпуск с семьей»',
-    sourceDate: '1 августа 2026',
-    actionProposed: 'Сохранить период отпуска в категорию «Dates & Commitments»',
-    explanation: 'Период отпуска подтвержден и успешно интегрирован в долговременную память.',
-    memoryMatches: [
-      { id: 'match-family', name: 'Семья', relation: 'Близкий круг', similarity: '100% совпадение' },
-    ],
-    status: 'applied',
-    isConfirmed: true,
-  },
-  {
-    id: 'prop-7',
-    title: 'Звонок по стажировке',
-    source: 'Calendar',
-    sourceResourceTitle: 'Событие «Интервью со стажером» (удалено)',
-    sourceDate: '10 октября 2026',
-    actionProposed: 'Создать заметку о кандидате',
-    explanation: 'Исходное календарное событие было отменено или удалено из Google Calendar. Предложение помечено как устаревшее.',
-    memoryMatches: [],
-    status: 'outdated',
-    isConfirmed: false,
-  },
-  {
-    id: 'prop-8',
-    title: 'Проектная спецификация Alpha',
-    source: 'Drive',
-    sourceResourceTitle: 'Документ «Alpha_Spec_v2.gdoc»',
-    sourceDate: '3 дня назад',
-    actionProposed: 'Извлечь ключевые архитектурные ограничения проекта',
-    explanation: 'Сбой при обращении к сервису семантического анализа документов. Нажмите «Повторить» для повторного запроса.',
-    memoryMatches: [],
-    status: 'error',
-    errorMessage: 'Сервис анализа документов временно недоступен (503 Service Unavailable)',
-    isConfirmed: false,
-  },
-];
-
 export const MemoryView: React.FC<MemoryViewProps> = ({
   readOnly=false,
+  inbox,
   memories,
   selectedMemoryId,
   onSelectMemory,
@@ -233,13 +86,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   const [newSummary, setNewSummary] = useState('');
   const [newEntities, setNewEntities] = useState('');
 
-  // Inbox tab state
-  const [proposals, setProposals] = useState<InboxProposal[]>(INITIAL_PROPOSALS);
-  const [inboxFilter, setInboxFilter] = useState<
-    'all' | 'new' | 'reanalyzing' | 'accepted' | 'declined' | 'applied' | 'outdated' | 'error' | 'empty' | 'loading'
-  >('all');
-
-  const pendingProposalsCount = proposals.filter((p) => p.status === 'new').length;
+  const inboxAvailable=inbox?.available===true;
+  const showInbox=inboxAvailable&&activeMainTab==='inbox';
+  const proposals=inboxAvailable?inbox.proposals:[];
+  const inboxFilter=inbox?.preview?.filter??'all';
+  const [comments,setComments]=useState<{scope:string|undefined;drafts:Record<string,{open:boolean;text:string}>}>({scope:inbox?.scopeKey,drafts:{}});
+  const drafts=comments.scope===inbox?.scopeKey?comments.drafts:{};
+  const pendingProposalsCount=proposals.filter(p=>p.status==='new').length;
 
   const filteredMemories = memories.filter((m) => {
     const matchesCat = activeCategory === 'All' || m.category === activeCategory;
@@ -297,83 +150,21 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
     setIsAddModalOpen(false);
   };
 
-  // Inbox Proposal Handlers
-  const handleAcceptProposal = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'accepted' } : p))
-    );
-  };
-
-  const handleApplyProposal = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'applied', isConfirmed: true } : p))
-    );
-  };
-
-  const handleDeclineProposal = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'declined' } : p))
-    );
-  };
-
-  const handleToggleComment = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              isCommentOpen: !p.isCommentOpen,
-              draftComment: p.draftComment ?? p.suggestedComment ?? '',
-            }
-          : p
-      )
-    );
-  };
-
-  const handleDraftCommentChange = (id: string, text: string) => {
-    setProposals((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, draftComment: text } : p))
-    );
-  };
-
-  const handleSendComment = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const text = p.draftComment?.trim() || p.suggestedComment || 'Уточнение от пользователя';
-        return {
-          ...p,
-          status: 'reanalyzing',
-          comment: text,
-          isCommentOpen: false,
-        };
-      })
-    );
-  };
-
-  const handleRetryProposal = (id: string) => {
-    setProposals((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: 'reanalyzing', errorMessage: undefined } : p))
-    );
-  };
-
-  const handleResetProposals = () => {
-    setProposals(INITIAL_PROPOSALS);
-    setInboxFilter('all');
-  };
-
-  // Filter proposals according to simulator/filter selector
-  const visibleProposals = proposals.filter((p) => {
-    if (inboxFilter === 'all') return true;
-    if (inboxFilter === 'new') return p.status === 'new';
-    if (inboxFilter === 'reanalyzing') return p.status === 'reanalyzing';
-    if (inboxFilter === 'accepted') return p.status === 'accepted';
-    if (inboxFilter === 'declined') return p.status === 'declined';
-    if (inboxFilter === 'applied') return p.status === 'applied';
-    if (inboxFilter === 'outdated') return p.status === 'outdated';
-    if (inboxFilter === 'error') return p.status === 'error';
-    return true;
+  // Only comment editing is local UI state. Proposal results come from the source.
+  const handleToggleComment=(id:string)=>setComments(previous=>{
+    const drafts=previous.scope===inbox?.scopeKey?previous.drafts:{};
+    const draft=drafts[id]??{open:false,text:proposals.find(p=>p.id===id)?.suggestedComment??''};
+    return {scope:inbox?.scopeKey,drafts:{...drafts,[id]:{...draft,open:!draft.open}}};
   });
+  const handleDraftCommentChange=(id:string,text:string)=>setComments(previous=>({scope:inbox?.scopeKey,drafts:{...(previous.scope===inbox?.scopeKey?previous.drafts:{}),[id]:{open:true,text}}}));
+  const handleSendComment=async(id:string)=>{
+    const text=drafts[id]?.text.trim(),scope=inbox?.scopeKey;
+    if(!text||!inbox?.onCommentProposal)return;
+    await inbox.onCommentProposal(id,text);
+    setComments(previous=>previous.scope===scope&&previous.drafts[id]?.text.trim()===text
+      ?{...previous,drafts:{...previous.drafts,[id]:{...previous.drafts[id],open:false}}}:previous);
+  };
+  const visibleProposals=proposals.filter(p=>inboxFilter==='all'||inboxFilter==='empty'||inboxFilter==='loading'||p.status===inboxFilter);
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
@@ -395,7 +186,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
               type="button"
               onClick={() => setActiveMainTab('memories')}
               className={`px-3 py-1.5 rounded-[8px] text-[13px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeMainTab === 'memories'
+                !showInbox
                   ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] shadow-xs'
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
@@ -404,11 +195,12 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
               <span className="text-[11px] font-medium opacity-75">({memories.length})</span>
             </button>
 
+            {inboxAvailable&&(
             <button
               type="button"
               onClick={() => setActiveMainTab('inbox')}
               className={`px-3 py-1.5 rounded-[8px] text-[13px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeMainTab === 'inbox'
+                showInbox
                   ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] shadow-xs'
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
@@ -421,10 +213,11 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 </span>
               )}
             </button>
+            )}
           </div>
         </div>
 
-        {activeMainTab === 'memories' ? (
+        {!showInbox ? (
           <button
             type="button"
             disabled={readOnly}
@@ -443,7 +236,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       </header>
 
       {/* VIEW 1: SAVED MEMORIES */}
-      {activeMainTab === 'memories' && (
+      {!showInbox && (
         <>
           {/* Search & Category Filter Bar */}
           <div className="px-4 sm:px-6 py-3.5 border-b border-[var(--mroya-divider)] bg-[var(--mroya-bg)] flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -695,7 +488,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       )}
 
       {/* VIEW 2: MEMORY INBOX (ПРЕДЛОЖЕНИЯ) */}
-      {activeMainTab === 'inbox' && (
+      {showInbox && (
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           <div className="max-w-[1020px] mx-auto space-y-6">
             {/* Header intro card */}
@@ -715,42 +508,31 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-center">
+                {inbox?.preview&&<div className="flex items-center gap-2 self-start sm:self-center">
                   <button
                     type="button"
-                    onClick={handleResetProposals}
+                    onClick={inbox?.preview?.onReset}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-medium bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                     title="Сбросить все карточки к исходному состоянию"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Сброс демо</span>
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* State Preview Switcher Toolbar */}
-              <div className="pt-3 border-t border-[var(--mroya-divider)]/60">
+              {inbox?.preview&&<div className="pt-3 border-t border-[var(--mroya-divider)]/60">
                 <div className="text-[11px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold mb-2 flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
                   <span>Визуальные состояния Inbox:</span>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {[
-                    { id: 'all', label: `Все (${proposals.length})` },
-                    { id: 'new', label: `Новые (${proposals.filter((p) => p.status === 'new').length})` },
-                    { id: 'reanalyzing', label: 'Повторный анализ' },
-                    { id: 'accepted', label: 'Принято' },
-                    { id: 'declined', label: 'Отклонено' },
-                    { id: 'applied', label: 'Успешно применено' },
-                    { id: 'outdated', label: 'Устаревшее' },
-                    { id: 'error', label: 'Ошибка' },
-                    { id: 'empty', label: 'Пустой Inbox' },
-                    { id: 'loading', label: 'Загрузка' },
-                  ].map((filterOption) => (
+                  {inbox.preview.filters.map((filterOption) => (
                     <button
                       key={filterOption.id}
                       type="button"
-                      onClick={() => setInboxFilter(filterOption.id as any)}
+                      onClick={() => inbox.preview?.onSelectFilter(filterOption.id)}
                       className={`px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium transition-colors cursor-pointer ${
                         inboxFilter === filterOption.id
                           ? 'bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] font-semibold shadow-xs'
@@ -761,11 +543,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                     </button>
                   ))}
                 </div>
-              </div>
+              </div>}
             </div>
 
+            {inbox?.error&&<div role="alert" className="p-3 rounded-[10px] bg-red-500/10 border border-red-500/25">{inbox.error}{inbox.onRetryProposal&&<button type="button" className="ml-3 underline" onClick={()=>void inbox.onRetryProposal?.()}>Retry</button>}</div>}
+
             {/* STATE: LOADING */}
-            {inboxFilter === 'loading' && (
+            {(inbox?.loading||inboxFilter === 'loading') && (
               <div className="space-y-4 animate-in fade-in">
                 {[1, 2, 3].map((skeleton) => (
                   <div
@@ -788,7 +572,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             )}
 
             {/* STATE: EMPTY INBOX */}
-            {inboxFilter === 'empty' || (inboxFilter !== 'loading' && visibleProposals.length === 0) ? (
+            {!inbox?.error&&(inboxFilter === 'empty' || ((!inbox?.loading&&inboxFilter !== 'loading') && visibleProposals.length === 0)) ? (
               <div className="p-10 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-center space-y-3 animate-in fade-in">
                 <div className="w-12 h-12 mx-auto rounded-full bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center text-[var(--mroya-text-muted)]">
                   <Inbox className="w-6 h-6" />
@@ -799,18 +583,19 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-md mx-auto leading-[20px]">
                   В Memory Inbox сейчас нет ожидающих предложений. Искусственный интеллект продолжит мониторинг разрешенных источников и сформирует предложения при появлении новых фактов.
                 </p>
+                {inbox?.preview&&(
                 <button
                   type="button"
-                  onClick={handleResetProposals}
+                  onClick={inbox?.preview?.onReset}
                   className="mt-2 px-4 py-2 rounded-full text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)] transition-colors cursor-pointer"
                 >
                   Показать примеры предложений
-                </button>
+                </button>)}
               </div>
             ) : null}
 
             {/* LIST OF PROPOSAL CARDS */}
-            {inboxFilter !== 'loading' && visibleProposals.length > 0 && (
+            {(!inbox?.loading&&inboxFilter !== 'loading') && visibleProposals.length > 0 && (
               <div className="space-y-4">
                 {visibleProposals.map((proposal) => {
                   const isNew = proposal.status === 'new';
@@ -988,15 +773,16 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 «{proposal.comment}»
                               </p>
                             )}
-                            <div className="pt-2 flex items-center gap-2">
+                            {inbox?.preview&&<div className="pt-2 flex items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => handleAcceptProposal(proposal.id)}
+                                disabled={!inbox?.onAcceptProposal}
+                                onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
                                 className="px-3 py-1 rounded-[6px] text-[11.5px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
                               >
                                 Завершить анализ (Принять)
                               </button>
-                            </div>
+                            </div>}
                           </div>
                         )}
 
@@ -1039,7 +825,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             )}
                             <button
                               type="button"
-                              onClick={() => handleRetryProposal(proposal.id)}
+                              disabled={!inbox?.onRetryProposal}
+                              onClick={() => void inbox?.onRetryProposal?.(proposal.id)}
                               className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold bg-red-600 text-white hover:bg-red-700 cursor-pointer inline-flex items-center gap-1.5"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
@@ -1054,7 +841,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             <span>Предложение отклонено. Модель учла это для последующих предложений.</span>
                             <button
                               type="button"
-                              onClick={() => handleAcceptProposal(proposal.id)}
+                              disabled={!inbox?.onAcceptProposal}
+                                onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
                               className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                             >
                               Отменить отклонение
@@ -1063,7 +851,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         )}
 
                         {/* COMMENT INPUT DRAWER */}
-                        {proposal.isCommentOpen && (
+                        {drafts[proposal.id]?.open && (
                           <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2.5 animate-in fade-in">
                             <div className="flex items-center justify-between">
                               <label
@@ -1084,9 +872,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             <textarea
                               id={`comment-${proposal.id}`}
                               rows={2}
-                              value={proposal.draftComment ?? ''}
+                              value={drafts[proposal.id]?.text ?? ''}
                               onChange={(e) => handleDraftCommentChange(proposal.id, e.target.value)}
-                              placeholder="Например: «Марк — мой сын» или «Дмитрий и Татьяна Мурашко — мои друзья»..."
+                              placeholder={inbox?.preview?.commentPlaceholder??'Комментарий для уточнения предложения'}
                               className="w-full p-2.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[13px] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] focus:outline-none focus:border-[var(--mroya-primary)]"
                             />
 
@@ -1113,6 +901,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               </button>
                               <button
                                 type="button"
+                                disabled={!inbox?.onCommentProposal||!drafts[proposal.id]?.text.trim()}
                                 onClick={() => handleSendComment(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer"
                               >
@@ -1125,32 +914,14 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                       </div>
 
                       {/* Bottom Action Bar: Да / Нет / Комментарий */}
-                      {!isDeclined && !isApplied && (
+                      {!isDeclined && !isApplied && !isAccepted && (
                         <div className="pt-3.5 border-t border-[var(--mroya-divider)]/60 flex flex-wrap items-center justify-between gap-2.5">
-                          {isAccepted ? (
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleApplyProposal(proposal.id)}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer"
-                              >
-                                <CheckCircle2 className="w-4 h-4" />
-                                <span>Применить в память</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeclineProposal(proposal.id)}
-                                className="px-3 py-1.5 rounded-full text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
-                              >
-                                Отменить
-                              </button>
-                            </div>
-                          ) : (
                             <div className="flex items-center gap-2 flex-wrap">
                               {/* 1: ДА — принять предложение */}
                               <button
                                 type="button"
-                                onClick={() => handleAcceptProposal(proposal.id)}
+                                disabled={!inbox?.onAcceptProposal}
+                                onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer shadow-xs"
                               >
                                 <Check className="w-4 h-4" />
@@ -1160,7 +931,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               {/* 2: НЕТ — отклонить предложение */}
                               <button
                                 type="button"
-                                onClick={() => handleDeclineProposal(proposal.id)}
+                                disabled={!inbox?.onRejectProposal}
+                                onClick={() => void inbox?.onRejectProposal?.(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                               >
                                 <X className="w-4 h-4" />
@@ -1170,6 +942,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               {/* 3: КОММЕНТАРИЙ — открыть текстовое поле */}
                               <button
                                 type="button"
+                                disabled={!inbox?.onCommentProposal}
                                 onClick={() => handleToggleComment(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-medium bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                               >
@@ -1177,7 +950,6 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 <span>Комментарий</span>
                               </button>
                             </div>
-                          )}
 
                           <div className="text-[11.5px] text-[var(--mroya-text-muted)]">
                             Требует подтверждения пользователя

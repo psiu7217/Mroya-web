@@ -4,7 +4,7 @@ import {createServer} from 'vite';
 const key='__calendarDesignHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
  name:'calendar-design-hooks',enforce:'pre',
- transform(code,id){if(/\/(useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
+ transform(code,id){if(/\/(useDemoMemoryInbox|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
  resolveId(id){if(id==='virtual:calendar-design-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:calendar-design-hooks')return `import React from 'react';
  ${['useState','useRef','useEffect','useMemo','useSyncExternalStore'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}

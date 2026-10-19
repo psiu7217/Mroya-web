@@ -24,6 +24,7 @@ export interface TimezonePresentation {
     onChange:(value:string)=>void;onRetry:()=>void;
 }
 export interface WorkspaceRuntime {
+    memoryInboxAvailable?:boolean;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
@@ -44,6 +45,7 @@ export interface ConnectionSamples {
     scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
 }
 export interface WorkspaceModel {
+    memoryInbox?:import('./memoryInbox').MemoryInboxPresentation;
     connectionSamples?:ConnectionSamples;
     onChangeTimezone?:(value:string)=>void;
     onSaveNickname?:(value:string)=>void;

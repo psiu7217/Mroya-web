@@ -158,6 +158,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'memory' && (
           <MemoryView
+            key={model.memoryInbox?.scopeKey??'saved-memory'}
+            inbox={!runtime||runtime.memoryInboxAvailable===true?model.memoryInbox:undefined}
             readOnly={!!runtime}
             memories={memories}
             selectedMemoryId={selectedMemoryViewId}

@@ -8,7 +8,7 @@ import { createServer } from 'vite';
 const hookKey='__multiChatHooks';
 const vite = await createServer({ mode: 'design', server: { middlewareMode: true }, appType: 'custom',plugins:[{
  name:'multi-chat-local-hooks',enforce:'pre',
- transform(code,id){if(/(?:Sidebar\.tsx|useDemoWorkspace\.ts|useDemoDiagnostics\.ts)$/.test(id))return code.replace(/from 'react';/g,"from 'virtual:multi-chat-hooks';");},
+ transform(code,id){if(/(?:Sidebar\.tsx|useDemoMemoryInbox\.ts|useDemoWorkspace\.ts|useDemoDiagnostics\.ts)$/.test(id))return code.replace(/from 'react';/g,"from 'virtual:multi-chat-hooks';");},
  resolveId(id){if(id==='virtual:multi-chat-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:multi-chat-hooks')return `import React from 'react';export default React;
  ${['useState','useRef','useEffect'].map(name=>`export const ${name}=(...args)=>(globalThis.${hookKey}?.${name}??React.${name})(...args);`).join('\n')}`;},

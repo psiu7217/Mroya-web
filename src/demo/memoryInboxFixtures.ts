@@ -113,4 +113,3 @@ export const INITIAL_PROPOSALS: InboxProposal[] = [
     isConfirmed: false,
   },
 ];
-

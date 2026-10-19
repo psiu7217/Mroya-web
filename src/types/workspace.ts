@@ -19,7 +19,12 @@ export interface CalendarPresentation {
     onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;
     onLoadEventForEdit:(event:CalendarEvent)=>Promise<CalendarEvent|null>;
 }
+export interface TimezonePresentation {
+    timezone:string;draft:string;status:'idle'|'saving'|'saved'|'error';error:string|null;apiReady:boolean;
+    onChange:(value:string)=>void;onRetry:()=>void;
+}
 export interface WorkspaceRuntime {
+    timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
     conversationLocked?:boolean;
@@ -40,6 +45,7 @@ export interface ConnectionSamples {
 }
 export interface WorkspaceModel {
     connectionSamples?:ConnectionSamples;
+    onChangeTimezone?:(value:string)=>void;
     onSaveNickname?:(value:string)=>void;
     onClearNickname?:()=>void;
     diagnostics?:ChatDiagnostics;

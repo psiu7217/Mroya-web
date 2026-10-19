@@ -2,6 +2,11 @@ import type {MroyaApi} from '../api/client';
 import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
+  // Existing PATCH preferences transport: atomic initialization or an explicit manual choice.
+  timezone?:{
+    initializeIfUnset:(timezone:string,signal?:AbortSignal)=>Promise<ApiUser>;
+    save:(timezone:string,signal?:AbortSignal)=>Promise<ApiUser>;
+  };
   calendarEvents?:MroyaApi['calendarEvents'];
   calendarEvent?:MroyaApi['calendarEvent'];
   mutateCalendar?:MroyaApi['mutateCalendar'];

@@ -90,11 +90,17 @@ export class MroyaApi {
   async login(username:string,password:string,signal?:AbortSignal):Promise<ApiUser>{const data=await this.json<{user:ApiUser;csrf_token:string}>('auth/login/',{username,password},signal);if(typeof data.csrf_token!=='string'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing login fields');this.token=data.csrf_token;return checkedUser(data.user);}
   async savePreferences(changes:PreferencesPatch,signal?:AbortSignal):Promise<ApiUser>{
     const keys=Object.keys(changes);
-    if(keys.some(key=>key!=='theme'&&key!=='nickname'&&key!=='show_model_reasoning'))throw new Error('Invalid preferences payload');
+    if(keys.some(key=>key!=='theme'&&key!=='nickname'&&key!=='show_model_reasoning'&&key!=='timezone'&&key!=='timezone_only_if_unset'))throw new Error('Invalid preferences payload');
+    if(changes.timezone!==undefined&&(typeof changes.timezone!=='string'||!changes.timezone||changes.timezone.length>128||changes.timezone.trim()!==changes.timezone))
+      throw new ApiError(400,'invalid_preferences','Choose a non-empty IANA timezone without surrounding whitespace.');
+    if('timezone_only_if_unset' in changes&&(typeof changes.timezone_only_if_unset!=='boolean'||changes.timezone===undefined))
+      throw new ApiError(400,'invalid_preferences','Timezone is required with a boolean initialization flag.');
     const data=await this.json<{user:unknown}>('me/preferences/',changes,signal,'PATCH');
     const user=checkedUser(data.user);
     if(changes.show_model_reasoning!==undefined&&user.preferences.show_model_reasoning!==changes.show_model_reasoning)
       throw new ApiError(502,'invalid_response','Reasoning preference was not confirmed');
+    if(changes.timezone!==undefined&&(!user.timezone||!changes.timezone_only_if_unset&&user.timezone!==changes.timezone))
+      throw new ApiError(502,'invalid_response','Timezone was not confirmed by the backend.');
     return user;
   }
   async reportChatIssue(context:ReportContext,signal?:AbortSignal):Promise<IssueReportResponse>{

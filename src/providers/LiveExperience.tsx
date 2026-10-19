@@ -1,3 +1,4 @@
+import {useUserTimezone} from '../hooks/useUserTimezone';
 import {useLiveCalendar} from '../hooks/useLiveCalendar';
 import {googleSyncPresentation} from '../hooks/calendarAdapters';
 import React,{useState,useMemo} from 'react';
@@ -17,6 +18,8 @@ import type {NavSection} from '../types/mroya';
 export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
  const preferences=useUserPreferences(source,user,onExpired);
+ const timezone=useUserTimezone(source,user,onExpired);
+ const confirmedUser=timezone.user;
 
  const layout=useWorkspaceLayout({theme:preferences.theme,onThemeChange:preferences.setTheme});
  const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null);
@@ -24,12 +27,12 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
- const calendar=useLiveCalendar(source,user.id,user.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
  const google=calendar.controller.connection;
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{controller.stop();calendar.controller.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
- const account=accountPresentation({...user,nickname:preferences.nickname});
+ const logout=()=>{controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
  if(conversation&&metadata)conversation.title=metadata.title||'New chat';
@@ -58,7 +61,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
-  runtime:{diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
+  runtime:{timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
@@ -78,7 +81,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
   focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,
   relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:google?.status==='connected',
-  calendar:{loading:calendar.state.loading,busy:calendar.state.busy,mutationPending:calendar.state.mutationPending,error:calendar.state.error,timezone:user.timezone,
+  calendar:{loading:calendar.state.loading,busy:calendar.state.busy,mutationPending:calendar.state.mutationPending,error:calendar.state.error,timezone:confirmedUser.timezone,
    onRetry:calendar.controller.retry,onRangeChange:calendar.controller.setRange,onLoadEventForEdit:calendar.controller.loadForEdit},
   googleCalendarAvailable:calendar.state.googleAvailable,googleCalendarBusy:calendar.state.googleBusy,
   googleCalendarError:calendar.state.googleError,

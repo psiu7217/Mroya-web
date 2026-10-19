@@ -20,6 +20,7 @@ export class LiveCalendarController {
  private range={start:new Date().getFullYear()+'-01-01',end:new Date().getFullYear()+'-12-31'};
  private source:WorkspaceSource;private timezone:string;private expired:()=>void;private navigate:(url:string)=>void;
  constructor(source:WorkspaceSource,timezone:string,expired:()=>void,navigate:(url:string)=>void=url=>window.location.assign(url)){this.source=source;this.timezone=timezone;this.expired=expired;this.navigate=navigate;}
+ setTimezone=(timezone:string)=>{this.timezone=timezone;}; // Only the default for future creates; existing DTOs/pending writes stay unchanged.
  snapshot=()=>this.current;
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private emit(patch:Partial<CalendarState>){if(!this.active)return;this.current={...this.current,...patch};this.listeners.forEach(fn=>fn());}
@@ -130,8 +131,9 @@ export class LiveCalendarController {
 }
 export function useLiveCalendar(source:WorkspaceSource,userId:number,timezone:string,available:boolean,googleAvailable:boolean,visible:boolean,onExpired:()=>void){
  const expired=useRef(onExpired);expired.current=onExpired;
- const controller=useMemo(()=>new LiveCalendarController(source,timezone,()=>expired.current()),[source,userId,timezone]);
+ const controller=useMemo(()=>new LiveCalendarController(source,timezone,()=>expired.current()),[source,userId]);
  const state=useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
+ useEffect(()=>{controller.setTimezone(timezone);},[controller,timezone]);
  useEffect(()=>{controller.start(available,googleAvailable);return controller.stop;},[controller,available,googleAvailable]);
  useEffect(()=>{if(typeof window!=='undefined')controller.oauthReturn(consumeCalendarOAuthReturn(window.location,window.history));void controller.loadConnections();},[controller,googleAvailable]);
  useEffect(()=>{

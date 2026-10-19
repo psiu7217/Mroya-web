@@ -154,3 +154,31 @@ test('live Calendar retains failed creation draft; explicit retry confirms the o
  button(page.value,'Retry / check calendar').props.onClick();await Promise.resolve();await Promise.resolve();page.flush();
  assert.equal(retries,1);assert.equal(creates,1);assert.equal(all(page.value,node=>node.type==='form').length,0);page.unmount();view.unmount();
 });
+
+test('Profile timezone uses confirmed state, keeps failed selection and supports Retry with an injected transport',async()=>{
+ const {UserTimezoneStore}=await vite.ssrLoadModule('/src/hooks/useUserTimezone.ts');
+ const apiUser={id:71,username:'tester',email:'test@example.test',first_name:'',last_name:'',timezone:'UTC',nickname:'',preferences:{theme:'system'}};
+ let confirmed=apiUser,fail=false;
+ let resolve;const pending=new Promise(done=>resolve=done);
+ let calls=0;
+ const store=new UserTimezoneStore({kind:'live',session:async()=>({status:'authenticated',user:confirmed}),timezone:{initializeIfUnset:async()=>confirmed,save:async zone=>{calls++;if(calls===1)await pending;if(fail){fail=false;throw Error('Timezone request failed');}return confirmed={...confirmed,timezone:zone};}}},apiUser,()=>{});
+ store.start();
+ const view=workspace();
+ const page=mount(()=>ConnectionsSettingsView({...settings(view.value),activeTab:'profile',live:true,account:{...view.value.account,timezone:store.snapshot().timezone},timezoneSettings:{...store.snapshot(),onChange:store.change,onRetry:()=>void store.retry()},onChangeTimezone:store.change}));page.flush();
+ const select=()=>find(page.value,node=>node.type==='select'&&node.props.id==='mroya-timezone-select');
+ assert.equal(select().props.disabled,false);assert.ok(all(page.value,node=>node.type==='option'&&node.props.value==='Pacific/Chatham').length);
+ select().props.onChange({target:{value:'Pacific/Chatham'}});page.flush();assert.equal(select().props.value,'Pacific/Chatham');assert.equal(store.snapshot().timezone,'UTC');assert.match(text(page.value),/Saving timezone/);assert.doesNotMatch(text(page.value),/Saved ·/);
+ resolve();for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.match(text(page.value),/Saved ·\s*Pacific\/Chatham/);
+ fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/Timezone request failed/);assert.doesNotMatch(text(page.value),/Saved ·/);
+ button(page.value,'Retry timezone').props.onClick();for(let i=0;i<12;i++)await Promise.resolve();page.flush();assert.equal(store.snapshot().timezone,'Asia/Tokyo');assert.match(text(page.value),/Saved ·\s*Asia\/Tokyo/);
+ page.unmount();view.unmount();store.stop();assert.equal(requests,0);
+});
+
+test('Design Profile custom timezone stays local and survives navigation',()=>{
+ const view=workspace();let props={...settings(view.value),activeTab:'profile'};
+ const page=mount(()=>ConnectionsSettingsView(props));page.flush();
+ find(page.value,node=>node.type==='select'&&node.props.id==='mroya-timezone-select').props.onChange({target:{value:'__custom__'}});page.flush();
+ find(page.value,node=>node.type==='input'&&node.props['aria-label']==='Custom IANA timezone').props.onChange({target:{value:'Etc/GMT+12'}});page.flush();button(page.value,'Use timezone').props.onClick();view.flush();
+ assert.equal(view.value.account.timezone,'Etc/GMT+12');page.unmount();props={...settings(view.value),activeTab:'profile'};
+ const returned=mount(()=>ConnectionsSettingsView(props));returned.flush();assert.equal(find(returned.value,node=>node.type==='select'&&node.props.id==='mroya-timezone-select').props.value,'Etc/GMT+12');assert.equal(requests,0);returned.unmount();view.unmount();
+});

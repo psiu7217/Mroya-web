@@ -1,4 +1,5 @@
-import type { AccountPresentation, TelegramPresentation, WorkspaceModel } from '../types/workspace';
+import {timezoneChoices} from '../utils/timezones';
+import type { AccountPresentation, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
 import React from 'react';
 import {
   Link2,
@@ -67,6 +68,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   live?: boolean;
+  timezoneSettings?:TimezonePresentation;
   telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
   account: AccountPresentation;
@@ -89,7 +91,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  live=false,connectionSamples,
+  live=false,connectionSamples,timezoneSettings,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -125,6 +127,9 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   };
   const [nicknameDraft, setNicknameDraft] = React.useState(account.nickname || '');
   const [selectedTimezone, setSelectedTimezone] = React.useState(account.timezone || 'UTC');
+  const [customTimezone,setCustomTimezone]=React.useState('');
+  const [customTimezoneOpen,setCustomTimezoneOpen]=React.useState(false);
+  const timezoneValue=live?(timezoneSettings?.draft??account.timezone??''):selectedTimezone;
   const [saveStatus, setSaveStatus] = React.useState<string | null>(null);
   const [nicknameSubmitted, setNicknameSubmitted] = React.useState(false);
   const nicknameEdited = React.useRef(false);
@@ -142,13 +147,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     setSelectedTimezone(account.timezone || 'UTC');
   }, [account.timezone]);
 
-  const availableTimezones = React.useMemo(() => {
-    const list = [...COMMON_TIMEZONES];
-    if (account.timezone && !list.some((tz) => tz.value === account.timezone || tz.label.startsWith(account.timezone))) {
-      list.unshift({ value: account.timezone, label: account.timezone });
-    }
-    return list;
-  }, [account.timezone]);
+  const availableTimezones = React.useMemo(()=>timezoneChoices(account.timezone,timezoneValue,COMMON_TIMEZONES),[account.timezone,timezoneValue]);
 
   const handleSaveNickname = () => {
     const value = nicknameDraft.trim();
@@ -176,8 +175,9 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
   const handleTimezoneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const nextTz = e.target.value;
-    setSelectedTimezone(nextTz);
-    onChangeTimezone?.(nextTz);
+    if(nextTz==='__custom__'){setCustomTimezoneOpen(true);return;}
+    setCustomTimezoneOpen(false);setSelectedTimezone(nextTz);
+    (onChangeTimezone??timezoneSettings?.onChange)?.(nextTz);
   };
   const visibleConnections = live ? PLANNED_CONNECTIONS : connections;
   const tabs: {
@@ -977,24 +977,36 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <div className="relative">
                   <select
                     id="mroya-timezone-select"
-                    value={live ? account.timezone || '' : selectedTimezone}
-                    disabled={live}
+                    value={timezoneValue}
+                    disabled={live&&!timezoneSettings?.apiReady}
                     onChange={handleTimezoneChange}
                     className="w-full appearance-none rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2.5 pr-10 text-[13px] text-[var(--mroya-text)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors cursor-pointer"
                   >
-                    {live && !account.timezone && <option value="">Not set</option>}
+                    {!timezoneValue&&<option value="">Not set</option>}
                     {availableTimezones.map((tz) => (
                       <option key={tz.value} value={tz.value} className="bg-[var(--mroya-surface)] text-[var(--mroya-text)]">
                         {tz.label}
                       </option>
                     ))}
-                  </select>
+                    <option value="__custom__">Other IANA timezone…</option>
+                    </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-[var(--mroya-text-muted)]">
                     <ChevronDown className="w-4 h-4" />
                   </div>
-                </div>
+                  </div>
+                  {customTimezoneOpen&&<div className="flex items-center gap-2">
+                    <input aria-label="Custom IANA timezone" value={customTimezone} onChange={event=>setCustomTimezone(event.target.value)} placeholder="e.g. Pacific/Chatham" disabled={live&&!timezoneSettings?.apiReady} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]"/>
+                    <button type="button" disabled={!customTimezone.trim()||live&&!timezoneSettings?.apiReady} onClick={()=>{const value=customTimezone.trim();setSelectedTimezone(value);(onChangeTimezone??timezoneSettings?.onChange)?.(value);}} className="px-3 py-2 rounded-[8px] bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[13px]">Use timezone</button>
+                  </div>}
+                  {live&&timezoneSettings&&<div aria-live="polite" className="text-[12px] text-[var(--mroya-text-muted)]">
+                    {timezoneSettings.status==='saving'&&<p role="status">Saving timezone…</p>}
+                    {timezoneSettings.status==='saved'&&timezoneSettings.timezone&&<p role="status">Saved · {timezoneSettings.timezone}</p>}
+                    {timezoneSettings.status==='error'&&<><p role="alert">{timezoneSettings.error}</p>{timezoneSettings.apiReady&&<button type="button" onClick={timezoneSettings.onRetry} className="underline mt-2">Retry timezone</button>}</>}
+                    {!timezoneSettings.apiReady&&<p>Timezone editing is waiting for the backend API integration. Your existing setting is preserved.</p>}
+                  </div>}
+
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  {live ? 'Time zone is read-only. Editing is not available yet.' : 'Select your time zone so Mroya can accurately schedule reminders and coordinate calendar events.'}
+                  {live ? (timezoneSettings?.apiReady?'Confirmed timezone applies to future events. Existing events keep their original timezone.':'Time zone is read-only until the backend timezone API is connected.') : 'Select your time zone so Mroya can accurately schedule reminders and coordinate calendar events.'}
                 </p>
               </div>
 

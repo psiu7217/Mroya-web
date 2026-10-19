@@ -52,6 +52,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           {feedback.error ?? 'Loading your workspace…'}
           {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">Check server status</button>}
         </div>}
+        {runtime?.timezoneSettings?.status==='error'&&<div role="alert" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
+          {runtime.timezoneSettings.error}
+          <button type="button" onClick={()=>onSidebarOpenSettingsTab('profile')} className="ml-3 underline">Choose timezone in Profile</button>
+        </div>}
         {runtime && !runtime.loading && !runtime.error && ((activeSection==='calendar'&&!runtime.calendarAvailable)||(activeSection==='reminders'&&!runtime.remindersAvailable)||(activeSection==='chat'&&!runtime.chatAvailable)||((activeSection==='memory'||activeSection==='memory-map')&&!runtime.memoryAvailable)) && <p role="status" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">Not available yet. No changes have been saved.</p>}
         {runtime?.hasOlder && activeSection==='chat' && <button disabled={runtime.loading||runtime.busy} onClick={runtime.onOlder} className="py-2 text-xs underline shrink-0">Load earlier messages</button>}
         {runtime && activeSection==='memory' && <div className="px-4 py-2 text-xs shrink-0">Read-only list. Ask Mroya in chat to update your memory.{runtime.hasMoreMemories&&<button disabled={runtime.loading||runtime.busy} onClick={runtime.onMoreMemories} className="ml-3 underline">Load more memories</button>}</div>}
@@ -189,6 +193,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            timezoneSettings={runtime?.timezoneSettings}
+            onChangeTimezone={runtime?.timezoneSettings?.onChange??model.onChangeTimezone}
             connectionSamples={runtime?undefined:model.connectionSamples}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarBusy={model.googleCalendarBusy}

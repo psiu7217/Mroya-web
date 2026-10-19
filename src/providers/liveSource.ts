@@ -4,6 +4,10 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     kind:'live',
+    timezone:{
+      initializeIfUnset:(timezone,signal)=>api.savePreferences({timezone,timezone_only_if_unset:true},signal),
+      save:(timezone,signal)=>api.savePreferences({timezone},signal),
+    },
     calendarEvents:(start,end,offset,signal)=>api.calendarEvents(start,end,offset,signal),
     calendarEvent:(id,signal)=>api.calendarEvent(id,signal),
     mutateCalendar:(method,id,body,signal)=>api.mutateCalendar(method,id,body,signal),

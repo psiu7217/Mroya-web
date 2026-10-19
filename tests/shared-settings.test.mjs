@@ -58,10 +58,13 @@ test('live shows unavailable services/plan/memory controls without fake successe
  const plan=markup({live:true,activeTab:'plan'});assert.equal((plan.match(/>Coming soon<\/button>/g)||[]).length,2);assert.doesNotMatch(plan,/Current active preview/);
  const memory=markup({live:true,activeTab:'settings'});assert.match(memory,/Coming soon/);assert.doesNotMatch(memory,/>Enabled</);
 });
-test('live and Studio share nickname editor; live timezone stays read-only',()=>{
+test('live and Studio share nickname editor; timezone editing is enabled with the live preferences adapter',()=>{
  const live=markup({live:true,activeTab:'profile'}),design=markup({activeTab:'profile'});
  assert.match(live,/Real account/);assert.match(live,/Europe\/Moscow/);assert.match(live,/<select[^>]*disabled=""/);
  assert.match(live,/mroya-profile-nickname/);
+ const ready=markup({live:true,activeTab:'profile',timezoneSettings:{timezone:'Europe/Moscow',draft:'Europe/Moscow',status:'saved',error:null,apiReady:true,onChange:noop,onRetry:noop}});
+ assert.match(ready,/<select[^>]*id="mroya-timezone-select"(?![^>]*disabled)/);
+ assert.match(ready,/Saved/);
  const editor=html=>html.slice(html.indexOf('<label htmlFor="mroya-profile-nickname"')>=0?html.indexOf('<label htmlFor="mroya-profile-nickname"'):html.indexOf('<label for="mroya-profile-nickname"'),html.indexOf('How Mroya addresses you'));
  assert.equal(editor(live),editor(design));
  assert.doesNotMatch(live,/maxlength=/);

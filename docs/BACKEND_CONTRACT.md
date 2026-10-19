@@ -12,7 +12,7 @@ All paths below are relative to the fixed same-origin `/api/v1/` on app.heymroya
 | POST auth/login/ | username/password JSON + X-CSRFToken; user and rotated csrf_token |
 | POST auth/logout/ | Session + CSRF; status logged_out and rotated token |
 | GET me/ | user (numeric id, username/email/names/timezone/nickname/preferences.theme/preferences.show_model_reasoning); 401 means guest |
-| PATCH me/preferences/ | Authenticated CSRF JSON theme/nickname/show_model_reasoning; returns updated user; theme system/light/dark, nickname up to 80 or empty to clear |
+| PATCH me/preferences/ | Authenticated CSRF JSON theme/nickname/show_model_reasoning/timezone/timezone_only_if_unset; returns updated user; theme system/light/dark, nickname up to 80 or empty to clear; timezone fields require Backend PR #30 |
 | POST auth/google/start/ | CSRF-protected ordinary HTML form; 302 to Google |
 | GET auth/google/callback/ | Google's code/state; verified Django session then redirect to Web |
 | GET chat/messages/ | limit 1..200/default50, before sequence; conversation_id, messages, next_before |
@@ -333,3 +333,8 @@ alone is not production-readiness confirmation. This frontend PR performs no dep
 ## Calendar and Google Calendar
 
 The existing shared Calendar/Connections UI now has a capability-gated live adapter for Backend PR #28 (`e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac`). See [CALENDAR_INTEGRATION](CALENDAR_INTEGRATION.md) for the exact routes, DTO/recurrence mapping, mutation replay, Google state rules and first live check. The [pinned Backend contract](https://github.com/psiu7217/Mroya-api/blob/e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac/docs/CALENDAR-API.md) remains authoritative. Calendar availability depends on installed capabilities, not this documentation or the OAuth return hint. Reminders are still unavailable.
+
+
+## Profile timezone
+
+[Backend PR #30 at 328906e](https://github.com/psiu7217/Mroya-api/blob/328906e3b2c3d67afbbef650697f1e854ce9f7a8/docs/API.md#timezone-manual-selection-and-browser-initialization) extends the existing PATCH preferences endpoint: manual `{timezone: IANA}` or atomic initialization `{timezone: IANA, timezone_only_if_unset: true}`. Both return the current User. A concurrent saved manual value wins initialization and must be adopted. Timezone is nonempty, cannot be cleared here, and is still returned by `/me/`/login. Invalid fields/flag/IANA return `400 invalid_preferences` without partial writes. See [TIMEZONE_INTEGRATION](TIMEZONE_INTEGRATION.md) for browser detection, draft/retry, confirmed Calendar defaults and live test order. No OAuth or existing-event conversion is involved.

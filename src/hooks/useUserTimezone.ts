@@ -5,7 +5,7 @@ import type {ApiUser} from '../types/api.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 
 export type TimezoneState={timezone:string;draft:string;status:'idle'|'saving'|'saved'|'error';error:string|null;apiReady:boolean};
-/** Frontend port only; HTTP routing/payload must be added after the backend contract exists. */
+/** Both operations use the existing session/CSRF preferences client. */
 export type TimezoneTransport=NonNullable<WorkspaceSource['timezone']>;
 export class UserTimezoneStore {
  private current:TimezoneState;
@@ -55,7 +55,9 @@ export class UserTimezoneStore {
  private failure(error:unknown){
   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
   this.blocked=true;
-  const message=error instanceof ApiError&&error.status===403?'Security check failed. Retry saving timezone to refresh CSRF.':error instanceof Error?error.message:'Timezone could not be saved. Choose a timezone manually and retry.';
+  const fields=error instanceof ApiError&&error.status===400&&error.fields
+   ?Object.values(error.fields).flatMap(value=>Array.isArray(value)?value.map(issue=>typeof issue?.message==='string'?issue.message:'Invalid timezone.'):[]).join(' '):'';
+  const message=fields?'Timezone was not saved. '+fields:error instanceof ApiError&&error.status===403?'Security check failed. Retry saving timezone to refresh CSRF.':error instanceof Error?error.message:'Timezone could not be saved. Choose a timezone manually and retry.';
   this.emit({status:'error',error:message});
  }
  private async write(zone:string,initialize:boolean){

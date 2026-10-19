@@ -1,39 +1,44 @@
-# Timezone frontend preparation — Backend contract pending
+# Timezone: browser initialization, Profile and Calendar
 
-**Not ready to merge or deploy.** The owner confirmed that the timezone API is still in development. The inspected API main still rejects timezone in PATCH preferences and does not publish a persistent timezone-write route. No route, HTTP method, request shape, capability flag or response envelope is invented in this branch.
+Contract checked against [Backend PR #30](https://github.com/psiu7217/Mroya-api/pull/30), HEAD `328906e3b2c3d67afbbef650697f1e854ce9f7a8`: API preferences view, UserPreferencesForm, ZoneInfo validator, API docs and timezone tests. Backend PR must be installed before live verification; this frontend PR does not merge/deploy it.
 
-## Prepared behavior
+## Transport and state
 
-- `src/hooks/useUserTimezone.ts` owns account-scoped confirmed timezone and draft, one initial browser hint, serialized manual edits, confirmation/error/retry, stale response protection and logout cleanup.
-- `WorkspaceSource.timezone` is an **internal frontend port**, not an HTTP API contract. It declares two semantic operations: `initializeIfUnset(zone, signal)` and `save(zone, signal)`, returning a confirmed `ApiUser`. The live source deliberately does not implement this port yet. No new HTTP requests are sent in the current branch.
-- Missing port is explicit: Profile remains read-only with an integration notice. Empty timezone shows a Profile action; no fake Saved or local-only production preference is substituted. Synthetic tests inject a port to exercise the prepared UI/state.
-- The first authenticated mount (password login, Google-created user or restored session) may initialize an empty timezone from `Intl.DateTimeFormat().resolvedOptions().timeZone`. Saved timezone skips detection/writes. StrictMode abandoned setups do not send another initialization. Initial retries retain **only-if-unset**, including after a lost response; only an explicit manual choice permits an unconditional save.
-- Manual changes are serialized. A late initialization response cannot erase a newer draft. A failed write preserves draft and requires explicit Retry; Retry reads the existing session/me first and avoids repeating an already applied choice. Mismatched user/confirmation never produces Saved.
-- Profile uses the existing dropdown/style, the full runtime-supported IANA catalog, UTC/current/draft aliases and a custom IANA entry for names missing from the browser catalog. Backend remains the final validator. Design changes stay local in its existing demo hook and survive navigation.
-- Only a confirmed timezone is merged into the live `ApiUser` projection/account and Calendar's future-create default. Calendar's controller is not recreated on timezone change, so pending submission IDs/payloads and loaded event zones remain intact. No existing event is converted or mutated.
+Both operations use the existing `MroyaApi.savePreferences`, same-origin Django session and CSRF:
 
-## Backend handoff needed
+```json
+{"timezone":"Europe/Sofia"}
+```
 
-When the owner provides the new PR/commit, inspect its code/tests/docs and implement the port through the **existing MroyaApi/session/CSRF transport** and live source. Verify:
+```json
+{"timezone":"Europe/Sofia","timezone_only_if_unset":true}
+```
 
-1. Actual method/path, payload, response envelope, validation errors and availability behavior on older servers.
-2. Server-side atomic only-if-unset semantics. A GET followed by an unconditional PATCH is not an acceptable substitute; a concurrent saved manual setting must win initialization.
-3. Manual timezone normalization/aliases, whether empty values may be cleared, and exact confirmation behavior.
-4. Confirmed user ID/timezone, normal 401/403 behavior and ambiguous-response reconciliation through `/me/`.
-5. API-specific synthetic tests; run all checks below again. Remove the pending integration notice only when the real adapter is connected.
+PATCH `/api/v1/me/preferences/` returns `200 {"user": ...}`. Manual writes must confirm the selected timezone. Initialization may return a different nonempty timezone that another request already saved; the frontend adopts that value. The only-if-unset check is atomic on Backend, never a client GET/unconditional PATCH substitute.
 
-No auth/OAuth flow, Google Calendar Sync, Chat, Memory or Backend changes are needed for this handoff. Current synthetic tests exercise the shared authenticated-user DTO/port; they do not claim real registration or timezone HTTP interoperability.
+Timezone must be a nonempty IANA name, at most 128 characters, without surrounding whitespace. Backend/ZoneInfo is the final authority, including aliases/new names absent from the browser catalog. Empty/null/unknown values and invalid flags return `400 invalid_preferences` without partial writes. The flag requires timezone; false means manual update. This API cannot clear timezone. There is no new capability flag: older servers reject the new fields and show an error with the draft preserved; other preference fields remain independent.
 
-## Checks / first server test after completion
+`src/hooks/useUserTimezone.ts` owns account-scoped confirmed timezone, draft, one initialization attempt, serialized manual edits, error/retry and cleanup. The existing live source wires the two semantic operations to the existing preferences client; no second HTTP client/auth system is added.
 
-Run TypeScript, boundaries, Production/Design builds, unchanged production bundle verifier and targeted timezone/profile/session/calendar tests. The frozen Studio Settings SSR baseline is separately known stale and is not rewritten here.
+- The first authenticated mount (password login, Google-created user or restored session) initializes an empty timezone from `Intl.DateTimeFormat().resolvedOptions().timeZone`. Saved timezone skips detection/writes. StrictMode abandoned setups do not send duplicate initialization.
+- Initial retries retain only-if-unset semantics, including after a lost response. An explicit manual choice permits a manual save. A late initialization/session snapshot cannot erase a newer draft or a confirmed value.
+- A failed write preserves draft and requires explicit Retry. Retry reads `/me/` through the existing session source, avoids replay if the write already committed, refreshes CSRF when needed and then saves the still-pending choice. Mismatched user/confirmation never produces Saved.
+- Only confirmed timezone is merged into the live User projection/account and Calendar future-create default. The Calendar controller is not recreated on a timezone change, preserving pending submissions/payloads and loaded event timezones. No existing event is converted or mutated.
+- Profile retains its existing dropdown/style, adds the full runtime-supported catalog plus UTC/current/draft aliases and a custom IANA entry. Saving/Saved/error/retry are explicit. Unknown names are rejected by Backend, not a limited hardcoded browser list. Design stays local in its existing demo hook and survives navigation.
+- Failed detection or initialization presents a Profile action. Logout/account change aborts pending requests and ignores late replies. No timezone/draft/init flag is persisted in browser storage.
 
-After Backend deployment and wiring/review of this draft:
+## Validation
 
-1. Sign in with an existing saved timezone: confirm no auto-write and unchanged calendar events.
-2. Use an account with empty timezone (including a newly Google-created account): confirm exactly one only-if-unset initialization and a confirmed `/me/` value. Test failed detection/network and manual Profile recovery.
-3. Select an uncommon zone/custom valid alias. Confirm Saving → backend-confirmed Saved; reload and check persistence. Force a failed write and check draft/Retry, including a lost reply that actually committed.
-4. Create HH:MM, All day and recurring events. Confirm the profile zone is used only for new exact events, no duplicate creates, and all events remain after reload.
-5. Change profile timezone while a calendar request is pending: confirm that request keeps its original payload/submission and existing events retain their original timezone.
+Targeted tests cover the actual client/live-source request shape and synthetic responses for session/login, initialization, cross-client only-if-unset, manual racing with initialization, failed detection, lost reply/reconciliation, CSRF/errors, stale account responses, full catalog/custom input, Profile confirmation and Calendar HH:MM/all-day/recurrence/persistence/no duplicate creates. They do not perform real registration/OAuth or production writes.
 
-These are future owner checks, not actions performed on production. No account creation, real OAuth/provider request, production user mutation, merge or deployment was performed.
+TypeScript, boundaries, Production/Design builds and the unchanged production bundle verifier must pass. The known frozen Studio Settings SSR baseline is separately stale and is not rewritten here.
+
+## First check on the working server (owner, after review/deployment)
+
+1. Install Backend PR #30 first (no migrations per that PR), then the reviewed Frontend. Sign in with an existing saved timezone: expect no auto-write and unchanged events.
+2. Use an account whose timezone is empty, including a newly Google-created account: verify one PATCH with `timezone_only_if_unset:true`, followed by a confirmed `/me/` value. Test failed detection/network and manual Profile recovery.
+3. Select an uncommon zone/custom valid alias: expect Saving → backend-confirmed Saved. Reload to check persistence. Force an error and check draft/Retry, including a lost reply that actually committed.
+4. Create HH:MM, All day and recurring events. Confirm the profile zone is used only for new exact events, no duplicate creates, and events persist after reload. With no timezone and failed setup, exact creation must fail clearly while All day remains possible.
+5. Change profile timezone while a calendar write is pending: that request keeps its original payload/submission; existing events keep their original timezone. Check nickname/theme still save independently.
+
+These are future owner checks, not actions performed on production. No real account creation, OAuth/provider request, production mutation, merge or deployment was performed.

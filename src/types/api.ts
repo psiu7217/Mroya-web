@@ -43,3 +43,11 @@ export interface MemoryMapResponse { nodes:MapNode[]; edges:MapEdge[]; stats?:{e
 export interface TurnResponse { report_context?:ReportContext; turn_status:'running'|'completed'|'failed'; summary:string; events:Record<string,unknown>[]; assistant_content?:string; error_id?:string; error_message?:string; error_report_url?:string; [field:string]:unknown }
 export interface SendOptions { signal?:AbortSignal; retry?:boolean; timezone?:string; onTurn?:(id:string)=>void }
 export type ChatStreamEvent = {event:'trace'|'delta'|'done'|'error'|'replay'|'reasoning_delta'|'tool_activity';data:Record<string,unknown>};
+
+// Mroya-api notification-outbox PR #35 (f1ec72e4); raw Backend statuses, not UI claims.
+export interface NotificationSettings {channels:{telegram:{enabled:boolean;connected:boolean;configured:boolean;delivery_ready:boolean}}}
+export type NotificationDeliveryStatus='pending'|'processing'|'retry'|'sent'|'failed'|'cancelled'|'expired';
+export interface NotificationDto {
+ notification_id:string;kind:string;created_at:string;scheduled_at:string;expires_at:string|null;
+ deliveries:{channel:'telegram';status:NotificationDeliveryStatus;attempts:number;next_attempt_at:string|null;sent_at:string|null;error_code:string|null;parts_sent:number}[];
+}

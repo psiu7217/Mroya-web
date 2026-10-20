@@ -2,6 +2,10 @@ import type {MroyaApi} from '../api/client';
 import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
+  notificationSettings?:MroyaApi['notificationSettings'];
+  saveNotificationSettings?:MroyaApi['saveNotificationSettings'];
+  testNotification?:MroyaApi['testNotification'];
+  notification?:MroyaApi['notification'];
   intelligenceSettings?:MroyaApi['intelligenceSettings'];
   intelligenceStatus?:MroyaApi['intelligenceStatus'];
   inboxProposals?:MroyaApi['inboxProposals'];

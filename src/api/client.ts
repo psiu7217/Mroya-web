@@ -1,3 +1,4 @@
+import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
 import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
 import {readIntelligenceSettings,readIntelligenceRuntime,readIntelligenceProposal,readProposalPage,readProposalHistory,validateDecision} from './intelligence.ts';
 import type {GoogleConfiguration} from '../types/calendarApi.ts';
@@ -28,6 +29,21 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async notificationSettings(signal?:AbortSignal){return readNotificationSettings(await this.json('me/notifications/settings/',undefined,signal));}
+  async saveNotificationSettings(enabled:boolean,signal?:AbortSignal){
+    if(typeof enabled!=='boolean')throw new Error('Expected notification boolean');
+    return readNotificationSettings(await this.json('me/notifications/settings/',{telegram_enabled:enabled},signal,'PATCH'));
+  }
+  async testNotification(requestId:string,signal?:AbortSignal){
+    if(!notificationUuid(requestId))throw new Error('Invalid notification request UUID');
+    return readNotification(await this.json('me/notifications/test/',{request_id:requestId},signal,'POST',status=>{
+      if(status!==202)throw new ApiError(502,'invalid_response','Expected notification queue acknowledgement');
+    }));
+  }
+  async notification(id:string,signal?:AbortSignal){
+    if(!notificationUuid(id))throw new Error('Invalid notification UUID');
+    return readNotification(await this.json('me/notifications/'+id+'/',undefined,signal),id);
+  }
   async intelligenceSettings(signal?:AbortSignal){return readIntelligenceSettings(await this.json('memory-intelligence/settings/',undefined,signal));}
   async intelligenceStatus(signal?:AbortSignal){return readIntelligenceRuntime(await this.json('memory-intelligence/status/',undefined,signal));}
   async inboxProposals(offset=0,signal?:AbortSignal){return readProposalPage(await this.json('memory-intelligence/proposals/?limit=50&offset='+offset,undefined,signal),offset);}

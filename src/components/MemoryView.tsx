@@ -90,9 +90,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   const showInbox=inboxAvailable&&activeMainTab==='inbox';
   const proposals=inboxAvailable?inbox.proposals:[];
   const inboxFilter=inbox?.preview?.filter??'all';
+  const inboxLoading=inboxFilter==='loading'||!!inbox?.loading&&proposals.length===0;
   const [comments,setComments]=useState<{scope:string|undefined;drafts:Record<string,{open:boolean;text:string}>}>({scope:inbox?.scopeKey,drafts:{}});
   const drafts=comments.scope===inbox?.scopeKey?comments.drafts:{};
-  const pendingProposalsCount=proposals.filter(p=>p.status==='new').length;
+  const pendingProposalsCount=proposals.filter(p=>p.status==='new'||p.status==='pending').length;
 
   const filteredMemories = memories.filter((m) => {
     const matchesCat = activeCategory === 'All' || m.category === activeCategory;
@@ -160,7 +161,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   const handleSendComment=async(id:string)=>{
     const text=drafts[id]?.text.trim(),scope=inbox?.scopeKey;
     if(!text||!inbox?.onCommentProposal)return;
-    await inbox.onCommentProposal(id,text);
+    const accepted=await inbox.onCommentProposal(id,text);
+    if(accepted===false)return;
     setComments(previous=>previous.scope===scope&&previous.drafts[id]?.text.trim()===text
       ?{...previous,drafts:{...previous.drafts,[id]:{...previous.drafts[id],open:false}}}:previous);
   };
@@ -548,8 +550,11 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
             {inbox?.error&&<div role="alert" className="p-3 rounded-[10px] bg-red-500/10 border border-red-500/25">{inbox.error}{inbox.onRetryProposal&&<button type="button" className="ml-3 underline" onClick={()=>void inbox.onRetryProposal?.()}>Retry</button>}</div>}
 
+            {inbox?.notice&&<p role="status" className="text-[13px] text-[var(--mroya-text-muted)]">{inbox.notice}</p>}
+            {inbox?.onRefresh&&<button type="button" disabled={inbox.loading} onClick={inbox.onRefresh} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">Обновить Inbox</button>}
+
             {/* STATE: LOADING */}
-            {(inbox?.loading||inboxFilter === 'loading') && (
+            {inboxLoading && (
               <div className="space-y-4 animate-in fade-in">
                 {[1, 2, 3].map((skeleton) => (
                   <div
@@ -572,7 +577,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             )}
 
             {/* STATE: EMPTY INBOX */}
-            {!inbox?.error&&(inboxFilter === 'empty' || ((!inbox?.loading&&inboxFilter !== 'loading') && visibleProposals.length === 0)) ? (
+            {!inbox?.error&&(inboxFilter === 'empty' || (!inboxLoading && visibleProposals.length === 0)) ? (
               <div className="p-10 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-center space-y-3 animate-in fade-in">
                 <div className="w-12 h-12 mx-auto rounded-full bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center text-[var(--mroya-text-muted)]">
                   <Inbox className="w-6 h-6" />
@@ -581,7 +586,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   Все предложения обработаны
                 </h3>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-md mx-auto leading-[20px]">
-                  В Memory Inbox сейчас нет ожидающих предложений. Искусственный интеллект продолжит мониторинг разрешенных источников и сформирует предложения при появлении новых фактов.
+                  {inbox?.emptyMessage??'В Memory Inbox сейчас нет ожидающих предложений. Искусственный интеллект продолжит мониторинг разрешенных источников и сформирует предложения при появлении новых фактов.'}
                 </p>
                 {inbox?.preview&&(
                 <button
@@ -595,16 +600,17 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             ) : null}
 
             {/* LIST OF PROPOSAL CARDS */}
-            {(!inbox?.loading&&inboxFilter !== 'loading') && visibleProposals.length > 0 && (
+            {!inboxLoading && visibleProposals.length > 0 && (
               <div className="space-y-4">
                 {visibleProposals.map((proposal) => {
-                  const isNew = proposal.status === 'new';
+                  const isNew = proposal.status === 'new'||proposal.status==='pending';
                   const isReanalyzing = proposal.status === 'reanalyzing';
-                  const isAccepted = proposal.status === 'accepted';
-                  const isDeclined = proposal.status === 'declined';
-                  const isApplied = proposal.status === 'applied';
-                  const isOutdated = proposal.status === 'outdated';
-                  const isError = proposal.status === 'error';
+                  const isAccepted = ['accepted','pending_apply','applying','search_pending'].includes(proposal.status);
+                  const isDeclined = proposal.status === 'declined'||proposal.status==='rejected';
+                  const isApplied = proposal.status === 'applied'&&proposal.isConfirmed!==false;
+                  const isOutdated = proposal.status === 'outdated'||proposal.status==='stale';
+                  const isBackendError = ['error','apply_error','apply_retry','apply_conflict'].includes(proposal.status);
+                  const isError = isBackendError||!!proposal.errorMessage;
 
                   return (
                     <div
@@ -640,7 +646,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               {proposal.source === 'Calendar' && <CalendarIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
                               {proposal.source === 'Email' && <Mail className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                               {proposal.source === 'Drive' && <FileText className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                              <span>{proposal.source === 'Calendar' ? 'Google Calendar' : proposal.source === 'Email' ? 'Gmail' : 'Google Drive'}</span>
+                              <span>{proposal.sourceLabel??(proposal.source === 'Calendar' ? 'Google Calendar' : proposal.source === 'Email' ? 'Gmail' : 'Google Drive')}</span>
                             </span>
                             <span aria-hidden="true">·</span>
                             <span>{proposal.sourceResourceTitle}</span>
@@ -651,46 +657,47 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
                         {/* Status Badge */}
                         <div className="shrink-0 self-start">
+                          {!isNew&&!isReanalyzing&&!isAccepted&&!isApplied&&!isDeclined&&!isOutdated&&!isError&&proposal.statusLabel&&<span className="text-[12px] text-[var(--mroya-text-muted)]">{proposal.statusLabel}</span>}
                           {isNew && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-[var(--mroya-primary)]/15 text-[var(--mroya-primary)] border border-[var(--mroya-primary)]/30">
                               <Sparkles className="w-3 h-3" />
-                              <span>Новое предложение</span>
+                              <span>{proposal.statusLabel??'Новое предложение'}</span>
                             </span>
                           )}
                           {isReanalyzing && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
-                              <RefreshCw className="w-3 h-3 animate-spin" />
-                              <span>Повторный анализ…</span>
+                              <RefreshCw className={proposal.processingEnabled===false?"w-3 h-3":"w-3 h-3 animate-spin"} />
+                              <span>{proposal.statusLabel??'Повторный анализ…'}</span>
                             </span>
                           )}
                           {isAccepted && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                               <Check className="w-3 h-3" />
-                              <span>Принято</span>
+                              <span>{proposal.statusLabel??'Принято'}</span>
                             </span>
                           )}
                           {isApplied && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-600/20 text-emerald-800 dark:text-emerald-200 border border-emerald-600/30">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Успешно применено</span>
+                              <span>{proposal.statusLabel??'Успешно применено'}</span>
                             </span>
                           )}
                           {isDeclined && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border border-zinc-500/30">
                               <X className="w-3 h-3" />
-                              <span>Отклонено</span>
+                              <span>{proposal.statusLabel??'Отклонено'}</span>
                             </span>
                           )}
                           {isOutdated && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                               <Clock className="w-3 h-3" />
-                              <span>Устаревшее предложение</span>
+                              <span>{proposal.statusLabel??'Устаревшее предложение'}</span>
                             </span>
                           )}
-                          {isError && (
+                          {isBackendError && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30">
                               <AlertCircle className="w-3 h-3" />
-                              <span>Ошибка</span>
+                              <span>{proposal.statusLabel??'Ошибка'}</span>
                             </span>
                           )}
                         </div>
@@ -704,7 +711,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             Что предлагает сделать AI:
                           </div>
                           <div className="text-[13.5px] font-semibold text-[var(--mroya-text)] leading-[20px]">
-                            {proposal.actionProposed}
+                            {proposal.version!==undefined?proposal.actionProposed.split('\n').map((action,index)=><div key={index}>{action}</div>):proposal.actionProposed}
                           </div>
                         </div>
 
@@ -730,9 +737,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
                           {proposal.memoryMatches.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {proposal.memoryMatches.map((match) => (
+                              {proposal.memoryMatches.map((match, matchIndex) => (
                                 <div
-                                  key={match.id}
+                                  key={`${match.id}:${matchIndex}`}
                                   className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-between gap-2"
                                 >
                                   <div className="min-w-0">
@@ -756,17 +763,33 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           ) : (
                             <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text-muted)] flex items-center gap-2">
                               <User className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
-                              <span>Совпадений в существующей памяти не найдено (новый объект). Информация не подтверждена до вашего одобрения.</span>
+                              <span>{proposal.version!==undefined?'Backend не указал найденные объекты памяти. Это не подтверждение отсутствия объекта.':'Совпадений в существующей памяти не найдено (новый объект). Информация не подтверждена до вашего одобрения.'}</span>
                             </div>
                           )}
                         </div>
+
+                        {proposal.busy&&<p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">Отправка решения…</p>}
+                        {!isApplied&&proposal.resultMessage&&<p className="text-[13px] text-[var(--mroya-text)]">{proposal.resultMessage}</p>}
+                        {proposal.sourceAvailable===false&&<p className="text-[12px] text-[var(--mroya-text-muted)]">Источник недоступен.</p>}
+                        {proposal.statusMessage&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{proposal.statusMessage}</p>}
+                        {inbox?.onOpenProposal&&<details onToggle={e=>{if(e.currentTarget.open)inbox.onOpenProposal?.(proposal.id);}} className="text-[12px] text-[var(--mroya-text-muted)]">
+                          <summary className="cursor-pointer text-[var(--mroya-primary)]">Детали и история решений</summary>
+                          {proposal.history?.loading&&<p role="status">Загрузка истории…</p>}
+                          {proposal.history?.error&&<p role="alert">{proposal.history.error}<button type="button" className="ml-3 underline" onClick={()=>inbox.onOpenProposal?.(proposal.id)}>Retry</button></p>}
+                          {proposal.history?.entries.map(entry=><div key={entry.version} className="py-2 border-b border-[var(--mroya-divider)] break-words">
+                            <p>v{entry.version} · {entry.kind} · {entry.createdAt}</p><p>{entry.summary}</p>{entry.comment&&<p>{entry.comment}</p>}
+                          </div>)}
+                          {proposal.history?.hasMore&&<button type="button" disabled={proposal.history.loading} onClick={()=>inbox.onMoreHistory?.(proposal.id)} className="text-[var(--mroya-primary)] hover:underline">Ещё история</button>}
+                        </details>}
+
+                        {!isError&&proposal.actions?.retry&&<button type="button" disabled={proposal.busy} onClick={()=>void inbox?.onRetryProposal?.(proposal.id)} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">Повторить запрос</button>}
 
                         {/* REANALYZING ACTIVE FEEDBACK BLOCK */}
                         {isReanalyzing && (
                           <div className="p-3.5 rounded-[10px] bg-indigo-500/10 border border-indigo-500/20 space-y-1.5">
                             <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-[13px] font-semibold">
-                              <RefreshCw className="w-4 h-4 animate-spin shrink-0 text-indigo-600 dark:text-indigo-400" />
-                              <span>Повторный семантический анализ с учетом вашего комментария…</span>
+                              <RefreshCw className={proposal.processingEnabled===false?"w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400":"w-4 h-4 animate-spin shrink-0 text-indigo-600 dark:text-indigo-400"} />
+                              <span>{proposal.processingEnabled===false?'Повторный анализ ожидает включения фоновой обработки.':'Повторный семантический анализ с учетом вашего комментария…'}</span>
                             </div>
                             {proposal.comment && (
                               <p className="text-[12px] text-[var(--mroya-text)] italic pl-6">
@@ -776,7 +799,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             {inbox?.preview&&<div className="pt-2 flex items-center gap-2">
                               <button
                                 type="button"
-                                disabled={!inbox?.onAcceptProposal}
+                                disabled={proposal.busy||proposal.uncertain||!inbox?.onAcceptProposal||proposal.actions?.accept===false}
                                 onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
                                 className="px-3 py-1 rounded-[6px] text-[11.5px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
                               >
@@ -791,7 +814,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           <div className="p-3.5 rounded-[10px] bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200 text-[13px]">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span>Успешно сохранено в долговременную память. Карточка обновлена.</span>
+                              <span>{proposal.resultMessage??'Успешно сохранено в долговременную память. Карточка обновлена.'}</span>
                             </div>
                             <button
                               type="button"
@@ -807,7 +830,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         {isOutdated && (
                           <div className="p-3 rounded-[10px] bg-amber-500/10 border border-amber-500/25 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-[12.5px]">
                             <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            <span>Исходное событие было удалено из календаря. Предложение архивировано.</span>
+                            <span>{proposal.version!==undefined?'Предложение устарело. Требуется проверка источника и повторный анализ.':'Исходное событие было удалено из календаря. Предложение архивировано.'}</span>
                           </div>
                         )}
 
@@ -823,26 +846,26 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 {proposal.errorMessage}
                               </p>
                             )}
-                            <button
+                            {(!proposal.actions||proposal.actions.retry||proposal.uncertain)&&<button
                               type="button"
-                              disabled={!inbox?.onRetryProposal}
+                              disabled={proposal.busy||!inbox?.onRetryProposal}
                               onClick={() => void inbox?.onRetryProposal?.(proposal.id)}
                               className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold bg-red-600 text-white hover:bg-red-700 cursor-pointer inline-flex items-center gap-1.5"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
                               <span>Повторить запрос</span>
-                            </button>
+                            </button>}
                           </div>
                         )}
 
                         {/* DECLINED NOTICE BLOCK */}
                         {isDeclined && (
                           <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-between gap-3 text-[12.5px] text-[var(--mroya-text-muted)]">
-                            <span>Предложение отклонено. Модель учла это для последующих предложений.</span>
+                            <span>{proposal.version!==undefined?'Предложение отклонено. Возобновление анализа требует явного пересмотра.':'Предложение отклонено. Модель учла это для последующих предложений.'}</span>
                             <button
                               type="button"
-                              disabled={!inbox?.onAcceptProposal}
-                                onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
+                              disabled={proposal.busy||proposal.uncertain||(proposal.actions?!proposal.actions.reconsider:!inbox?.onAcceptProposal)}
+                                onClick={() => void (proposal.actions?inbox?.onReconsiderProposal?.(proposal.id):inbox?.onAcceptProposal?.(proposal.id))}
                               className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                             >
                               Отменить отклонение
@@ -901,8 +924,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               </button>
                               <button
                                 type="button"
-                                disabled={!inbox?.onCommentProposal||!drafts[proposal.id]?.text.trim()}
-                                onClick={() => handleSendComment(proposal.id)}
+                                disabled={proposal.busy||proposal.uncertain||!inbox?.onCommentProposal||proposal.actions?.comment===false||!drafts[proposal.id]?.text.trim()}
+                                onClick={() => void handleSendComment(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer"
                               >
                                 <Send className="w-3.5 h-3.5" />
@@ -914,13 +937,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                       </div>
 
                       {/* Bottom Action Bar: Да / Нет / Комментарий */}
-                      {!isDeclined && !isApplied && !isAccepted && (
+                      {!isDeclined && !isApplied && !isAccepted && (!proposal.actions||proposal.actions.accept||proposal.actions.reject||proposal.actions.comment) && (
                         <div className="pt-3.5 border-t border-[var(--mroya-divider)]/60 flex flex-wrap items-center justify-between gap-2.5">
                             <div className="flex items-center gap-2 flex-wrap">
                               {/* 1: ДА — принять предложение */}
                               <button
                                 type="button"
-                                disabled={!inbox?.onAcceptProposal}
+                                disabled={proposal.busy||proposal.uncertain||!inbox?.onAcceptProposal||proposal.actions?.accept===false}
                                 onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer shadow-xs"
                               >
@@ -931,7 +954,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               {/* 2: НЕТ — отклонить предложение */}
                               <button
                                 type="button"
-                                disabled={!inbox?.onRejectProposal}
+                                disabled={proposal.busy||proposal.uncertain||!inbox?.onRejectProposal||proposal.actions?.reject===false}
                                 onClick={() => void inbox?.onRejectProposal?.(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                               >
@@ -942,7 +965,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               {/* 3: КОММЕНТАРИЙ — открыть текстовое поле */}
                               <button
                                 type="button"
-                                disabled={!inbox?.onCommentProposal}
+                                disabled={proposal.busy||proposal.uncertain||!inbox?.onCommentProposal||proposal.actions?.comment===false}
                                 onClick={() => handleToggleComment(proposal.id)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-medium bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                               >
@@ -961,6 +984,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 })}
               </div>
             )}
+            {inbox?.hasMore&&<button type="button" disabled={inbox.loadingMore||inbox.loading} onClick={inbox.onMore} className="text-[13px] font-semibold text-[var(--mroya-primary)] hover:underline">{inbox.loadingMore?'Загрузка…':'Ещё предложения'}</button>}
           </div>
         </div>
       )}

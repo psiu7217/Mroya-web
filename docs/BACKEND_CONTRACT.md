@@ -340,32 +340,23 @@ The existing shared Calendar/Connections UI now has a capability-gated live adap
 [Backend PR #30 at 328906e](https://github.com/psiu7217/Mroya-api/blob/328906e3b2c3d67afbbef650697f1e854ce9f7a8/docs/API.md#timezone-manual-selection-and-browser-initialization) extends the existing PATCH preferences endpoint: manual `{timezone: IANA}` or atomic initialization `{timezone: IANA, timezone_only_if_unset: true}`. Both return the current User. A concurrent saved manual value wins initialization and must be adopted. Timezone is nonempty, cannot be cleared here, and is still returned by `/me/`/login. Invalid fields/flag/IANA return `400 invalid_preferences` without partial writes. See [TIMEZONE_INTEGRATION](TIMEZONE_INTEGRATION.md) for browser detection, draft/retry, confirmed Calendar defaults and live test order. No OAuth or existing-event conversion is involved.
 
 
-## Memory Inbox presentation (no live API yet)
+## Memory Intelligence Inbox
 
-[Memory Intelligence architecture](https://github.com/psiu7217/Mroya-api/blob/main/docs/MEMORY-INTELLIGENCE.md)
-is the product reference, not a published Inbox REST contract. Triage does not
-supply proposals or confirm writes. Do not reuse jobs/status routes as an Inbox.
+The live integration is verified against Backend main
+`b876c467c070e7e442fdb16d98140a9fb9839dfc` and the actual Intelligence
+views, decision service and Agent plan normalization. See
+[MEMORY_INBOX_INTEGRATION](MEMORY_INBOX_INTEGRATION.md) for routes, DTO mapping,
+capabilities/runtime switches, idempotency, receipt semantics and live acceptance.
+The canonical Backend references are
+[Inbox](https://github.com/psiu7217/Mroya-api/blob/b876c467c070e7e442fdb16d98140a9fb9839dfc/docs/MEMORY-INTELLIGENCE-INBOX.md),
+[Safe Apply](https://github.com/psiu7217/Mroya-api/blob/b876c467c070e7e442fdb16d98140a9fb9839dfc/docs/MEMORY-INTELLIGENCE-APPLY.md) and
+[Related Sources](https://github.com/psiu7217/Mroya-api/blob/b876c467c070e7e442fdb16d98140a9fb9839dfc/docs/MEMORY-INTELLIGENCE-RELATED-SOURCES.md).
+C1 supersedes B's old pending-forever/memory_apply=false limitations; C2 adds
+Backend chat context without a new Frontend HTTP endpoint.
 
-`src/types/memoryInbox.ts` describes presentation data only: proposals, statuses,
-source/resource/date, proposed action, explanation, memory matches and comments;
-plus loading/error and `onAcceptProposal`, `onRejectProposal`,
-`onCommentProposal(id, comment)`, `onRetryProposal(id?)` (no ID retries the list).
-Callbacks never optimistically mark a proposal applied in the shared UI. Yes is
-the confirmation action; there is no second mandatory Apply step.
-
-`useDemoMemoryInbox` supplies offline fixtures, local actions and preview filters
-through `useDemoWorkspace` / `WorkspaceModel.memoryInbox`. Shared MemoryView owns
-only tab/search/comment-draft UI state. It imports neither fixtures nor transport.
-`scopeKey` identifies the account/controller lifetime; Workspace remounts MemoryView
-when it changes so drafts cannot cross account boundaries.
-
-LiveExperience explicitly sets `runtime.memoryInboxAvailable=false` and supplies
-no Inbox source. Workspace omits Inbox props unless that capability is explicitly
-true. This is independent of saved-memory readOnly. Production therefore has no
-proposal tab, fake cards, preview controls or simulated memory writes. The bundle
-verifier also rejects the new fixture markers.
-
-The next integration must first verify an actual Backend capability and Inbox
-contract, then map authenticated DTOs in the existing live layers, own confirmed
-statuses/errors/retries and invalidate all account-local requests/state on logout
-or account change. Do not enable this flag just because triage is available.
+The same MemoryView consumes typed presentation props from either the offline demo
+hook or the account-local live controller. No proposal state transition, analysis,
+deduplication of knowledge, Memory mutation or request transport lives in the UI.
+Yes is the confirmation action, with no mandatory second Apply. Production enables
+the tab only after authenticated Intelligence settings report inbox=true; worker
+switches gate processing separately. There is no demo fallback on API failure.

@@ -7,7 +7,8 @@ export type ProposalStatus =
   | 'declined'
   | 'applied'
   | 'outdated'
-  | 'error';
+  | 'error'
+  | import('./intelligenceApi').IntelligenceStatus;
 
 export interface MemoryMatch {
   id: string;
@@ -18,6 +19,17 @@ export interface MemoryMatch {
 
 export interface InboxProposal {
   id: string;
+  version?: number;
+  statusLabel?:string;
+  statusMessage?:string;
+  resultMessage?:string;
+  sourceLabel?:string;
+  sourceAvailable?:boolean;
+  processingEnabled?:boolean;
+  actions?:{accept:boolean;reject:boolean;comment:boolean;reconsider:boolean;retry:boolean};
+  busy?:boolean;
+  uncertain?:boolean;
+  history?:{loading:boolean;error:string|null;entries:{version:number;kind:string;comment:string;createdAt:string;summary:string}[];hasMore:boolean};
   title: string;
   source: ProposalSourceType;
   sourceResourceTitle: string;
@@ -40,10 +52,19 @@ export interface MemoryInboxPresentation {
   proposals: readonly InboxProposal[];
   loading: boolean;
   error: string | null;
-  onAcceptProposal?: (id: string) => void | Promise<void>;
-  onRejectProposal?: (id: string) => void | Promise<void>;
-  onCommentProposal?: (id: string, comment: string) => void | Promise<void>;
-  onRetryProposal?: (id?: string) => void | Promise<void>;
+  notice?:string;
+  emptyMessage?:string;
+  hasMore?:boolean;
+  loadingMore?:boolean;
+  onMore?:()=>void;
+  onRefresh?:()=>void;
+  onOpenProposal?:(id:string)=>void;
+  onMoreHistory?:(id:string)=>void;
+  onReconsiderProposal?:(id:string)=>void | Promise<boolean>;
+  onAcceptProposal?: (id: string) => boolean | void | Promise<boolean | void>;
+  onRejectProposal?: (id: string) => boolean | void | Promise<boolean | void>;
+  onCommentProposal?: (id: string, comment: string) => boolean | void | Promise<boolean | void>;
+  onRetryProposal?: (id?: string) => boolean | void | Promise<boolean | void>;
   preview?: {
     filter: InboxPreviewFilter;
     filters: {id: InboxPreviewFilter; label: string}[];

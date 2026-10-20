@@ -199,6 +199,14 @@ export class LiveWorkspaceController {
   }catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}
  }
  async older(){if(this.state.busy||this.state.loading||!this.state.history.next_before)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.readHistory(this.state.history.next_before);if(epoch===this.epoch)this.set({history:{...page,messages:[...this.historyWithReasoning(page).messages,...this.state.history.messages].filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
+ // Receipt notifications trigger authoritative reads only; never synthesize saved memory from a plan.
+ async refreshMemory(){
+  if(this.abort.signal.aborted||this.state.capabilities?.memory_read!==true)return;
+  const epoch=this.epoch,signal=this.abort.signal;
+  try{const [memories,map]=await Promise.all([this.source.memories({limit:25},signal),this.source.map(signal)]);
+   if(epoch===this.epoch&&!signal.aborted)this.set({memories,map});
+  }catch(error){if(epoch===this.epoch&&!signal.aborted)this.failure(error);}
+ }
  async moreMemories(){if(this.state.loading||this.state.busy||this.state.memories.memories.length>=this.state.memories.total)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.source.memories({limit:25,offset:this.state.memories.memories.length},this.abort.signal);if(epoch===this.epoch)this.set({memories:{...page,memories:[...this.state.memories.memories,...page.memories].filter((m,i,a)=>a.findIndex(x=>x.uuid===m.uuid)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
  async send(content:string,onReady?:()=>void):Promise<boolean>{
   if(this.sendInProgress||this.state.busy||this.state.loading||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain)return false;

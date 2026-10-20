@@ -156,6 +156,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
 
+        {activeSection==='memory'&&runtime&&!runtime.memoryInboxAvailable&&model.memoryInbox?.error&&<p role="alert" className="px-4 py-2 text-sm border-b border-[var(--mroya-divider)]">{model.memoryInbox.error}<button type="button" className="ml-3 underline" onClick={model.memoryInbox.onRefresh}>Retry Inbox</button></p>}
         {activeSection === 'memory' && (
           <MemoryView
             key={model.memoryInbox?.scopeKey??'saved-memory'}

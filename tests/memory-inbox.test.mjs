@@ -139,3 +139,31 @@ test('shared UI and live modules do not import demo fixtures; production guard r
  const guard=readFileSync('scripts/check-production.mjs','utf8');
  for(const marker of ['INITIAL_PROPOSALS','Марк день рождения','Alpha_Spec_v2.gdoc'])assert.ok(guard.includes(marker));
 });
+
+test('live presentation renders real statuses and receipts in the shared Studio cards without demo controls',async()=>{
+ const {proposal,capabilities,runtime,operation}=await vite.ssrLoadModule('/tests/intelligence-fixture.ts');
+ const {proposalPresentation}=await vite.ssrLoadModule('/src/hooks/inboxAdapters.ts');
+ const {INBOX_STATUSES}=await vite.ssrLoadModule('/src/types/intelligenceApi.ts');
+ const model=workspace();
+ for(const status of INBOX_STATUSES){
+  const row=proposal({status}),item=proposalPresentation(row,capabilities,runtime);
+  if(status==='pending')item.errorMessage='Synthetic request error';
+  const inbox={available:true,scopeKey:'live-synthetic',proposals:[item],loading:false,error:null,onAcceptProposal:()=>{},onRejectProposal:()=>{},onCommentProposal:()=>false};
+  const props=memoryProps({...model.value,runtime:{memoryInboxAvailable:true},memoryInbox:inbox});
+  const page=mount(()=>MemoryView(props));page.flush();openInbox(page);
+  assert.ok(text(page.value).includes(item.statusLabel),status);assert.doesNotMatch(text(page.value),/Сброс демо|Визуальные состояния|Марк день рождения|совпадение|Применить в память/);
+  if(status==='pending_apply')assert.doesNotMatch(text(page.value),/Успешно сохранено/);
+  if(status==='pending'){
+   assert.equal(all(page.value,node=>node.type==='span'&&node.props.children===item.statusLabel).length,1,'Transport error must not duplicate the Backend status badge');
+   button(page.value,'Комментарий').props.onClick();page.flush();find(page.value,node=>node.type==='textarea').props.onChange({target:{value:'Keep draft after failed request'}});page.flush();
+   await button(page.value,'Отправить на повторный анализ').props.onClick();page.flush();assert.equal(find(page.value,node=>node.type==='textarea').props.value,'Keep draft after failed request');
+  }
+  page.unmount();
+ }
+ const item=proposalPresentation(proposal({status:'applied',apply:operation({links_saved:true})}),capabilities,runtime);
+ let opened=0;
+ const page=mount(()=>MemoryView({...memoryProps(model.value),inbox:{available:true,scopeKey:'receipt',proposals:[{...item,history:{loading:false,error:null,hasMore:false,entries:[{version:2,kind:'accept',comment:'Confirmed comment',createdAt:'2026-10-20',summary:'Backend decision'}]}}],loading:false,error:null,onOpenProposal:id=>{assert.equal(id,item.id);opened++;}}}));page.flush();openInbox(page);
+ assert.match(text(page.value),/Событие связано с памятью/);assert.doesNotMatch(text(page.value),/Успешно сохранено в долговременную память/);
+ find(page.value,node=>node.type==='details').props.onToggle({currentTarget:{open:true}});assert.equal(opened,1);assert.match(text(page.value),/Confirmed comment/);
+ page.unmount();model.unmount();assert.equal(requests,0);
+});

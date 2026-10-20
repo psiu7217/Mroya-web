@@ -4,6 +4,12 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     kind:'live',
+    intelligenceSettings:signal=>api.intelligenceSettings(signal),
+    intelligenceStatus:signal=>api.intelligenceStatus(signal),
+    inboxProposals:(offset,signal)=>api.inboxProposals(offset,signal),
+    inboxProposal:(id,signal)=>api.inboxProposal(id,signal),
+    inboxHistory:(id,offset,signal)=>api.inboxHistory(id,offset,signal),
+    inboxDecision:(id,action,body,signal)=>api.inboxDecision(id,action,body,signal),
     timezone:{
       initializeIfUnset:(timezone,signal)=>api.savePreferences({timezone,timezone_only_if_unset:true},signal),
       save:(timezone,signal)=>api.savePreferences({timezone},signal),

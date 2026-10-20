@@ -1,3 +1,5 @@
+import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
+import {readIntelligenceSettings,readIntelligenceRuntime,readIntelligenceProposal,readProposalPage,readProposalHistory,validateDecision} from './intelligence.ts';
 import type {GoogleConfiguration} from '../types/calendarApi.ts';
 import {calendarUuid,readCalendarEvent,readCalendarPage,readCalendarOperation,readGoogleConnection,readGoogleConnections,googleAuthorizationUrl} from './calendar.ts';
 import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
@@ -26,6 +28,18 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async intelligenceSettings(signal?:AbortSignal){return readIntelligenceSettings(await this.json('memory-intelligence/settings/',undefined,signal));}
+  async intelligenceStatus(signal?:AbortSignal){return readIntelligenceRuntime(await this.json('memory-intelligence/status/',undefined,signal));}
+  async inboxProposals(offset=0,signal?:AbortSignal){return readProposalPage(await this.json('memory-intelligence/proposals/?limit=50&offset='+offset,undefined,signal),offset);}
+  async inboxProposal(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');const v=await this.json<{proposal:unknown}>('memory-intelligence/proposals/'+id+'/',undefined,signal);return readIntelligenceProposal(v.proposal,id);}
+  async inboxHistory(id:string,offset=0,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');return readProposalHistory(await this.json('memory-intelligence/proposals/'+id+'/history/?limit=50&offset='+offset,undefined,signal),offset);}
+  async inboxDecision(id:string,action:ProposalDecision,body:DecisionBody,signal?:AbortSignal){
+    validateDecision(id,action,body);
+    const v=await this.json<{proposal:unknown;replayed:unknown}>('memory-intelligence/proposals/'+id+'/'+action+'/',body,signal);
+    if(typeof v.replayed!=='boolean')throw new ApiError(502,'invalid_response','Invalid decision confirmation.');
+    return {proposal:readIntelligenceProposal(v.proposal,id),replayed:v.replayed};
+  }
+
   async calendarEvents(start:string,end:string,offset=0,signal?:AbortSignal){
     return readCalendarPage(await this.json('calendar/events/?'+new URLSearchParams({start_date:start,end_date:end,limit:'100',offset:String(offset)}),undefined,signal));
   }

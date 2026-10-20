@@ -35,16 +35,16 @@ export class NotificationSettingsController {
  };
  setConnection=(connected:boolean|null)=>{
   if(!this.active||this.connection===connected)return;
-  const previous=this.connection;this.connection=connected;
-  if(connected===false){
-   // Unlink disables actions immediately, but never fabricates a persisted opt-out.
+  this.connection=connected;
+  if(connected!==null){
+   // Fence reads started before a binding transition, including fast reconnects.
+   // Unlink gates actions immediately without fabricating a persisted opt-out.
    if(this.state.saving)this.reconcile=true;
    if(this.state.testing)this.testUncertain=true;
    this.generation++;this.request?.abort();this.request=null;this.pending=null;
    this.emit({loading:false,saving:false,testing:false});
    void this.refresh();
   }
-  if(connected===true&&previous===false)void this.refresh();
  };
  private failure(error:unknown,action:Action){
   if(error instanceof ApiError&&error.status===401){this.stop();this.onExpired();return;}

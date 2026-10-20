@@ -150,3 +150,12 @@ test('disconnect does not prevent disabling a confirmed persisted opt-in; an unc
  const s=setup({saveNotificationSettings:async enabled=>{s.calls.patch.push(enabled);return settings();}});await s.c.refresh();s.c.setConnection(false);await settle();
  await s.c.toggle(false);assert.deepEqual(s.calls.patch,[false]);assert.equal(s.c.presentation().enabled,true);assert.ok(s.c.presentation().error);s.c.stop();
 });
+
+
+test('reconnect fences an in-flight disconnected settings response and reads the new binding',async()=>{
+ const wait=gate();let count=0;const s=setup({notificationSettings:async()=>++count===2?wait.promise:settings()});
+ await s.c.refresh();s.c.setConnection(false);await settle();s.c.setConnection(true);await settle();
+ assert.equal(count,3);assert.equal(s.c.presentation().connected,true);
+ wait.resolve({channels:{telegram:{...settings().channels.telegram,connected:false,delivery_ready:false}}});await settle();
+ assert.equal(s.c.presentation().connected,true);assert.equal(s.c.presentation().deliveryReady,true);s.c.stop();
+});

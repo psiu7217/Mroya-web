@@ -1,3 +1,5 @@
+import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
+import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
 import {EventAnalysisPreview} from './IntelligencePreviews';
 import type {CalendarPresentation} from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
@@ -66,6 +68,7 @@ interface CalendarViewProps {
   onNavigateToReminders?: () => void;
   googleCalendarConnected: boolean;
   gcalSyncState?: GoogleSyncState;
+  autoSync?:boolean;
   googleCalendarEmail?: string;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
@@ -119,7 +122,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onDeleteReminder,
   onSimulateGoogleSync,
   onNavigateToReminders,
-  gcalSyncState='disconnected',googleCalendarEmail='',
+  gcalSyncState='disconnected',googleCalendarEmail='',autoSync=false,googleCalendarConnected=false,
   isSidebarCollapsed,
   onExpandSidebar,
   onOpenMobileMenu,
@@ -130,7 +133,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     syncing:'Syncing',sync_error:'Sync error',conflict:'Conflict · Sync paused',reconnect_required:'Reconnect required',
   }[gcalSyncState];
   const googleStatusLabel=googleStatus+(!readOnly&&googleCalendarEmail&&!['disconnected','connecting'].includes(gcalSyncState)?` (${googleCalendarEmail})`:'');
-  const today=live||readOnly?new Date():new Date(2026,9,12);
+  const today=live||readOnly?(()=>{const [y,m,d]=dateInTimezone(new Date(),calendar?.timezone??'').split('-').map(Number);return calendarDate(y,m-1,d);})():new Date(2026,9,12);
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
   const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(today.getMonth());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'week'>('month');
@@ -158,6 +161,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(calendarKey(today));
   const [newTime, setNewTime] = useState('14:00');
+  const [newTimeError,setNewTimeError]=useState<string|null>(null),[editTimeError,setEditTimeError]=useState<string|null>(null);
+  const changeTime=(input:HTMLInputElement,set:(value:string)=>void,clear:()=>void)=>{
+    const raw=input.value,position=input.selectionStart??raw.length,value=maskCalendarTime(raw);
+    const digits=raw.slice(0,position).replace(/\D/g,'').length;set(value);clear();
+    const caret=Math.min(value.length,digits+(digits>2?1:0));
+    queueMicrotask(()=>{if(input.isConnected)input.setSelectionRange(caret,caret);});
+  };
+  const openNewEvent=()=>{if(readOnly||isNewModalOpen)return;setNewDate(calendarKey(calendarDate(currentYear,currentMonthIndex,selectedDay)));setNewTimeError(null);setIsNewModalOpen(true);};
   const [newCategory, setNewCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
   const [newPerson, setNewPerson] = useState(samples?.person??'');
   const [newNotes, setNewNotes] = useState('');
@@ -292,6 +303,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if(readOnly||calendar?.busy||calendar?.mutationPending||mutationRef.current||!newTitle.trim()||!validDate(newDate))return;
+    const timeError=calendarTimeError(newTime);setNewTimeError(timeError);if(timeError)return;
     mutationRef.current=true;
     try {
     pendingForm.current={kind:'create',signature:draftSignatures.current.create};
@@ -329,6 +341,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setViewingEvent(null);
     setEditTitle(event.title);
     setEditDate(event.date);
+    setEditTimeError(null);
     setEditTime(event.api?(event.api.start_time??'All day'):event.time);
     setEditDuration(event.duration || '1h');
     setEditCategory(event.category);
@@ -340,6 +353,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (readOnly || calendar?.busy || calendar?.mutationPending || mutationRef.current || !editingEvent || editingEvent.isReadOnly || !editTitle.trim() || !validDate(editDate)) return;
+    const timeError=calendarTimeError(editTime);setEditTimeError(timeError);if(timeError)return;
     const updatedDate=editDate;
     const updated: CalendarEvent = {
       ...editingEvent,
@@ -520,6 +534,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const formattedDayTitle = `${getDayOfWeekName(currentYear, currentMonthIndex, selectedDay)}, ${MONTH_NAMES[currentMonthIndex]} ${selectedDay}`;
 
   const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
+  useEffect(()=>{calendar?.upcoming?.onStartChange(calendarKey(selectedDate));},[calendar?.upcoming?.onStartChange,currentYear,currentMonthIndex,selectedDay]);
+  const upcoming=live?upcomingCalendarEvents(calendar?.upcoming?.events??[],calendarKey(selectedDate),calendar?.timezone??'',new Date()):designUpcomingCalendarEvents(events,calendarKey(selectedDate),today,doesEventOccurOnDate);
+  const showGoogleBanner=!(googleCalendarConnected&&autoSync&&!['disconnected','connecting','sync_error','conflict','reconnect_required'].includes(gcalSyncState));
   const weekDays=calendarWeek(selectedDate);
   const availableYears=calendarYears(currentYear);
 
@@ -579,7 +596,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <button
               type="button"
               onClick={() => setIsMonthPickerOpen(true)}
-              className="px-2.5 py-1 rounded-full hover:bg-[var(--mroya-surface)] flex items-center gap-1.5 transition-all cursor-pointer group"
+              className="w-[150px] sm:w-[160px] shrink-0 justify-center px-2.5 py-1 rounded-full hover:bg-[var(--mroya-surface)] flex items-center gap-1.5 transition-all cursor-pointer group"
               title="Click to jump to another month or year"
             >
               <span className="text-[15px] sm:text-[16px] font-bold text-[var(--mroya-text)] group-hover:text-[var(--mroya-primary)] transition-colors truncate">
@@ -667,7 +684,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             disabled={readOnly}
-            onClick={() => setIsNewModalOpen(true)}
+            onClick={openNewEvent}
             aria-label="New commitment"
             className="w-8 h-8 sm:w-auto sm:px-3.5 sm:py-1 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs hover:shadow-sm shrink-0"
           >
@@ -1069,10 +1086,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <button
                       type="button"
                       disabled={readOnly}
-                      onClick={() => {
-                        setNewDate(calendarKey(calendarDate(currentYear,currentMonthIndex,selectedDay)));
-                        if(!readOnly)setIsNewModalOpen(true);
-                      }}
+                      onClick={openNewEvent}
                       className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
                       + Add event
@@ -1342,7 +1356,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {/* DESKTOP CALENDAR VIEW (hidden on mobile, full workspace on desktop) */}
               <div className="hidden lg:block space-y-6">
                 {/* Google Calendar Connection Entry Point Banner */}
-                <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {showGoogleBanner && <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start sm:items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center shrink-0">
                       <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
@@ -1367,7 +1381,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <Link2 className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
                     <span>Manage connection</span>
                   </button>
-                </div>
+                </div>}
 
                 {/* Split Layout: Calendar Grid + Upcoming Commitments */}
                 <div className="grid grid-cols-12 gap-6 items-start">
@@ -1511,10 +1525,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         <button
                           type="button"
                           disabled={readOnly}
-                          onClick={() => {
-                            setNewDate(calendarKey(calendarDate(currentYear,currentMonthIndex,selectedDay)));
-                            if(!readOnly)setIsNewModalOpen(true);
-                          }}
+                          onClick={openNewEvent}
                           className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                         >
                           + Add event
@@ -1835,14 +1846,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         Upcoming commitments
                       </h3>
                       <div className="divide-y divide-[var(--mroya-divider)]">
-                        {events.map((ev) => (
+                        {live&&calendar?.upcoming?.error&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{calendar.upcoming.error} <button type="button" onClick={calendar.upcoming.onRetry} className="underline">Retry upcoming</button></p>}
+                        {!upcoming.length&&!calendar?.upcoming?.error&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{calendar?.upcoming?.loading?'Checking upcoming commitments…':'No upcoming commitments in the next 12 months.'}</p>}
+                        {upcoming.map((ev) => (
                           <button
                             key={ev.id}
                             type="button"
                             onClick={() => {
                               const [year,month,day]=ev.date.split('-').map(Number);
                               // Demo fixtures store recurring occurrence dayOfMonth separately from their series start date.
-                              selectDate(live||readOnly?year:today.getFullYear(),live||readOnly?month-1:today.getMonth(),live||readOnly?day:ev.dayOfMonth);
+                              selectDate(year,month-1,day);
                               setViewMode('month');
                             }}
                             className="w-full py-2.5 first:pt-0 last:pb-0 text-left flex items-start justify-between gap-3 hover:opacity-85 transition-opacity cursor-pointer"
@@ -1857,7 +1870,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             </div>
                             <div className="text-right shrink-0 tabular-nums">
                               <div className="text-[12px] font-semibold text-[var(--mroya-primary)]">
-                                {SHORT_MONTH_NAMES[live||readOnly?Number(ev.date.slice(5,7))-1:today.getMonth()]} {live||readOnly?Number(ev.date.slice(8,10)):ev.dayOfMonth}{live||readOnly?', '+ev.date.slice(0,4):''}
+                                {SHORT_MONTH_NAMES[Number(ev.date.slice(5,7))-1]} {Number(ev.date.slice(8,10))}{', '+ev.date.slice(0,4)}
                               </div>
                               <div className="text-[11px] text-[var(--mroya-text-muted)] flex items-center justify-end gap-1">
                                 <Clock className="w-3 h-3" />
@@ -1932,10 +1945,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <input
                     type="text"
                     placeholder="15:00"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
+                    aria-label="New event time"
+                    inputMode="numeric"
+                    maxLength={5}
+                    disabled={isAllDay(newTime)}
+                    aria-invalid={!!newTimeError}
+                    value={isAllDay(newTime)?'':newTime}
+                    onChange={(e) => changeTime(e.target,setNewTime,()=>setNewTimeError(null))}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
+                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(newTime)} onChange={e=>{setNewTime(e.target.checked?'All day':'14:00');setNewTimeError(null);}}/>All day</label>
+                  {newTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{newTimeError}</p>}
                 </div>
               </div>
 
@@ -2296,10 +2316,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
+                    aria-label="Edit event time"
+                    inputMode="numeric"
+                    maxLength={5}
+                    disabled={isAllDay(editTime)}
+                    aria-invalid={!!editTimeError}
+                    value={isAllDay(editTime)?'':editTime}
+                    onChange={(e) => changeTime(e.target,setEditTime,()=>setEditTimeError(null))}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
+                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(editTime)} onChange={e=>{setEditTime(e.target.checked?'All day':'14:00');setEditTimeError(null);}}/>All day</label>
+                  {editTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{editTimeError}</p>}
                 </div>
               </div>
 

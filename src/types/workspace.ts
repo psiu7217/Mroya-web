@@ -15,6 +15,7 @@ export interface ChatDiagnostics {
     onCopy:(message:import('./mroya').ChatMessage)=>void;
 }
 export interface CalendarPresentation {
+    upcoming?:{events:CalendarEvent[];loading:boolean;error:string|null;onStartChange:(date:string)=>void;onRetry:()=>void};
     loading:boolean;busy:boolean;mutationPending:boolean;error:string|null;timezone:string;
     onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;
     onLoadEventForEdit:(event:CalendarEvent)=>Promise<CalendarEvent|null>;

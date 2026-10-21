@@ -293,3 +293,12 @@ test('live Upcoming respects selected November date, displays December and navig
  assert.doesNotMatch(text(page.value),/OLD NOVEMBER/);assert.match(text(page.value),/December upcoming/);
  find(page.value,n=>n.type==='button'&&text(n).includes('December upcoming')).props.onClick();page.flush();find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();assert.equal(find(page.value,n=>n.type==='input'&&n.props.type==='date').props.value,`${year}-12-02`);page.unmount();view.unmount();
 });
+
+test('Calendar content swipes still change months; inner edge gesture is reserved for the mobile drawer',()=>{
+ const view=workspace(),page=mount(()=>CalendarView(calendar(view.value)));page.flush();
+ const gesture=(start,end)=>{page.value.props.onTouchStart({touches:[{clientX:start,clientY:200}]});page.value.props.onTouchEnd({changedTouches:[{clientX:end,clientY:205}]});page.flush();};
+ assert.match(text(page.value),/October/);gesture(220,100);assert.match(text(page.value),/November/);
+ gesture(100,220);assert.match(text(page.value),/October/);
+ gesture(24,180);assert.match(text(page.value),/October/);
+ page.unmount();view.unmount();
+});

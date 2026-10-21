@@ -377,7 +377,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const hasMessages = conversation && conversation.messages.length > 0;
 
   return (
-    <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
+    <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Compact Workspace Header */}
       <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0 bg-[var(--mroya-surface)] shadow-xs z-20">
         {/* Left: Mobile Burger + Mroya Brand Logo | Desktop Sidebar toggles + Conversation title */}
@@ -664,7 +664,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       </header>
 
       {/* Main Scrollable Conversation Area */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-8 py-5 sm:py-8">
+      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-3 sm:px-8 py-5 sm:py-8">
         <div className="max-w-[740px] mx-auto">
           {intro}
           {hasMessages ? (
@@ -675,7 +675,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 if (msg.sender === 'user') {
                   return (
                     <div key={msg.id} className="flex flex-col items-end">
-                      <div className="max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
+                      <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
                         <AssistantMarkdown content={msg.content} variant="user" />
                       </div>
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
@@ -1003,9 +1003,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {/* Optional attached document preview */}
             {attachedFile && (
               <div className="px-3.5 pt-3 pb-1 flex items-center gap-2">
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)]">
+                <div className="inline-flex max-w-full items-center gap-2 px-2.5 py-1 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)]">
                   <FileText className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                  <span className="font-medium">{attachedFile}</span>
+                  <span className="font-medium truncate min-w-0">{attachedFile}</span>
                   <button
                     type="button"
                     onClick={() => setAttachedFile(null)}

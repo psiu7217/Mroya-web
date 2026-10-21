@@ -494,6 +494,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Touch gestures: swipe left/right to change month/year
   const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    // Reserve the inner left edge for Workspace navigation; Safari owns the outer 16px.
+    if (e.touches.length === 1 && e.touches[0].clientX >= 16 && e.touches[0].clientX <= 36) return;
     if (e.touches.length === 1) {
       touchStartXRef.current = e.touches[0].clientX;
       touchStartYRef.current = e.touches[0].clientY;
@@ -548,6 +552,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div
       className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)] select-none relative"
+      data-workspace-swipe="calendar"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >

@@ -87,6 +87,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingRemindersCount,
   onOpenSettingsTab,
 }) => {
+  const [mobileViewport, setMobileViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setMobileViewport(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [saving, setSaving] = useState(false);
   const actionPending = useRef(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -837,20 +845,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Desktop Persistent Sidebar (expanded 264px or collapsed 68px rail with main icons) */}
       <div className="hidden lg:block h-full shrink-0">
-        {renderSidebar(isCollapsed)}
+        {!mobileViewport && renderSidebar(isCollapsed)}
       </div>
 
       {/* Mobile Navigation Drawer (always full width when open) */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
+      {mobileViewport && <div className="mroya-mobile-drawer fixed inset-0 z-50 lg:hidden flex" data-open={mobileOpen} inert={!mobileOpen} aria-hidden={!mobileOpen}>
           <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-[1px]"
+            className="mroya-mobile-backdrop fixed inset-0 bg-black/40 backdrop-blur-[1px]"
             onClick={onCloseMobile}
             aria-hidden="true"
           />
-          <div className="relative z-10 h-full">{renderSidebar(false)}</div>
-        </div>
-      )}
+          <div className="mroya-mobile-panel relative z-10 h-full">{renderSidebar(false)}</div>
+      </div>}
 
       {/* Delete Conversation Confirmation Dialog */}
       {deletingConversation && (

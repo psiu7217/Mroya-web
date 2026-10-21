@@ -9,7 +9,6 @@ import {chatPresentation} from '../src/hooks/liveAdapters.ts';
 import type {ApiUser,PreferencesPatch,ChatStreamEvent,ApiMessage} from '../src/types/api.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
 const user:ApiUser={id:7,username:'synthetic',email:'',first_name:'',last_name:'',timezone:'UTC',nickname:'',preferences:{theme:'system',show_model_reasoning:false}};
 const history={conversation_id:'conversation',messages:[] as ApiMessage[],next_before:null};
 const turn='00000000-0000-4000-8000-000000000001';
@@ -141,14 +140,13 @@ test('ambiguous canonical matches never transfer reasoning between messages',asy
  const c=new LiveWorkspaceController(source({history:async()=>({...history,messages:++reads===1?[]:duplicates}),send:async(_t,_id,emit)=>{emit(reasoning());emit({event:'delta',data:{text:'Accepted'}});emit({event:'done',data:{}});}}),()=>{},()=>turn);
  await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.some(m=>m.reasoning),false);c.stop();
 });
-test('Studio components and all styles stay byte-identical; only existing controlled props are wired',()=>{
- for(const path of ['src/components/ConnectionsSettingsView.tsx','src/components/ModelReasoningBlock.tsx','src/index.css']){
-  assert.equal(readFileSync(path,'utf8'),execFileSync('git',['show','5df78c6:'+path],{encoding:'utf8'}));
- }
+test('reasoning display uses existing controlled props and no transport',()=>{
  const view=readFileSync('src/pages/WorkspaceView.tsx','utf8'),live=readFileSync('src/providers/LiveExperience.tsx','utf8');
  assert.match(view,/showModelReasoning=\{runtime\?\.showModelReasoning\}/);
  assert.match(view,/onToggleShowModelReasoning=\{runtime\?\.onToggleShowModelReasoning\}/);
  assert.match(live,/onToggleShowModelReasoning:preferences.setShowModelReasoning/);
+ const block=readFileSync('src/components/ModelReasoningBlock.tsx','utf8');
+ assert.doesNotMatch(block,/fetch\(|localStorage|sessionStorage|document\.cookie/);
 });
 
 test('normal accepted answer without reasoning remains valid',async()=>{

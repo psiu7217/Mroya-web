@@ -1,3 +1,4 @@
+import {applyBrowserTheme} from '../utils/browserTheme.ts';
 import {useEffect,useState} from 'react';
 import type {ThemeMode} from '../types/mroya';
 
@@ -20,10 +21,10 @@ export function useWorkspaceLayout(options:{guest?:boolean;theme?:ThemeMode;onTh
   useEffect(()=>{
     if(typeof window==='undefined')return;
     const media=window.matchMedia?.('(prefers-color-scheme: dark)');
-    const apply=()=>{const value=resolvedTheme(theme,media?.matches===true);setAppearance(value);document.documentElement.setAttribute('data-theme',value);};
+    const apply=()=>{const value=resolvedTheme(theme,media?.matches===true);setAppearance(value);applyBrowserTheme(value);};
     apply();
     media?.addEventListener?.('change',apply);
-    return()=>{media?.removeEventListener?.('change',apply);document.documentElement.removeAttribute('data-theme');};
+    return()=>{media?.removeEventListener?.('change',apply);};
   },[theme]);
   const selectTheme=(value:ThemeMode)=>{
     if(options.onThemeChange)options.onThemeChange(value);

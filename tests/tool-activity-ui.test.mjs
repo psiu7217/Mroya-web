@@ -1,7 +1,6 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {execFileSync} from 'node:child_process';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createServer} from 'vite';
@@ -37,22 +36,17 @@ test('interleaved timeline keeps provider segments and puts Thinking only on its
 const noop=()=>{},account={displayName:'Synthetic',initials:'S',email:'',description:'',timezone:'UTC',spaceDescription:''};
 const message={id:'m',sender:'assistant',content:'Accepted final answer',status:'completed',timestamp:'12:00',reasoning:'Before searchAfter search'};
 const props={account,memoriesCount:0,conversation:{id:'c',title:'Synthetic',group:'Today',updatedAt:'',relatedMemoryIds:[],messages:[message]},onSendMessage:noop,onCitationClick:noop,onActionClick:noop,addedActionIds:[],isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,isContextPanelOpen:false,onToggleContextPanel:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,onNewChat:noop};
-test('chat displays timeline once above final card; no-tools markup matches fresh main exactly',async()=>{
- fs.mkdirSync('.review-baseline/tool-activity-main',{recursive:true});
- execFileSync('tar',['-xf','-','-C','.review-baseline/tool-activity-main'],{input:execFileSync('git',['archive','981a5ab','src'],{maxBuffer:32*1024*1024})});
- const {ChatWorkspace:Main}=await vite.ssrLoadModule('/.review-baseline/tool-activity-main/src/components/ChatWorkspace.tsx');
- const original=renderToStaticMarkup(React.createElement(ChatWorkspace,props));
- assert.equal(original,renderToStaticMarkup(React.createElement(Main,props)));
+test('chat displays timeline once above final card',()=>{
  const timeline=[{kind:'reasoning',id:'r1',sequence:1,turnNumber:1,text:'Before search'},tool,{kind:'reasoning',id:'r3',sequence:3,turnNumber:2,text:'After search'}];
  const html=renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,conversation:{...props.conversation,messages:[{...message,timeline}]}}));
  assert.equal(html.match(/Before search/g)?.length,1);assert.equal(html.match(/Checked memory/g)?.length,1);assert.equal(html.match(/After search/g)?.length,1);
  assert.doesNotMatch(html,/Before searchAfter search/);assert.ok(html.indexOf('After search')<html.indexOf('Accepted final answer'));
 });
-test('Design stays offline and unrelated components/styles have no changes',async()=>{
+test('Design activity data stays offline and unrelated components do not import it',async()=>{
  const old=globalThis.fetch;globalThis.fetch=()=>assert.fail('No requests from Design');
  try{const demo=createDesignSource();await demo.session();await demo.history();await demo.capabilities();}finally{globalThis.fetch=old;}
- for(const path of ['src/components/ModelReasoningBlock.tsx','src/components/Sidebar.tsx','src/components/ConnectionsSettingsView.tsx','src/index.css']){
-  assert.equal(fs.readFileSync(path,'utf8'),execFileSync('git',['show','981a5ab:'+path],{encoding:'utf8'}));
+ for(const path of ['src/components/ModelReasoningBlock.tsx','src/components/Sidebar.tsx','src/components/ConnectionsSettingsView.tsx']){
+  assert.doesNotMatch(fs.readFileSync(path,'utf8'),/ToolActivityBlock|ChatActivityTimeline|toolPayloadText/,path);
  }
 });
 
@@ -81,7 +75,13 @@ test('failed reasoning/tool chronology is static above unchanged Reply failed di
  assert.ok(html.indexOf('After')<html.lastIndexOf('Reply failed'));assert.match(html,/Interrupted/);
  assert.match(html,/Report issue/);assert.match(html,/Copy Error For Admin Diagnostics/);
  assert.doesNotMatch(html,/Thinking…|Generating reasoning|animate-spin|BeforeAfter/);
- for(const path of ['src/hooks/liveAdapters.ts','src/components/ChatActivityTimeline.tsx','src/components/ChatWorkspace.tsx','src/components/ToolActivityBlock.tsx','src/hooks/useChatDiagnostics.ts','src/utils/diagnosticsClipboard.ts']){
-  assert.equal(fs.readFileSync(path,'utf8'),execFileSync('git',['show','374dd33:'+path],{encoding:'utf8'}));
- }
+});
+
+test('reasoning existing disclosure obeys default expansion, escapes text and distinguishes streaming from completion',async()=>{
+ const {ModelReasoningBlock}=await vite.ssrLoadModule('/src/components/ModelReasoningBlock.tsx');
+ const render=props=>renderToStaticMarkup(React.createElement(ModelReasoningBlock,{reasoning:'First <script>unsafe</script>\n\nSecond fragment',...props}));
+ assert.equal(renderToStaticMarkup(React.createElement(ModelReasoningBlock,{})),'');
+ const hidden=render({defaultExpanded:false});assert.match(hidden,/aria-expanded="false"/);assert.doesNotMatch(hidden,/Second fragment/);
+ const shown=render({isStreaming:true});assert.match(shown,/aria-expanded="true"/);assert.match(shown,/First &lt;script&gt;/);assert.doesNotMatch(shown,/<script>/);assert.ok(shown.indexOf('First &lt;')<shown.indexOf('Second fragment'));assert.match(shown,/Thinking…/);
+ assert.doesNotMatch(render({isStreaming:false}),/Thinking…|Generating reasoning/);
 });

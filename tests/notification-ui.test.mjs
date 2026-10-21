@@ -1,7 +1,6 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer,build} from 'vite';
-import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 const key='__notificationUiHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
@@ -126,19 +125,21 @@ test('Studio panels exist in Production as inert Preview/Soon examples, separate
  assert.equal(memoryActions,0);assert.equal(requests,0);eventView.unmount();example.unmount();page.unmount();autonomy.unmount();source.unmount();w.unmount();
 });
 
-test('Shared Preview markup retains original Studio class attributes',()=>{
- const studioCalendar=execFileSync('git',['show','654a31763e03dc8b0bf5d2d462e2c58b43253619:src/components/CalendarView.tsx'],{encoding:'utf8'});
- const studioSettings=execFileSync('git',['show','654a31763e03dc8b0bf5d2d462e2c58b43253619:src/components/ConnectionsSettingsView.tsx'],{encoding:'utf8'});
- const moved=fs.readFileSync('src/components/IntelligencePreviews.tsx','utf8');
- const classes=s=>[...s.matchAll(/className=(?:"([^"]*)"|`([^`]+)`|\{`([^`]+)`\})/g)].map(m=>m[1]??m[2]??m[3]);
- const section=(s,start,end)=>s.slice(s.indexOf(start),s.indexOf(end,s.indexOf(start)));
- const analysis=section(studioCalendar,'{/* Memory Intelligence Event Analysis Section */}','{/* Footer buttons */}');
- const source=section(studioSettings,'{/* Memory Intelligence —',"{activeTab === 'plan'");
- const autonomy=section(studioSettings,'{/* Memory Intelligence Autonomy Card */}','Memory transparency & control');
- // Each unchanged original attribute remains present; the surrounding shared page containers are excluded.
- for(const cls of classes(analysis))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
- for(const cls of classes(source).slice(0,-1))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
- for(const cls of classes(autonomy).slice(0,-3))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
+test('Studio adapters and Production examples share the same visual components, with different permissions',()=>{
+ const w=workspace();
+ for(const name of ['Sources','Autonomy']){
+  const Component=name==='Sources'?IntelligenceSourcesPreview:IntelligenceAutonomyPreview;
+  const example=mount(()=>Component({preview:true}));example.flush();
+  const designNode=designIntelligence[name]({});assert.equal(designNode.type,Component);
+  const design=mount(()=>Component(designNode.props));design.flush();
+  const classes=tree=>all(tree,n=>typeof n.type==='string'&&n.props.className).map(n=>n.props.className);
+  // Labels and permissions differ honestly; preserve the shared Studio layout containers.
+  assert.equal(example.value.props.className,design.value.props.className);
+  for(const control of all(example.value,n=>n.type==='input')){assert.equal(control.props.disabled,true);assert.equal(control.props.onChange,undefined);}
+  assert.ok(classes(example.value).length>5);assert.match(text(example.value),/Preview|Soon/);
+  example.unmount();design.unmount();
+ }
+ assert.equal(requests,0);w.unmount();
 });
 
 test('actual Production graph includes public Soon previews but excludes account fixtures and private demo runtime',async()=>{

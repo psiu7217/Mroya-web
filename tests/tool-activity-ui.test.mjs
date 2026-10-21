@@ -76,3 +76,12 @@ test('failed reasoning/tool chronology is static above unchanged Reply failed di
  assert.match(html,/Report issue/);assert.match(html,/Copy Error For Admin Diagnostics/);
  assert.doesNotMatch(html,/Thinking…|Generating reasoning|animate-spin|BeforeAfter/);
 });
+
+test('reasoning existing disclosure obeys default expansion, escapes text and distinguishes streaming from completion',async()=>{
+ const {ModelReasoningBlock}=await vite.ssrLoadModule('/src/components/ModelReasoningBlock.tsx');
+ const render=props=>renderToStaticMarkup(React.createElement(ModelReasoningBlock,{reasoning:'First <script>unsafe</script>\n\nSecond fragment',...props}));
+ assert.equal(renderToStaticMarkup(React.createElement(ModelReasoningBlock,{})),'');
+ const hidden=render({defaultExpanded:false});assert.match(hidden,/aria-expanded="false"/);assert.doesNotMatch(hidden,/Second fragment/);
+ const shown=render({isStreaming:true});assert.match(shown,/aria-expanded="true"/);assert.match(shown,/First &lt;script&gt;/);assert.doesNotMatch(shown,/<script>/);assert.ok(shown.indexOf('First &lt;')<shown.indexOf('Second fragment'));assert.match(shown,/Thinking…/);
+ assert.doesNotMatch(render({isStreaming:false}),/Thinking…|Generating reasoning/);
+});

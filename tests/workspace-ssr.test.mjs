@@ -19,7 +19,10 @@ after(async()=>{await vite.close();});
  test('every seed and section renders inside the shared shell',()=>{
   for(const seed of ['filled','empty'])for(const section of ['chat','calendar','reminders','memory','memory-map','connections']){
    const html=render(seed,section);
-   assert.ok(html.length>100,seed+':'+section);
+   const main=html.slice(html.indexOf('<main'));
+   const marker={chat:'mroya-chat-composer',calendar:'New commitment',reminders:'Reminders',memory:'Search memories','memory-map':'Memory Map',connections:'Connections &amp; Account'}[section];
+   assert.ok(main.includes(marker),seed+':'+section);
+   const ids=[...html.matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length,seed+':'+section);
    assert.equal((html.match(/aria-label="Primary Sidebar Navigation"/g)||[]).length,1,seed+':'+section);
    assert.equal((html.match(/<main\b/g)||[]).length,1,seed+':'+section);
    assert.match(html,/aria-label="Primary Sidebar Navigation"/,seed+':'+section);
@@ -36,6 +39,6 @@ after(async()=>{await vite.close();});
  });
  test('all preserved sections render in filled and empty scenarios',()=>{
   for(const seed of ['filled','empty'])for(const section of ['chat','memory','memory-map','calendar','reminders','connections'])assert.ok(render(seed,section).length>100);
-  assert.ok(render('empty','memory-map').includes('class="map-state"'));
+  assert.ok(render('empty','memory-map').includes('Your map will grow as Mroya remembers more about your world.'));
  });
 }

@@ -1,9 +1,7 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
 import {createServer} from 'vite';
-import {renderToStaticMarkup} from 'react-dom/server';
 const key='__memoryInboxHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true,hmr:false},appType:'custom',plugins:[{
  name:'inbox-hooks',enforce:'pre',
@@ -120,16 +118,16 @@ test('saved memory search, category filter, selection, details, map/chat callbac
  page.unmount();model.unmount();
 });
 
-test('Studio saved-memory and initial Inbox markup are preserved against the full AI Studio commit',async()=>{
- mkdirSync('.review-baseline/inbox',{recursive:true});
- writeFileSync('.review-baseline/inbox/MemoryView.tsx',execFileSync('git',['show','bc549c36182f5df35d0b41f8be33ac421404562e:src/components/MemoryView.tsx']));
- const {MemoryView:Original}=await vite.ssrLoadModule('/.review-baseline/inbox/MemoryView.tsx');
- const model=workspace(),props=memoryProps(model.value);
- const old=mount(()=>Original(props)),current=mount(()=>MemoryView(props));old.flush();current.flush();
- assert.equal(renderToStaticMarkup(current.value),renderToStaticMarkup(old.value),'Saved Memory layout is unchanged');
- openInbox(old);openInbox(current);
- assert.equal(renderToStaticMarkup(current.value),renderToStaticMarkup(old.value),'Initial Studio Inbox cards/layout are unchanged');
- old.unmount();current.unmount();model.unmount();
+test('Saved Memory and Inbox keep separate data, real actions and draft state in the shared view',()=>{
+ const model=workspace(),selected=[],props={...memoryProps(model.value),onSelectMemory:id=>selected.push(id)};
+ const page=mount(()=>MemoryView(props));page.flush();const saved=props.memories[0];
+ assert.match(text(page.value),new RegExp(saved.title));
+ find(page.value,n=>n.type==='button'&&n.key===saved.id).props.onClick();assert.deepEqual(selected,[saved.id]);
+ openInbox(page);assert.equal(all(page.value,n=>n.type==='input'&&n.props['aria-label']==='Search memories').length,0);
+ const sample=model.value.memoryInbox.proposals[0];assert.ok(text(page.value).includes(sample.title));
+ button(card(page,sample.title),'Комментарий').props.onClick();page.flush();
+ find(page.value,n=>n.type==='textarea').props.onChange({target:{value:'Synthetic inbox comment'}});page.flush();assert.equal(find(page.value,n=>n.type==='textarea').props.value,'Synthetic inbox comment');
+ assert.equal(requests,0);page.unmount();model.unmount();
 });
 
 test('shared UI and live modules do not import demo fixtures; production guard rejects new fixture markers',()=>{

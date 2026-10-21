@@ -53,7 +53,7 @@ test('live shows unavailable services/plan/memory controls without fake successe
  assert.equal((connections.match(/>Coming soon<\/button>/g)||[]).length,2);
  assert.match(connections,/Checking Telegram connection/);
  assert.doesNotMatch(connections,/Connected \(|Disconnect preview|alex@|lindqvist|Saved<|Enabled</);
- assert.ok((connections.match(/disabled=""/g)||[]).length>=6,'unavailable controls stay disabled');
+ for(const control of connections.matchAll(/<button([^>]*)>Coming soon<\/button>/g))assert.match(control[1],/disabled=""/,'every unavailable action is disabled');
  assert.match(connections,/<input[^>]*aria-label="Telegram notifications"[^>]*disabled=""/);
  assert.match(connections,/<button[^>]*title="Refresh status"[^>]*disabled=""/);
  assert.match(connections,/<button[^>]*disabled=""[^>]*>Send test notification<\/button>/);

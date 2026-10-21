@@ -13,8 +13,7 @@ const vite=await createServer({mode:'design',server:{middlewareMode:true},appTyp
  load(id){
   if(id==='\0virtual:map-selection-hooks')return `import React from 'react';export default React;
    ${['useState','useRef','useMemo','useEffect'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}`;
-  if(id==='\0virtual:map-selection-renderer')return `export const defaults={repulsion:235,linkDistance:126,center:28};
-   export const createMemoryMapRenderer=async(host,callbacks)=>globalThis.${key}.createRenderer(callbacks);`;
+
  },
 }]});
 after(async()=>{delete globalThis[key];await vite.close();});

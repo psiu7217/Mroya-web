@@ -114,6 +114,7 @@ export interface WorkspaceModel {
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     calendar?:CalendarPresentation;
+    privacy?:import('../types/privacy').PrivacyPresentation;
     googleCalendarAvailable?:boolean;
     googleCalendarBusy?:boolean;
     googleCalendarNotice?:string;

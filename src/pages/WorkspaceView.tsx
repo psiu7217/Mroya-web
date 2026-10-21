@@ -258,7 +258,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       {planModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
           <DialogFocus
-            onClose={() => onClosePlanPreview({} as React.MouseEvent<HTMLButtonElement>)}
+            onClose={() => document.querySelector<HTMLButtonElement>('[data-plan-preview-close]')?.click()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="plan-preview-title"
@@ -277,6 +277,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               </div>
               <button
                 type="button"
+                data-plan-preview-close
                 onClick={onClosePlanPreview}
                 aria-label="Close plan modal"
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"

@@ -9,7 +9,9 @@ type DialogFocusProps = React.ComponentPropsWithoutRef<'div'> & { onClose: () =>
  */
 export function DialogFocus({ onClose, children, ...props }: DialogFocusProps) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => trapDialogFocus(ref.current, onClose), []);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => trapDialogFocus(ref.current, () => close.current()), []);
   return (
     <div ref={ref} {...props}>
       {children}

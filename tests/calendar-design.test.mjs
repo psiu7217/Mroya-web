@@ -302,3 +302,19 @@ test('Calendar content swipes still change months; inner edge gesture is reserve
  gesture(24,180);assert.match(text(page.value),/October/);
  page.unmount();view.unmount();
 });
+
+for(const kind of ['create','edit','delete'])test(`${kind} dialog cannot discard its form via Escape/backdrop/cancel while saving or unresolved`,async()=>{
+ const view=workspace(),existing={...event,id:'protected-modal',date:'2024-02-12',dayOfMonth:12,recurrence:{frequency:'daily',interval:1,endCondition:'never'}};
+ let props={...calendar(view.value),events:[existing],readOnly:false,calendar:{loading:false,busy:false,mutationPending:false,error:null,timezone:'UTC',onRangeChange(){},onLoadEventForEdit:async()=>existing,onRetry:async()=>false}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ if(kind==='create')button(page.value,'+ Add event').props.onClick();else{button(page.value,'Month').props.onClick();page.flush();await find(page.value,n=>n.type==='button'&&n.props.title===(kind==='edit'?'Edit commitment':'Delete commitment')).props.onClick();}page.flush();
+ const label={create:'new-event-title',edit:'edit-event-title',delete:'delete-event-dialog-title'}[kind];
+ for(const patch of [{busy:true,mutationPending:false},{busy:false,mutationPending:true}]){
+  props={...props,calendar:{...props.calendar,...patch}};page.flush();let dialog=find(page.value,n=>n.props?.['aria-labelledby']===label);
+  dialog.props.onClose();dialog.props.onClick?.();page.flush();assert.ok(find(page.value,n=>n.props?.['aria-labelledby']===label));
+  button(find(page.value,n=>n.props?.['aria-labelledby']===label),'Cancel').props.onClick();page.flush();assert.ok(find(page.value,n=>n.props?.['aria-labelledby']===label));
+ }
+ props={...props,calendar:{...props.calendar,busy:false,mutationPending:false}};page.flush();find(page.value,n=>n.props?.['aria-labelledby']===label).props.onClose();page.flush();assert.equal(all(page.value,n=>n.props?.['aria-labelledby']===label).length,0);
+ page.unmount();view.unmount();
+});
+

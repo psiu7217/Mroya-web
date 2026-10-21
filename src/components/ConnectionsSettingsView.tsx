@@ -22,6 +22,8 @@ import {
   CheckCircle2,
   ArrowRightLeft,
   ExternalLink,
+  Bell,
+  Clock,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
@@ -179,6 +181,23 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     setCustomTimezoneOpen(false);setSelectedTimezone(nextTz);
     (onChangeTimezone??timezoneSettings?.onChange)?.(nextTz);
   };
+
+  // Telegram Notifications UI state (pure visual design)
+  const [tgNotificationsEnabled, setTgNotificationsEnabled] = React.useState(true);
+  const [tgNotificationState, setTgNotificationState] = React.useState<'Ready' | 'Queued' | 'Delivered' | 'Failed' | 'Loading' | 'Disabled' | 'Unavailable'>('Ready');
+
+  // Memory Intelligence autonomy settings
+  const [autonomyLevel, setAutonomyLevel] = React.useState<'manual' | 'auto_link' | 'auto_save'>('auto_link');
+  const [autonomySaveStatus, setAutonomySaveStatus] = React.useState<'saving' | 'saved' | 'error'>('saved');
+
+  // Memory Intelligence source permissions state
+  const [calendarAnalysisEnabled, setCalendarAnalysisEnabled] = React.useState(true);
+  const [calendarAnalysisSpecific, setCalendarAnalysisSpecific] = React.useState<Record<string, boolean>>({
+    work: true,
+    personal: false,
+    holidays: false,
+  });
+
   const visibleConnections = live ? PLANNED_CONNECTIONS : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
@@ -739,6 +758,174 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       {state?.link && state.openFallback && <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] whitespace-nowrap">Open Telegram</a>}
                       {state?.link && state.openFallback && <p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">Telegram could not open automatically. Your browser may have blocked the tab. Use Open Telegram to continue.</p>}
                       {state?.error && <p role="alert" className="text-[12px] text-[var(--mroya-error)]">{state.error}</p>}
+
+                      {/* Telegram notifications visual management block */}
+                      {isTelegram && connected && (
+                        <div className="mt-4 pt-4 border-t border-[var(--mroya-divider)] space-y-3">
+                          {/* Design Mode Scenario Toolbar for Notifications */}
+                          {!live && (
+                            <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-1.5">
+                              <div className="flex items-center justify-between text-[11px] text-[var(--mroya-text-muted)] font-semibold">
+                                <span className="flex items-center gap-1 text-[var(--mroya-brand-honey)]">
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>Состояния Telegram Notifications:</span>
+                                </span>
+                                <span className="font-normal opacity-80">Переключение для дизайн-ревью</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {(['Ready', 'Queued', 'Delivered', 'Failed', 'Loading', 'Disabled', 'Unavailable'] as const).map((st) => (
+                                  <button
+                                    key={st}
+                                    type="button"
+                                    onClick={() => {
+                                      setTgNotificationState(st);
+                                      if (st === 'Disabled') setTgNotificationsEnabled(false);
+                                      else setTgNotificationsEnabled(true);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-[5px] text-[11px] font-medium border transition-colors cursor-pointer ${
+                                      tgNotificationState === st
+                                        ? 'bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] border-[var(--mroya-primary)] font-semibold shadow-2xs'
+                                        : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)]'
+                                    }`}
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Section Header */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h4 className="text-[14px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
+                                <Bell className="w-4 h-4 text-[var(--mroya-primary)]" />
+                                <span>Telegram notifications</span>
+                              </h4>
+                              <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5">
+                                Receive notifications from Mroya in Telegram
+                              </p>
+                            </div>
+
+                            {/* Switch: Notifications */}
+                            <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+                              <span className="text-[12px] font-medium text-[var(--mroya-text)] hidden sm:inline">
+                                Notifications
+                              </span>
+                              <div className="relative inline-flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={tgNotificationsEnabled}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setTgNotificationsEnabled(checked);
+                                    setTgNotificationState(checked ? 'Ready' : 'Disabled');
+                                  }}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-9 h-5 bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--mroya-text)] peer-checked:after:bg-[var(--mroya-on-primary)] peer-checked:bg-[var(--mroya-primary)] after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                              </div>
+                            </label>
+                          </div>
+
+                          {/* Status Area and Test Action Row */}
+                          <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] space-y-2.5">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              {/* Status of last notification */}
+                              <div className="flex items-center gap-2 text-[12px]">
+                                <span className="text-[var(--mroya-text-muted)]">Статус:</span>
+                                {tgNotificationState === 'Loading' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-[var(--mroya-text)]">
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[var(--mroya-primary)]" />
+                                    <span>Sending test notification…</span>
+                                  </span>
+                                )}
+                                {tgNotificationState === 'Ready' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Ready · Bot connected</span>
+                                  </span>
+                                )}
+                                {tgNotificationState === 'Queued' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Queued · 1 notification in queue</span>
+                                  </span>
+                                )}
+                                {tgNotificationState === 'Delivered' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Delivered · Test alert received</span>
+                                  </span>
+                                )}
+                                {tgNotificationState === 'Failed' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    <span>Delivery failed</span>
+                                  </span>
+                                )}
+                                {tgNotificationState === 'Unavailable' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-zinc-500">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span>Service unavailable</span>
+                                  </span>
+                                )}
+                                {tgNotificationState === 'Disabled' && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-[var(--mroya-text-muted)]">
+                                    <span>Notifications disabled</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Compact Refresh and Test Buttons */}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  title="Refresh status"
+                                  onClick={() => {
+                                    setTgNotificationState('Loading');
+                                    setTimeout(() => setTgNotificationState('Ready'), 600);
+                                  }}
+                                  className="p-1.5 rounded-[6px] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!tgNotificationsEnabled || tgNotificationState === 'Loading' || tgNotificationState === 'Unavailable'}
+                                  onClick={() => {
+                                    setTgNotificationState('Loading');
+                                    setTimeout(() => setTgNotificationState('Delivered'), 700);
+                                  }}
+                                  className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-50 text-[var(--mroya-on-primary)] transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+                                >
+                                  Send test notification
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Error display and Retry area */}
+                            {tgNotificationState === 'Failed' && (
+                              <div className="pt-2 border-t border-red-500/20 flex items-center justify-between gap-2 text-[12px] text-red-600 dark:text-red-400">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Network timeout or bot blocked by user settings.</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTgNotificationState('Loading');
+                                    setTimeout(() => setTgNotificationState('Ready'), 600);
+                                  }}
+                                  className="px-2.5 py-1 rounded-[6px] bg-red-600 hover:bg-red-700 text-white font-semibold text-[11px] shrink-0 cursor-pointer shadow-xs"
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -756,6 +943,121 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   </div>
                 );})}
               </div>
+
+              {/* Memory Intelligence — Разрешения источников данных */}
+              {!live && (
+                <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <Brain className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
+                    <div>
+                      <h3 className="text-[15px] font-semibold text-[var(--mroya-text)]">
+                        Memory Intelligence · Разрешения источников
+                      </h3>
+                      <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
+                        Укажите, из каких подключенных источников и календарей AI разрешено анализировать события и извлекать факты.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[var(--mroya-divider)] space-y-3">
+                    {/* Google Calendar Master Switch */}
+                    <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className="text-[13.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
+                          <span>Google Calendar — Анализ событий</span>
+                        </div>
+                        <p className="text-[12px] text-[var(--mroya-text-muted)]">
+                          Разрешить модели анализировать встречи для поиска новых договоренностей и фактов
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={calendarAnalysisEnabled}
+                          onChange={(e) => setCalendarAnalysisEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--mroya-text)] peer-checked:after:bg-[var(--mroya-on-primary)] peer-checked:bg-[var(--mroya-primary)] after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                      </label>
+                    </div>
+
+                    {/* Granular Calendar Permissions */}
+                    {calendarAnalysisEnabled && (
+                      <div className="pl-3 border-l-2 border-[var(--mroya-primary)]/40 space-y-2 pt-1 animate-in fade-in duration-150">
+                        <div className="text-[11.5px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
+                          Разрешения для конкретных календарей:
+                        </div>
+                        <div className="space-y-1.5">
+                          {[
+                            { id: 'work', name: 'Рабочий календарь (Work)', desc: 'Встречи, клиенты, спринты и договоренности', defaultActive: true },
+                            { id: 'personal', name: 'Личный календарь (Personal)', desc: 'Личные планы, тренировки и частные дела', defaultActive: false },
+                            { id: 'holidays', name: 'Праздники и контакты', desc: 'Дни рождения и государственные праздники', defaultActive: false },
+                          ].map((cal) => {
+                            const isActive = calendarAnalysisSpecific[cal.id] ?? cal.defaultActive;
+                            return (
+                              <label
+                                key={cal.id}
+                                className="flex items-center justify-between p-2.5 rounded-[8px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] cursor-pointer transition-colors"
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <div className="text-[13px] font-medium text-[var(--mroya-text)] truncate">
+                                    {cal.name}
+                                  </div>
+                                  <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
+                                    {cal.desc}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`text-[11px] font-semibold ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--mroya-text-muted)]'}`}>
+                                    {isActive ? 'Анализировать' : 'Игнорировать'}
+                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    checked={isActive}
+                                    onChange={() =>
+                                      setCalendarAnalysisSpecific((prev) => ({
+                                        ...prev,
+                                        [cal.id]: !isActive,
+                                      }))
+                                    }
+                                    className="w-4 h-4 rounded text-[var(--mroya-primary)] accent-[var(--mroya-primary)] cursor-pointer"
+                                  />
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Future Sources placeholders */}
+                    <div className="pt-2 border-t border-[var(--mroya-divider)] space-y-2">
+                      <div className="text-[11.5px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
+                        Планируемые источники для Memory Intelligence:
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+                        <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/40 border border-[var(--mroya-divider)] flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[var(--mroya-text)]">Gmail (Анализ писем)</span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[var(--mroya-surface)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
+                            В разработке
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/40 border border-[var(--mroya-divider)] flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-[var(--mroya-text)]">Google Drive (Документы)</span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[var(--mroya-surface)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
+                            В разработке
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1107,6 +1409,191 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Memory Intelligence Autonomy Card */}
+              <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
+                    <div>
+                      <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+                        Автономность Memory Intelligence
+                      </h2>
+                      <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
+                        Управление уровнем самостоятельности AI при извлечении и фиксации фактов в памяти.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Save Status Indicator */}
+                  <div className="text-[12px]">
+                    {autonomySaveStatus === 'saving' && (
+                      <span className="inline-flex items-center gap-1.5 text-[var(--mroya-text-muted)] font-medium">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[var(--mroya-primary)]" />
+                        <span>Сохранение…</span>
+                      </span>
+                    )}
+                    {autonomySaveStatus === 'saved' && (
+                      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Сохранено</span>
+                      </span>
+                    )}
+                    {autonomySaveStatus === 'error' && (
+                      <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400 font-semibold">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Ошибка сохранения</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3 Autonomy Levels */}
+                <div className="grid grid-cols-1 gap-2.5 pt-2">
+                  {/* Option 1: Manual */}
+                  <label
+                    onClick={() => {
+                      setAutonomyLevel('manual');
+                      setAutonomySaveStatus('saved');
+                    }}
+                    className={`p-3.5 rounded-[10px] border cursor-pointer transition-colors block ${
+                      autonomyLevel === 'manual'
+                        ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)]'
+                        : 'bg-[var(--mroya-surface-muted)]/60 hover:bg-[var(--mroya-surface-muted)] border-[var(--mroya-divider)]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <input
+                          type="radio"
+                          name="memory_autonomy"
+                          checked={autonomyLevel === 'manual'}
+                          onChange={() => {
+                            setAutonomyLevel('manual');
+                            setAutonomySaveStatus('saved');
+                          }}
+                          className="mt-1 w-4 h-4 text-[var(--mroya-primary)] accent-[var(--mroya-primary)]"
+                        />
+                        <div>
+                          <div className="text-[13.5px] font-semibold text-[var(--mroya-text)]">
+                            Ручное подтверждение
+                          </div>
+                          <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
+                            Все предложения требуют явного нажатия «Да» в Memory Inbox. Модель ничего не сохраняет и не связывает без вашего одобрения.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Option 2: Automatic Links (Recommended — Visual Accent) */}
+                  <label
+                    onClick={() => {
+                      setAutonomyLevel('auto_link');
+                      setAutonomySaveStatus('saved');
+                    }}
+                    className={`p-3.5 rounded-[10px] border-2 cursor-pointer transition-colors block relative ${
+                      autonomyLevel === 'auto_link'
+                        ? 'bg-[var(--mroya-primary)]/10 border-[var(--mroya-primary)] shadow-xs'
+                        : 'bg-[var(--mroya-surface-muted)]/80 hover:bg-[var(--mroya-surface-muted)] border-[var(--mroya-primary)]/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <input
+                          type="radio"
+                          name="memory_autonomy"
+                          checked={autonomyLevel === 'auto_link'}
+                          onChange={() => {
+                            setAutonomyLevel('auto_link');
+                            setAutonomySaveStatus('saved');
+                          }}
+                          className="mt-1 w-4 h-4 text-[var(--mroya-primary)] accent-[var(--mroya-primary)]"
+                        />
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[13.5px] font-bold text-[var(--mroya-text)]">
+                              Автоматические связи
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] shadow-2xs">
+                              Рекомендуется
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
+                            События и письма связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Option 3: Automatic Save */}
+                  <label
+                    onClick={() => {
+                      setAutonomyLevel('auto_save');
+                      setAutonomySaveStatus('saved');
+                    }}
+                    className={`p-3.5 rounded-[10px] border cursor-pointer transition-colors block ${
+                      autonomyLevel === 'auto_save'
+                        ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)]'
+                        : 'bg-[var(--mroya-surface-muted)]/60 hover:bg-[var(--mroya-surface-muted)] border-[var(--mroya-divider)]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <input
+                          type="radio"
+                          name="memory_autonomy"
+                          checked={autonomyLevel === 'auto_save'}
+                          onChange={() => {
+                            setAutonomyLevel('auto_save');
+                            setAutonomySaveStatus('saved');
+                          }}
+                          className="mt-1 w-4 h-4 text-[var(--mroya-primary)] accent-[var(--mroya-primary)]"
+                        />
+                        <div>
+                          <div className="text-[13.5px] font-semibold text-[var(--mroya-text)]">
+                            Автоматическое сохранение
+                          </div>
+                          <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
+                            Модель самостоятельно сохраняет факты с высокой уверенностью (&gt;90%). Спорные и неоднозначные случаи направляются в Memory Inbox.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Design Mode State Preview Switcher */}
+                {!live && (
+                  <div className="pt-3 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[11.5px] text-[var(--mroya-text-muted)] flex-wrap gap-2">
+                    <span>Тест состояний сохранения:</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setAutonomySaveStatus('saving')}
+                        className={`px-2 py-0.5 rounded border text-[11px] ${autonomySaveStatus === 'saving' ? 'bg-[var(--mroya-surface-active)] font-semibold' : ''}`}
+                      >
+                        Сохранение...
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAutonomySaveStatus('saved')}
+                        className={`px-2 py-0.5 rounded border text-[11px] ${autonomySaveStatus === 'saved' ? 'bg-[var(--mroya-surface-active)] font-semibold' : ''}`}
+                      >
+                        Сохранено
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAutonomySaveStatus('error')}
+                        className={`px-2 py-0.5 rounded border text-[11px] ${autonomySaveStatus === 'error' ? 'bg-[var(--mroya-surface-active)] font-semibold' : ''}`}
+                      >
+                        Ошибка
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">

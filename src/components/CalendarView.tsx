@@ -28,6 +28,14 @@ import {
   AlertCircle,
   Lock,
   ShieldCheck,
+  Sparkles,
+  Brain,
+  ExternalLink,
+  User,
+  Building2,
+  MapPin,
+  CheckCircle2,
+  HelpCircle,
 } from 'lucide-react';
 import { GoogleSyncState, CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
 import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
@@ -133,6 +141,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [viewingEvent, setViewingEvent] = useState<CalendarEvent | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<CalendarEvent | null>(null);
+  const [confirmedAiProposals, setConfirmedAiProposals] = useState<Record<string, boolean>>({});
 
   // Edit event form state
   const [editTitle, setEditTitle] = useState('');
@@ -1542,6 +1551,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
                                     </span>
                                   )}
+                                  {(ev.id === 'evt-oct14-alex' || ev.person?.includes('Александр')) && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+                                      <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
+                                      <span>Проанализировано AI</span>
+                                    </span>
+                                  )}
                                 </div>
                                 {ev.person && (
                                   <div className="text-[12px] text-[var(--mroya-text-muted)]">
@@ -2171,6 +2186,148 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Memory Intelligence Event Analysis Section */}
+              <div className="pt-3 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-[12.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
+                    <span>Memory Intelligence · Анализ события</span>
+                  </div>
+
+                  {/* Analysis Status Badge */}
+                  <div>
+                    {confirmedAiProposals[viewingEvent.id] ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                        <Check className="w-3 h-3" />
+                        <span>Предложение принято</span>
+                      </span>
+                    ) : viewingEvent.id === 'evt-annas-birthday' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
+                        <Clock className="w-3 h-3" />
+                        <span>Анализ недоступен</span>
+                      </span>
+                    ) : viewingEvent.id === 'evt-oct19-daniel' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        <Clock className="w-3 h-3" />
+                        <span>В очереди на анализ</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                        <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                        <span>Проанализировано AI</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Extracted Entities */}
+                <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
+                  <div className="text-[11px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
+                    Извлечённые сущности:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+                    <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
+                      <User className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
+                      <div className="truncate">
+                        <span className="text-[var(--mroya-text-muted)]">Участник: </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.person || 'Александр Белов (Сашка)'}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
+                      <Building2 className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
+                      <div className="truncate">
+                        <span className="text-[var(--mroya-text-muted)]">Компания: </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.organization || 'Архитектурное бюро'}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
+                      <MapPin className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
+                      <div className="truncate">
+                        <span className="text-[var(--mroya-text-muted)]">Локация: </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.locationOrLink || 'Кофейня на Немиге / Google Meet'}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
+                      <Brain className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
+                      <div className="truncate">
+                        <span className="text-[var(--mroya-text-muted)]">Договоренность: </span>
+                        <span className="font-medium text-[var(--mroya-text)]">Согласование эскизов фасада</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Proposed for Memory Card */}
+                <div className="p-3.5 rounded-[10px] bg-[var(--mroya-bg)] border border-[var(--mroya-primary)]/40 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <div className="text-[11.5px] uppercase tracking-wider font-semibold text-[var(--mroya-primary)] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Предложено для памяти:</span>
+                      </div>
+                      <p className="text-[13px] font-semibold text-[var(--mroya-text)]">
+                        {viewingEvent.id === 'evt-oct14-alex'
+                          ? 'Связать встречу с контактом «Александр Белов» и зафиксировать срок эскизов'
+                          : `Связать событие «${viewingEvent.title}» с карточкой контакта в долговременной памяти`}
+                      </p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 shrink-0">
+                      Кандидат
+                    </span>
+                  </div>
+
+                  <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
+                    Модель обнаружила соответствие с существующим контактом (сходство 94%). Информация не считается свершившимся фактом до вашего одобрения.
+                  </p>
+
+                  <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => onOpenMemory('mem-schedule-pref')}
+                      className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Перейти к предложению в Inbox</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                    {!confirmedAiProposals[viewingEvent.id] ? (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmedAiProposals((prev) => ({ ...prev, [viewingEvent.id]: true }))}
+                        className="px-3 py-1 rounded-[6px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[11.5px] font-semibold transition-colors cursor-pointer shadow-xs inline-flex items-center gap-1"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>Подтвердить факт</span>
+                      </button>
+                    ) : (
+                      <span className="text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Подтверждено</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* AI Uncertainty Indicator */}
+                <div className="p-2.5 rounded-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[12px] flex items-start gap-2">
+                  <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold">Индикатор неуверенности AI: </span>
+                    <span>Модель не уверена на 100%, относится ли встреча к личной консультации или проекту Harbor Labs. Требуется подтверждение человека.</span>
+                  </div>
+                </div>
+
+                {/* Conflict Warning */}
+                {viewingEvent.id === 'evt-oct14-alex' && (
+                  <div className="p-2.5 rounded-[8px] bg-red-500/10 border border-red-500/25 text-red-800 dark:text-red-300 text-[12px] flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold">Предупреждение о конфликте: </span>
+                      <span>В существующей памяти указано, что Александр находится в отпуске до 18 октября. Проверьте актуальность даты встречи перед подтверждением.</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer buttons */}

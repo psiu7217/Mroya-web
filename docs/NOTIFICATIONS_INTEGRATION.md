@@ -1,7 +1,8 @@
 # Outbound Telegram notifications: Studio handoff
 
-Functional layer only; this PR adds no visual controls and changes no Studio JSX,
-classes or styles. Backend dependency: [Mroya-api PR #35](https://github.com/psiu7217/Mroya-api/pull/35),
+The shared Studio notification controls (visual commit `654a3176`) now use the
+existing functional layer. Layout, classes and styling are preserved; only props,
+action wiring, truthfully derived labels and disabled states are integrated. Backend dependency: [Mroya-api PR #35](https://github.com/psiu7217/Mroya-api/pull/35),
 verified against routes, views, services and [contract at f1ec72e4](https://github.com/psiu7217/Mroya-api/blob/f1ec72e4a7f386b499c1f58b6d2bb619f7f9326c/docs/NOTIFICATIONS.md).
 Backend main b876c467 does not yet include these routes. Source availability does
 not confirm deployment, migration, feature enablement or a running worker.
@@ -53,11 +54,17 @@ also exposes the same object as `model.runtime.notifications`. The canonical
 - simulated (true only in Design; visibly label future delivery previews as simulations);
 - onToggleTelegram(boolean), onSendTest(), onRefresh(), onRetry(): Promise<void>.
 
-A future Studio task may pass this object to the existing shared Connections
-component and create the agreed visuals there. Do not fetch or implement auth,
-connection management, retries, idempotency or status inference in that component.
-Do not call onSendTest from effects. Do not locally set Saved or Delivered.
-The object is not yet consumed by visual components in this functional-only PR.
+WorkspaceView passes model.notifications to the existing ConnectionsSettingsView.
+The checkbox is controlled by confirmed enabled, and uses onToggleTelegram. Test,
+Refresh and Retry use the corresponding controller actions. Conflicting operations
+are disabled; disconnected Telegram cannot enable/send, but can disable a saved
+opt-in. The notification section stays visible independently of Telegram binding.
+No local toggle, delivery state or fake timer is authoritative. Errors render
+separately; error Retry may re-read an unavailable server so it can recover.
+Only a confirmed lastTest with status sent renders Delivered to Telegram (not read).
+No queue count is inferred. A missing receipt does not become a failed/delivered test.
+Do not fetch or implement auth, connection management, UUID generation, retries or
+status inference from timers in the visual component.
 
 onSendTest is an explicit user action. Rapid clicks are single-flight. While the
 current test is nonterminal, this action only reads status. Transport retry of a
@@ -79,8 +86,9 @@ Design fixture scenarios in `src/demo/notifications.ts`: disconnected, disabled,
 enabled, queued, delivered, failed, unavailable. demoNotifications(scenario,
 telegramConnected, setScenario) returns the same presentation contract. The demo
 Workspace connects it to the existing local Telegram connection; preview default
-is disabled. Studio can select another initial scenario in the Design hook without
-new controls. All are local simulations, excluded from Production. There is no
+is disabled. The existing Studio scenario toolbar uses notificationPreview props and the same
+local demo controller; there is no competing state machine inside Settings. The
+existing Loading preview is supported alongside the delivery scenarios. All are local simulations, excluded from Production. There is no
 network, persisted notification state or real test sending from Design Mode.
 
 Before manual live review: Backend PR #35 must be reviewed/merged/deployed with
@@ -89,3 +97,20 @@ its contract. Test only with an explicitly consenting operator: confirm GET,
 opt-in PATCH, click Send test once, then Refresh until confirmed terminal status.
 Check disconnect/reconnect, disabled/unconfigured/worker-unavailable, and explicit
 error Retry. This frontend PR performs no activation, merge or deployment.
+
+
+## Intelligence visuals that remain Design-only
+
+Studio's event analysis, fixed 94%/entity/conflict/confirmation data, autonomy card
+and Work/Personal/Holidays permissions have been moved verbatim to
+src/demo/StudioIntelligencePreviews.tsx and injected through typed optional
+Workspace slots. Their original classes/layout are retained. Live Workspace does
+not supply these slots, and the Production import graph excludes the module.
+The shared components additionally gate the slots with !live. No fake Memory
+confirmation, source IDs, calendar analysis or autonomy writes occur in Production.
+Existing real Memory Inbox and Calendar CRUD/Google Sync remain separate.
+
+The verified Backend IntelligenceSettings.Autonomy at f1ec72e4 actually includes
+review_all, auto_link, auto_write. Studio manual/auto_save are not those values;
+this integration deliberately invents no mapping and never enables auto_write.
+A separate reviewed proposal/permissions integration is needed for these visuals.

@@ -54,7 +54,10 @@ test('live shows unavailable services/plan/memory controls without fake successe
  assert.equal((connections.match(/>Coming soon<\/button>/g)||[]).length,2);
  assert.match(connections,/Checking Telegram connection/);
  assert.doesNotMatch(connections,/Connected \(|Disconnect preview|alex@|lindqvist|Saved<|Enabled</);
- assert.equal((connections.match(/disabled=""/g)||[]).length,3);
+ assert.equal((connections.match(/disabled=""/g)||[]).length,6);
+ assert.match(connections,/<input[^>]*aria-label="Telegram notifications"[^>]*disabled=""/);
+ assert.match(connections,/<button[^>]*title="Refresh status"[^>]*disabled=""/);
+ assert.match(connections,/<button[^>]*disabled=""[^>]*>Send test notification<\/button>/);
  const plan=markup({live:true,activeTab:'plan'});assert.equal((plan.match(/>Coming soon<\/button>/g)||[]).length,2);assert.doesNotMatch(plan,/Current active preview/);
  const memory=markup({live:true,activeTab:'settings'});assert.match(memory,/Coming soon/);assert.doesNotMatch(memory,/>Enabled</);
 });

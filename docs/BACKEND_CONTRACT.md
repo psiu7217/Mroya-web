@@ -364,10 +364,12 @@ switches gate processing separately. There is no demo fallback on API failure.
 
 ## Outbound Telegram notifications (Backend PR dependency)
 
-The functional-only integration targets [Backend PR #35](https://github.com/psiu7217/Mroya-api/pull/35)
+The shared Studio notification controls use the existing functional layer targeting [Backend PR #35](https://github.com/psiu7217/Mroya-api/pull/35)
 at `f1ec72e4a7f386b499c1f58b6d2bb619f7f9326c`; these routes are not in the
 verified Backend main `b876c467` yet. See [NOTIFICATIONS_INTEGRATION](NOTIFICATIONS_INTEGRATION.md)
 for the exact four routes/DTOs, raw delivery statuses, account lifecycle, explicit
-test idempotency and typed Workspace props for a separate Studio visual task.
+test idempotency and the controlled shared Workspace props. New calendar analysis,
+autonomy and static source-permission previews remain Design-only until separately
+integrated with verified Intelligence DTOs and owner-scoped IDs.
 HTTP 202 means queued, never delivered. A source PR does not establish deployment
 or worker readiness; old servers remain unavailable without demo fallback.

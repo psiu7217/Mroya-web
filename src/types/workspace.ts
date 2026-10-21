@@ -54,7 +54,16 @@ export interface ConnectionSamples {
     calendars:{id:string;name:string;desc:string;available:boolean;read_only:boolean;exportable:boolean}[];
     scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
 }
+export interface DesignIntelligencePreviews {
+    EventAnalysis:React.ComponentType<{event:CalendarEvent;onOpenMemory:(id:string)=>void}>;
+    Sources:React.ComponentType; Autonomy:React.ComponentType;
+}
+export interface NotificationPreview {
+    scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
+}
 export interface WorkspaceModel {
+    designIntelligence?:DesignIntelligencePreviews;
+    notificationPreview?:NotificationPreview;
     notifications?:NotificationPresentation;
     memoryInbox?:import('./memoryInbox').MemoryInboxPresentation;
     connectionSamples?:ConnectionSamples;

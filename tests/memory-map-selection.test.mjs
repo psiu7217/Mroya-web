@@ -41,7 +41,8 @@ function mount(initial){
  };
  function flush(){globalThis[key]=harness;let passes=0;do{assert.ok(++passes<15,'effects settle');dirty=false;cursor=0;tree=MemoryMapView(props);const pending=effects;effects=[];pending.forEach(f=>f());}while(dirty);}
  return {changes,renderer,get props(){return props;},get tree(){return tree;},flush,
-  async start(){flush();await Promise.resolve();await Promise.resolve();flush();},
+  // The renderer is behind a dynamic import, so wait (bounded) for its module to load.
+  async start(){flush();const deadline=Date.now()+2000;while(renderer.creations===0&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,5));flush();},
   update(next){props={...props,...next};flush();},
   userSelect(id){callbacks.onSelect(id);flush();},
   unmount(){slots.forEach(slot=>slot.cleanup?.());},

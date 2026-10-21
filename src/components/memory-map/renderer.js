@@ -3,7 +3,8 @@ import { Application, Circle, Container, Graphics, Text } from "pixi.js";
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY } from "d3-force";
 import { localIds, nodeRadius, pngDimensions, presentationGraph } from "./graph.js";
 import { mapPalettes, mapNodeLabel, colorHex, paletteForTheme } from "./palette.js";
-export const defaults = { repulsion: 235, linkDistance: 126, center: 28 };
+import { defaults } from "./forceDefaults.js";
+export { defaults };
 /**
  * Instance-local renderer. React owns all controls/details; no transport or global DOM IDs.
  * @param {HTMLElement} host

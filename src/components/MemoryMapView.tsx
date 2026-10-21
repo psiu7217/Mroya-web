@@ -101,12 +101,15 @@ export function MemoryMapView({
 
   useEffect(() => {
     let cancelled = false;
+    const initialization = new AbortController();
+    let loadingModule = true;
     let instance: Renderer | null = null;
     // Pixi and the force layout load only when the map mounts instead of in the initial bundle.
     void (async () => {
       try {
         const { createMemoryMapRenderer } = await import('./memory-map/renderer.js');
         if (cancelled) return;
+        loadingModule = false;
         const value = await createMemoryMapRenderer(host.current!, {
           onSelect: (id) => {
             if (cancelled || synchronizing.current) return;
@@ -125,7 +128,7 @@ export function MemoryMapView({
           onHint: (v) => {
             if (!cancelled) setHint(v);
           },
-        });
+        }, initialization.signal);
         instance = value;
         if (cancelled) {
           value.destroy();
@@ -136,13 +139,16 @@ export function MemoryMapView({
       } catch {
         if (!cancelled) {
           setRenderError(
-            'The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.'
+            loadingModule
+              ? 'The memory map could not be loaded. Check your connection and reopen Memory Map. Your memories are still available in Memory.'
+              : 'The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.'
           );
         }
       }
     })();
     return () => {
       cancelled = true;
+      initialization.abort();
       instance?.destroy();
       renderer.current = null;
     };

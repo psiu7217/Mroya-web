@@ -9,8 +9,10 @@ export { defaults };
  * Instance-local renderer. React owns all controls/details; no transport or global DOM IDs.
  * @param {HTMLElement} host
  * @param {{onSelect:(id:string|null)=>void, onTooltip:(value:{text:string,x:number,y:number}|null)=>void, onCount:(n:number)=>void, onExport:(value:{url:string,name:string}|null)=>void, onHint:(text:string)=>void}} callbacks
+ * @param {AbortSignal} [signal]
  */
-export async function createMemoryMapRenderer(host, callbacks) {
+export async function createMemoryMapRenderer(host, callbacks, signal) {
+signal?.throwIfAborted();
 let palette = mapPalettes.dark, theme = 'dark', displayName = '';
 const labelFor = node => mapNodeLabel(node, displayName);
 
@@ -28,6 +30,8 @@ try {
   await app.init({width:Math.max(1,host.clientWidth),height:Math.max(1,host.clientHeight),preference:["webgl"],antialias:true,
     backgroundAlpha:0,resolution:Math.min(window.devicePixelRatio||1,2),autoDensity:true});
 } catch (error) { if (app.renderer) app.destroy(true,{children:true}); throw error; }
+// Pixi init is asynchronous: never attach a scene to a host that has unmounted.
+if (signal?.aborted) { app.destroy(true,{children:true}); signal.throwIfAborted(); }
 state.app=app; host.append(app.canvas);
 state.layer=new Container(); state.edges=new Graphics(); state.labels=new Container();
 state.layer.addChild(state.edges); app.stage.addChild(state.layer,state.labels);

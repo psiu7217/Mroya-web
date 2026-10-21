@@ -18,7 +18,7 @@ const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 const originals=Object.fromEntries(['window','document','setTimeout','clearTimeout','fetch'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
 let requests=0,timerId=0;const timers=new Map();
 globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};
-globalThis.document={documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
+globalThis.document={querySelectorAll:()=>[],documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
 globalThis.setTimeout=callback=>{const id=++timerId;timers.set(id,callback);return id;};
 globalThis.clearTimeout=id=>timers.delete(id);
 globalThis.fetch=()=>{requests++;throw new Error('Design must stay offline');};

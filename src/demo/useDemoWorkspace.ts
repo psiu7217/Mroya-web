@@ -1,3 +1,4 @@
+import {applyBrowserTheme} from '../utils/browserTheme';
 import {designIntelligence} from './StudioIntelligencePreviews';
 import {demoNotifications,notificationPreview} from './notifications';
 import type {NotificationDemoScenario} from './notifications';
@@ -247,9 +248,9 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
   // Sync data-theme attribute on document root
   useEffect(() => {
     const media=window.matchMedia?.('(prefers-color-scheme: dark)');
-    const apply=()=>{const value=theme==='system'?(media?.matches?'dark':'light'):theme;setAppearance(value);document.documentElement.setAttribute('data-theme',value);};
+    const apply=()=>{const value=theme==='system'?(media?.matches?'dark':'light'):theme;setAppearance(value);applyBrowserTheme(value);};
     apply();media?.addEventListener?.('change',apply);
-    return()=>{media?.removeEventListener?.('change',apply);document.documentElement.removeAttribute('data-theme');};
+    return()=>{media?.removeEventListener?.('change',apply);};
   }, [theme]);
 
   const activeConversation: Conversation | null =

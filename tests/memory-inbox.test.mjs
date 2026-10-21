@@ -19,7 +19,7 @@ const {useDemoWorkspace}=await vite.ssrLoadModule('/src/demo/useDemoWorkspace.ts
 const {useDemoMemoryInbox}=await vite.ssrLoadModule('/src/demo/useDemoMemoryInbox.ts');
 const originalFetch=globalThis.fetch,originalWindow=globalThis.window,originalDocument=globalThis.document;let requests=0;
 globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};
-globalThis.document={documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
+globalThis.document={querySelectorAll:()=>[],documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
 globalThis.fetch=()=>{requests++;throw Error('Design cannot request Backend');};
 after(async()=>{globalThis.fetch=originalFetch;globalThis.window=originalWindow;globalThis.document=originalDocument;delete globalThis[key];await vite.close();});
 function mount(render){

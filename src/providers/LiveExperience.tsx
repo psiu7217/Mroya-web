@@ -1,3 +1,4 @@
+import {useNotificationSettings} from '../hooks/useNotificationSettings';
 import {useLiveMemoryInbox} from '../hooks/useLiveMemoryInbox';
 import {useUserTimezone} from '../hooks/useUserTimezone';
 import {useLiveCalendar} from '../hooks/useLiveCalendar';
@@ -28,12 +29,13 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
+ const notifications=useNotificationSettings(source,user.id,telegram,onExpired);
  const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
  const inbox=useLiveMemoryInbox(source,user.id,section==='memory',onExpired,()=>void controller.refreshMemory());
  const google=calendar.controller.connection;
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{controller.stop();inbox.controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{notifications.controller.stop();controller.stop();inbox.controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -63,8 +65,9 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  notifications:notifications.presentation,
   memoryInbox:inbox.presentation,
-  runtime:{memoryInboxAvailable:inbox.state.available,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
+  runtime:{notifications:notifications.presentation,memoryInboxAvailable:inbox.state.available,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,

@@ -107,6 +107,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'calendar' && (
           <CalendarView
+            designEventAnalysis={runtime?undefined:model.designIntelligence?.EventAnalysis}
             samples={model.calendarSamples}
             readOnly={!!runtime&&!runtime.calendarAvailable}
             live={!!runtime}
@@ -196,6 +197,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            notifications={model.notifications}
+            notificationPreview={runtime?undefined:model.notificationPreview}
+            designIntelligence={runtime?undefined:model.designIntelligence}
             timezoneSettings={runtime?.timezoneSettings}
             onChangeTimezone={runtime?.timezoneSettings?.onChange??model.onChangeTimezone}
             connectionSamples={runtime?undefined:model.connectionSamples}

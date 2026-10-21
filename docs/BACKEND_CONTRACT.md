@@ -360,3 +360,17 @@ deduplication of knowledge, Memory mutation or request transport lives in the UI
 Yes is the confirmation action, with no mandatory second Apply. Production enables
 the tab only after authenticated Intelligence settings report inbox=true; worker
 switches gate processing separately. There is no demo fallback on API failure.
+
+
+## Outbound Telegram notifications (Backend PR dependency)
+
+The shared Studio notification controls use the existing functional layer targeting [Backend PR #35](https://github.com/psiu7217/Mroya-api/pull/35)
+at `f1ec72e4a7f386b499c1f58b6d2bb619f7f9326c`; these routes are not in the
+verified Backend main `b876c467` yet. See [NOTIFICATIONS_INTEGRATION](NOTIFICATIONS_INTEGRATION.md)
+for the exact four routes/DTOs, raw delivery statuses, account lifecycle, explicit
+test idempotency and the controlled shared Workspace props. Calendar analysis,
+autonomy and static source-permission visuals are preserved in Production as
+explicitly labelled inert Preview / Soon examples, separate from real user data.
+Their actions await verified Intelligence DTOs and owner-scoped IDs.
+HTTP 202 means queued, never delivered. A source PR does not establish deployment
+or worker readiness; old servers remain unavailable without demo fallback.

@@ -23,7 +23,17 @@ export interface TimezonePresentation {
     timezone:string;draft:string;status:'idle'|'saving'|'saved'|'error';error:string|null;apiReady:boolean;
     onChange:(value:string)=>void;onRetry:()=>void;
 }
+export interface NotificationPresentation {
+    available:boolean; loading:boolean; saving:boolean; testing:boolean;
+    enabled:boolean; connected:boolean; configured:boolean; deliveryReady:boolean;
+    canEnable:boolean; canSendTest:boolean; simulated:boolean;
+    error:string|null; lastTestStatus:import('./api').NotificationDeliveryStatus|null;
+    lastTest:import('./api').NotificationDto|null;
+    onToggleTelegram:(enabled:boolean)=>Promise<void>;
+    onSendTest:()=>Promise<void>; onRefresh:()=>Promise<void>; onRetry:()=>Promise<void>;
+}
 export interface WorkspaceRuntime {
+    notifications?:NotificationPresentation;
     memoryInboxAvailable?:boolean;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
@@ -44,7 +54,17 @@ export interface ConnectionSamples {
     calendars:{id:string;name:string;desc:string;available:boolean;read_only:boolean;exportable:boolean}[];
     scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
 }
+export interface DesignIntelligencePreviews {
+    EventAnalysis:React.ComponentType<{event:CalendarEvent;onOpenMemory:(id:string)=>void}>;
+    Sources:React.ComponentType; Autonomy:React.ComponentType;
+}
+export interface NotificationPreview {
+    scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
+}
 export interface WorkspaceModel {
+    designIntelligence?:DesignIntelligencePreviews;
+    notificationPreview?:NotificationPreview;
+    notifications?:NotificationPresentation;
     memoryInbox?:import('./memoryInbox').MemoryInboxPresentation;
     connectionSamples?:ConnectionSamples;
     onChangeTimezone?:(value:string)=>void;

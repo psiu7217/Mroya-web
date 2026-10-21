@@ -128,6 +128,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onSimulateGoogleSync={handleSimulateGoogleSync}
             onNavigateToReminders={onCalendarViewNavigateToReminders}
             googleCalendarConnected={runtime&&!model.googleCalendarAvailable?false:googleCalendarConnected}
+            autoSync={model.autoSync}
             gcalSyncState={runtime&&!model.googleCalendarAvailable?undefined:model.gcalSyncState}
             googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
             isSidebarCollapsed={isSidebarCollapsed}

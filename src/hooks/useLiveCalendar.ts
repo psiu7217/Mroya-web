@@ -1,10 +1,12 @@
+import {dateInTimezone,upcomingCalendarEvents} from '../utils/upcomingCalendar.ts';
+import {calendarKey} from '../utils/calendarDates.ts';
 import {useEffect,useMemo,useRef,useSyncExternalStore} from 'react';
 import {ApiError} from '../api/errors.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {CalendarEventDto,GoogleConnectionDto,GoogleConfiguration} from '../types/calendarApi.ts';
 import type {CalendarEvent} from '../types/mroya.ts';
 import {calendarPresentation,calendarWrite,googleSyncPresentation} from './calendarAdapters.ts';
-export type CalendarState={available:boolean;googleAvailable:boolean;events:CalendarEvent[];connections:GoogleConnectionDto[];selectedConnectionId:string|null;loading:boolean;busy:boolean;mutationPending:boolean;error:string|null;googleError:string|null;googleBusy:boolean;oauthNotice:string|null};
+export type CalendarState={upcomingEvents:CalendarEvent[];upcomingLoading:boolean;upcomingError:string|null;available:boolean;googleAvailable:boolean;events:CalendarEvent[];connections:GoogleConnectionDto[];selectedConnectionId:string|null;loading:boolean;busy:boolean;mutationPending:boolean;error:string|null;googleError:string|null;googleBusy:boolean;oauthNotice:string|null};
 type Operation={method:'POST'|'PATCH'|'DELETE';id:string|null;body:Record<string,unknown>};
 export function consumeCalendarOAuthReturn(location:Pick<Location,'href'>,history:Pick<History,'state'|'replaceState'>):string|null{
  const url=new URL(location.href),hint=url.searchParams.get('calendar_google');
@@ -13,19 +15,21 @@ export function consumeCalendarOAuthReturn(location:Pick<Location,'href'>,histor
  return ({connected:'Google consent returned. Backend connection and sync status are verified separately below.',cancelled:'Google Calendar connection was cancelled.',expired:'Google Calendar authorization expired. Sign in and connect again.',error:'Google Calendar authorization failed. Try connecting again.'} as Record<string,string>)[hint]??'Checking Google Calendar connection.';
 }
 export class LiveCalendarController {
- private current:CalendarState={available:false,googleAvailable:false,events:[],connections:[],selectedConnectionId:null,loading:false,busy:false,mutationPending:false,error:null,googleError:null,googleBusy:false,oauthNotice:null};
+ private current:CalendarState={upcomingEvents:[],upcomingLoading:false,upcomingError:null,available:false,googleAvailable:false,events:[],connections:[],selectedConnectionId:null,loading:false,busy:false,mutationPending:false,error:null,googleError:null,googleBusy:false,oauthNotice:null};
  private listeners=new Set<()=>void>();private active=false;private generation=0;
  private reads=new Set<AbortController>();private eventRead:AbortController|null=null;private googleRead:AbortController|null=null;
  private operation:Operation|null=null;private writing=false;private googleWriting=false;
  private range={start:new Date().getFullYear()+'-01-01',end:new Date().getFullYear()+'-12-31'};
+ private upcomingRead:AbortController|null=null;private upcomingStart='';
  private source:WorkspaceSource;private timezone:string;private expired:()=>void;private navigate:(url:string)=>void;
  constructor(source:WorkspaceSource,timezone:string,expired:()=>void,navigate:(url:string)=>void=url=>window.location.assign(url)){this.source=source;this.timezone=timezone;this.expired=expired;this.navigate=navigate;}
- setTimezone=(timezone:string)=>{this.timezone=timezone;}; // Only the default for future creates; existing DTOs/pending writes stay unchanged.
+ setTimezone=(timezone:string)=>{if(this.timezone!==timezone){this.timezone=timezone;this.cancelUpcoming();void this.loadUpcoming();}}; // Only the default for future creates; existing DTOs/pending writes stay unchanged.
  snapshot=()=>this.current;
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private emit(patch:Partial<CalendarState>){if(!this.active)return;this.current={...this.current,...patch};this.listeners.forEach(fn=>fn());}
  start=(available:boolean,googleAvailable:boolean)=>{this.active=true;this.emit({available,googleAvailable});};
- stop=()=>{this.active=false;this.generation++;for(const request of this.reads)request.abort();this.reads.clear();this.operation=null;this.writing=false;this.googleWriting=false;this.eventRead=null;this.googleRead=null;this.current={...this.current,events:[],connections:[],selectedConnectionId:null,busy:false,mutationPending:false,googleBusy:false,loading:false};};
+ stop=()=>{this.active=false;this.generation++;for(const request of this.reads)request.abort();this.reads.clear();this.operation=null;this.writing=false;this.googleWriting=false;this.eventRead=null;this.googleRead=null;this.upcomingRead=null;this.upcomingStart='';this.current={...this.current,upcomingEvents:[],upcomingLoading:false,upcomingError:null,events:[],connections:[],selectedConnectionId:null,busy:false,mutationPending:false,googleBusy:false,loading:false};};
+ private cancelUpcoming(){this.upcomingRead?.abort();this.upcomingRead=null;}
  private request(){const abort=new AbortController();this.reads.add(abort);return abort;}
  private fail(error:unknown,google=false){
   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
@@ -35,6 +39,7 @@ export class LiveCalendarController {
  setRange=(start:string,end:string)=>{if(start===this.range.start&&end===this.range.end)return;this.range={start,end};void this.loadEvents();};
  loadEvents=async()=>{
   if(!this.active||!this.current.available||!this.source.calendarEvents)return;
+  void this.loadUpcoming();
   this.eventRead?.abort();const abort=this.request(),generation=this.generation;this.eventRead=abort;
   this.emit({loading:true});
   try{
@@ -49,6 +54,35 @@ export class LiveCalendarController {
    throw new Error('Too many events in this range. Choose a smaller calendar view.');
   }catch(error){if(this.active&&!abort.signal.aborted&&generation===this.generation)this.fail(error);}
   finally{this.reads.delete(abort);if(this.eventRead===abort){this.eventRead=null;this.emit({loading:false});}}
+ };
+ setUpcomingStart=(date:string)=>{
+  if(date===this.upcomingStart)return;
+  this.upcomingStart=date;this.cancelUpcoming();
+  this.emit({upcomingEvents:[]});void this.loadUpcoming();
+ };
+ loadUpcoming=async()=>{
+  if(!this.active||!this.current.available||!this.source.calendarEvents||this.upcomingRead)return;
+  const abort=this.request(),generation=this.generation;this.upcomingRead=abort;
+  const now=new Date(),today=dateInTimezone(now,this.timezone),start=this.upcomingStart>today?this.upcomingStart:today;
+  this.emit({upcomingLoading:true,upcomingError:null});
+  try{
+   const [year,month,day]=start.split('-').map(Number),rows:CalendarEvent[]=[];
+   // <=366 civil days including two days of timezone overlap; at most 5,000 occurrences.
+   const from=calendarKey(new Date(year,month-1,day-2,12)),to=calendarKey(new Date(year,month-1,day+363,12));
+   for(let page=0,offset=0;page<50;page++,offset+=100){
+    const result=await this.source.calendarEvents(from,to,offset,abort.signal);
+    if(!this.active||abort.signal.aborted||generation!==this.generation)return;
+    if(result.offset!==offset||result.limit!==100)throw new Error('Invalid upcoming calendar pagination.');
+    rows.push(...result.events.map(calendarPresentation));
+    if(result.events.length<result.limit){this.emit({upcomingEvents:upcomingCalendarEvents(rows,start,this.timezone,new Date())});return;}
+   }
+   throw new Error('Upcoming calendar range is too large (5,000 occurrences). Select a later date and retry.');
+  }catch(error){
+   if(this.active&&!abort.signal.aborted&&generation===this.generation){
+    if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
+    this.emit({upcomingError:error instanceof Error?error.message:'Unable to load upcoming events.'});
+   }
+  }finally{this.reads.delete(abort);if(this.upcomingRead===abort){this.upcomingRead=null;this.emit({upcomingLoading:false});}}
  };
  loadConnections=async()=>{
   if(!this.active||!this.current.googleAvailable||!this.source.googleCalendarConnections||this.googleWriting)return;
@@ -85,12 +119,12 @@ export class LiveCalendarController {
  }
  private execute=async():Promise<boolean>=>{
   if(!this.active||this.writing||!this.operation||!this.source.mutateCalendar)return false;
-  this.writing=true;this.eventRead?.abort();const op=this.operation,abort=this.request(),generation=this.generation;this.emit({busy:true,error:null});
+  this.writing=true;this.eventRead?.abort();this.cancelUpcoming();const op=this.operation,abort=this.request(),generation=this.generation;this.emit({busy:true,error:null});
   try{
    const result=await this.source.mutateCalendar(op.method,op.id,op.body,abort.signal);
    if(!this.active||abort.signal.aborted||generation!==this.generation)return false;
    if(op.id&&result.events[0].id!==op.id)throw new Error('Calendar mutation returned a different event.');
-   this.operation=null;this.emit({mutationPending:false});await this.loadEvents();void this.loadConnections();return true;
+   this.operation=null;this.emit({mutationPending:false});this.cancelUpcoming();await this.loadEvents();void this.loadConnections();return true;
   }catch(error){
    if(!this.active||abort.signal.aborted||generation!==this.generation)return false;
    const uncertain=!(error instanceof ApiError)||error.status>=500;

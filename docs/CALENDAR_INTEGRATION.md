@@ -34,3 +34,31 @@ Pending/initial/running, partial failures, per-calendar errors, conflicts, recon
 6. Revisit/focus the page to see completion/partial errors. Confirm last-synced changes only when Backend reports it. Disconnect and verify Mroya events remain.
 
 No real OAuth consent, user-data mutation or provider calls were performed by automated tests. Full end-to-end Google verification requires the owner's account and deployed Backend. Existing Studio layout/theme/components are retained; the full-date field, account selection and confirmation/error wiring are the required functional changes.
+
+
+## Calendar UX and Upcoming commitments
+
+Every creation entry point opens on the selected complete civil date. Reopening
+(after Cancel) resets that date; changing the selected day never overwrites an open
+form's manually entered date. Both exact-time editors accept four digits (1630 ->
+16:30), reject incomplete/out-of-range times before any mutation and expose an
+explicit All day checkbox. Backend validation remains an additional boundary.
+The month title has a stable 150px / 160px width. The large desktop Google banner
+is hidden only for a connected account with confirmed autoSync=true and no displayed
+attention state; the mobile Settings entry remains present during background sync.
+
+Upcoming is separate controller state, never the visible grid's event page. It
+queries the same existing Calendar REST source over at most 366 civil dates
+(including two days of timezone overlap), paginates independently (100/page, max
+50 pages), deduplicates occurrence IDs, then sorts/filter-selects five starts.
+The horizon is approximately 12 months; a larger result reports an explicit error,
+not a fabricated complete list. Empty state describes the horizon and read errors
+have a separate Retry. No new endpoint, timer, persistence or browser live recurrence
+expansion is used. Offline Design repeats use the existing recurrence helper only.
+
+Exact starts are compared as instants in each event's IANA timezone/explicit offset;
+all-day entries remain civil dates and stay upcoming throughout their current day.
+The lower bound is max(now, selected future date in the profile timezone). Account
+changes/logout/date changes fence old reads; visible-page polling/focus, successful
+CRUD and existing sync refreshes reload Upcoming independently of the grid.
+No existing event date/time is rewritten by changing the profile timezone.

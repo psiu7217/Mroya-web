@@ -87,7 +87,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
   focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,
   relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:google?.status==='connected',
-  calendar:{loading:calendar.state.loading,busy:calendar.state.busy,mutationPending:calendar.state.mutationPending,error:calendar.state.error,timezone:confirmedUser.timezone,
+  calendar:{upcoming:{events:calendar.state.upcomingEvents,loading:calendar.state.upcomingLoading,error:calendar.state.upcomingError,onStartChange:calendar.controller.setUpcomingStart,onRetry:()=>void calendar.controller.loadUpcoming()},loading:calendar.state.loading,busy:calendar.state.busy,mutationPending:calendar.state.mutationPending,error:calendar.state.error,timezone:confirmedUser.timezone,
    onRetry:calendar.controller.retry,onRangeChange:calendar.controller.setRange,onLoadEventForEdit:calendar.controller.loadForEdit},
   googleCalendarAvailable:calendar.state.googleAvailable,googleCalendarBusy:calendar.state.googleBusy,
   googleCalendarError:calendar.state.googleError,

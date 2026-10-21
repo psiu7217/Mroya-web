@@ -213,7 +213,7 @@ for(const live of [false,true])for(const dialog of ['create','edit','delete'])te
  if(dialog!=='delete'){
   const form=find(page.value,node=>node.type==='form');
   const grid=find(form,node=>node.props?.className==='grid grid-cols-2 gap-3'&&all(node,item=>item.type==='input'&&item.props.type==='date').length>0);
-  assert.deepEqual(all(grid,node=>node.type==='label').map(node=>text(node).trim()),['Date','Time']);
+  assert.deepEqual(all(grid,node=>node.type==='label').map(node=>text(node).trim()),['Date','Time','All day']);
   const inputs=all(grid,node=>node.type==='input');assert.equal(inputs[0].props.className,inputs[1].props.className);
  }
  props={...props,calendar:{...props.calendar,busy:true}};page.flush();assert.match(text(page.value),/Saving calendar change/);
@@ -242,4 +242,54 @@ test('visible live Calendar still refreshes every 10 seconds and on focus/visibi
   globalThis.document.visibilityState='hidden';tick();assert.equal(reads,initial+3);
   page.unmount();page=null;assert.equal(cleared,true);assert.equal(listeners.size,0);
  }finally{page?.unmount();Object.assign(globalThis,saved);}
+});
+
+test('all create entry points use selected full date; open drafts are untouched and Cancel resets the next opening',()=>{
+ const view=workspace(),page=mount(()=>CalendarView(calendar(view.value)));page.flush();button(page.value,'Month').props.onClick();page.flush();button(page.value,'22').props.onClick();page.flush();
+ find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();
+ const date=()=>find(page.value,n=>n.type==='input'&&n.props.type==='date');assert.equal(date().props.value,'2026-10-22');
+ date().props.onChange({target:{value:'2028-02-29'}});page.flush();find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();assert.equal(date().props.value,'2028-02-29');
+ button(page.value,'Cancel').props.onClick();page.flush();
+ for(let i=0;i<3;i++){find(page.value,n=>n.type==='button'&&n.props.title==='Next month').props.onClick();page.flush();}
+ button(page.value,'+ Add event').props.onClick();page.flush();assert.equal(date().props.value,'2027-01-22');page.unmount();view.unmount();
+});
+
+for(const editing of [false,true])test(`${editing?'edit':'create'} uses the same time mask, field error and explicit All day choice`,async()=>{
+ const view=workspace(),writes=[];const existing={...event,id:'clock'};
+ const props={...calendar(view.value),events:[existing],onAddEvent:async e=>{writes.push(e);return false;},onEditEvent:async e=>{writes.push(e);return false;}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ if(editing){button(page.value,'Month').props.onClick();page.flush();find(page.value,n=>n.type==='button'&&n.props.title==='Edit commitment').props.onClick();}
+ else find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();
+ page.flush();const form=()=>find(page.value,n=>n.type==='form');
+ const title=find(form(),n=>n.type==='input'&&n.props.type==='text'&&!n.props['aria-label']);title.props.onChange({target:{value:'Clock test'}});page.flush();
+ const clock=()=>find(page.value,n=>n.type==='input'&&n.props['aria-label']===(editing?'Edit event time':'New event time'));
+ const input=raw=>{clock().props.onChange({target:{value:raw,selectionStart:raw.length}});page.flush();};
+ input('1630');assert.equal(clock().props.value,'16:30');input('09:45');assert.equal(clock().props.value,'09:45');input('ab');assert.equal(clock().props.value,'');
+ for(const bad of ['2400','1875','123']){input(bad);await form().props.onSubmit({preventDefault(){}});page.flush();assert.equal(writes.length,0);assert.match(text(form()),/00:00–23:59/);}
+ input('16:3');assert.equal(clock().props.value,'16:3');input('16:');assert.equal(clock().props.value,'16');
+ const allDay=find(form(),n=>n.type==='label'&&text(n).trim()==='All day');find(allDay,n=>n.type==='input').props.onChange({target:{checked:true}});page.flush();assert.equal(clock().props.disabled,true);
+ await form().props.onSubmit({preventDefault(){}});page.flush();assert.equal(writes.length,1);assert.equal(writes[0].time,'All day');page.unmount();view.unmount();
+});
+
+test('month title width is stable for all 12 English months; Auto Sync uses confirmed boolean and keeps attention states',()=>{
+ const view=workspace();let props={...calendar(view.value),googleCalendarConnected:true,autoSync:true,gcalSyncState:'connected_auto_on'};
+ const page=mount(()=>CalendarView(props));page.flush();assert.doesNotMatch(text(page.value),/Google Calendar integration/);let monthClass;
+ for(let i=0;i<12;i++){
+  const month=find(page.value,n=>n.type==='button'&&n.props.title==='Click to jump to another month or year');monthClass??=month.props.className;assert.equal(month.props.className,monthClass);assert.match(month.props.className,/w-\[150px\]/);
+  find(page.value,n=>n.type==='button'&&n.props.title==='Next month').props.onClick();page.flush();
+ }
+ for(const state of ['syncing','initial_syncing']){props={...props,gcalSyncState:state};page.flush();assert.doesNotMatch(text(page.value),/Google Calendar integration/);}
+ for(const state of ['sync_error','conflict','reconnect_required']){props={...props,gcalSyncState:state};page.flush();assert.match(text(page.value),/Google Calendar integration/);button(page.value,'Manage connection');}
+ props={...props,gcalSyncState:'connected_auto_on',autoSync:false};page.flush();assert.match(text(page.value),/Google Calendar integration/);
+ assert.ok(all(page.value,n=>n.type==='button'&&n.props.onClick===props.onOpenConnections).length>=2,'mobile access remains');page.unmount();view.unmount();
+});
+
+test('live Upcoming respects selected November date, displays December and navigates to its actual year/date',()=>{
+ const view=workspace(),year=new Date().getFullYear()+1;
+ const events=[{...event,id:'old2',title:'OLD NOVEMBER 2',date:`${year}-11-02`},{...event,id:'old8',title:'OLD NOVEMBER 8',date:`${year}-11-08`},{...event,id:'dec',title:'December upcoming',date:`${year}-12-02`}];
+ const props={...calendar(view.value),live:true,events:[],calendar:{...calendar(view.value).calendar,timezone:'Europe/Minsk',upcoming:{events,loading:false,error:null,onStartChange(){},onRetry(){}}}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ find(page.value,n=>n.type==='button'&&n.props.title==='Click to jump to another month or year').props.onClick();page.flush();button(page.value,String(year)).props.onClick();page.flush();button(page.value,'Nov').props.onClick();page.flush();button(page.value,'Month').props.onClick();page.flush();button(page.value,'22').props.onClick();page.flush();
+ assert.doesNotMatch(text(page.value),/OLD NOVEMBER/);assert.match(text(page.value),/December upcoming/);
+ find(page.value,n=>n.type==='button'&&text(n).includes('December upcoming')).props.onClick();page.flush();find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();assert.equal(find(page.value,n=>n.type==='input'&&n.props.type==='date').props.value,`${year}-12-02`);page.unmount();view.unmount();
 });

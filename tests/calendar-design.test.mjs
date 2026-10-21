@@ -317,4 +317,3 @@ for(const kind of ['create','edit','delete'])test(`${kind} dialog cannot discard
  props={...props,calendar:{...props.calendar,busy:false,mutationPending:false}};page.flush();find(page.value,n=>n.props?.['aria-labelledby']===label).props.onClose();page.flush();assert.equal(all(page.value,n=>n.props?.['aria-labelledby']===label).length,0);
  page.unmount();view.unmount();
 });
-

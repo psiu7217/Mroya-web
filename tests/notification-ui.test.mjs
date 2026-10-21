@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const key='__notificationUiHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
  name:'notification-ui-hooks',enforce:'pre',
- transform(code,id){if(/\/(StudioIntelligencePreviews|useDemoMemoryInbox|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:notification-ui-hooks';");},
+ transform(code,id){if(/\/(IntelligencePreviews|StudioIntelligencePreviews|useDemoMemoryInbox|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:notification-ui-hooks';");},
  resolveId(id){if(id==='virtual:notification-ui-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:notification-ui-hooks')return `import React from 'react';
  ${['useState','useRef','useEffect','useMemo','useSyncExternalStore'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}
@@ -19,6 +19,7 @@ const {ConnectionsSettingsView}=await vite.ssrLoadModule('/src/components/Connec
 const {demoNotifications}=await vite.ssrLoadModule('/src/demo/notifications.ts');
 const {NotificationSettingsController}=await vite.ssrLoadModule('/src/hooks/useNotificationSettings.ts');
 const {ApiError}=await vite.ssrLoadModule('/src/api/errors.ts');
+const {EventAnalysisPreview,IntelligenceSourcesPreview,IntelligenceAutonomyPreview}=await vite.ssrLoadModule('/src/components/IntelligencePreviews.tsx');
 const {designIntelligence}=await vite.ssrLoadModule('/src/demo/StudioIntelligencePreviews.tsx');
 const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 const originals=Object.fromEntries(['window','document','setTimeout','clearTimeout','fetch'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
@@ -87,7 +88,7 @@ test('raw delivery statuses have truthful labels; Ready and no receipt never imp
   p.props.notifications={...blank,enabled:true,lastTestStatus:status,lastTest:{deliveries:[{status,error_code:null}]} };p.page.flush();assert.ok(text(p.page.value).includes(label));if(status!=='sent')assert.doesNotMatch(text(p.page.value),/Delivered to Telegram/);
  }
  p.props.notifications={...blank,enabled:true,deliveryReady:true,lastTestStatus:'sent',lastTest:null};p.page.flush();assert.match(text(p.page.value),/Ready · Bot connected/);assert.doesNotMatch(text(p.page.value),/Delivered to Telegram/);
- p.props.notifications={...blank,available:false};p.page.flush();assert.match(text(p.page.value),/Service unavailable/);assert.equal(toggle(p.page.value).props.disabled,true);assert.equal(button(p.page.value,'Send test notification').props.disabled,true);p.close();
+ p.props.notifications={...blank,available:false};p.page.flush();assert.match(text(p.page.value),/Soon · Функция скоро появится/);assert.equal(toggle(p.page.value).props.disabled,true);assert.equal(button(p.page.value,'Send test notification').props.disabled,true);p.close();
 });
 
 test('404/409/429/503 errors are separate from delivery receipts; explicit Retry invokes exactly its callback',()=>{
@@ -105,21 +106,30 @@ test('Workspace forwards one presentation; Design scenarios are offline and not 
  assert.equal(requests,0);page.unmount();w.unmount();
 });
 
-test('Intelligence previews preserve Studio controls exclusively in Design; live has no fabricated analysis or autonomy',()=>{
- const w=workspace();const source=mount(()=>designIntelligence.Sources({}));source.flush();assert.match(text(source.value),/Рабочий календарь|Личный календарь/);
- const autonomy=mount(()=>designIntelligence.Autonomy({}));autonomy.flush();assert.match(text(autonomy.value),/Сохранено/);assert.equal(all(autonomy.value,n=>n.type==='input'&&n.props.type==='radio').length,3);
- const eventView=mount(()=>designIntelligence.EventAnalysis({event:{...event,id:'evt-oct14-alex'},onOpenMemory:()=>{}}));eventView.flush();assert.match(text(eventView.value),/94%/);button(eventView.value,'Подтвердить факт').props.onClick();eventView.flush();assert.match(text(eventView.value),/Предложение принято/);
- const p=panel(blank,{activeTab:'settings',designIntelligence});assert.doesNotMatch(text(p.page.value),/Автономность Memory Intelligence|Сохранено/);p.close();
- const props={...calendar(w.value),live:true,selectedEventId:'owned-event',events:[{...event,id:'owned-event'}],designEventAnalysis:designIntelligence.EventAnalysis};
- const page=mount(()=>CalendarView(props));page.flush();assert.doesNotMatch(text(page.value),/94%|Анализ события|Подтвердить факт/);assert.equal(all(page.value,n=>n.type===designIntelligence.EventAnalysis).length,0);
- assert.equal(requests,0);page.unmount();eventView.unmount();autonomy.unmount();source.unmount();w.unmount();
+test('Studio panels exist in Production as inert Preview/Soon examples, separate from real events and memory',()=>{
+ const w=workspace();let memoryActions=0;
+ const source=mount(()=>IntelligenceSourcesPreview({preview:true}));source.flush();assert.match(text(source.value),/Preview|Пример/);assert.match(text(source.value),/Soon/);
+ for(const control of all(source.value,n=>n.type==='input')){assert.equal(control.props.disabled,true);assert.equal(control.props.onChange,undefined);}
+ const autonomy=mount(()=>IntelligenceAutonomyPreview({preview:true}));autonomy.flush();assert.match(text(autonomy.value),/Soon/);assert.doesNotMatch(text(autonomy.value),/Сохранено|Сохранение…/);
+ assert.equal(all(autonomy.value,n=>n.type==='input'&&n.props.type==='radio').length,3);
+ for(const control of all(autonomy.value,n=>n.type==='input')){assert.equal(control.props.disabled,true);assert.equal(control.props.onChange,undefined);}
+ for(const label of all(autonomy.value,n=>n.type==='label'))assert.equal(label.props.onClick,undefined);
+ const now=new Date(),currentDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+ const props={...calendar(w.value),live:true,selectedEventId:'owned-event',events:[{...event,date:currentDate,dayOfMonth:now.getDate(),id:'owned-event',person:'PRIVATE PERSON',organization:'PRIVATE COMPANY'}],onOpenMemory:()=>memoryActions++,designEventAnalysis:designIntelligence.EventAnalysis};
+ const page=mount(()=>CalendarView(props));page.flush();button(page.value,'Month').props.onClick();page.flush();button(page.value,'View details').props.onClick();page.flush();const preview=find(page.value,n=>n.type===EventAnalysisPreview);assert.equal(preview.props.event,undefined);assert.equal(preview.props.onViewProposal,undefined);
+ const example=mount(()=>EventAnalysisPreview(preview.props));example.flush();assert.match(text(example.value),/Preview/);assert.match(text(example.value),/94%/);assert.match(text(example.value),/не результат обработки вашего события/);assert.doesNotMatch(text(example.value),/PRIVATE PERSON|PRIVATE COMPANY|Проанализировано AI|Предложение принято|Подтверждено/);
+ for(const action of all(example.value,n=>n.type==='button')){assert.equal(action.props.disabled,true);assert.equal(action.props.onClick,undefined);}
+ const p=panel(blank,{activeTab:'settings',designIntelligence});assert.equal(all(p.page.value,n=>n.type===IntelligenceAutonomyPreview).length,1);p.close();
+ const connections=panel(blank,{designIntelligence});assert.equal(all(connections.page.value,n=>n.type===IntelligenceSourcesPreview).length,1);connections.close();
+ const design=designIntelligence.EventAnalysis({event:{...event,id:'evt-oct14-alex'},onOpenMemory:()=>memoryActions++});
+ const eventView=mount(()=>EventAnalysisPreview(design.props));eventView.flush();assert.equal(button(eventView.value,'Подтвердить факт').props.disabled,false);button(eventView.value,'Подтвердить факт').props.onClick();eventView.flush();assert.match(text(eventView.value),/Предложение принято/);
+ assert.equal(memoryActions,0);assert.equal(requests,0);eventView.unmount();example.unmount();page.unmount();autonomy.unmount();source.unmount();w.unmount();
 });
 
-
-test('Studio preview markup retains original class attributes after Design-only extraction',()=>{
+test('Shared Preview markup retains original Studio class attributes',()=>{
  const studioCalendar=execFileSync('git',['show','654a31763e03dc8b0bf5d2d462e2c58b43253619:src/components/CalendarView.tsx'],{encoding:'utf8'});
  const studioSettings=execFileSync('git',['show','654a31763e03dc8b0bf5d2d462e2c58b43253619:src/components/ConnectionsSettingsView.tsx'],{encoding:'utf8'});
- const moved=fs.readFileSync('src/demo/StudioIntelligencePreviews.tsx','utf8');
+ const moved=fs.readFileSync('src/components/IntelligencePreviews.tsx','utf8');
  const classes=s=>[...s.matchAll(/className=(?:"([^"]*)"|`([^`]+)`|\{`([^`]+)`\})/g)].map(m=>m[1]??m[2]??m[3]);
  const section=(s,start,end)=>s.slice(s.indexOf(start),s.indexOf(end,s.indexOf(start)));
  const analysis=section(studioCalendar,'{/* Memory Intelligence Event Analysis Section */}','{/* Footer buttons */}');
@@ -131,10 +141,12 @@ test('Studio preview markup retains original class attributes after Design-only 
  for(const cls of classes(autonomy).slice(0,-3))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
 });
 
-test('actual Production graph excludes all Design previews, fixtures and fake Intelligence confirmations',async()=>{
+test('actual Production graph includes public Soon previews but excludes account fixtures and private demo runtime',async()=>{
  const result=await build({mode:'production',logLevel:'silent',build:{write:false}});
  const chunks=(Array.isArray(result)?result:[result]).flatMap(bundle=>bundle.output).filter(item=>item.type==='chunk');
  assert.equal(chunks.flatMap(c=>c.moduleIds).some(id=>id.replaceAll('\\','/').includes('/src/demo/')),false);
+ assert.ok(chunks.flatMap(c=>c.moduleIds).some(id=>id.replaceAll('\\','/').endsWith('/src/components/IntelligencePreviews.tsx')));
  const js=chunks.map(c=>c.code).join('\n');
- for(const marker of ['Harbor Labs','mem-schedule-pref','сходство 94%','Memory Intelligence · Анализ события','auto_save','Рабочий календарь (Work)','Test alert received','1 notification in queue','Design simulation: notification service unavailable.'])assert.equal(js.includes(marker),false,marker);
+ assert.ok(js.includes('Пример · Soon'));assert.ok(js.includes('не результат обработки вашего события'));
+ for(const marker of ['Harbor Labs','mem-schedule-pref','evt-oct14-alex','Test alert received','1 notification in queue','Design simulation: notification service unavailable.'])assert.equal(js.includes(marker),false,marker);
 });

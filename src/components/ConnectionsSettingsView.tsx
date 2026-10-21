@@ -1,3 +1,4 @@
+import {IntelligenceSourcesPreview,IntelligenceAutonomyPreview} from './IntelligencePreviews';
 import {timezoneChoices} from '../utils/timezones';
 import type { AccountPresentation, NotificationPresentation, NotificationPreview, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
 import React from 'react';
@@ -855,7 +856,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 {notificationStatus === 'Unavailable' && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-zinc-500">
                                     <AlertTriangle className="w-3.5 h-3.5" />
-                                    <span>Service unavailable</span>
+                                    <span>{notifications?.available?'Service unavailable':'Soon · Функция скоро появится'}</span>
                                   </span>
                                 )}
                                 {['Disabled','Disconnected','NotReady','Cancelled','Expired'].includes(notificationStatus) && (
@@ -925,7 +926,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 );})}
               </div>
 
-              {!live && SourcesPreview && <SourcesPreview/>}
+              {live||!SourcesPreview?<IntelligenceSourcesPreview/>:<SourcesPreview/>}
 
             </div>
           )}
@@ -1280,7 +1281,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 </div>
               </div>
 
-              {!live && AutonomyPreview && <AutonomyPreview/>}
+              {live||!AutonomyPreview?<IntelligenceAutonomyPreview/>:<AutonomyPreview/>}
 
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
                 <div className="flex items-center gap-2">

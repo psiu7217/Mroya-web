@@ -1,3 +1,4 @@
+import {EventAnalysisPreview} from './IntelligencePreviews';
 import type {CalendarPresentation} from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -1551,10 +1552,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
                                     </span>
                                   )}
-                                  {(ev.id === 'evt-oct14-alex' || ev.person?.includes('Александр')) && (
+                                  {(live || ev.person?.includes('Александр')) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
                                       <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                                      <span>Проанализировано AI</span>
+                                      <span>{live?'AI analysis · Soon':'Проанализировано AI · Preview'}</span>
                                     </span>
                                   )}
                                 </div>
@@ -2187,7 +2188,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               )}
 
-              {!live && DesignEventAnalysis && <DesignEventAnalysis event={viewingEvent} onOpenMemory={onOpenMemory}/>}
+              {live||!DesignEventAnalysis?<EventAnalysisPreview/>:<DesignEventAnalysis event={viewingEvent} onOpenMemory={onOpenMemory}/>}
 
             </div>
 

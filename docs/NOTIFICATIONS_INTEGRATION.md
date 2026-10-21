@@ -99,18 +99,30 @@ Check disconnect/reconnect, disabled/unconfigured/worker-unavailable, and explic
 error Retry. This frontend PR performs no activation, merge or deployment.
 
 
-## Intelligence visuals that remain Design-only
+## Full Studio UI in Production: Preview / Soon
 
-Studio's event analysis, fixed 94%/entity/conflict/confirmation data, autonomy card
-and Work/Personal/Holidays permissions have been moved verbatim to
-src/demo/StudioIntelligencePreviews.tsx and injected through typed optional
-Workspace slots. Their original classes/layout are retained. Live Workspace does
-not supply these slots, and the Production import graph excludes the module.
-The shared components additionally gate the slots with !live. No fake Memory
-confirmation, source IDs, calendar analysis or autonomy writes occur in Production.
-Existing real Memory Inbox and Calendar CRUD/Google Sync remain separate.
+The owner's revised policy preserves the full Studio interface in Production.
+Shared src/components/IntelligencePreviews.tsx renders event-analysis, entities,
+proposal/conflict illustrations, autonomy and calendar-analysis permissions with
+original Studio classes/layout. Production uses explicit Preview / Пример / Soon
+labels, disabled inputs/buttons and no mutation handlers or fictitious save states.
+Calendar's previous name-based analyzed badge now says AI analysis · Soon in live.
 
-The verified Backend IntelligenceSettings.Autonomy at f1ec72e4 actually includes
-review_all, auto_link, auto_write. Studio manual/auto_save are not those values;
-this integration deliberately invents no mapping and never enables auto_write.
-A separate reviewed proposal/permissions integration is needed for these visuals.
+The public event illustration receives no real event, memory or Inbox proposal.
+Its example person/company/place are independent of the opened event. No example
+links to a real memory/proposal, and no real Memory operation is callable from it.
+The src/demo adapter keeps interactive Design examples offline using the very same
+visual components; account fixtures, demo IDs and Design runtime remain excluded
+from the Production bundle. The unchanged production verifier still rejects private
+fixture markers; targeted checks also require the public Preview components to be
+present, so hiding them cannot accidentally satisfy isolation tests.
+
+Existing Calendar CRUD, Google Sync, Memory Inbox decisions and Telegram connection
+are untouched. Notification controls retain the existing real controller; absent
+notification API shows Soon with disabled mutation controls, never fake delivery.
+Errors still use explicit Retry. Backend PR #35 remains a separate live prerequisite.
+
+Backend autonomy is review_all / auto_link / auto_write. Studio manual / auto_save
+are not mapped to policy changes; the card is Soon until that mapping is agreed.
+Static Work/Personal/Holidays examples cannot identify owner-scoped UserCalendars,
+so their permission controls remain inert Soon illustrations, not persisted settings.

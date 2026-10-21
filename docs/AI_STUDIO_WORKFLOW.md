@@ -20,6 +20,14 @@ Studio may implement a small frontend integration when explicitly assigned, thro
 
 Authenticated Design and Production use the same src/pages/WorkspaceView.tsx and page components. Do not recreate a separate Live/Production page tree. Data, capability restrictions and actions use the existing typed WorkspaceModel; transport stays in providers/hooks. See [composition audit and regression rules](WORKSPACE_COMPOSITION.md).
 
+Keep the complete Studio interface visible in Production. Working integrations must
+remain real. Future controls retain their layout, show Soon and are disabled.
+Public illustrative content must say Preview / Пример, remain separate from real
+user events/memory/Inbox, and have no live mutation handlers or invented success.
+Do not hide a whole Studio section merely because its Backend integration is pending.
+Account fixtures, offline scenarios and demo auth stay Design-only. See
+[notification and Intelligence preview integration](NOTIFICATIONS_INTEGRATION.md).
+
 ## Safe editing scope
 
 - Visual edits: `src/components/`, `src/pages/`, `src/index.css`, visual assets in `public/`.

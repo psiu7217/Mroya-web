@@ -77,3 +77,26 @@ test('Production and Guest hide unconfigured Notes; stale selection falls back t
  const guest=renderToStaticMarkup(React.createElement(Sidebar,{...find(design,n=>n.type===Sidebar).props,notesAvailable:undefined,onSignIn(){}}));assert.doesNotMatch(guest,/>Notes<|title="Notes/);
  const configured=WorkspaceView({model:{...model,runtime:{},notesAvailable:true,activeSection:'notes'}});assert.equal(find(configured,n=>n.type===NotesView).props.designPreview,false);
 });
+
+
+test('live Notes distinguish pending/error/confirmed empty; retry/pagination call controllers without synthetic success',()=>{
+ let retries=0,more=0;
+ const runtime={scopeKey:'synthetic-scope',loaded:false,loading:true,loadingMore:false,error:null,hasMore:false,selectedId:null,detail:null,detailLoading:false,detailError:null,onSelect(){},onRetry(){retries++;},onMore(){more++;},onRetryDetail(){}};
+ const view=mount({notes:[],designPreview:false,runtime});assert.match(view.html,/Loading notes/);assert.doesNotMatch(view.html,/No notes yet|Empty state/);
+ runtime.loading=false;runtime.error='Synthetic load error';view.update({runtime:{...runtime}});assert.match(view.html,/Synthetic load error/);assert.doesNotMatch(view.html,/No notes yet/);view.open('Retry');assert.equal(retries,1);
+ runtime.loaded=true;runtime.error=null;view.update({runtime:{...runtime}});assert.match(view.html,/No notes yet/);
+ runtime.hasMore=true;view.update({notes:[{...note('a','not searched content'),category:undefined,noteType:undefined}],runtime:{...runtime}});view.open('Load more notes');assert.equal(more,1);assert.match(view.html,/loaded note metadata only/);assert.doesNotMatch(view.html,/Empty state/);view.unmount();assert.equal(requests,0);
+});
+
+test('live selected note shows only confirmed detail, preserves local checklists and Copy, closes via controller; search excludes body',async()=>{
+ const original='- [ ] Canonical task',brief={...note('remote',''),category:undefined,noteType:undefined};
+ let selected,detailRetries=0;
+ const runtime={scopeKey:'live-scope',loaded:true,loading:false,loadingMore:false,error:null,hasMore:false,selectedId:null,detail:null,detailLoading:false,detailError:null,onSelect(id){selected=id;},onRetry(){},onMore(){},onRetryDetail(){detailRetries++;}};
+ const view=mount({notes:[brief],designPreview:false,runtime});view.open('remote');assert.equal(selected,'remote');
+ runtime.selectedId='remote';runtime.detailLoading=true;view.update({runtime:{...runtime}});assert.match(view.html,/Loading note/);assert.equal(button(view,'Copy note text').props.disabled,true);assert.equal(view.tasks.length,0);
+ runtime.detailLoading=false;runtime.detailError='Note unavailable';view.update({runtime:{...runtime}});assert.match(view.html,/Note unavailable/);view.open('Retry');assert.equal(detailRetries,1);
+ runtime.detailError=null;runtime.detail={...brief,content:original};view.update({runtime:{...runtime}});assert.equal(view.tasks.length,1);click(view.tasks[0]);view.flush();assert.equal(view.tasks[0].props['aria-checked'],true);
+ let copied;clipboard=async v=>{copied=v;};await button(view,'Copy note text').props.onClick();assert.equal(copied,'remote\n\n'+original);assert.equal(runtime.detail.content,original);view.open('Back to Notes');assert.equal(selected,null);
+ runtime.selectedId=null;runtime.detail=null;view.update({notes:[{...brief,content:'Secret body-only term'}],runtime:{...runtime}});
+ find(view.tree,n=>n.type==='input').props.onChange({target:{value:'body-only'}});view.flush();assert.doesNotMatch(view.html,/Open note: remote/);view.unmount();assert.equal(requests,0);
+});

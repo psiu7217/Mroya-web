@@ -374,3 +374,26 @@ explicitly labelled inert Preview / Soon examples, separate from real user data.
 Their actions await verified Intelligence DTOs and owner-scoped IDs.
 HTTP 202 means queued, never delivered. A source PR does not establish deployment
 or worker readiness; old servers remain unavailable without demo fallback.
+
+
+## Notes v1 (read-only)
+
+Reviewed against API PR #38 `255a4ae444eef168e0d25edf42df7cf8d0fe7e36`,
+merged into API main. Deployment is independent: missing `notes_read` remains
+unavailable. See [Notes integration](NOTES.md) and the canonical
+[Backend contract](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md#notes).
+
+- GET `notes/?limit=20&offset=0`: `{notes, limit, offset, has_more}`. Each brief
+  record has `id`, `space_uuid`, `title`, `summary`, `keywords`, `search_phrases`,
+  `version`, `sync_status` (`pending|synced|error`), `created_at`, `updated_at`.
+  Limit 1..50, offset 0..10000; Web uses 20. Sorted updated_at then UUID descending.
+- GET `notes/{uuid}/`: `{note}` with the same fields plus exact `content` and
+  `memory_links: [{space_uuid, object_uuid}]`. Missing/deleted/foreign notes: 404.
+- Authenticated Django session, same-origin GET only. Normal 401/session expiry,
+  403/access denial and bounded JSON validation apply. Errors never mean empty.
+- `notes_read: true` enables a configured authenticated source; omitted/false flags
+  keep Notes hidden. No REST POST/PATCH/DELETE. Agent-only writes happen via Chat.
+  No category/source/readTime/noteType or server full-text search contract exists.
+
+Keep raw Markdown and temporary checklist overrides separate. Do not send checks
+back or persist them until a separately approved write contract exists.

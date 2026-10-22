@@ -186,3 +186,19 @@ test('a fresh send may reuse call_id without inheriting the previous call or acc
  assert.equal(next.length,1);assert.equal(next[0].kind==='tool'&&next[0].status,'failure');
  assert.equal(next[0].kind==='tool'&&next[0].input,undefined);c.stop();
 });
+
+
+test('Notes v1 read/write projections complete the SSE stream without exposing note content or relaxing schemas',async()=>{
+ for(const [tool_name,kind,output] of [
+  ['create_note','note_write',{note_action:'create_note',search_ready:false}],
+  ['get_note','note_read',{note_read:true}],
+  ['update_note','note_write',{note_action:'update_note',search_ready:null}],
+  ['delete_note','note_write',{note_action:'delete_note',search_removed:true}],
+ ] as const){
+  const started=start({tool_name,kind,input:null}),finished=finish({tool_name,kind,output});
+  const stream=[event(1,started),event(2,finished),answer,done];assert.deepEqual(await parse(stream),stream);
+  assert.throws(()=>readToolActivity({sequence:1,activity:start({tool_name,kind,input:{content:'Do not expose body'}})}),ApiError);
+  assert.throws(()=>readToolActivity({sequence:2,activity:finish({tool_name,kind,output:{...output,content:'Do not expose body'}})}),ApiError);
+  assert.throws(()=>readToolActivity({sequence:2,activity:finish({tool_name,kind,output:{...output,note_action:'another_tool'}})}),ApiError);
+ }
+});

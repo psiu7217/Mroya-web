@@ -93,6 +93,7 @@ export interface WorkspaceModel {
     connections: import("./mroya").ServiceConnection[];
     reminders: ReminderItem[];
     notes?: NoteItem[];
+    notesRuntime?: import('./notes').NotesPresentation;
     /** Set only by a configured Notes source; absence does not mean an empty loaded list. */
     notesAvailable?: boolean;
     reminderModalOpen: boolean;

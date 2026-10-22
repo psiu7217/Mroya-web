@@ -44,6 +44,7 @@ const baseSidebarProps = {
   upcomingEventsCount: 2,
   pendingRemindersCount: 1,
   notesCount: INITIAL_NOTES.length,
+  notesAvailable: true,
   onOpenSettingsTab: noop,
 };
 

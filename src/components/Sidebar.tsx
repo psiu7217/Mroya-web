@@ -58,6 +58,7 @@ export interface SidebarProps {
   upcomingEventsCount: number;
   pendingRemindersCount: number;
   notesCount?: number;
+  notesAvailable?: boolean;
   onOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
 }
 
@@ -88,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   upcomingEventsCount,
   pendingRemindersCount,
   notesCount = 0,
+  notesAvailable = false,
   onOpenSettingsTab,
 }) => {
   const [mobileViewport, setMobileViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
@@ -236,6 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'memory-map', label: 'Memory Map', icon: Share2 },
     { id: 'connections', label: 'Connections', icon: Link2 },
   ];
+  const visibleNavItems = navItems.filter(item => item.id !== 'notes' || notesAvailable);
 
   const renderAccountPopover = (isNarrow: boolean) => (
     <div
@@ -417,7 +420,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Primary Navigation Icons (aligned with expanded) */}
           <nav aria-label="Main sections" className="px-2.5 pb-3 border-b border-[var(--mroya-divider)] w-full shrink-0">
             <ul className="space-y-1 flex flex-col items-center">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.id;
                 return (
@@ -598,7 +601,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Primary Navigation */}
         <nav aria-label="Main sections" className="px-2.5 pb-3 border-b border-[var(--mroya-divider)] shrink-0">
           <ul className="space-y-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;
               return (

@@ -82,7 +82,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
   conversations:conversationListPresentation(state.conversations,user.timezone),activeConversationId:state.activeConversationId,activeConversation:conversation,
-  memories,nodes:graph.nodes,edges:graph.edges,events:calendar.state.events,reminders:[],notes:[],connections:[],
+  memories,nodes:graph.nodes,edges:graph.edges,events:calendar.state.events,reminders:[],notesAvailable:false,connections:[],
   reminderModalOpen:false,editingReminder:null,reminderPreselectedEventId:undefined,
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
   focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,

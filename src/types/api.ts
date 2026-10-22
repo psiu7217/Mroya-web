@@ -7,7 +7,7 @@ export interface ApiUser { id:number; username:string; email:string; first_name:
 export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode;show_model_reasoning:boolean;timezone:string;timezone_only_if_unset:boolean}>;
 export interface ReportContext {turn_id:string;request_trace_id:number;report_url:string}
 export interface IssueReportResponse {issue:{id:string;turn_id:string;request_trace_id:number;status:'new'|'investigating'|'resolved';created_at:string};created:boolean}
-export type LiveToolName = 'search_memory'|'fast_search_memory'|'prepare_memory_write'|'expand_memory_entities'|'write_statements'|'revise_memory_statements'|'forget_memory_statements'|'resolve_memory_write'|'echo'|'search_calendar_events'|'get_calendar_events'|'create_calendar_events'|'update_calendar_events'|'delete_calendar_events'|'tool';
+export type LiveToolName = 'search_memory'|'fast_search_memory'|'prepare_memory_write'|'expand_memory_entities'|'write_statements'|'revise_memory_statements'|'forget_memory_statements'|'resolve_memory_write'|'echo'|'search_calendar_events'|'get_calendar_events'|'create_calendar_events'|'update_calendar_events'|'delete_calendar_events'|'create_note'|'get_note'|'update_note'|'delete_note'|'tool';
 export interface LiveFact {subject:string|null;predicate:string|null;value:string|number|boolean|null}
 export type LiveToolInput = {queries:{query:string|null}[]}
  | {entities:{label:string|null;direction:'outgoing'|'incoming'|'both'|null}[]}
@@ -18,6 +18,9 @@ export type LiveToolOutput = {result_count?:number;facts:LiveFact[]}
  | {created_count:number;reused_existing_count:number;results:{action:'created'|'reused_existing'}[];search_ready:boolean|null}
  | {revised_count:number;results:{action:'revised'}[];search_ready:boolean|null}
  | {forgotten_count:number;results:{action:'forgotten'}[];search_ready:boolean|null}
+ | {note_read:true}
+ | {note_action:'create_note'|'update_note';search_ready:boolean|null}
+ | {note_action:'delete_note';search_removed:boolean|null}
  | {decision_resolved:true;new_facts_added:false}
  | {error_code:'tool_budget_exhausted'|'search_before_write_required'|'unknown_tool_argument'|'invalid_tool_arguments_json'|'invalid_tool_argument_value'|'invalid_tool_variant'|'tool_not_allowed'|'agent_step_limit_exceeded'|'tool_execution_failed'|'not_executed'};
 export interface LegacyToolActivity {kind:string;status:'success'|'failure'|'neutral';title:string}
@@ -33,7 +36,7 @@ export interface ApiMessage { /** Controller-local, never a history/write DTO. *
 export interface ConversationSummary {id:string;title:string;created_at:string;updated_at:string}
 export interface ConversationPage {conversations:ConversationSummary[];next_offset:number|null}
 export interface HistoryResponse { conversation_id:string; messages:ApiMessage[]; next_before:number|null }
-export interface Capabilities { api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean }
+export interface Capabilities { api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean; notes_read?:boolean }
 // Canonical statements deliberately retain provenance/revisions without pretending to be UI cards.
 export type CanonicalMemory = {uuid:string} & Record<string,unknown>;
 export interface MemoriesResponse { memories:CanonicalMemory[]; total:number }

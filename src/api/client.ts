@@ -1,3 +1,4 @@
+import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
 import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
 import {readIntelligenceSettings,readIntelligenceRuntime,readIntelligenceProposal,readProposalPage,readProposalHistory,validateDecision} from './intelligence.ts';
@@ -29,6 +30,15 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async notes(offset=0,signal?:AbortSignal){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid Notes offset');
+    return readNotesPage(await this.json('notes/?limit=20&offset='+offset,undefined,signal),offset);
+  }
+  async note(id:string,signal?:AbortSignal){
+    noteId(id);
+    return readNoteDetail(await this.json('notes/'+id+'/',undefined,signal),id);
+  }
+
   async notificationSettings(signal?:AbortSignal){return readNotificationSettings(await this.json('me/notifications/settings/',undefined,signal));}
   async saveNotificationSettings(enabled:boolean,signal?:AbortSignal){
     if(typeof enabled!=='boolean')throw new Error('Expected notification boolean');

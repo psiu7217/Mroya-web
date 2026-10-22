@@ -257,6 +257,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'notes' && notesAvailable && (
           <NotesView
+            key={model.notesRuntime?.scopeKey}
+            runtime={model.notesRuntime}
             notes={model.notes ?? []}
             designPreview={!runtime}
             isSidebarCollapsed={isSidebarCollapsed}

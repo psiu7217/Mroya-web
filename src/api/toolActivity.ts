@@ -13,6 +13,7 @@ const fact=(v:unknown)=>keys(v,['subject','predicate','value'])&&nullableText(v.
 const kinds:Record<string,string>={
  search_memory:'memory_search',fast_search_memory:'memory_search',prepare_memory_write:'persistence_check',expand_memory_entities:'memory_search',
  write_statements:'memory_write',revise_memory_statements:'memory_write',forget_memory_statements:'memory_write',resolve_memory_write:'no_write',
+ create_note:'note_write',get_note:'note_read',update_note:'note_write',delete_note:'note_write',
  echo:'tool',tool:'tool',search_calendar_events:'calendar_search',get_calendar_events:'calendar_search',
  create_calendar_events:'calendar_write',update_calendar_events:'calendar_write',delete_calendar_events:'calendar_write',
 };
@@ -41,6 +42,9 @@ function output(name:string,status:string,v:unknown):boolean{
    const actions=name==='write_statements'?['created','reused_existing']:name==='revise_memory_statements'?['revised']:['forgotten'];
    return keys(v,[...counters,'results','search_ready'])&&counters.every(k=>count(v[k]))&&(v.search_ready===null||typeof v.search_ready==='boolean')&&list(v.results,r=>keys(r,['action'])&&actions.includes(r.action as string));
   }
+  case 'get_note':return keys(v,['note_read'])&&v.note_read===true;
+  case 'create_note':case 'update_note':return keys(v,['note_action','search_ready'])&&v.note_action===name&&(v.search_ready===null||typeof v.search_ready==='boolean');
+  case 'delete_note':return keys(v,['note_action','search_removed'])&&v.note_action===name&&(v.search_removed===null||typeof v.search_removed==='boolean');
   case 'resolve_memory_write':return keys(v,['decision_resolved','new_facts_added'])&&v.decision_resolved===true&&v.new_facts_added===false;
   default:return false;
  }

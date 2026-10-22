@@ -204,6 +204,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            privacy={model.privacy}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
             designIntelligence={runtime?undefined:model.designIntelligence}

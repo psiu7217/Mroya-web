@@ -1,3 +1,4 @@
+import {readPrivacy,readPrivacyReceipt,type PrivacyKind} from './privacy.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
 import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
 import {readIntelligenceSettings,readIntelligenceRuntime,readIntelligenceProposal,readProposalPage,readProposalHistory,validateDecision} from './intelligence.ts';
@@ -29,6 +30,18 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async privacySettings(signal?:AbortSignal){return readPrivacy(await this.json('me/privacy/',undefined,signal));}
+  async savePrivacyConsent(enabled:boolean,version:string,signal?:AbortSignal){
+    if(typeof enabled!=='boolean'||!version)throw new Error('Invalid privacy consent');
+    return readPrivacy(await this.json('me/privacy/',{ai_consent:enabled,notice_version:version},signal,'PATCH'));
+  }
+  async requestPrivacy(kind:PrivacyKind,signal?:AbortSignal){
+    if(!['google_data_deletion','account_deletion','personal_information'].includes(kind))throw new Error('Invalid privacy request');
+    return readPrivacyReceipt(await this.json('me/privacy/requests/',{kind,confirmation:kind},signal,'POST',status=>{
+      if(status!==202)throw new ApiError(502,'invalid_response','Request acknowledgement missing');
+    }),kind);
+  }
+
   async notificationSettings(signal?:AbortSignal){return readNotificationSettings(await this.json('me/notifications/settings/',undefined,signal));}
   async saveNotificationSettings(enabled:boolean,signal?:AbortSignal){
     if(typeof enabled!=='boolean')throw new Error('Expected notification boolean');
@@ -71,7 +84,7 @@ export class MroyaApi {
     const data=await this.json<{connection:unknown}>('calendar/google/connections/'+id+'/',changes,signal,'PATCH');return readGoogleConnection(data.connection);
   }
   async syncCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string}>('calendar/google/connections/'+id+'/sync/',{},signal);if(data.status!=='pending')throw new ApiError(502,'invalid_response','Sync request was not confirmed');}
-  async disconnectCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string}>('calendar/google/connections/'+id+'/',{},signal,'DELETE');if(data.status!=='disconnected')throw new ApiError(502,'invalid_response','Disconnect was not confirmed');}
+  async disconnectCalendarGoogle(id:string,signal?:AbortSignal):Promise<void|{revoked:boolean}>{if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string;revoked:boolean}>('calendar/google/connections/'+id+'/',{},signal,'DELETE');if(data.status!=='disconnected'||typeof data.revoked!=='boolean')throw new ApiError(502,'invalid_response','Disconnect was not confirmed');return {revoked:data.revoked};}
   private token='';
   private csrfPending:Promise<void>|null=null;
   private fetcher:typeof fetch;

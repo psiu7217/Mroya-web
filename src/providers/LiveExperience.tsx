@@ -1,3 +1,4 @@
+import {usePrivacySettings} from '../hooks/usePrivacySettings';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
 import {useLiveMemoryInbox} from '../hooks/useLiveMemoryInbox';
 import {useUserTimezone} from '../hooks/useUserTimezone';
@@ -19,6 +20,7 @@ import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
+ const privacy=usePrivacySettings(source,user.id,onExpired);
  const preferences=useUserPreferences(source,user,onExpired);
  const timezone=useUserTimezone(source,user,onExpired);
  const confirmedUser=timezone.user;
@@ -89,6 +91,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   relatedMemoriesForActiveChat:[],upcomingRelatedEvent:null,settingsTab,addedActionIds:[],googleCalendarConnected:google?.status==='connected',
   calendar:{upcoming:{events:calendar.state.upcomingEvents,loading:calendar.state.upcomingLoading,error:calendar.state.upcomingError,onStartChange:calendar.controller.setUpcomingStart,onRetry:()=>void calendar.controller.loadUpcoming()},loading:calendar.state.loading,busy:calendar.state.busy,mutationPending:calendar.state.mutationPending,error:calendar.state.error,timezone:confirmedUser.timezone,
    onRetry:calendar.controller.retry,onRangeChange:calendar.controller.setRange,onLoadEventForEdit:calendar.controller.loadForEdit},
+  privacy,
   googleCalendarAvailable:calendar.state.googleAvailable,googleCalendarBusy:calendar.state.googleBusy,
   googleCalendarError:calendar.state.googleError,
   googleCalendarNotice:[calendar.state.oauthNotice,googleView.notice].filter(Boolean).join(' · '),

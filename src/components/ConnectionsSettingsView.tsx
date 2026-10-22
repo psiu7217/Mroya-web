@@ -1,3 +1,4 @@
+import {PrivacyControls} from './PrivacyControls';
 import {IntelligenceSourcesPreview,IntelligenceAutonomyPreview} from './IntelligencePreviews';
 import {timezoneChoices} from '../utils/timezones';
 import type { AccountPresentation, NotificationPresentation, NotificationPreview, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
@@ -70,6 +71,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
+  privacy?:import('../types/privacy').PrivacyPresentation;
   designIntelligence?:import('../types/workspace').DesignIntelligencePreviews;
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
@@ -97,7 +99,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  live=false,connectionSamples,timezoneSettings,designIntelligence,notifications,notificationPreview,
+  privacy,live=false,connectionSamples,timezoneSettings,designIntelligence,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -393,7 +395,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         {gcalSyncState === 'disconnected' && (
                           <div className="space-y-4 pt-1 animate-in fade-in duration-150">
                             <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[21px]">
-                              Connect your Google Calendar for two-way synchronization with Mroya. Your schedule, client meetings, and deadlines will be cross-referenced automatically while protecting morning deep work before 11:00 AM.
+                              {live?'Mroya requests read access to your calendar list and permission to view and edit events. It imports selected calendars and can create, update or delete events in your writable export calendar. Initial connection can run a one-time two-way sync; automatic sync is a separate setting. AI processing requires a separate choice below. Google authorization does not grant Gmail or Drive access.':'Connect your Google Calendar for two-way synchronization with Mroya. Your schedule, client meetings, and deadlines will be cross-referenced automatically while protecting morning deep work before 11:00 AM.'}
                             </p>
                             <ul className="space-y-1.5">
                               {conn.capabilities.map((cap, i) => (
@@ -1192,6 +1194,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             </div>
           )}
 
+          <PrivacyControls privacy={privacy}/>
           {activeTab === 'settings' && (
             <div className="space-y-5">
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">

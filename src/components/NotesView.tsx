@@ -1,0 +1,743 @@
+import React, { useState, useMemo } from 'react';
+import {
+  FileText,
+  Search,
+  X,
+  Menu,
+  PanelLeft,
+  ArrowLeft,
+  Calendar,
+  Tag,
+  Copy,
+  Check,
+  Sparkles,
+  BookOpen,
+  ChevronRight,
+  ShieldAlert,
+  Compass,
+  Utensils,
+  Server,
+  Layers,
+  RotateCcw,
+  ListChecks,
+} from 'lucide-react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import type { NoteItem } from '../types/notes';
+import { assistantUrlTransform } from './AssistantMarkdown';
+
+export interface NotesViewProps {
+  notes?: NoteItem[];
+  isSidebarCollapsed?: boolean;
+  onExpandSidebar?: () => void;
+  onOpenMobileMenu?: () => void;
+}
+
+export const NotesView: React.FC<NotesViewProps> = ({
+  notes = [],
+  isSidebarCollapsed = false,
+  onExpandSidebar,
+  onOpenMobileMenu,
+}) => {
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [previewMode, setPreviewMode] = useState<'default' | 'empty'>('default');
+  const [copied, setCopied] = useState(false);
+  const [noteContentOverrides, setNoteContentOverrides] = useState<Record<string, string>>({});
+
+  // Available categories extracted from notes
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    notes.forEach((n) => {
+      if (n.category) set.add(n.category);
+    });
+    return ['All', ...Array.from(set)];
+  }, [notes]);
+
+  // Filter notes based on category and search query
+  const effectiveNotes = previewMode === 'empty' ? [] : notes;
+
+  const filteredNotes = useMemo(() => {
+    return effectiveNotes.filter((note) => {
+      const matchesCategory =
+        selectedCategory === 'All' || note.category === selectedCategory;
+      if (!matchesCategory) return false;
+
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        note.title.toLowerCase().includes(q) ||
+        note.summary.toLowerCase().includes(q) ||
+        note.tags.some((t) => t.toLowerCase().includes(q)) ||
+        note.content.toLowerCase().includes(q)
+      );
+    });
+  }, [effectiveNotes, selectedCategory, searchQuery]);
+
+  const activeNote = useMemo(() => {
+    if (!selectedNoteId) return null;
+    return notes.find((n) => n.id === selectedNoteId) || null;
+  }, [notes, selectedNoteId]);
+
+  const activeContent = activeNote ? (noteContentOverrides[activeNote.id] ?? activeNote.content) : '';
+
+  const isChecklist = useMemo(() => {
+    if (!activeNote) return false;
+    return (
+      activeNote.noteType === 'checklist' ||
+      activeNote.category?.toLowerCase() === 'список' ||
+      activeNote.category?.toLowerCase() === 'чеклист' ||
+      /^\s*[-*]\s*\[[ xX]\]/m.test(activeContent)
+    );
+  }, [activeNote, activeContent]);
+
+  const checklistStats = useMemo(() => {
+    if (!isChecklist) return null;
+    const total = (activeContent.match(/^\s*[-*]\s*\[[ xX]\]/gm) || []).length;
+    const completed = (activeContent.match(/^\s*[-*]\s*\[[xX]\]/gm) || []).length;
+    return { total, completed };
+  }, [isChecklist, activeContent]);
+
+  const handleToggleTask = (taskIndex: number) => {
+    if (!activeNote) return;
+    let matchIdx = 0;
+    const updated = activeContent.replace(
+      /^(\s*[-*]\s*\[)([ xX])(\].*)$/gm,
+      (match, prefix, checkMark, rest) => {
+        if (matchIdx === taskIndex) {
+          matchIdx++;
+          const next = checkMark === ' ' ? 'x' : ' ';
+          return `${prefix}${next}${rest}`;
+        }
+        matchIdx++;
+        return match;
+      }
+    );
+    setNoteContentOverrides((prev) => ({
+      ...prev,
+      [activeNote.id]: updated,
+    }));
+  };
+
+  const handleResetChecklist = () => {
+    if (!activeNote) return;
+    const cleared = activeContent.replace(
+      /^(\s*[-*]\s*\[)[xX](\].*)$/gm,
+      '$1 $2'
+    );
+    setNoteContentOverrides((prev) => ({
+      ...prev,
+      [activeNote.id]: cleared,
+    }));
+  };
+
+  const renderNoteMarkdown = (content: string) => {
+    let taskCounter = 0;
+
+    return (
+      <div className="mroya-markdown text-[15px] sm:text-[16px] leading-[24px] sm:leading-[25px] text-[var(--mroya-text)]">
+        <Markdown
+          skipHtml
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+          urlTransform={assistantUrlTransform}
+          components={{
+            a: ({ href, children }) =>
+              href ? (
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  {children}
+                </a>
+              ) : (
+                <span>{children}</span>
+              ),
+            img: ({ alt }) => (
+              <span className="mroya-markdown-image">{alt || 'Image omitted'}</span>
+            ),
+            table: ({ children }) => (
+              <div
+                className="mroya-markdown-scroll"
+                role="region"
+                aria-label="Note table"
+                tabIndex={0}
+              >
+                <table>{children}</table>
+              </div>
+            ),
+            pre: ({ children }) => <pre tabIndex={0}>{children}</pre>,
+            input: ({ type, ...props }) => {
+              if (type === 'checkbox') return null;
+              return <input type={type} {...props} />;
+            },
+            li: ({ node, children, className, ...props }) => {
+              const isTask = className?.includes('task-list-item');
+              if (isTask) {
+                const currentTaskIdx = taskCounter++;
+                let isChecked = false;
+                let itemChildren = children;
+                if (Array.isArray(children)) {
+                  const first = children[0] as React.ReactElement<any>;
+                  if (
+                    first &&
+                    typeof first === 'object' &&
+                    'props' in first &&
+                    first.props?.type === 'checkbox'
+                  ) {
+                    isChecked = Boolean(first.props.checked);
+                    itemChildren = children.slice(1);
+                  }
+                }
+
+                return (
+                  <li
+                    className="list-none my-1.5 -mx-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--mroya-surface-muted)]/75 transition-colors cursor-pointer flex items-start gap-3 group select-none"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleToggleTask(currentTaskIdx);
+                    }}
+                    role="checkbox"
+                    aria-checked={isChecked}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleToggleTask(currentTaskIdx);
+                      }
+                    }}
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-[6px] border mt-0.5 flex items-center justify-center transition-all shrink-0 ${
+                        isChecked
+                          ? 'bg-[var(--mroya-primary)] border-[var(--mroya-primary)] text-[var(--mroya-on-primary)] shadow-2xs'
+                          : 'border-[var(--mroya-divider)] bg-[var(--mroya-surface)] group-hover:border-[var(--mroya-primary)]'
+                      }`}
+                    >
+                      {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </span>
+                    <span
+                      className={`flex-1 min-w-0 leading-relaxed text-[15px] sm:text-[15.5px] transition-colors ${
+                        isChecked
+                          ? 'text-[var(--mroya-text-muted)] line-through opacity-75'
+                          : 'text-[var(--mroya-text)]'
+                      }`}
+                    >
+                      {itemChildren}
+                    </span>
+                  </li>
+                );
+              }
+              return (
+                <li className="my-1 leading-relaxed" {...props}>
+                  {children}
+                </li>
+              );
+            },
+          }}
+        >
+          {content}
+        </Markdown>
+      </div>
+    );
+  };
+
+  const handleCopyNote = (text: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  };
+
+  /* ------------------------------------------------------------- */
+  /* SCREEN 2 — NOTE READING VIEW                                  */
+  /* ------------------------------------------------------------- */
+  if (activeNote) {
+    return (
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)] select-text">
+        {/* Detail Header */}
+        <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={onOpenMobileMenu}
+              aria-label="Open navigation"
+              className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {isSidebarCollapsed && onExpandSidebar && (
+              <button
+                type="button"
+                onClick={onExpandSidebar}
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+                className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedNoteId(null)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] active:scale-[0.98] transition-all cursor-pointer group"
+            >
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+              <span>Back to Notes</span>
+            </button>
+          </div>
+
+          {/* Right Action: Copy text & Metadata */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="hidden md:flex items-center gap-1.5 text-[12px] text-[var(--mroya-text-muted)]">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Updated {activeNote.updatedAt}</span>
+            </div>
+
+            {isChecklist && (
+              <button
+                type="button"
+                onClick={handleResetChecklist}
+                title="Сбросить все отметки в списке"
+                aria-label="Сбросить список"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[12px] font-medium text-[var(--mroya-text)] transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
+                <span>Сбросить</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleCopyNote(`${activeNote.title}\n\n${activeContent}`)}
+              title="Copy note text"
+              aria-label="Copy note text"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[12px] font-medium text-[var(--mroya-text)] transition-colors cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-emerald-500 font-semibold">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
+                  <span>Copy text</span>
+                </>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* Reading Body */}
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 py-6 sm:py-10">
+          <article className="max-w-3xl mx-auto w-full">
+            {/* Note Title */}
+            <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-bold tracking-tight text-[var(--mroya-text)] leading-tight mb-3">
+              {activeNote.title}
+            </h1>
+
+            {/* Meta below title: Category on the left, Date on the right */}
+            <div className="flex items-center justify-between text-[13px] text-[var(--mroya-text-muted)] mb-6 pb-3 border-b border-[var(--mroya-divider)]/40">
+              <div className="flex items-center gap-2">
+                {activeNote.category && (
+                  <span className="font-semibold text-[var(--mroya-primary)]">
+                    {activeNote.category}
+                  </span>
+                )}
+                {isChecklist && (
+                  <span className="text-[11px] font-medium text-[var(--mroya-brand-honey)] bg-[var(--mroya-surface-muted)] px-2 py-0.5 rounded-[6px] border border-[var(--mroya-divider)]/40">
+                    Список
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[12.5px]">
+                <Calendar className="w-3.5 h-3.5 opacity-60" />
+                <span>{activeNote.updatedAt}</span>
+              </div>
+            </div>
+
+            {/* Structured Full Content with surface backing & comfortable padding */}
+            <div className="rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-5 sm:p-7 md:p-9 shadow-xs mb-8">
+              {isChecklist && checklistStats && checklistStats.total > 0 && (
+                <div className="flex items-center justify-between pb-4 mb-5 border-b border-[var(--mroya-divider)]/60">
+                  <div className="flex items-center gap-2 text-[13px] text-[var(--mroya-text-muted)]">
+                    <ListChecks className="w-4 h-4 text-[var(--mroya-primary)]" />
+                    <span>
+                      {checklistStats.completed} из {checklistStats.total} выполнено
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleResetChecklist}
+                    className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Сбросить список</span>
+                  </button>
+                </div>
+              )}
+
+              {renderNoteMarkdown(activeContent)}
+            </div>
+
+            {/* Secondary Metadata Block: Summary & Tags (transferred to the bottom of the page) */}
+            <div className="rounded-[12px] bg-[var(--mroya-surface-muted)]/75 border border-[var(--mroya-divider)] p-4 sm:p-5 mb-8">
+              <div className="text-[13.5px] leading-relaxed text-[var(--mroya-text)] font-medium mb-2.5">
+                {activeNote.summary}
+              </div>
+
+              {activeNote.tags.length > 0 && (
+                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[12px] text-[var(--mroya-text-muted)] pt-2 border-t border-[var(--mroya-divider)]/60">
+                  <span className="font-medium text-[var(--mroya-text)] opacity-80">
+                    Ключевые теги:
+                  </span>
+                  {activeNote.tags.map((tag, idx) => (
+                    <span key={tag} className="inline-flex items-center">
+                      <span>{tag}</span>
+                      {idx < activeNote.tags.length - 1 && (
+                        <span className="ml-2 opacity-40">·</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Navigation */}
+            <div className="pt-8 pb-12 border-t border-[var(--mroya-divider)] flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setSelectedNoteId(null)}
+                className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Вернуться к списку заметок</span>
+              </button>
+
+              <span className="text-[12px] text-[var(--mroya-text-muted)]">
+                AI Agent Knowledge Store · Mroya
+              </span>
+            </div>
+          </article>
+        </main>
+      </div>
+    );
+  }
+
+  /* ------------------------------------------------------------- */
+  /* SCREEN 1 & SCREEN 3 — NOTES LIST & EMPTY STATE                 */
+  /* ------------------------------------------------------------- */
+  return (
+    <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
+      {/* Primary Header */}
+      <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            aria-label="Open navigation"
+            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {isSidebarCollapsed && onExpandSidebar && (
+            <button
+              type="button"
+              onClick={onExpandSidebar}
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              className="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
+
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center text-[var(--mroya-primary)]">
+              <FileText className="w-4 h-4" />
+            </div>
+            <h1 className="text-[16px] sm:text-[17px] font-semibold text-[var(--mroya-text)] tracking-tight">
+              Notes
+            </h1>
+          </div>
+        </div>
+
+        {/* Design Mode State Toggle & Meta */}
+        <div className="flex items-center gap-2">
+          {/* Subtle switcher for previewing Screen 1 vs Screen 3 in Design Mode */}
+          <div className="flex items-center bg-[var(--mroya-surface-muted)] p-0.5 rounded-lg border border-[var(--mroya-divider)] text-[12px]">
+            <button
+              type="button"
+              onClick={() => setPreviewMode('default')}
+              className={`px-2.5 py-1 rounded-[6px] font-medium transition-colors cursor-pointer ${
+                previewMode === 'default'
+                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] shadow-2xs font-semibold'
+                  : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
+              }`}
+            >
+              All notes ({notes.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewMode('empty')}
+              className={`px-2.5 py-1 rounded-[6px] font-medium transition-colors cursor-pointer ${
+                previewMode === 'empty'
+                  ? 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] shadow-2xs font-semibold'
+                  : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
+              }`}
+            >
+              Empty state
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Screen 3: Pure Empty State */}
+      {effectiveNotes.length === 0 ? (
+        <main className="flex-1 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+          <div className="max-w-md w-full flex flex-col items-center py-10">
+            {/* Document Icon Graphic */}
+            <div className="w-16 h-16 rounded-2xl bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center text-[var(--mroya-primary)] shadow-xs mb-5">
+              <FileText className="w-8 h-8 stroke-[1.6]" />
+            </div>
+
+            {/* Explicitly requested empty state labels */}
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--mroya-text)] mb-2">
+              No notes yet
+            </h2>
+
+            <p className="text-[14px] sm:text-[15px] text-[var(--mroya-text-muted)] leading-relaxed max-w-sm mb-8">
+              Ask Mroya to save a recipe, instruction, or any useful text.
+            </p>
+
+            {/* Information card highlighting agent-driven nature without create button */}
+            <div className="w-full text-left rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-5 shadow-xs">
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--mroya-text)] mb-3">
+                <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
+                <span>Как сохраняются заметки в Mroya:</span>
+              </div>
+
+              <div className="space-y-2.5 text-[13px] text-[var(--mroya-text-muted)]">
+                <div className="flex items-start gap-2.5">
+                  <Utensils className="w-4 h-4 text-[var(--mroya-primary)] shrink-0 mt-0.5" />
+                  <span>«Сохрани рецепт шарлотки с точными граммовками»</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <ShieldAlert className="w-4 h-4 text-[var(--mroya-primary)] shrink-0 mt-0.5" />
+                  <span>«Запомни условия банковской карты и комиссии»</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Server className="w-4 h-4 text-[var(--mroya-primary)] shrink-0 mt-0.5" />
+                  <span>«Зафиксируй параметры деплоя и порты сервера»</span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Compass className="w-4 h-4 text-[var(--mroya-primary)] shrink-0 mt-0.5" />
+                  <span>«Составь и сохрани список снаряжения для похода»</span>
+                </div>
+              </div>
+            </div>
+
+            {previewMode === 'empty' && notes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPreviewMode('default')}
+                className="mt-6 text-[13px] text-[var(--mroya-primary)] hover:underline cursor-pointer"
+              >
+                Вернуться к демонстрационным заметкам ({notes.length})
+              </button>
+            )}
+          </div>
+        </main>
+      ) : (
+        /* Screen 1: Notes List View */
+        <main className="flex-1 overflow-y-auto">
+          {/* Section Introduction & Search/Filter Controls */}
+          <div className="px-4 sm:px-6 md:px-10 pt-6 pb-4 border-b border-[var(--mroya-divider)] bg-[var(--mroya-surface)]/40">
+            <div className="max-w-6xl mx-auto space-y-4">
+              {/* Heading & Unobtrusive Description */}
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-4">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--mroya-text)]">
+                    Notes
+                  </h2>
+                  <p className="text-[13.5px] text-[var(--mroya-text-muted)] mt-0.5">
+                    Texts, recipes, and guides saved for you by Mroya in chat.
+                  </p>
+                </div>
+
+                <div className="text-[12.5px] text-[var(--mroya-text-muted)] shrink-0">
+                  {filteredNotes.length}{' '}
+                  {filteredNotes.length === 1
+                    ? 'note'
+                    : filteredNotes.length >= 2 && filteredNotes.length <= 4
+                    ? 'notes'
+                    : 'notes'}
+                </div>
+              </div>
+
+              {/* Search Bar & Categories */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+                {/* Search Input */}
+                <div className="relative w-full md:w-80 lg:w-96">
+                  <Search className="w-4 h-4 text-[var(--mroya-text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search notes, tags, or content..."
+                    aria-label="Search notes"
+                    className="w-full h-9 pl-9 pr-8 text-[13.5px] bg-[var(--mroya-surface)] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)] focus:border-[var(--mroya-primary)] rounded-[10px] transition-colors"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Clear search"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] p-0.5 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Categories Tabs (Zero-Pill discipline) */}
+                {categories.length > 1 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-3 py-1.5 rounded-[8px] text-[13px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                          selectedCategory === cat
+                            ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold shadow-2xs'
+                            : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          <div className="px-4 sm:px-6 md:px-10 py-6 max-w-6xl mx-auto">
+            {filteredNotes.length === 0 ? (
+              <div className="py-16 text-center text-[var(--mroya-text-muted)]">
+                <Search className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                <p className="text-[15px] font-medium text-[var(--mroya-text)]">
+                  Ничего не найдено
+                </p>
+                <p className="text-[13px] mt-1">
+                  По запросу «{searchQuery}» заметки не найдены.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('All');
+                  }}
+                  className="mt-3 text-[13px] text-[var(--mroya-primary)] hover:underline cursor-pointer"
+                >
+                  Сбросить фильтры
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                {filteredNotes.map((note) => (
+                  <article
+                    key={note.id}
+                    onClick={() => setSelectedNoteId(note.id)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedNoteId(note.id);
+                      }
+                    }}
+                    aria-label={`Open note: ${note.title}`}
+                    className="group flex flex-col justify-between rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] hover:border-[var(--mroya-primary)]/50 p-5 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-[var(--mroya-primary)]"
+                  >
+                    <div>
+                      {/* Top Row: Icon, Category & Date (Zero-Pill formatting) */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="w-8 h-8 rounded-lg bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]/80 flex items-center justify-center text-[var(--mroya-primary)] group-hover:bg-[var(--mroya-surface-active)] transition-colors shrink-0">
+                          {note.noteType === 'checklist' || note.category?.toLowerCase() === 'список' ? (
+                            <ListChecks className="w-4 h-4" />
+                          ) : (
+                            <FileText className="w-4 h-4" />
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[12px] text-[var(--mroya-text-muted)] truncate">
+                          {note.category && (
+                            <>
+                              <span className="font-medium text-[var(--mroya-text)] opacity-80">
+                                {note.category}
+                              </span>
+                              <span className="opacity-40">·</span>
+                            </>
+                          )}
+                          <span>{note.updatedAt}</span>
+                        </div>
+                      </div>
+
+                      {/* Title */}
+                      <h3 className="text-[16.5px] font-semibold text-[var(--mroya-text)] group-hover:text-[var(--mroya-primary)] transition-colors leading-snug line-clamp-2">
+                        {note.title}
+                      </h3>
+
+                      {/* Summary (2–3 lines) */}
+                      <p className="text-[13.5px] text-[var(--mroya-text-muted)] leading-relaxed line-clamp-3 mt-2">
+                        {note.summary}
+                      </p>
+                    </div>
+
+                    {/* Bottom Metadata & Tags (Zero-Pill discipline: unboxed text with subtle dividers) */}
+                    <div className="pt-4 mt-4 border-t border-[var(--mroya-divider)]/70 flex flex-col gap-2">
+                      {note.tags.length > 0 && (
+                        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-[12px] text-[var(--mroya-text-muted)]">
+                          {note.tags.slice(0, 3).map((tag, idx) => (
+                            <span key={tag} className="inline-flex items-center">
+                              <span>{tag}</span>
+                              {idx < Math.min(note.tags.length, 3) - 1 && (
+                                <span className="ml-1.5 opacity-40">·</span>
+                              )}
+                            </span>
+                          ))}
+                          {note.tags.length > 3 && (
+                            <span className="text-[11px] opacity-60 ml-0.5">
+                              +{note.tags.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end text-[12px] pt-0.5">
+                        <span className="font-medium text-[var(--mroya-primary)] flex items-center gap-0.5 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 -translate-x-0.5 group-hover:translate-x-0 transition-all">
+                          <span>Читать</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+    </div>
+  );
+};

@@ -21,6 +21,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  FileText,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {
@@ -56,6 +57,7 @@ export interface SidebarProps {
   memoriesCount: number;
   upcomingEventsCount: number;
   pendingRemindersCount: number;
+  notesCount?: number;
   onOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
 }
 
@@ -85,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   memoriesCount,
   upcomingEventsCount,
   pendingRemindersCount,
+  notesCount = 0,
   onOpenSettingsTab,
 }) => {
   const [mobileViewport, setMobileViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
@@ -217,6 +220,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Reminders',
       icon: Bell,
       meta: pendingRemindersCount > 0 ? String(pendingRemindersCount) : undefined,
+    },
+    {
+      id: 'notes',
+      label: 'Notes',
+      icon: FileText,
+      meta: notesCount > 0 ? String(notesCount) : undefined,
     },
     {
       id: 'memory',

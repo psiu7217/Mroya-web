@@ -1,4 +1,4 @@
-export type NavSection = 'chat' | 'calendar' | 'reminders' | 'memory' | 'memory-map' | 'connections';
+export type NavSection = 'chat' | 'calendar' | 'reminders' | 'memory' | 'memory-map' | 'connections' | 'notes';
 
 export type SubscriptionPlan = 'free' | 'premium';
 

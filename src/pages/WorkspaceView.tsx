@@ -12,6 +12,7 @@ import { MemoryView } from '../components/MemoryView';
 import { MemoryMapView } from '../components/MemoryMapView';
 import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
+import { NotesView } from '../components/NotesView';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
  const feedback=model.feedback??runtime;
@@ -44,6 +45,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         memoriesCount={runtime?.memoriesTotal??memories.length}
         upcomingEventsCount={events.length}
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
+        notesCount={(model.notes ?? []).length}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 
@@ -244,6 +246,15 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onSelectTheme={onConnectionsSettingsViewSelectTheme}
             activeTab={settingsTab}
             onChangeTab={onConnectionsSettingsViewChangeTab}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onExpandSidebar={onConnectionsSettingsViewExpandSidebar}
+            onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}
+          />
+        )}
+
+        {activeSection === 'notes' && (
+          <NotesView
+            notes={model.notes ?? []}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onConnectionsSettingsViewExpandSidebar}
             onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}

@@ -44,7 +44,7 @@ class Application {
  stage=new Container();screen={width:1000,height:700};canvas={};
  renderer={resize:(width,height)=>{this.screen={width,height};}};
  constructor(){environment.apps.push(this);}
- async init(){}destroy(){this.destroyed=true;}
+ async init(){await environment.initGate;}destroy(){this.destroyed=true;}
 }
 environment.pixi={Application,Circle:class {},Container,Graphics,Text};
 globalThis[key]=environment;
@@ -106,4 +106,11 @@ test('self labels require is_self=true; light palette consumes shared CSS tokens
  assert.equal(mapNodeLabel({is_self:true,label:'Stored label'},''),'Stored label');
  const palette=paletteForTheme('light',token=>token==='--mroya-text'?'#123456':'');
  assert.equal(palette.label,0x123456);assert.equal(paletteForTheme('dark'),mapPalettes.dark);
+});
+
+test('aborted asynchronous Pixi initialization destroys the app before canvas/listeners/observer are attached',async()=>{
+ let release;environment.initGate=new Promise(resolve=>{release=resolve;});let appended=0;
+ const host=Object.assign(new EventTarget(),{clientWidth:1000,clientHeight:700,append(){appended++;}});
+ const abort=new AbortController(),pending=createMemoryMapRenderer(host,{},abort.signal);const app=environment.apps.at(-1);abort.abort();release();
+ await assert.rejects(pending,{name:'AbortError'});assert.equal(app.destroyed,true);assert.equal(appended,0);delete environment.initGate;
 });

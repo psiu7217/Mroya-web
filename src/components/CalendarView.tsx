@@ -3,6 +3,7 @@ import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from
 import {EventAnalysisPreview} from './IntelligencePreviews';
 import type {CalendarPresentation} from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
+import { DialogFocus } from './DialogFocus';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -533,6 +534,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     touchStartYRef.current = null;
   };
 
+  const closeNewEvent = () => {if (!calendar?.busy && !calendar?.mutationPending && !mutationRef.current) setIsNewModalOpen(false);};
+  const closeEditEvent = () => {if (!calendar?.busy && !calendar?.mutationPending && !mutationRef.current) setEditingEvent(null);};
+  const closeDeleteEvent = () => {if (!calendar?.busy && !calendar?.mutationPending && !mutationRef.current) setDeletingEvent(null);};
   const currentMonthData = getMonthCalendarData(currentYear, currentMonthIndex);
   const dayEvents = getEventsForDay(currentYear, currentMonthIndex, selectedDay);
   const formattedDayTitle = `${getDayOfWeekName(currentYear, currentMonthIndex, selectedDay)}, ${MONTH_NAMES[currentMonthIndex]} ${selectedDay}`;
@@ -718,13 +722,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
       {/* QUICK MONTH & YEAR PICKER POPOVER / SHEET (iOS Style) */}
       {isMonthPickerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-[2px]">
+        <DialogFocus
+          onClose={() => setIsMonthPickerOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="month-picker-title"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-[2px]"
+        >
           <div className="w-full max-w-sm rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-4 sm:p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-[var(--mroya-divider)]">
               <div>
-                <h3 className="text-[15px] font-bold text-[var(--mroya-text)]">
-                  Jump to Month & Year
+                <h3
+                  id="month-picker-title"
+                  className="text-[15px] font-bold text-[var(--mroya-text)]"
+                >
+                  Jump to Month &amp; Year
                 </h3>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
                   Switch instantly or scale to full year
@@ -823,7 +837,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </DialogFocus>
       )}
 
       {/* MAIN CALENDAR CONTENT */}
@@ -1898,15 +1912,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
+        <DialogFocus
+          onClose={closeNewEvent}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-event-title"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]"
+        >
           <div className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+              <h2
+                id="new-event-title"
+                className="text-[16px] font-semibold text-[var(--mroya-text)]"
+              >
                 New calendar commitment
               </h2>
               <button
                 type="button"
-                onClick={() => setIsNewModalOpen(false)}
+                onClick={closeNewEvent}
                 aria-label="Close modal"
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
@@ -2075,7 +2099,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsNewModalOpen(false)}
+                  onClick={closeNewEvent}
                   className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                 >
                   Cancel
@@ -2090,15 +2114,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFocus>
       )}
 
       {/* VIEW EVENT DETAILS MODAL */}
       {viewingEvent && (
-        <div
+        <DialogFocus
+          onClose={() => setViewingEvent(null)}
           role="dialog"
           aria-modal="true"
           aria-labelledby="view-event-title"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
           onClick={() => setViewingEvent(null)}
         >
@@ -2252,17 +2278,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </DialogFocus>
       )}
 
       {/* EDIT EVENT MODAL */}
       {editingEvent && (
-        <div
+        <DialogFocus
+          onClose={closeEditEvent}
           role="dialog"
           aria-modal="true"
           aria-labelledby="edit-event-title"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
-          onClick={() => setEditingEvent(null)}
+          onClick={closeEditEvent}
         >
           <div
             className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
@@ -2279,7 +2307,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setEditingEvent(null)}
+                onClick={closeEditEvent}
                 aria-label="Close edit modal"
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
@@ -2402,7 +2430,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setEditingEvent(null)}
+                  onClick={closeEditEvent}
                   className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                 >
                   Cancel
@@ -2417,17 +2445,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </DialogFocus>
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
       {deletingEvent && (
-        <div
+        <DialogFocus
+          onClose={closeDeleteEvent}
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-event-dialog-title"
+          tabIndex={-1}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setDeletingEvent(null)}
+          onClick={closeDeleteEvent}
         >
           <div
             className="w-full max-w-[420px] rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-5 sm:p-6 shadow-[var(--mroya-shadow-elevated)] space-y-4 animate-in zoom-in-95 duration-150 text-[var(--mroya-text)]"
@@ -2447,7 +2477,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setDeletingEvent(null)}
+                onClick={closeDeleteEvent}
                 aria-label="Close dialog"
                 className="p-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
@@ -2465,7 +2495,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setDeletingEvent(null)}
+                onClick={closeDeleteEvent}
                 className="px-3.5 py-2 rounded-[8px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[13px] font-medium text-[var(--mroya-text)] cursor-pointer"
               >
                 Cancel
@@ -2480,7 +2510,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </DialogFocus>
       )}
     </div>
   );

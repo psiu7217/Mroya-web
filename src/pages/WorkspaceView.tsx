@@ -1,4 +1,5 @@
 import React from 'react';
+import { DialogFocus } from '../components/DialogFocus';
 import {WorkspaceSurface} from '../components/WorkspaceSurface';
 import { Sparkles, Check, X } from 'lucide-react';
 import type { WorkspaceModel } from '../types/workspace';
@@ -273,16 +274,27 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       {/* Subscription Plan Preview Modal (Free vs Mroya Premium) */}
       {planModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
-          <div className="w-full max-w-lg rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-6 space-y-5">
+          <DialogFocus
+            onClose={() => document.querySelector<HTMLButtonElement>('[data-plan-preview-close]')?.click()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="plan-preview-title"
+            tabIndex={-1}
+            className="w-full max-w-lg rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-6 space-y-5"
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
-                <h2 className="text-[17px] font-semibold text-[var(--mroya-text)]">
+                <h2
+                  id="plan-preview-title"
+                  className="text-[17px] font-semibold text-[var(--mroya-text)]"
+                >
                   Mroya Subscription Preview
                 </h2>
               </div>
               <button
                 type="button"
+                data-plan-preview-close
                 onClick={onClosePlanPreview}
                 aria-label="Close plan modal"
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
@@ -346,7 +358,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                 </button>
               </div>
             </div>
-          </div>
+          </DialogFocus>
         </div>
       )}
 

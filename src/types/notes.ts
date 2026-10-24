@@ -3,6 +3,7 @@ export interface NoteItem {
   title: string;
   summary: string;
   content: string;
+  memoryLinks?:import('./memoryLinks').MemoryLink[];
   tags: string[];
   searchPhrases?: string[];
   updatedAt: string;

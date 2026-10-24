@@ -1,3 +1,4 @@
+import {readIntelligencePreferences,readIntelligenceSources,readIntelligenceSource,readEventAnalysis} from './intelligence.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
 import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
@@ -30,6 +31,15 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async intelligencePreferences(signal?:AbortSignal){return readIntelligencePreferences(await this.json('memory-intelligence/settings/',undefined,signal));}
+  async saveIntelligencePreferences(autonomy:'review_all'|'auto_link',signal?:AbortSignal){
+    if(!['review_all','auto_link'].includes(autonomy))throw new ApiError(400,'invalid_autonomy','Unsupported autonomy');
+    return readIntelligencePreferences(await this.json('memory-intelligence/settings/',{autonomy},signal,'PATCH'));
+  }
+  async intelligenceSources(offset=0,signal?:AbortSignal){if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new Error('Invalid offset');return readIntelligenceSources(await this.json('memory-intelligence/sources/?limit=50&offset='+offset,undefined,signal),offset);}
+  async saveIntelligenceSource(id:string,enabled:boolean,signal?:AbortSignal){if(!isTurnUuid(id)||typeof enabled!=='boolean')throw new Error('Invalid source');return readIntelligenceSource(await this.json('memory-intelligence/sources/calendar/'+id+'/',{enabled},signal,'PATCH'),id);}
+  async eventAnalysis(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid event UUID');return readEventAnalysis(await this.json('memory-intelligence/calendar-events/'+id+'/status/',undefined,signal),id);}
+
   async notes(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid Notes offset');
     return readNotesPage(await this.json('notes/?limit=20&offset='+offset,undefined,signal),offset);

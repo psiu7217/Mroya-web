@@ -1,3 +1,4 @@
+import {MemoryLinks} from './MemoryLinks';
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   FileText,
@@ -42,6 +43,7 @@ export interface NotesViewProps {
   notes?: NoteItem[];
   designPreview?: boolean;
   runtime?: NotesPresentation;
+  memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
   isSidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
   onOpenMobileMenu?: () => void;
@@ -50,7 +52,7 @@ export interface NotesViewProps {
 export const NotesView: React.FC<NotesViewProps> = ({
   notes = [],
   designPreview = false,
-  runtime,
+  runtime,memoryLinksNavigation,
   isSidebarCollapsed = false,
   onExpandSidebar,
   onOpenMobileMenu,
@@ -388,6 +390,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
               {renderNoteMarkdown(activeContent)}
             </div>
+
+            <MemoryLinks links={activeNote.memoryLinks} navigation={memoryLinksNavigation}/>
 
             {/* Secondary Metadata Block: Summary & Tags (transferred to the bottom of the page) */}
             <div className="rounded-[12px] bg-[var(--mroya-surface-muted)]/75 border border-[var(--mroya-divider)] p-4 sm:p-5 mb-8">

@@ -29,3 +29,21 @@ export interface IntelligenceRuntime {worker_enabled:boolean;deep_enabled:boolea
 export interface IntelligenceHistory {version:number;kind:string;snapshot:{[key:string]:JsonValue};comment:string;created_at:string}
 export type ProposalPage={proposals:IntelligenceProposal[];next_offset:number|null};
 export type ProposalHistoryPage={history:IntelligenceHistory[];next_offset:number|null};
+
+export type IntelligenceAutonomy='review_all'|'auto_link'|'auto_write';
+export interface IntelligencePreferences {autonomy:IntelligenceAutonomy;capabilities:IntelligenceCapabilities}
+export interface IntelligenceSource {kind:'calendar';id:string;name:string;enabled:boolean}
+export const JOB_STATUSES=['queued','triaging','awaiting_analysis','irrelevant','stale','error','analyzing','analyzed','skipped','suppressed','analysis_error'] as const;
+export interface EventAnalysisStatus {
+ event_id:string;source:{kind:'calendar';id:string;enabled:boolean};runtime:IntelligenceRuntime;
+ job:null|{status:typeof JOB_STATUSES[number];decision:string|null};
+ proposal:null|{id:string;status:IntelligenceStatus;version:number;canonical_saved:boolean;links_saved:boolean;search_ready:boolean};
+}
+export interface IntelligencePresentation {
+ available:boolean;loading:boolean;busy:boolean;error:string|null;preferences:IntelligencePreferences|null;runtime:IntelligenceRuntime|null;sources:IntelligenceSource[];hasMore:boolean;
+ onRefresh:()=>void;onMore:()=>void;onSource:(id:string,enabled:boolean)=>void;onAutonomy:(value:'review_all'|'auto_link')=>void;
+}
+export interface EventAnalysisPresentation {
+ eventId:string|null;loading:boolean;error:string|null;unavailable:boolean;data:EventAnalysisStatus|null;
+ onSelect:(id:string|null)=>void;onRefresh:()=>void;onProposal:(id:string)=>void;
+}

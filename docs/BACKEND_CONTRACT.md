@@ -397,3 +397,12 @@ unavailable. See [Notes integration](NOTES.md) and the canonical
 
 Keep raw Markdown and temporary checklist overrides separate. Do not send checks
 back or persist them until a separately approved write contract exists.
+
+
+## Calendar and Notes Intelligence integration
+
+See [the integration contract and limits](INTELLIGENCE-INTEGRATION.md) for the
+reviewed settings/sources PATCH contracts, operator status and owner-scoped
+GET `memory-intelligence/calendar-events/{event_id}/status/` (Backend PR #42).
+Sync is not AI consent. No auto_write, automatic Accept or new object reader is
+introduced. Missing event API is Unavailable; the existing calendar remains usable.

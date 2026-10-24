@@ -1,3 +1,5 @@
+import {MemoryLinks} from './MemoryLinks';
+import {canonicalEventId} from '../utils/eventAnalysis';
 import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
 import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
 import {EventAnalysisPreview} from './IntelligencePreviews';
@@ -46,6 +48,8 @@ import { RecurrenceEditor } from './RecurrenceEditor';
 import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils';
 
 interface CalendarViewProps {
+  eventAnalysis?:import('../types/intelligenceApi').EventAnalysisPresentation;
+  memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
   designEventAnalysis?:import('../types/workspace').DesignIntelligencePreviews['EventAnalysis'];
   readOnly?:boolean;
   live?:boolean;
@@ -107,6 +111,7 @@ const SHORT_MONTH_NAMES = [
 
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  eventAnalysis,memoryLinksNavigation,
   readOnly=false,live=false,calendar,googleCalendarAvailable=false,googleCalendarNotice,
   samples,designEventAnalysis:DesignEventAnalysis,
   events,
@@ -143,7 +148,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
   // Viewing, Editing, and Deleting event state
-  const [viewingEvent, setViewingEvent] = useState<CalendarEvent | null>(null);
+  const [viewingSelection, setViewingEvent] = useState<CalendarEvent | null>(null);
+  const viewingEvent=live?events.find(event=>event.id===viewingSelection?.id)??viewingSelection:viewingSelection;
+  const analysisEventId=canonicalEventId(viewingEvent);
+  const selectAnalysis=eventAnalysis?.onSelect;
+  useEffect(()=>{selectAnalysis?.(analysisEventId);return()=>selectAnalysis?.(null);},[analysisEventId,selectAnalysis]);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<CalendarEvent | null>(null);
 
@@ -1571,7 +1580,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   {(live || ev.person?.includes('Александр')) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
                                       <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                                      <span>{live?'AI analysis · Soon':'Проанализировано AI · Preview'}</span>
+                                      <span>{live?'AI analysis':'Проанализировано AI · Preview'}</span>
                                     </span>
                                   )}
                                 </div>
@@ -2186,6 +2195,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 )}
               </div>
 
+              <MemoryLinks links={viewingEvent.memoryLinks} navigation={memoryLinksNavigation}/>
+
               {/* Notes */}
               {viewingEvent.notes && (
                 <div className="pt-3 space-y-1">
@@ -2213,7 +2224,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               )}
 
-              {live||!DesignEventAnalysis?<EventAnalysisPreview/>:<DesignEventAnalysis event={viewingEvent} onOpenMemory={onOpenMemory}/>}
+              {live||!DesignEventAnalysis?<EventAnalysisPreview analysis={eventAnalysis?(eventAnalysis.eventId===analysisEventId?eventAnalysis:{...eventAnalysis,data:null,error:null,loading:!!analysisEventId}):undefined}/>:<DesignEventAnalysis event={viewingEvent} onOpenMemory={onOpenMemory}/>}
 
             </div>
 

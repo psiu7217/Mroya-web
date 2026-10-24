@@ -8,6 +8,7 @@ import {inboxActions,inboxStatusLabels,proposalPresentation,runtimeNotice} from 
 type HistoryState={entries:IntelligenceHistory[];next:number|null;loading:boolean;error:string|null};
 type Operation={id:string;action:ProposalDecision;body:DecisionBody};
 export interface InboxState {
+ focusedId?:string;focusToken?:number;
  available:boolean;loading:boolean;loadingMore:boolean;error:string|null;notice:string;
  capabilities:IntelligenceCapabilities|null;runtime:IntelligenceRuntime|null;
  proposals:IntelligenceProposal[];next:number|null;
@@ -82,6 +83,14 @@ export class LiveMemoryInboxController {
   }catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({runtime:null,error:this.message(error),notice:runtimeNotice(this.current.capabilities!,null)});}
   finally{this.reads.delete(abort);if(this.active&&generation===this.generation){this.polling=false;this.schedule();}}
  };
+ focus=async(id:string)=>{
+  if(!this.active||!this.source.inboxProposal)return;
+  const abort=this.request(),generation=this.generation;
+  this.emit({focusedId:id,focusToken:(this.current.focusToken??0)+1,error:null});
+  try{const card=await this.source.inboxProposal(id,abort.signal);if(this.valid(abort,generation)){this.put(card);await this.open(id);}}
+  catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({error:this.message(error)});}
+  finally{this.reads.delete(abort);}
+ };
  open=async(id:string,more=false)=>{
   if(!this.active||!this.current.proposals.some(p=>p.id===id))return;
   const previous=this.current.histories[id],offset=more?previous?.next:0;if(offset==null)return;
@@ -148,7 +157,7 @@ export class LiveMemoryInboxController {
       summary:[inboxStatusLabels[entry.snapshot.status as keyof typeof inboxStatusLabels]??String(entry.snapshot.status??''),entry.snapshot.plan&&typeof entry.snapshot.plan==='object'&&!Array.isArray(entry.snapshot.plan)?JSON.stringify(entry.snapshot.plan):'',entry.snapshot.apply&&typeof entry.snapshot.apply==='object'&&!Array.isArray(entry.snapshot.apply)?JSON.stringify(entry.snapshot.apply):''].filter(Boolean).join(' · ')}))}}:{}),
    };
   }):[];
-  return {available:s.available,scopeKey:this.scopeKey,proposals,loading:s.loading,error:s.error,notice:s.notice,emptyMessage:'В Memory Inbox сейчас нет предложений. Доступность фонового анализа указана выше.',hasMore:s.next!==null,loadingMore:s.loadingMore,onMore:this.more,
+  return {focusedId:s.focusedId,focusToken:s.focusToken,available:s.available,scopeKey:this.scopeKey,proposals,loading:s.loading,error:s.error,notice:s.notice,emptyMessage:'В Memory Inbox сейчас нет предложений. Доступность фонового анализа указана выше.',hasMore:s.next!==null,loadingMore:s.loadingMore,onMore:this.more,
    onRefresh:()=>{this.pollCount=0;void this.refresh();},onOpenProposal:id=>{void this.open(id);},onMoreHistory:id=>{void this.open(id,true);},
    onAcceptProposal:id=>this.decide(id,'accept'),onRejectProposal:id=>this.decide(id,'reject'),onCommentProposal:(id,text)=>this.decide(id,'comment',text),onReconsiderProposal:id=>this.decide(id,'reconsider'),onRetryProposal:this.retry};
  };

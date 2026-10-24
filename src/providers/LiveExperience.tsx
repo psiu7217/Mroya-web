@@ -1,3 +1,5 @@
+import {useIntelligence} from '../hooks/useIntelligence';
+import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
 import {useLiveNotes} from '../hooks/useLiveNotes';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
 import {useLiveMemoryInbox} from '../hooks/useLiveMemoryInbox';
@@ -34,10 +36,12 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
  const inbox=useLiveMemoryInbox(source,user.id,section==='memory',onExpired,()=>void controller.refreshMemory());
+ const intelligence=useIntelligence(source,user.id,section==='connections',onExpired,id=>{setSection('memory');layout.closeMobile();void inbox.controller.focus(id);});
+ const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{notes.controller.stop();notifications.controller.stop();controller.stop();inbox.controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{intelligence.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();inbox.controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -67,6 +71,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  intelligence:intelligence.settings,eventAnalysis:intelligence.event,memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
   notifications:notifications.presentation,
   memoryInbox:inbox.presentation,
   runtime:{notifications:notifications.presentation,memoryInboxAvailable:inbox.state.available,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,

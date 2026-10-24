@@ -10,6 +10,7 @@ const initial=():NotesState=>({rows:[],loaded:false,loading:false,loadingMore:fa
 // Never map absent v1 category/source/noteType, or list metadata to a claimed full body.
 export function notePresentation(note:NoteSummaryDto|NoteDetailDto):NoteItem {
  return {id:note.id,title:note.title,summary:note.summary,tags:[...note.keywords],searchPhrases:[...note.search_phrases],
+  memoryLinks:'memory_links' in note?note.memory_links.map(link=>({...link})):undefined,
   content:'content' in note?note.content:'',createdAt:note.created_at,
   updatedAt:new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'short',year:'numeric'}).format(new Date(note.updated_at))};
 }

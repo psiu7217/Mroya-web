@@ -1,6 +1,6 @@
 import {ApiError} from './errors.ts';
 import {isTurnUuid} from './reportContext.ts';
-import {INBOX_STATUSES} from '../types/intelligenceApi.ts';
+import {JOB_STATUSES,INBOX_STATUSES} from '../types/intelligenceApi.ts';
 import type {IntelligenceAction,IntelligenceReceipt,IntelligenceProposal,IntelligencePlan,IntelligenceCapabilities,IntelligenceRuntime,ProposalPage,ProposalHistoryPage,JsonValue,DecisionBody,ProposalDecision} from '../types/intelligenceApi.ts';
 function invalid():never{throw new ApiError(502,'invalid_response','Invalid Memory Inbox response.');}
 const record=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:invalid();
@@ -54,4 +54,19 @@ export function validateDecision(id:string,action:ProposalDecision,body:Decision
  if(!isTurnUuid(id)||!['accept','reject','comment','reconsider','retry'].includes(action)||!Number.isSafeInteger(body.version)||body.version<1||!isTurnUuid(body.request_id)
   ||Object.keys(body).some(k=>!['version','request_id',...(action==='comment'?['comment']:[])].includes(k))
   ||action==='comment'&&(typeof body.comment!=='string'||!body.comment.trim()||Array.from(body.comment.trim()).length>2000))throw new ApiError(400,'invalid_proposal_decision','Invalid proposal decision.');
+}
+
+export function readIntelligencePreferences(v:unknown):import('../types/intelligenceApi.ts').IntelligencePreferences {
+ const value=record(v),settings=record(value.settings),autonomy=settings.autonomy;
+ if(!['review_all','auto_link','auto_write'].includes(autonomy as string))invalid();
+ return {autonomy:autonomy as import('../types/intelligenceApi.ts').IntelligenceAutonomy,capabilities:readIntelligenceSettings(v)};
+}
+export function readIntelligenceSources(v:unknown,offset:number){const value=record(v);return {sources:list(value.sources,50).map(x=>{const s=record(x);if(s.kind!=='calendar')invalid();return {kind:'calendar' as const,id:uuid(s.id),name:text(s.name,240),enabled:bool(s.enabled)};}),next_offset:nextOffset(value.next_offset,offset)};}
+export function readIntelligenceSource(v:unknown,id:string){const value=record(record(v).source);if(value.kind!=='calendar'||uuid(value.id)!==id)invalid();return {kind:'calendar' as const,id,enabled:bool(value.enabled)};}
+export function readEventAnalysis(v:unknown,id:string):import('../types/intelligenceApi.ts').EventAnalysisStatus {
+ const value=record(v),source=record(value.source);if(uuid(value.event_id)!==id||source.kind!=='calendar')invalid();
+ let job:import('../types/intelligenceApi.ts').EventAnalysisStatus['job']=null,proposal:import('../types/intelligenceApi.ts').EventAnalysisStatus['proposal']=null;
+ if(value.job!==null){const j=record(value.job);if(!JOB_STATUSES.some(s=>s===j.status)||j.decision!==null&&!['irrelevant','candidate','uncertain'].includes(j.decision as string))invalid();job={status:j.status as NonNullable<typeof job>['status'],decision:j.decision===null?null:text(j.decision,120)};}
+ if(value.proposal!==null){const p=record(value.proposal);if(!INBOX_STATUSES.some(s=>s===p.status))invalid();proposal={id:uuid(p.id),status:p.status as NonNullable<typeof proposal>['status'],version:integer(p.version,1),canonical_saved:bool(p.canonical_saved),links_saved:bool(p.links_saved),search_ready:bool(p.search_ready)};}
+ return {event_id:id,source:{kind:'calendar',id:uuid(source.id),enabled:bool(source.enabled)},runtime:readIntelligenceRuntime(value.runtime),job,proposal};
 }

@@ -70,6 +70,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
+  intelligence?:import('../types/intelligenceApi').IntelligencePresentation;
   designIntelligence?:import('../types/workspace').DesignIntelligencePreviews;
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
@@ -97,7 +98,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  live=false,connectionSamples,timezoneSettings,designIntelligence,notifications,notificationPreview,
+  intelligence,live=false,connectionSamples,timezoneSettings,designIntelligence,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -926,7 +927,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 );})}
               </div>
 
-              {live||!SourcesPreview?<IntelligenceSourcesPreview/>:<SourcesPreview/>}
+              {live||!SourcesPreview?<IntelligenceSourcesPreview live={intelligence}/>:<SourcesPreview/>}
 
             </div>
           )}
@@ -1281,7 +1282,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 </div>
               </div>
 
-              {live||!AutonomyPreview?<IntelligenceAutonomyPreview/>:<AutonomyPreview/>}
+              {live||!AutonomyPreview?<IntelligenceAutonomyPreview live={intelligence}/>:<AutonomyPreview/>}
 
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
                 <div className="flex items-center gap-2">

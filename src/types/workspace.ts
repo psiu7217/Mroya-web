@@ -64,6 +64,9 @@ export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
+    intelligence?:import('./intelligenceApi').IntelligencePresentation;
+    eventAnalysis?:import('./intelligenceApi').EventAnalysisPresentation;
+    memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;
     designIntelligence?:DesignIntelligencePreviews;
     notificationPreview?:NotificationPreview;
     notifications?:NotificationPresentation;

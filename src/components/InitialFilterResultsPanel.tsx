@@ -17,7 +17,6 @@ export function InitialFilterResultsPanel({results:r}:{results:InitialResultsPre
    {s.errors>0&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{tr('initialFilterErrorNote',{ns:'connections'})}</p>}
   </div>}
   {r.data&&!r.data.processing_enabled&&<p>{tr('initialFilterStopped',{ns:'connections'})}</p>}
-  {r.loading&&<p role="status" className="text-[var(--mroya-text-muted)]">{tr('updatingResults',{ns:'connections'})}</p>}
   {r.error&&<p role="alert">{tr('requestFailed',{ns:'common'})}</p>}
   <div className="flex flex-wrap gap-3" role="tablist" aria-label={tr('initialFilterResults',{ns:'connections'})}>
    {(['APPROVE','REJECT'] as const).map(d=><button type="button" role="tab" aria-selected={r.decision===d} key={d} onClick={()=>r.onDecision(d)} className="px-3 py-2 rounded-[8px] border border-[var(--mroya-divider)] aria-selected:text-[var(--mroya-primary)] aria-selected:bg-[var(--mroya-bg)]">{d==='APPROVE'?tr('initialFilterApproved',{ns:'connections'}):tr('initialFilterRejected',{ns:'connections'})}</button>)}

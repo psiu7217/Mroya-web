@@ -33,7 +33,7 @@ export class LiveMemoryInboxController {
  start=()=>{this.active=true;};
  stop=()=>{this.active=false;this.generation++;this.dataEpoch++;for(const abort of this.reads)abort.abort();this.reads.clear();this.operations.clear();this.historyEpoch.clear();this.refreshFlight=false;this.scanFlight=false;this.scannedSelection=false;this.polling=false;this.clearTimer();this.current=initial();};
  private clearTimer(){if(this.pollTimer!==null)clearTimeout(this.pollTimer);this.pollTimer=null;}
- setVisible=(visible:boolean)=>{this.visible=visible;if(!visible){this.generation++;for(const abort of this.reads)abort.abort();this.reads.clear();this.refreshFlight=false;this.polling=false;this.scanFlight=false;this.emit({scanBusy:false});this.clearTimer();return;}this.pollCount=0;void this.refresh();};
+ setVisible=(visible:boolean)=>{this.visible=visible;if(!visible){this.generation++;for(const abort of this.reads)abort.abort();this.reads.clear();this.refreshFlight=false;this.polling=false;this.scanFlight=false;this.emit({scanBusy:false,busy:new Set(),uncertain:new Set([...this.current.uncertain,...this.operations.keys()])});this.clearTimer();return;}this.pollCount=0;void this.refresh();};
  private request(){const abort=new AbortController();this.reads.add(abort);return abort;}
  private valid(abort:AbortController,generation:number){return this.active&&!abort.signal.aborted&&this.generation===generation;}
  private expiredError(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return true;}return false;}
@@ -45,7 +45,7 @@ export class LiveMemoryInboxController {
  }
  private put(p:IntelligenceProposal){this.putMany([p]);}
  refresh=async(more=false)=>{
-  if(!this.active||!this.visible||this.refreshFlight||this.polling||this.scanFlight)return;
+  if(!this.active||!this.visible||this.refreshFlight||this.polling||this.scanFlight||this.current.scanBusy)return;
   const s=this.source;if(!s.intelligenceSettings||!s.intelligenceStatus||!s.inboxProposals||!s.inboxProposal||!s.inboxHistory||!s.inboxDecision)return;
   const offset=more?this.current.next:0;if(offset===null)return;
   this.refreshFlight=true;const abort=this.request(),generation=this.generation,epoch=this.dataEpoch;
@@ -56,6 +56,7 @@ export class LiveMemoryInboxController {
    this.emit({available:capabilities.inbox,capabilities,runtime,notice:runtimeNotice(capabilities,runtime)});
    if(!capabilities.inbox){this.emit({proposals:[],next:null});return;}
    await this.readScans(abort,generation);
+   if(!this.valid(abort,generation))return;
    const page=await s.inboxProposals(offset,abort.signal);
    if(!this.valid(abort,generation)||epoch!==this.dataEpoch)return;
    this.putMany(page.proposals,{next:more||this.current.proposals.length<=50?page.next_offset:this.current.next});
@@ -72,12 +73,13 @@ export class LiveMemoryInboxController {
   this.pollTimer=setTimeout(()=>{this.pollTimer=null;void this.poll();},5000);
  }
  poll=async()=>{
-  if(!this.active||!this.visible||this.polling||this.refreshFlight||this.scanFlight||this.pollCount>=12)return;this.polling=true;this.clearTimer();this.pollCount++;
+  if(!this.active||!this.visible||this.polling||this.refreshFlight||this.scanFlight||this.current.scanBusy||this.pollCount>=12)return;this.polling=true;this.emit({});this.clearTimer();this.pollCount++;
   const abort=this.request(),generation=this.generation;
   try{
    const runtime=await this.source.intelligenceStatus!(abort.signal);if(!this.valid(abort,generation))return;
    this.emit({runtime,notice:runtimeNotice(this.current.capabilities!,runtime)});
    await this.readScans(abort,generation);
+   if(!this.valid(abort,generation))return;
    const page=await this.source.inboxProposals!(0,abort.signal);
    if(!this.valid(abort,generation))return;
    this.putMany(page.proposals,{next:this.current.proposals.length<=50?page.next_offset:this.current.next});
@@ -87,13 +89,14 @@ export class LiveMemoryInboxController {
    this.pollCursor+=batch.length;
    await Promise.all(batch.map(async p=>{try{const card=await this.source.inboxProposal!(p.id,abort.signal);if(this.valid(abort,generation))this.put(card);}catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({errors:{...this.current.errors,[p.id]:this.message(error)}});}}));
   }catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({runtime:null,error:this.message(error),notice:runtimeNotice(this.current.capabilities!,null)});}
-  finally{this.reads.delete(abort);if(this.active&&generation===this.generation){this.polling=false;this.schedule();}}
+  finally{this.reads.delete(abort);if(this.active&&generation===this.generation){this.polling=false;this.emit({});this.schedule();}}
  };
  private async readScans(abort:AbortController,generation:number,more=false){
   if(!this.source.intelligenceScans)return;
   try{
    const offset=more?this.current.scanning?.next_offset??0:0;
    const page=await this.source.intelligenceScans(offset,abort.signal);
+   if(!this.valid(abort,generation))return;
    const sources=more?[...(this.current.scanning?.sources??[]),...page.sources]:[...page.sources];
    let next=page.next_offset;
    while(!more&&next!==null&&sources.length<(this.current.scanning?.sources.length??0)){
@@ -105,9 +108,9 @@ export class LiveMemoryInboxController {
   }catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({scanError:this.message(error)});}
  }
  selectScan=(id:string)=>{if(this.current.scanBusy)return;const selected=new Set(this.current.selected);if(selected.has(id))selected.delete(id);else if(this.current.scanning?.sources.some(s=>s.id===id&&s.enabled)&&selected.size<50)selected.add(id);this.emit({selected});};
- private moreScans=async()=>{if(this.refreshFlight||this.polling||this.scanFlight)return;const abort=this.request(),generation=this.generation;this.scanFlight=true;try{await this.readScans(abort,generation,true);}finally{this.reads.delete(abort);if(generation===this.generation)this.scanFlight=false;}};
+ private moreScans=async()=>{if(this.refreshFlight||this.polling||this.scanFlight||this.current.scanBusy)return;const abort=this.request(),generation=this.generation;this.scanFlight=true;this.emit({});try{await this.readScans(abort,generation,true);}finally{this.reads.delete(abort);if(generation===this.generation){this.scanFlight=false;this.emit({});this.schedule();}}};
  scanNow=async()=>{
-  if(!this.active||!this.visible||this.current.scanBusy||!this.source.scanIntelligence||!this.current.selected.size)return;
+  if(!this.active||!this.visible||this.current.scanBusy||this.refreshFlight||this.polling||this.scanFlight||!this.source.scanIntelligence||!this.current.selected.size)return;
   const abort=this.request(),generation=this.generation;this.emit({scanBusy:true,scanError:null});
   try{await this.source.scanIntelligence([...this.current.selected],abort.signal);if(!this.valid(abort,generation))return;this.pollCount=0;await this.readScans(abort,generation);}
   catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({scanError:this.message(error)});}
@@ -187,7 +190,7 @@ export class LiveMemoryInboxController {
       summary:[inboxStatusLabels[entry.snapshot.status as keyof typeof inboxStatusLabels]??String(entry.snapshot.status??''),entry.snapshot.plan&&typeof entry.snapshot.plan==='object'&&!Array.isArray(entry.snapshot.plan)?JSON.stringify(entry.snapshot.plan):'',entry.snapshot.apply&&typeof entry.snapshot.apply==='object'&&!Array.isArray(entry.snapshot.apply)?JSON.stringify(entry.snapshot.apply):''].filter(Boolean).join(' · ')}))}}:{}),
    };
   }):[];
-  return {scanning:this.source.intelligenceScans?{data:s.scanning,error:s.scanError,busy:s.scanBusy,selected:s.selected,onSelect:this.selectScan,onScan:()=>void this.scanNow(),onMore:()=>void this.moreScans()}:undefined,focusedId:s.focusedId,focusToken:s.focusToken,available:s.available,scopeKey:this.scopeKey,proposals,loading:s.loading,error:s.error,notice:s.notice,emptyMessage:'Предложений пока нет. Статус обработки разрешённых календарей указан в панели сканирования.',hasMore:s.next!==null,loadingMore:s.loadingMore,onMore:this.more,
+  return {scanning:this.source.intelligenceScans?{data:s.scanning,error:s.scanError,busy:s.scanBusy||this.refreshFlight||this.polling||this.scanFlight,selected:s.selected,onSelect:this.selectScan,onScan:()=>void this.scanNow(),onMore:()=>void this.moreScans()}:undefined,focusedId:s.focusedId,focusToken:s.focusToken,available:s.available,scopeKey:this.scopeKey,proposals,loading:s.loading,error:s.error,notice:s.notice,emptyMessage:'Предложений пока нет. Статус обработки разрешённых календарей указан в панели сканирования.',hasMore:s.next!==null,loadingMore:s.loadingMore,onMore:this.more,
    onRefresh:()=>{this.pollCount=0;void this.refresh();},onOpenProposal:id=>{void this.open(id);},onMoreHistory:id=>{void this.open(id,true);},
    onAcceptProposal:id=>this.decide(id,'accept'),onRejectProposal:id=>this.decide(id,'reject'),onCommentProposal:(id,text)=>this.decide(id,'comment',text),onReconsiderProposal:id=>this.decide(id,'reconsider'),onRetryProposal:this.retry};
  };

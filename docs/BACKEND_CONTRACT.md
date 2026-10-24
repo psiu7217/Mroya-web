@@ -406,3 +406,10 @@ reviewed settings/sources PATCH contracts, operator status and owner-scoped
 GET `memory-intelligence/calendar-events/{event_id}/status/` (Backend PR #42).
 Sync is not AI consent. No auto_write, automatic Accept or new object reader is
 introduced. Missing event API is Unavailable; the existing calendar remains usable.
+
+## Manual Intelligence scanning
+
+Backend scans API: session/CSRF `GET/POST /api/v1/memory-intelligence/scans/`.
+See [live integration and bounded polling](MEMORY-INBOX-SCANNING.md) and Backend
+`docs/MEMORY-INTELLIGENCE-SCANNING.md`. Requires the additive intelligence.0004
+migration and the updated existing worker. No production fake progress fallback.

@@ -2,10 +2,10 @@ import type {MemoryInboxPresentation} from '../types/memoryInbox';
 const labels={requested:'Запрос зарегистрирован',scanning:'Обнаружение событий',processing:'Обработка',completed:'Проход завершён',completed_with_errors:'Проход завершён с ошибками'};
 export function ScanningPanel({scanning:s}:{scanning:NonNullable<MemoryInboxPresentation['scanning']>}){
  const active=s.data?.sources.some(row=>s.selected.has(row.id)&&row.scan&&['requested','scanning','processing'].includes(row.scan.state));
- return <section aria-label="Сканирование" className="p-4 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-bg-card)] space-y-3">
+ return <section aria-label="Сканирование" className="p-4 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] space-y-3">
   <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Сканирование</h3>
-   <button type="button" onClick={s.onScan} disabled={s.busy||!s.selected.size||!!active||!s.data?.worker.enabled} className="text-sm text-[var(--mroya-primary)] disabled:opacity-50">{s.busy?'Отправка…':'Сканировать сейчас'}</button></div>
-  <p className="text-xs text-[var(--mroya-text-muted)]">Только разрешённые локальные события. Подтверждение предложений выполняется отдельно.</p>
+   <button type="button" onClick={s.onScan} disabled={s.busy||!s.selected.size||!!active||!s.data?.worker.enabled} className="text-sm text-[var(--mroya-primary)] disabled:opacity-50">{s.busy?'Подождите…':'Сканировать сейчас'}</button></div>
+  <p className="text-xs text-[var(--mroya-text-muted)]">Только разрешённые локальные события, до 50 календарей за запрос. Подтверждение предложений выполняется отдельно.</p>
   {s.error&&<p role="alert">{s.error}</p>}
   {!s.data&&!s.error&&<p role="status">Загрузка состояния сканирования…</p>}
   {s.data?.worker.state==='unavailable'&&<p role="status">Нет свежего heartbeat worker. Обработка может быть остановлена или задержана.</p>}
@@ -21,6 +21,6 @@ export function ScanningPanel({scanning:s}:{scanning:NonNullable<MemoryInboxPres
     <p className="text-xs text-[var(--mroya-text-muted)]">Очередь: {p.queued} · Triage: {p.triage} · Deep Analysis: {p.deep_analysis} · Не требуют сохранения: {p.no_save} · Ожидают подтверждения: {p.awaiting_confirmation} · Ошибки: {p.errors} · Повтор после ошибки: {p.retrying} · Устарели: {p.stale}</p>
     {!!p.error_codes.length&&<p role="status" className="text-xs">Причины: {p.error_codes.join(', ')}</p>}</>}
   </div>})}
-  {s.data?.next_offset!==null&&s.data&&<button type="button" onClick={s.onMore} className="text-sm underline">Ещё календари</button>}
+  {s.data?.next_offset!==null&&s.data&&<button type="button" onClick={s.onMore} disabled={s.busy} className="text-sm underline">Ещё календари</button>}
  </section>;
 }

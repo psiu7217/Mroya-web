@@ -2,6 +2,7 @@
 import type React from 'react';
 import type { NoteItem } from './notes';
 import { NavSection, SubscriptionPlan, ThemeMode, ConversationListItem, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
+import type {AppLanguage} from './api';
 export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string; nickname?:string }
 export interface TelegramPresentation {
     status:import('./api').TelegramConnectionStatus|null;
@@ -47,8 +48,10 @@ export interface WorkspaceRuntime {
     memoriesTotal:number; hasOlder:boolean; onOlder:()=>void; hasMoreMemories:boolean; onMoreMemories:()=>void;
     truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
     preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
+    languageSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
     showModelReasoning?:boolean; onToggleShowModelReasoning?:(enabled:boolean)=>void;
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
+    onChangeLanguage?:(language:AppLanguage)=>void;
 }
 export interface ConnectionSamples {
     googleCalendarId:string;
@@ -78,6 +81,8 @@ export interface WorkspaceModel {
     onChangeTimezone?:(value:string)=>void;
     onSaveNickname?:(value:string)=>void;
     onClearNickname?:()=>void;
+    language?:AppLanguage;
+    onChangeLanguage?:(language:AppLanguage)=>void;
     diagnostics?:ChatDiagnostics;
     runtime?:WorkspaceRuntime;
     feedback?:Pick<WorkspaceRuntime,'loading'|'busy'|'error'|'onRetry'>;

@@ -1,4 +1,5 @@
 import React from 'react';
+import {tr} from '../i18n';
 
 interface BrandMarkProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -29,7 +30,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
   return (
     <div
       className={`relative inline-flex items-center justify-center shrink-0 select-none transition-all duration-200 group-hover:scale-[1.03] ${sizeMap.box} bg-gradient-to-br from-[var(--mroya-surface)] via-[var(--mroya-surface)] to-[var(--mroya-surface-active)] border border-[var(--mroya-brand-honey)]/35 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] overflow-hidden ${className}`}
-      aria-label="Mroya emblem: 3D golden memory network"
+      aria-label={tr('brandEmblem',{ns:'common'})}
     >
       {/* Subtle ambient dream halo behind the emblem */}
       {glow && (
@@ -41,7 +42,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
 
       <img
         src="/brand/mroya-golden-network.png"
-        alt="Mroya emblem"
+        alt={tr('brandEmblem',{ns:'common'})}
         className={`${sizeMap.img} object-contain select-none pointer-events-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.35)]`}
         referrerPolicy="no-referrer"
         loading="eager"

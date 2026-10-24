@@ -6,8 +6,8 @@ import {accountPresentation} from '../src/hooks/liveAdapters.ts';
 import {ApiError} from '../src/api/errors.ts';
 import type {ApiUser,PreferencesPatch} from '../src/types/api.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
-const user:ApiUser={id:7,username:'account',first_name:'Jane',last_name:'Doe',email:'x@example.com',timezone:'UTC',nickname:'',preferences:{theme:'system'}};
-const updated=(patch:PreferencesPatch):ApiUser=>({...user,nickname:patch.nickname??user.nickname,preferences:{theme:patch.theme??user.preferences.theme}});
+const user:ApiUser={id:7,username:'account',first_name:'Jane',last_name:'Doe',email:'x@example.com',timezone:'UTC',nickname:'',preferences:{theme:'system',language:'en'}};
+const updated=(patch:PreferencesPatch):ApiUser=>({...user,nickname:patch.nickname??user.nickname,preferences:{theme:patch.theme??user.preferences.theme,...(patch.language?{language:patch.language}:user.preferences.language?{language:user.preferences.language}:{})}});
 const nextTick=()=>new Promise<void>(resolve=>setImmediate(resolve));
 const source=(partial:Partial<WorkspaceSource>):WorkspaceSource=>({
  kind:'live',session:async()=>({status:'authenticated',user}),login:async()=>user,logout:async()=>{},
@@ -98,6 +98,68 @@ test('retry reconciliation is single-flight and edits cannot PATCH ahead of its 
  assert.equal(reads,1);assert.equal(writes,1);
  finish({status:'authenticated',user});await retry;await nextTick();
  assert.equal(writes,2);assert.equal(s.snapshot().nickname,'Latest');assert.equal(s.snapshot().theme,'dark');s.dispose();
+});
+
+test('first authenticated preference fetch uses conditional language initialization and accepts backend authority',async()=>{
+ const sent:PreferencesPatch[]=[];const uninitialized={...user,preferences:{theme:'system' as const}};const account={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{sent.push(p);return account;}}),7,uninitialized,()=>{},'en');
+ s.start();await nextTick();
+ assert.deepEqual(sent,[{language:'en',language_only_if_unset:true}]);
+ assert.equal(s.snapshot().language,'ru');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
+});
+
+test('an existing account language wins over browser fallback and does not initialize again',async()=>{
+ let writes=0;const account={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async()=>{writes++;return account;}}),7,account,()=>{},'en');
+ s.start();await nextTick();assert.equal(s.snapshot().language,'ru');assert.equal(writes,0);s.dispose();
+});
+
+test('choosing the already saved language clears Saving without an unnecessary PATCH',async()=>{
+ let writes=0;const s=new UserPreferenceStore(source({savePreferences:async p=>{writes++;return updated(p);}}),7,user,()=>{});
+ s.setLanguage('en');await nextTick();
+ assert.equal(writes,0);assert.equal(s.snapshot().languageStatus,'saved');assert.equal(s.snapshot().language,'en');s.dispose();
+});
+
+test('manual language choice made during automatic initialization survives its late response',async()=>{
+ let finish:((value:ApiUser)=>void)|null=null;const sent:PreferencesPatch[]=[];const uninitialized={...user,preferences:{theme:'system' as const}};let server:ApiUser={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{sent.push(p);if(sent.length===1)return new Promise<ApiUser>(resolve=>{finish=resolve;});server={...server,preferences:{...server.preferences,language:p.language??server.preferences.language}};return server;}}),7,uninitialized,()=>{},'ru');
+ s.start();s.setLanguage('en');assert.equal(s.snapshot().language,'en');
+ (finish! as (value:ApiUser)=>void)(server);await nextTick();await nextTick();
+ assert.deepEqual(sent,[{language:'ru',language_only_if_unset:true},{language:'en'}]);
+ assert.equal(s.snapshot().language,'en');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
+});
+
+test('failed language save stays unsaved, preserves selection and retry confirms it',async()=>{
+ let writes=0;let server:ApiUser={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async p=>{writes++;if(writes===1)throw new ApiError(400,'unsupported_language','Language update rejected');server={...server,preferences:{...server.preferences,language:p.language??server.preferences.language}};return server;}}),7,user,()=>{});
+ s.setLanguage('ru');await nextTick();
+ assert.equal(s.snapshot().language,'ru');assert.equal(s.snapshot().languageStatus,'unsaved');assert.match(s.snapshot().languageError??'',/Language update rejected/);
+ await s.retry();await nextTick();
+ assert.equal(writes,2);assert.equal(s.snapshot().language,'ru');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
+});
+test('manually selecting the same fallback language still writes an unset Backend preference',async()=>{
+ const sent:PreferencesPatch[]=[];let writes=0;
+ const uninitialized={...user,preferences:{theme:'system' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async patch=>{
+  sent.push(patch);writes++;
+  if(writes===1)throw new ApiError(400,'initialization_failed','Initialization failed');
+  return {...uninitialized,preferences:{theme:'system' as const,language:patch.language??undefined}};
+ }}),7,uninitialized,()=>{},'en');
+ s.start();await nextTick();assert.equal(s.snapshot().languageStatus,'unsaved');
+ s.setLanguage('en');await nextTick();
+ assert.deepEqual(sent,[{language:'en',language_only_if_unset:true},{language:'en'}]);
+ assert.equal(s.snapshot().language,'en');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
+});
+test('changing language after an ambiguous PATCH waits for Backend reconciliation before retrying',async()=>{
+ const events:string[]=[];let server:ApiUser={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async patch=>{
+  events.push('PATCH '+patch.language);if(events.length===1){server={...server,preferences:{...server.preferences,language:patch.language}};throw Error('Lost response');}
+  server={...server,preferences:{...server.preferences,language:patch.language??server.preferences.language}};return server;
+ },session:async()=>{events.push('GET');return {status:'authenticated',user:server};}}),7,server,()=>{});
+ s.setLanguage('en');await nextTick();assert.equal(s.snapshot().languageStatus,'unsaved');
+ s.setLanguage('ru');await nextTick();assert.deepEqual(events,['PATCH en']);assert.equal(s.snapshot().languageStatus,'unsaved');
+ await s.retry();await nextTick();await nextTick();
+ assert.deepEqual(events,['PATCH en','GET','PATCH ru']);assert.equal(s.snapshot().language,'ru');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
 });
 test('normalizing an old nickname response does not overwrite a newer nickname or theme',async()=>{
  let finish!:(u:ApiUser)=>void;const sent:PreferencesPatch[]=[];

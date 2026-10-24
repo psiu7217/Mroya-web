@@ -1,5 +1,6 @@
 import type {IntelligencePresentation,EventAnalysisPresentation} from '../types/intelligenceApi';
 import {eventAnalysisMessages} from '../utils/eventAnalysis';
+import {tr} from '../i18n';
 // Shared Studio visuals. Production uses inert, explicitly labelled public examples.
 import React,{useState} from 'react';
 import {Sparkles,Check,Clock,User,Building2,MapPin,Brain,ExternalLink,CheckCircle2,HelpCircle,AlertTriangle,Calendar as CalendarIcon,RefreshCw,AlertCircle} from 'lucide-react';
@@ -7,42 +8,42 @@ import type {CalendarEvent} from '../types/mroya';
 
 export function EventAnalysisPreview({analysis,preview=true,event,variant='conflict',onViewProposal}:{analysis?:EventAnalysisPresentation;preview?:boolean;event?:CalendarEvent;variant?:'unavailable'|'queued'|'conflict'|'standard';onViewProposal?:()=>void}) {
  // A Production example never receives or derives claims from a real event/memory.
- const viewingEvent=preview?{id:'public-illustration',title:'Пример встречи',person:'Пример участника',organization:'Пример компании',locationOrLink:'Пример места'}:event!;
+ const viewingEvent=preview?{id:'public-illustration',title:tr('sampleEvent',{ns:'connections'}),person:tr('sampleParticipant',{ns:'connections'}),organization:tr('sampleOrganization',{ns:'connections'}),locationOrLink:tr('samplePlace',{ns:'connections'})}:event!;
  const [confirmedAiProposals,setConfirmedAiProposals]=useState<Record<string,boolean>>({});
  if(analysis)return <div className="pt-3 space-y-3">
-  <div className="flex items-center justify-between gap-2 flex-wrap"><div className="text-[12.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]"/><span>Memory Intelligence · Анализ события</span></div><button type="button" disabled={analysis.loading} onClick={analysis.onRefresh} className="text-[12px] text-[var(--mroya-primary)] hover:underline">Refresh</button></div>
-  {analysis.loading?<p role="status">Загрузка статуса…</p>:analysis.error?<p role="alert">{analysis.error}</p>:analysis.data?<div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">{eventAnalysisMessages(analysis.data).map(line=><p key={line}>{line}</p>)}</div>:<p>Нет данных об обработке этого события.</p>}
-  {!analysis.loading&&analysis.data?.proposal&&<button type="button" onClick={()=>analysis.onProposal(analysis.data!.proposal!.id)} className="text-[12.5px] font-semibold text-[var(--mroya-primary)] hover:underline">Посмотреть предложение</button>}
+  <div className="flex items-center justify-between gap-2 flex-wrap"><div className="text-[12.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]"/><span>{tr('eventAnalysisTitle',{ns:'connections'})}</span></div><button type="button" disabled={analysis.loading} onClick={analysis.onRefresh} className="text-[12px] text-[var(--mroya-primary)] hover:underline">{tr('refreshStatus',{ns:'connections'})}</button></div>
+  {analysis.loading?<p role="status">{tr('analysisLoading',{ns:'connections'})}</p>:analysis.error?<p role="alert">{tr('loadFailed',{ns:'common'})}</p>:analysis.data?<div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">{eventAnalysisMessages(analysis.data).map(line=><p key={line}>{line}</p>)}</div>:<p>{tr('noEventProcessingData',{ns:'connections'})}</p>}
+  {!analysis.loading&&analysis.data?.proposal&&<button type="button" onClick={()=>analysis.onProposal(analysis.data!.proposal!.id)} className="text-[12.5px] font-semibold text-[var(--mroya-primary)] hover:underline">{tr('viewProposal',{ns:'connections'})}</button>}
  </div>;
 
  return (<div className="pt-3 space-y-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="text-[12.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
-                    <span>Memory Intelligence · Анализ события · Preview</span>
+                    <span>{tr('eventAnalysisTitle',{ns:'connections'})} · {tr('preview',{ns:'common'})}</span>
                   </div>
 
                   {/* Analysis Status Badge */}
                   <div>
-                    {preview ? <span className="text-[11px] font-semibold text-[var(--mroya-text-muted)]">Пример · Soon</span> : confirmedAiProposals[viewingEvent.id] ? (
+                    {preview ? <span className="text-[11px] font-semibold text-[var(--mroya-text-muted)]">{tr('previewLabel',{ns:'connections'})}</span> : confirmedAiProposals[viewingEvent.id] ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                         <Check className="w-3 h-3" />
-                        <span>Предложение принято</span>
+                        <span>{tr('proposalAccepted',{ns:'connections'})}</span>
                       </span>
                     ) : variant === 'unavailable' ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
                         <Clock className="w-3 h-3" />
-                        <span>Анализ недоступен</span>
+                        <span>{tr('analysisUnavailable',{ns:'connections'})}</span>
                       </span>
                     ) : variant === 'queued' ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                         <Clock className="w-3 h-3" />
-                        <span>В очереди на анализ</span>
+                        <span>{tr('queuedForAnalysis',{ns:'connections'})}</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                         <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                        <span>Проанализировано AI</span>
+                        <span>{tr('analyzedByAI',{ns:'connections'})}</span>
                       </span>
                     )}
                   </div>
@@ -51,35 +52,35 @@ export function EventAnalysisPreview({analysis,preview=true,event,variant='confl
                 {/* Extracted Entities */}
                 <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
                   <div className="text-[11px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
-                    Извлечённые сущности:
+                    {tr('extractedEntities',{ns:'connections'})}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
                     <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
                       <User className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
                       <div className="truncate">
-                        <span className="text-[var(--mroya-text-muted)]">Участник: </span>
-                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.person || 'Александр Белов (Сашка)'}</span>
+                        <span className="text-[var(--mroya-text-muted)]">{tr('participant',{ns:'connections'})} </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.person || tr('samplePersonName',{ns:'connections'})}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
                       <Building2 className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
                       <div className="truncate">
-                        <span className="text-[var(--mroya-text-muted)]">Компания: </span>
-                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.organization || 'Архитектурное бюро'}</span>
+                        <span className="text-[var(--mroya-text-muted)]">{tr('company',{ns:'connections'})} </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.organization || tr('sampleOrganizationName',{ns:'connections'})}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
                       <MapPin className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
                       <div className="truncate">
-                        <span className="text-[var(--mroya-text-muted)]">Локация: </span>
-                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.locationOrLink || 'Кофейня на Немиге / Google Meet'}</span>
+                        <span className="text-[var(--mroya-text-muted)]">{tr('location',{ns:'connections'})} </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{viewingEvent.locationOrLink || tr('sampleMeetingLocation',{ns:'connections'})}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 p-1.5 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]/60">
                       <Brain className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
                       <div className="truncate">
-                        <span className="text-[var(--mroya-text-muted)]">Договоренность: </span>
-                        <span className="font-medium text-[var(--mroya-text)]">Согласование эскизов фасада</span>
+                        <span className="text-[var(--mroya-text-muted)]">{tr('agreement',{ns:'connections'})} </span>
+                        <span className="font-medium text-[var(--mroya-text)]">{tr('sampleAgreement',{ns:'connections'})}</span>
                       </div>
                     </div>
                   </div>
@@ -91,49 +92,49 @@ export function EventAnalysisPreview({analysis,preview=true,event,variant='confl
                     <div className="space-y-0.5">
                       <div className="text-[11.5px] uppercase tracking-wider font-semibold text-[var(--mroya-primary)] flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>Предложено для памяти:</span>
+                        <span>{tr('proposedForMemory',{ns:'connections'})}</span>
                       </div>
                       <p className="text-[13px] font-semibold text-[var(--mroya-text)]">
                         {variant === 'conflict'
-                          ? 'Пример: связать встречу с контактом и зафиксировать срок эскизов'
-                          : `Связать событие «${viewingEvent.title}» с карточкой контакта в долговременной памяти`}
+                          ? tr('sampleProposalAction',{ns:'connections'})
+                          : tr('proposalActionForEvent',{ns:'connections',title:viewingEvent.title})}
                       </p>
                     </div>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 shrink-0">
-                      Кандидат
+                      {tr('candidate',{ns:'connections'})}
                     </span>
                   </div>
 
                   <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
-                    Пример результата: сходство 94%. Это иллюстрация будущего анализа, а не результат обработки вашего события или памяти.
+                    {tr('illustrativeScore',{ns:'connections'})}
                   </p>
 
                   <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
                     <button
                       type="button"
                       disabled={preview}
-                      title={preview?'Функция скоро появится':undefined}
+                      title={preview?tr('featureComingSoon',{ns:'connections'}):undefined}
                       onClick={preview?undefined:onViewProposal}
                       className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
                     >
-                      <span>Перейти к предложению в Inbox{preview?' · Soon':''}</span>
+                      <span>{tr('openProposalInbox',{ns:'connections'})}{preview?' · '+tr('soon',{ns:'connections'}):''}</span>
                       <ExternalLink className="w-3 h-3" />
                     </button>
                     {!confirmedAiProposals[viewingEvent.id] ? (
                       <button
                         type="button"
                         disabled={preview}
-                        title={preview?'Функция скоро появится':undefined}
+                        title={preview?tr('featureComingSoon',{ns:'connections'}):undefined}
                         onClick={preview?undefined:() => setConfirmedAiProposals((prev) => ({ ...prev, [viewingEvent.id]: true }))}
                         className="px-3 py-1 rounded-[6px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[11.5px] font-semibold transition-colors cursor-pointer shadow-xs inline-flex items-center gap-1"
                       >
                         <Check className="w-3 h-3" />
-                        <span>Подтвердить факт{preview?' · Soon':''}</span>
+                        <span>{tr('confirmFact',{ns:'connections'})}{preview?' · '+tr('soon',{ns:'connections'}):''}</span>
                       </button>
                     ) : (
                       <span className="text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Подтверждено</span>
+                        <span>{tr('confirmed',{ns:'connections'})}</span>
                       </span>
                     )}
                   </div>
@@ -143,8 +144,8 @@ export function EventAnalysisPreview({analysis,preview=true,event,variant='confl
                 <div className="p-2.5 rounded-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[12px] flex items-start gap-2">
                   <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold">Индикатор неуверенности AI: </span>
-                    <span>Пример неопределённости: личная консультация или рабочий проект. Результат показан только для иллюстрации.</span>
+                    <span className="font-semibold">{tr('aiUncertaintyLabel',{ns:'connections'})} </span>
+                    <span>{tr('uncertaintyExample',{ns:'connections'})}</span>
                   </div>
                 </div>
 
@@ -153,8 +154,8 @@ export function EventAnalysisPreview({analysis,preview=true,event,variant='confl
                   <div className="p-2.5 rounded-[8px] bg-red-500/10 border border-red-500/25 text-red-800 dark:text-red-300 text-[12px] flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-semibold">Предупреждение о конфликте: </span>
-                      <span>Пример конфликта: предполагаемый отпуск участника пересекается со встречей. Это не сведения из вашей памяти.</span>
+                      <span className="font-semibold">{tr('conflictWarning',{ns:'connections'})} </span>
+                      <span>{tr('conflictExample',{ns:'connections'})}</span>
                     </div>
                   </div>
                 )}
@@ -172,38 +173,38 @@ export function IntelligenceSourcesPreview({preview=true,live,calendars=[]}:{pre
                     <Brain className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
                     <div>
                       <h3 className="text-[15px] font-semibold text-[var(--mroya-text)]">
-                        Memory Intelligence · Разрешения источников{!live&&' · Preview'}
+                        {tr('sourcePermissionsTitle',{ns:'connections'})}{!live&&' · '+tr('preview',{ns:'common'})}
                       </h3>
                       <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
-                        {live?'Разрешить AI-анализ событий выбранного календаря, включая импортированные из Google. Для анализа данные событий могут передаваться внешнему AI-провайдеру. Google Sync работает независимо от этого разрешения':preview?'Пример · Soon. Календари ниже — иллюстрация, а не ваши источники. Функция скоро появится.':'Design preview: выберите источники для локальной симуляции.'}
+                        {tr(live?'sourceDescriptionLive':preview?'sourceDescriptionPreview':'sourceDescriptionDesign',{ns:'connections'})}
                       </p>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-[var(--mroya-divider)] space-y-3">
                     {live&&<div className="text-[12px] text-[var(--mroya-text-muted)] space-y-2">
-                     {live.loading&&<p role="status">Загрузка источников…</p>}{live.busy&&<p role="status">Ожидается подтверждение Backend…</p>}{live.error&&<p role="alert">{live.error}</p>}
-                     {!live.available&&!live.loading&&!live.error&&<p>Unavailable · Soon</p>}
-                     {live.available&&!live.loading&&!live.error&&!live.sources.length&&<p>Нет доступных календарей.</p>}
-                     <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">Refresh / Retry</button>
-                     {live.hasMore&&<button type="button" disabled={live.loading||live.busy} onClick={live.onMore} className="ml-3 text-[var(--mroya-primary)] hover:underline">Ещё календари</button>}
+                     {live.loading&&<p role="status">{tr('loadingSources',{ns:'connections'})}</p>}{live.busy&&<p role="status">{tr('awaitingBackend',{ns:'connections'})}</p>}{live.error&&<p role="alert">{tr('loadFailed',{ns:'common'})}</p>}
+                     {!live.available&&!live.loading&&!live.error&&<p>{tr('unavailableSoon',{ns:'connections'})}</p>}
+                     {live.available&&!live.loading&&!live.error&&!live.sources.length&&<p>{tr('noCalendarsAvailable',{ns:'connections'})}</p>}
+                     <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">{tr('refreshRetry',{ns:'connections'})}</button>
+                     {live.hasMore&&<button type="button" disabled={live.loading||live.busy} onClick={live.onMore} className="ml-3 text-[var(--mroya-primary)] hover:underline">{tr('moreCalendars',{ns:'connections'})}</button>}
                     </div>}
                     {/* Google Calendar Master Switch */}
                     <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
                       <div className="space-y-0.5">
                         <div className="text-[13.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                           <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
-                          <span>{live?'Календари — Анализ событий':'Google Calendar — Анализ событий'}</span>
+                          <span>{tr(live?'calendarAnalysisTitle':'googleCalendarAnalysisTitle',{ns:'connections'})}</span>
                         </div>
                         <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                          Разрешить модели анализировать встречи для поиска новых договоренностей и фактов
+                          {tr('allowCalendarAnalysis',{ns:'connections'})}
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
                         <input
                           type="checkbox"
                           checked={calendarAnalysisEnabled}
-                          aria-label="Есть разрешённые календари"
+                          aria-label={tr('allowedCalendars',{ns:'connections'})}
                           disabled={!!live||preview}
                           onChange={preview?undefined:(e) => setCalendarAnalysisEnabled(e.target.checked)}
                           className="sr-only peer"
@@ -216,7 +217,7 @@ export function IntelligenceSourcesPreview({preview=true,live,calendars=[]}:{pre
                     {(live||calendarAnalysisEnabled) && (
                       <div className="pl-3 border-l-2 border-[var(--mroya-primary)]/40 space-y-2 pt-1 animate-in fade-in duration-150">
                         <div className="text-[11.5px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
-                          Разрешения для конкретных календарей:
+                          {tr('calendarPermissions',{ns:'connections'})}
                         </div>
                         <div className="space-y-1.5">
                           {shownCalendars.map((cal) => {
@@ -236,12 +237,12 @@ export function IntelligenceSourcesPreview({preview=true,live,calendars=[]}:{pre
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   <span className={`text-[11px] font-semibold ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--mroya-text-muted)]'}`}>
-                                    {isActive ? 'Анализировать' : 'Игнорировать'}
+                                    {tr(isActive?'analyzeCalendar':'ignoreCalendar',{ns:'connections'})}
                                   </span>
                                   <input
                                     type="checkbox"
                                     checked={isActive}
-                                    aria-label={"AI-анализ: "+cal.name}
+                                    aria-label={tr('aiAnalysisFor',{ns:'connections',name:cal.name})}
                                     disabled={!!live?locked:preview}
                                     onChange={live?(e)=>live.onSource(cal.id,e.target.checked):preview?undefined:() =>
                                       setCalendarAnalysisSpecific((prev) => ({
@@ -262,23 +263,23 @@ export function IntelligenceSourcesPreview({preview=true,live,calendars=[]}:{pre
                     {/* Future Sources placeholders */}
                     <div className="pt-2 border-t border-[var(--mroya-divider)] space-y-2">
                       <div className="text-[11.5px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
-                        Планируемые источники для Memory Intelligence:
+                        {tr('plannedSources',{ns:'connections'})}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
                         <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/40 border border-[var(--mroya-divider)] flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-[var(--mroya-text)]">Gmail (Анализ писем)</span>
+                            <span className="font-medium text-[var(--mroya-text)]">Gmail ({tr('emailAnalysis',{ns:'connections'})})</span>
                           </div>
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[var(--mroya-surface)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
-                            В разработке
+                            {tr('inDevelopment',{ns:'connections'})}
                           </span>
                         </div>
                         <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/40 border border-[var(--mroya-divider)] flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-[var(--mroya-text)]">Google Drive (Документы)</span>
+                            <span className="font-medium text-[var(--mroya-text)]">Google Drive ({tr('documents',{ns:'connections'})})</span>
                           </div>
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[var(--mroya-surface)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
-                            В разработке
+                            {tr('inDevelopment',{ns:'connections'})}
                           </span>
                         </div>
                       </div>
@@ -299,10 +300,10 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                     <Sparkles className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
                     <div>
                       <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                        Автономность Memory Intelligence{!live&&' · Preview'}
+                        {tr('autonomyTitle',{ns:'connections'})}{!live&&' · '+tr('preview',{ns:'common'})}
                       </h2>
                       <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
-                        {live?'Подтверждённая политика Backend. Новые факты требуют ручного подтверждения.':preview?'Preview · Soon. Пример будущей настройки, не текущая политика сохранения вашей памяти.':'Design preview: локальная симуляция настройки автономности.'}
+                        {tr(live?'autonomyDescriptionLive':preview?'autonomyDescriptionPreview':'autonomyDescriptionDesign',{ns:'connections'})}
                       </p>
                     </div>
                   </div>
@@ -312,28 +313,28 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                     {(!!live||!preview) && autonomySaveStatus === 'saving' && (
                       <span className="inline-flex items-center gap-1.5 text-[var(--mroya-text-muted)] font-medium">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin text-[var(--mroya-primary)]" />
-                        <span>Сохранение…</span>
+                        <span>{tr('savingState',{ns:'connections'})}</span>
                       </span>
                     )}
                     {autonomySaveStatus === 'saved' && (
                       <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
                         <Check className="w-3.5 h-3.5" />
-                        <span>{live?'Подтверждено Backend':preview?'Soon':'Сохранено · Simulation'}</span>
+                        <span>{tr(live?'confirmedBackend':preview?'soon':'savedSimulation',{ns:'connections'})}</span>
                       </span>
                     )}
                     {(!!live||!preview) && autonomySaveStatus === 'error' && (
                       <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400 font-semibold">
                         <AlertCircle className="w-3.5 h-3.5" />
-                        <span>Ошибка сохранения</span>
+                        <span>{tr('saveError',{ns:'connections'})}</span>
                       </span>
                     )}
                   </div>
                 </div>
 
                 {live&&<div className="text-[12px] text-[var(--mroya-text-muted)] space-y-1">
-                 {live.loading&&<p role="status">Загрузка настроек…</p>}{live.error&&<p role="alert">{live.error}</p>}
-                 <p>Обработка разрешена: {live.runtime?(live.runtime.worker_enabled?'ON':'OFF'):'Unknown'}</p><p>Состояние процесса worker не проверяется.</p><p>Deep Analysis: {live.runtime?(live.runtime.deep_enabled?'ON':'OFF'):'Unknown'}</p><p>Apply: {live.runtime?(live.runtime.apply_enabled?'ON':'OFF'):'Unknown'}</p>
-                 <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">Refresh / Retry</button>
+                 {live.loading&&<p role="status">{tr('loadingSettings',{ns:'connections'})}</p>}{live.error&&<p role="alert">{tr('loadFailed',{ns:'common'})}</p>}
+                 <p>{tr('processingAllowed',{ns:'connections',value:live.runtime?(live.runtime.worker_enabled?'ON':'OFF'):'Unknown'})}</p><p>{tr('workerStateUnverified',{ns:'connections'})}</p><p>{tr('deepAnalysisState',{ns:'connections',value:live.runtime?(live.runtime.deep_enabled?'ON':'OFF'):'Unknown'})}</p><p>{tr('applyState',{ns:'connections',value:live.runtime?(live.runtime.apply_enabled?'ON':'OFF'):'Unknown'})}</p>
+                 <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">{tr('refreshRetry',{ns:'connections'})}</button>
                 </div>}
                 {/* 3 Autonomy Levels */}
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
@@ -364,10 +365,10 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                         />
                         <div>
                           <div className="text-[13.5px] font-semibold text-[var(--mroya-text)]">
-                            Ручное подтверждение
+                            {tr('manualConfirmation',{ns:'connections'})}
                           </div>
                           <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
-                            Все предложения требуют явного нажатия «Да» в Memory Inbox. Модель ничего не сохраняет и не связывает без вашего одобрения.
+                            {tr('manualConfirmationDescription',{ns:'connections'})}
                           </p>
                         </div>
                       </div>
@@ -402,14 +403,14 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[13.5px] font-bold text-[var(--mroya-text)]">
-                              Автоматические связи
+                              {tr('automaticLinks',{ns:'connections'})}
                             </span>
                             <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] shadow-2xs">
-                              Рекомендуется
+                              {tr('recommended',{ns:'connections'})}
                             </span>
                           </div>
                           <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
-                            {live?'События календарей связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.':'События и письма связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.'}
+                            {tr(live?'automaticLinksLive':'automaticLinksDesign',{ns:'connections'})}
                           </p>
                         </div>
                       </div>
@@ -443,10 +444,10 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                         />
                         <div>
                           <div className="text-[13.5px] font-semibold text-[var(--mroya-text)]">
-                            Автоматическое сохранение
+                            {tr('automaticSave',{ns:'connections'})}
                           </div>
                           <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
-                            {live?'Soon · Автоматическое сохранение новых фактов недоступно.':'Модель самостоятельно сохраняет факты с высокой уверенностью (>90%). Спорные и неоднозначные случаи направляются в Memory Inbox.'}
+                            {tr(live?'automaticSaveSoon':'automaticSaveDescription',{ns:'connections'})}
                           </p>
                         </div>
                       </div>
@@ -457,28 +458,28 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                 {/* Design Mode State Preview Switcher */}
                 {!live&&!preview && (
                   <div className="pt-3 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[11.5px] text-[var(--mroya-text-muted)] flex-wrap gap-2">
-                    <span>Тест состояний сохранения:</span>
+                    <span>{tr('saveStateTest',{ns:'connections'})}</span>
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => setAutonomySaveStatus('saving')}
                         className={`px-2 py-0.5 rounded border text-[11px] ${autonomySaveStatus === 'saving' ? 'bg-[var(--mroya-surface-active)] font-semibold' : ''}`}
                       >
-                        Сохранение...
+                        {tr('savingEllipsis',{ns:'connections'})}
                       </button>
                       <button
                         type="button"
                         onClick={() => setAutonomySaveStatus('saved')}
                         className={`px-2 py-0.5 rounded border text-[11px] ${autonomySaveStatus === 'saved' ? 'bg-[var(--mroya-surface-active)] font-semibold' : ''}`}
                       >
-                        Сохранено
+                        {tr('saved',{ns:'connections'})}
                       </button>
                       <button
                         type="button"
                         onClick={() => setAutonomySaveStatus('error')}
                         className={`px-2 py-0.5 rounded border text-[11px] ${autonomySaveStatus === 'error' ? 'bg-[var(--mroya-surface-active)] font-semibold' : ''}`}
                       >
-                        Ошибка
+                        {tr('saveErrorStatus',{ns:'connections'})}
                       </button>
                     </div>
                   </div>

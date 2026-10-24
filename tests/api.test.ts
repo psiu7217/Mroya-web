@@ -64,6 +64,16 @@ test('malformed successful session cannot become an authenticated user',async()=
  await assert.rejects(createLiveSource(new MroyaApi(fakeFetch(()=>json({user:{username:'invalid'}})))).session(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
 });
 
+test('an unset backend language is accepted and can be initialized conditionally',async()=>{
+ const calls:{url:string;init:RequestInit}[]=[];
+ const unset={...user,preferences:{theme:'system' as const,language:''}};
+ const api=new MroyaApi(fakeFetch((url,init)=>{calls.push({url,init});if(url.endsWith('csrf/'))return json({csrf_token:'token'});return json({user:url.endsWith('preferences/')?{...unset,preferences:{...unset.preferences,language:'ru'}}:unset});}));
+ assert.equal((await api.me()).user.preferences.language,'');
+ const saved=await api.savePreferences({language:'ru',language_only_if_unset:true});
+ assert.equal(saved.preferences.language,'ru');
+ assert.deepEqual(JSON.parse(calls.at(-1)!.init.body as string),{language:'ru',language_only_if_unset:true});
+});
+
 test('startGoogleAuth verifies capabilities, gets CSRF and submits HTML form', async () => {
   const calls: string[] = [];
   const api = new MroyaApi(fakeFetch((url) => {
@@ -185,6 +195,21 @@ test('preferences PATCH uses CSRF and accepts independent fields from same-origi
  assert.equal(calls[1].init.credentials,'same-origin');
  assert.equal((calls[1].init.headers as Record<string,string>)['X-CSRFToken'],'csrf-for-patch');
  assert.deepEqual(JSON.parse(calls[1].init.body as string),{nickname:'Alex',theme:'dark'});
+});
+test('preferences language patch uses the existing preferences endpoint and validates confirmation',async()=>{
+ const confirmed={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const calls:{url:string;init:RequestInit}[]=[];
+ const api=new MroyaApi(fakeFetch((url,init)=>{calls.push({url,init});return url.endsWith('csrf/')?json({csrf_token:'language-csrf'}):json({user:confirmed});}));
+ assert.deepEqual(await api.savePreferences({language:'ru'}),confirmed);
+ assert.equal(calls[1].url,'/api/v1/me/preferences/');
+ assert.deepEqual(JSON.parse(calls[1].init.body as string),{language:'ru'});
+ await assert.rejects(api.savePreferences({language:'fr' as 'en'}),/Invalid interface language/);
+});
+
+test('language initialization permits a saved backend choice to win conditional PATCH',async()=>{
+ const saved={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const api=new MroyaApi(fakeFetch(url=>url.endsWith('csrf/')?json({csrf_token:'language-csrf'}):json({user:saved})));
+ assert.deepEqual(await api.savePreferences({language:'en',language_only_if_unset:true}),saved);
 });
 test('preferences invalid shape exposes validation fields without retry',async()=>{
  let writes=0;

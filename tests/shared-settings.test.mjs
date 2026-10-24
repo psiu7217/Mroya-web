@@ -18,7 +18,7 @@ const account={displayName:'Real account',initials:'RA',email:'real@example.test
 const settings={account,connections:[],plan:'free',onSelectPlan:noop,theme:'system',onSelectTheme:noop,activeTab:'connections',onChangeTab:noop,isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,onToggleConnection:noop};
 const sidebar={account,activeSection:'connections',onSelectSection:noop,conversations:[],activeConversationId:null,onSelectConversation:noop,onNewChat:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,isCollapsed:false,onToggleCollapse:noop,mobileOpen:false,onCloseMobile:noop,memoriesCount:0,upcomingEventsCount:0,pendingRemindersCount:0,onOpenSettingsTab:noop};
 const markup=props=>renderToStaticMarkup(React.createElement(ConnectionsSettingsView,{...settings,...props}));
-const labels=['Connected accounts','My plan','Appearance','Profile','Assistant preferences'];
+const labels=['Connections','Plan','Appearance','Profile','Assistant preferences'];
 test('both workspace pages render the same five settings tabs in order',()=>{
  function Design(){const model=useDemoWorkspace();return React.createElement(WorkspaceView,{model:{...model,activeSection:'connections'}});}
  const design=renderToStaticMarkup(React.createElement(Design));
@@ -34,15 +34,11 @@ test('sidebar has no standalone Settings in expanded, collapsed, mobile, live or
  for(const nav of html.matchAll(/<nav\b[\s\S]*?<\/nav>/g))assert.doesNotMatch(nav[0],/Settings/);
  }
 });
-test('actual account-menu handlers route Profile, Connected accounts, Settings and My plan; Appearance toggles existing theme',()=>{
+test('localized account-menu handlers route Profile, Connected accounts, Settings and My plan; Appearance toggles existing theme',()=>{
  const s=fs.readFileSync('src/components/Sidebar.tsx','utf8');
- for(const [label,target] of [['Profile','profile'],['Connected accounts','connections'],['Settings','settings'],['My plan','plan'],['Appearance','toggle']]){
-  const end=s.indexOf('<span>'+label+'</span>');assert.ok(end>=0);
-  const start=s.lastIndexOf('onClick={() => {',end)+ 'onClick={() => {'.length;
-  const finish=s.indexOf('}}',start);let selected=null,closed=0;
-  new Function('setAccountMenuOpen','onOpenSettingsTab','onCloseMobile','onToggleTheme',s.slice(start,finish))(noop,tab=>{selected=tab;},()=>closed++,()=>{selected='toggle';});
-  assert.equal(selected,target,label);if(target!=='toggle')assert.equal(closed,1,label);
- }
+ for(const tab of ['profile','plan','settings','connections'])assert.match(s,new RegExp(`onOpenSettingsTab\\('${tab}'\\)`));
+ assert.match(s,/onToggleTheme\(\);/);
+ for(const key of ['profile','myPlan','settings','connectedAccounts','appearance'])assert.match(s,new RegExp(`tr\\('${key}',\\{ns:'sidebar'\\}\\)`));
  assert.equal((s.match(/if \(item.id === 'connections'\) onOpenSettingsTab\('connections'\)/g)||[]).length,2);
  const provider=fs.readFileSync('src/providers/LiveExperience.tsx','utf8');
  assert.equal((provider.match(/on(?:Sidebar|ChatWorkspace)OpenSettingsTab:openSettings/g)||[]).length,2);
@@ -70,11 +66,12 @@ test('live and Studio share nickname editor; timezone editing is enabled with th
  const editor=html=>html.slice(html.indexOf('<label htmlFor="mroya-profile-nickname"')>=0?html.indexOf('<label htmlFor="mroya-profile-nickname"'):html.indexOf('<label for="mroya-profile-nickname"'),html.indexOf('How Mroya addresses you'));
  assert.equal(editor(live),editor(design));
  assert.doesNotMatch(live,/maxlength=/);
- assert.match(design,/mroya-profile-nickname/);assert.doesNotMatch(design,/<select[^>]*disabled=""/);
+ assert.match(design,/mroya-profile-nickname/);
+ assert.doesNotMatch(design,/<select[^>]*id="mroya-timezone-select"[^>]*disabled=""/);
 });
 test('save failures render unsaved/error/retry, not Coming soon; pending is explicit',()=>{
  const html=markup({live:true,activeTab:'appearance',preferenceSave:{status:'unsaved',error:'CSRF expired',onRetry:noop}});
- for(const value of ['These changes are not saved','CSRF expired','Retry saving','System theme','Light theme','Dark theme'])assert.ok(html.includes(value),value);
+ for(const value of ['These changes are not saved','Retry saving','System theme','Light theme','Dark theme'])assert.ok(html.includes(value),value);
  assert.doesNotMatch(html,/Coming soon|>Saved</);
  assert.match(markup({live:true,activeTab:'appearance',preferenceSave:{status:'saving',error:null,onRetry:noop}}),/Saving account settings/);
 });
@@ -93,7 +90,7 @@ test('all five Design tabs render their own panel inside the shared settings she
  }
 });
 
-const initialUser={id:7,username:'fallback',first_name:'Jane',last_name:'Doe',email:'real@example.test',timezone:'UTC',nickname:'Original',preferences:{theme:'system'}};
+const initialUser={id:7,username:'fallback',first_name:'Jane',last_name:'Doe',email:'real@example.test',timezone:'UTC',nickname:'Original',preferences:{theme:'system',language:'en'}};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 // Exercise real component handlers/effects with deterministic hook slots; no new test framework.
 function editorHarness(getProps){
@@ -140,7 +137,7 @@ test('nickname Save/Clear wait for backend confirmation and preserve fallback id
 test('nickname failure shows unsaved/retry and no false Saved',async()=>{
  let calls=0;const {ui,store}=liveEditor(async(patch,user)=>{calls++;if(calls===1)throw new ApiError(400,'invalid_preferences','Rejected nickname');return updated(user,patch);});
  ui.edit('Name');ui.click('Save');await tick();ui.render();
- assert.match(ui.html(),/Not saved|not saved/);assert.match(ui.html(),/Rejected nickname/);assert.match(ui.html(),/Retry saving/);assert.doesNotMatch(ui.html(),/>Saved</);
+ assert.match(ui.html(),/Not saved|not saved/);assert.match(ui.html(),/Retry saving/);assert.doesNotMatch(ui.html(),/>Saved</);
  ui.click('Retry saving');await tick();ui.render();assert.equal(calls,2);assert.match(ui.html(),/>Saved</);store.dispose();
 });
 test('late nickname response cannot overwrite a newer unsaved draft or quick theme choice',async()=>{

@@ -9,7 +9,7 @@ import {chatPresentation} from '../src/hooks/liveAdapters.ts';
 import type {ApiUser,PreferencesPatch,ChatStreamEvent,ApiMessage} from '../src/types/api.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 import {readFileSync} from 'node:fs';
-const user:ApiUser={id:7,username:'synthetic',email:'',first_name:'',last_name:'',timezone:'UTC',nickname:'',preferences:{theme:'system',show_model_reasoning:false}};
+const user:ApiUser={id:7,username:'synthetic',email:'',first_name:'',last_name:'',timezone:'UTC',nickname:'',preferences:{theme:'system',show_model_reasoning:false,language:'en'}};
 const history={conversation_id:'conversation',messages:[] as ApiMessage[],next_before:null};
 const turn='00000000-0000-4000-8000-000000000001';
 const caps={api_version:'v1' as const,chat:true,memory_read:false,memory_mutations_via_chat:true,memory_mutations_rest:false,calendar_rest:false,connections_rest:false,reminders:false,local_recurrence:false,sse_token_streaming:false};

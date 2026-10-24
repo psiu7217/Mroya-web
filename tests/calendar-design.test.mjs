@@ -171,7 +171,7 @@ test('Profile timezone uses confirmed state, keeps failed selection and supports
  assert.equal(select().props.disabled,false);assert.ok(all(page.value,node=>node.type==='option'&&node.props.value==='Pacific/Chatham').length);
  select().props.onChange({target:{value:'Pacific/Chatham'}});page.flush();assert.equal(select().props.value,'Pacific/Chatham');assert.equal(store.snapshot().timezone,'UTC');assert.match(text(page.value),/Saving timezone/);assert.doesNotMatch(text(page.value),/Saved ·/);
  resolve();for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.match(text(page.value),/Saved ·\s*Pacific\/Chatham/);
- fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/Timezone request failed/);assert.doesNotMatch(text(page.value),/Saved ·/);
+ fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/The timezone could not be saved/);assert.doesNotMatch(text(page.value),/Saved ·/);
  button(page.value,'Retry timezone').props.onClick();for(let i=0;i<12;i++)await Promise.resolve();page.flush();assert.equal(store.snapshot().timezone,'Asia/Tokyo');assert.match(text(page.value),/Saved ·\s*Asia\/Tokyo/);
  page.unmount();view.unmount();store.stop();assert.equal(requests,0);
 });
@@ -218,7 +218,7 @@ for(const live of [false,true])for(const dialog of ['create','edit','delete'])te
  }
  props={...props,calendar:{...props.calendar,busy:true}};page.flush();assert.match(text(page.value),/Saving calendar change/);
  props={...props,calendar:{...props.calendar,loading:false,busy:false,error:'Calendar backend unavailable'}};page.flush();
- assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Calendar backend unavailable/);
+ assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Could not save this change/);
  button(page.value,'Retry / check calendar').props.onClick();await Promise.resolve();assert.equal(retries,1);
  props={...props,calendar:{...props.calendar,error:null}};page.flush();assert.deepEqual(markup(page.value),before);
  page.unmount();view.unmount();timers.clear();assert.equal(requests,0);

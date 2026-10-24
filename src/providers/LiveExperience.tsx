@@ -15,6 +15,9 @@ import {useTelegramConnection} from '../hooks/useTelegramConnection';
 import {conversationListPresentation} from '../hooks/conversationPresentation';
 import {useChatDiagnostics} from '../hooks/useChatDiagnostics';
 import {useUserPreferences} from '../hooks/useUserPreferences';
+import {setAppLanguage,tr} from '../i18n';
+import {currentLocale} from '../i18n/format';
+import type {AppLanguage} from '../i18n/language';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
 import type {WorkspaceSource} from '../types/source';
@@ -23,7 +26,9 @@ import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
- const preferences=useUserPreferences(source,user,onExpired);
+ const [language,setLanguage]=useState<AppLanguage>(currentLocale);
+ const preferences=useUserPreferences(source,user,onExpired,language);
+ React.useLayoutEffect(()=>{if(preferences.language!==language){setAppLanguage(preferences.language);setLanguage(preferences.language);}},[preferences.language,language]);
  const timezone=useUserTimezone(source,user,onExpired);
  const confirmedUser=timezone.user;
 
@@ -48,18 +53,18 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
- if(conversation&&metadata)conversation.title=metadata.title||'New chat';
+ if(conversation&&metadata)conversation.title=metadata.title||tr('newChat',{ns:'chat'});
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map));
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
- const unavailable=()=>setNotice('This feature is not available on the current server. No changes have been saved.');
+ const unavailable=()=>setNotice('unavailable');
  const select=(next:NavSection)=>{if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
  const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(tab);};
  const openMemory=(id:string)=>{
   select('memory');
-  if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}
+  if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}
   setSelectedMemory(id);setFocusedMemoryId(id);
  };
- const openMap=(id:string)=>{if(!id){setNotice('This memory has no displayed map node.');return;}setSelectedNode(id);select('memory-map');};
+ const openMap=(id:string)=>{if(!id){setNotice('memoryNoNode');return;}setSelectedNode(id);select('memory-map');};
  const ask=(text:string)=>{select('chat');void controller.send(text);};
  const newChat=()=>{select('chat');void controller.createConversation();};
  const selectChat=(id:string)=>{
@@ -68,7 +73,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   if(current.busy||current.uncertain||current.conversationBusy||current.operationUncertain||!current.conversations.some(c=>c.id===id))return;
   diagnostics.stop();select('chat');void controller.selectConversation(id);
  };
- const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('This memory is not in the loaded page. Load more memories to inspect it.');return;}setFocusedMemoryId(id);setContextOpen(true);};
+ const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}setFocusedMemoryId(id);setContextOpen(true);};
  const sendMessage=(content:string)=>new Promise<boolean>(resolve=>{
   // Acknowledge the composer after CREATE is confirmed and the pending message is queued.
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
@@ -88,10 +93,12 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
    truncated:state.map.truncated===true||state.map.stats?.truncated===true,notice,onCloseNotice:()=>setNotice(null),
    onUnavailable:unavailable,onLogout:logout,
    preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry},
+   languageSave:{status:preferences.languageStatus,error:preferences.languageError,onRetry:preferences.retry},
    showModelReasoning:preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
+  language:preferences.language,onChangeLanguage:preferences.setLanguage,
   conversations:conversationListPresentation(state.conversations,user.timezone),activeConversationId:state.activeConversationId,activeConversation:conversation,
   memories,nodes:graph.nodes,edges:graph.edges,events:calendar.state.events,reminders:[],notesAvailable:notes.available,notes:notes.notes,notesRuntime:notes.presentation,connections:[],
   reminderModalOpen:false,editingReminder:null,reminderPreselectedEventId:undefined,
@@ -132,9 +139,9 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   onRemindersViewOpenNewReminderModal:unavailable,onRemindersViewOpenEditReminderModal:unavailable,
   onRemindersViewExpandSidebar:layout.expand,onRemindersViewOpenMobileMenu:layout.openMobile,
   onMemoryViewSelectMemory:id=>{setSelectedMemory(id);setFocusedMemoryId(id);},onMemoryViewUpdateMemory:unavailable,onMemoryViewForgetMemory:unavailable,onMemoryViewAddMemory:unavailable,
-  onMemoryViewExploreInMap:openMap,onMemoryViewAskMroyaAbout:m=>ask('What do you know about '+m.title+'?'),
+  onMemoryViewExploreInMap:openMap,onMemoryViewAskMroyaAbout:m=>ask(tr('askAboutMemory',{ns:'chat',title:m.title})),
   onMemoryViewExpandSidebar:layout.expand,onMemoryViewOpenMobileMenu:layout.openMobile,
-  onMemoryMapViewSelectNode:setSelectedNode,onMemoryMapViewOpenMemory:openMemory,onMemoryMapViewAskAboutNode:n=>ask('What do you know about '+n.label+'?'),
+  onMemoryMapViewSelectNode:setSelectedNode,onMemoryMapViewOpenMemory:openMemory,onMemoryMapViewAskAboutNode:n=>ask(tr('askAboutMemory',{ns:'chat',title:n.label})),
   onMemoryMapViewExpandSidebar:layout.expand,onMemoryMapViewOpenMobileMenu:layout.openMobile,
   onConnectionsSettingsViewToggleConnection:unavailable,onConnectionsSettingsViewSelectPlan:unavailable,
   onConnectionsSettingsViewSelectTheme:preferences.setTheme,onConnectionsSettingsViewChangeTab:setSettingsTab,

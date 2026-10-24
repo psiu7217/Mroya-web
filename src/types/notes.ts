@@ -7,6 +7,7 @@ export interface NoteItem {
   tags: string[];
   searchPhrases?: string[];
   updatedAt: string;
+  updatedAtRaw?: string;
   createdAt?: string;
   category?: string;
   noteType?: 'text' | 'checklist';

@@ -1,4 +1,6 @@
 import {ApiError} from '../api/errors.ts';
+import {formatDate} from '../i18n/format.ts';
+import {tr} from '../i18n/index.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {NoteSummaryDto,NoteDetailDto} from '../types/notesApi.ts';
 import type {NoteItem} from '../types/notes.ts';
@@ -11,8 +13,8 @@ const initial=():NotesState=>({rows:[],loaded:false,loading:false,loadingMore:fa
 export function notePresentation(note:NoteSummaryDto|NoteDetailDto):NoteItem {
  return {id:note.id,title:note.title,summary:note.summary,tags:[...note.keywords],searchPhrases:[...note.search_phrases],
   memoryLinks:'memory_links' in note?note.memory_links.map(link=>({...link})):undefined,
-  content:'content' in note?note.content:'',createdAt:note.created_at,
-  updatedAt:new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'short',year:'numeric'}).format(new Date(note.updated_at))};
+  content:'content' in note?note.content:'',createdAt:note.created_at,updatedAtRaw:note.updated_at,
+  updatedAt:formatDate(note.updated_at,{day:'2-digit',month:'short',year:'numeric'})};
 }
 export const notesSourceAvailable=(source:WorkspaceSource,capable:boolean)=>source.kind==='live'&&capable===true&&typeof source.notes==='function'&&typeof source.note==='function';
 // Preserve PostgreSQL's microsecond ordering before the UUID tie-breaker.
@@ -35,7 +37,11 @@ export class LiveNotesController {
   if(visible)void this.refresh();
   else {this.cancel();this.emit({loading:false,loadingMore:false,selectedId:null,selectedSummary:null,detail:null,detailLoading:false,detailError:null});}
  };
- private message(error:unknown){return error instanceof ApiError?(error.status===403?'Notes access was denied. Check your session and retry.':error.status===404?'This note is no longer available.':error.message):'Unable to load Notes. Check your connection and retry.';}
+ private message(error:unknown){
+  if(error instanceof ApiError&&error.status===403)return tr('accessDenied',{ns:'notes'});
+  if(error instanceof ApiError&&error.status===404)return tr('noteUnavailable',{ns:'notes'});
+  return tr('loadError',{ns:'notes'});
+ }
  private failure(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return true;}return false;}
  refresh=()=>this.load(false);
  more=()=>this.load(true);
@@ -43,7 +49,7 @@ export class LiveNotesController {
   if(!this.active||!this.visible||!this.source.notes||this.source.kind!=='live')return;
   if(more&&(this.state.loading||this.state.loadingMore||this.state.next===null))return;
   const offset=more?this.state.next!:0;
-  if(offset>10000){this.emit({error:'Notes pagination limit reached. Reopen Notes to refresh the list.',next:null});return;}
+  if(offset>10000){this.emit({error:tr('paginationLimit',{ns:'notes'}),next:null});return;}
   this.listAbort?.abort();const abort=this.listAbort=new AbortController(),epoch=++this.epoch;
   this.emit({loading:!more,loadingMore:more,error:null});
   try {

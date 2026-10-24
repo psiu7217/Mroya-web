@@ -45,13 +45,13 @@ test('parser validates DTO identities, statuses and receipt consistency; all sta
  for(const status of INBOX_STATUSES){const row=readIntelligenceProposal(proposal({status}),proposalId);const view=proposalPresentation(row,capabilities,runtime);assert.equal(view.status,status);assert.ok(view.statusLabel);assert.equal(view.memoryMatches[0].similarity,undefined);assert.ok(view.sourceResourceTitle.includes('Synthetic calendar'));}
  for(const bad of [{id:'bad'},{version:0},{status:'invented'},{canonical_saved:true},{source_preview:{available:'yes'}},{plan:{rationale:'x',matches:[],actions:[{type:'execute_raw'}]}}])assert.throws(()=>readIntelligenceProposal({...proposal(),...bad}));
  assert.throws(()=>readIntelligenceProposal(proposal(),'20000000-0000-4000-8000-000000000099'));
- const missing=proposalPresentation(proposal({source_preview:{available:false}}),capabilities,runtime);assert.equal(missing.sourceAvailable,false);assert.equal(missing.actions?.accept,false);assert.match(missing.title,/недоступен/);
+ const missing=proposalPresentation(proposal({source_preview:{available:false}}),capabilities,runtime);assert.equal(missing.sourceAvailable,false);assert.equal(missing.actions?.accept,false);assert.match(missing.title,/unavailable/i);
 });
 
 test('link-only, confirmed canonical write and pending Retrieval are distinct; partial conflict never loses a confirmed receipt',()=>{
- const linked=proposal({status:'applied',apply:operation({links_saved:true,canonical_saved:false,memory_applied:false,search_ready:false},'applied')});assert.match(receiptMessage(linked)!,/Событие связано/);assert.equal(proposalPresentation(linked,capabilities,runtime).isConfirmed,true);
- const saved=proposal({status:'search_pending',canonical_saved:true,memory_applied:true,search_ready:false,apply:operation({links_saved:true,canonical_saved:true,memory_applied:true,search_ready:false},'search_pending')});assert.match(receiptMessage(saved)!,/Поисковый индекс обновляется/);assert.equal(readIntelligenceProposal(saved).canonical_saved,true);
- const conflict=proposal({...saved,status:'apply_conflict',apply:{...saved.apply!,code:'canonical_saved_source_unavailable'}});assert.match(receiptMessage(conflict)!,/Память сохранена/);assert.equal(inboxActions(conflict,capabilities,runtime).accept,false);
+ const linked=proposal({status:'applied',apply:operation({links_saved:true,canonical_saved:false,memory_applied:false,search_ready:false},'applied')});assert.match(receiptMessage(linked)!,/Event linked/);assert.equal(proposalPresentation(linked,capabilities,runtime).isConfirmed,true);
+ const saved=proposal({status:'search_pending',canonical_saved:true,memory_applied:true,search_ready:false,apply:operation({links_saved:true,canonical_saved:true,memory_applied:true,search_ready:false},'search_pending')});assert.match(receiptMessage(saved)!,/Search index is updating/);assert.equal(readIntelligenceProposal(saved).canonical_saved,true);
+ const conflict=proposal({...saved,status:'apply_conflict',apply:{...saved.apply!,code:'canonical_saved_source_unavailable'}});assert.match(receiptMessage(conflict)!,/Memory saved/);assert.equal(inboxActions(conflict,capabilities,runtime).accept,false);
  assert.equal(receiptMessage(proposal({status:'pending_apply'})),undefined);
 });
 
@@ -66,7 +66,7 @@ test('double accept serializes; lost response replays identical request_id/versi
 test('409 refetches latest version with an explicit conflict; only a new deliberate action gets a new idempotency key',async t=>{
  const calls:any[]=[];
  const {controller}=setup(t,{inboxDecision:async(id,action,body)=>{calls.push(body);if(calls.length===1)throw new ApiError(409,'proposal_version_conflict','Conflict');return {proposal:proposal({version:5,status:'rejected'}),replayed:false};},inboxProposal:async()=>proposal({version:4})});await settle();
- assert.equal(await controller.decide(proposalId,'accept'),false);assert.equal(calls.length,1);assert.equal(controller.snapshot().proposals[0].version,4);assert.match(controller.presentation().proposals[0].errorMessage!,/изменилось/);assert.equal(controller.snapshot().uncertain.size,0);
+ assert.equal(await controller.decide(proposalId,'accept'),false);assert.equal(calls.length,1);assert.equal(controller.snapshot().proposals[0].version,4);assert.match(controller.presentation().proposals[0].errorMessage!,/changed/);assert.equal(controller.snapshot().uncertain.size,0);
  assert.equal(await controller.decide(proposalId,'reject'),true);assert.equal(calls[1].version,4);assert.notEqual(calls[0].request_id,calls[1].request_id);
 });
 
@@ -98,7 +98,7 @@ test('detail and history pagination stay bound to original UUID; lower-version l
 test('bounded polling updates pending_apply to search_pending/applied; worker-off never invents progress and stops timers outside Memory',async t=>{
  let reads=0;let enabled=true;
  const {controller}=setup(t,{intelligenceStatus:async()=>({...runtime,worker_enabled:enabled,apply_enabled:enabled}),inboxProposals:async()=>({proposals:[proposal({status:'pending_apply',apply:operation()})],next_offset:null}),inboxProposal:async()=>{reads++;return proposal({version:2,status:'search_pending',canonical_saved:true,memory_applied:true,apply:operation({canonical_saved:true,memory_applied:true,search_ready:false},'search_pending')});}});await settle();
- await controller.poll();assert.equal(controller.snapshot().proposals[0].status,'search_pending');assert.match(controller.presentation().proposals[0].resultMessage!,/индекс обновляется/);
+ await controller.poll();assert.equal(controller.snapshot().proposals[0].status,'search_pending');assert.match(controller.presentation().proposals[0].resultMessage!,/Search index is updating/);
  enabled=false;const before=reads;await controller.poll();assert.equal(reads,before);assert.equal(controller.presentation().proposals[0].processingEnabled,false);
  controller.setVisible(false);await controller.poll();assert.equal(reads,before);
 });
@@ -108,13 +108,13 @@ test('polling has a finite budget and apply retry keeps Backend operation identi
  const apply=operation();
  const {controller}=setup(t,{inboxProposals:async()=>({proposals:[proposal({status:'apply_retry',apply})],next_offset:null}),inboxProposal:async()=>{reads++;return proposal({status:'pending_apply',version:2,apply});},inboxDecision:async(id,action,input)=>{assert.equal(action,'retry');body=input;return {proposal:proposal({status:'pending_apply',version:2,apply}),replayed:false};}});await settle();
  assert.equal(await controller.retry(proposalId),true);assert.equal(body!.version,1);assert.equal(controller.snapshot().proposals[0].apply!.operation_id,apply.operation_id);
- for(let i=0;i<70;i++)await controller.poll();assert.equal(reads,60);assert.match(controller.snapshot().notice,/приостановлено/);
+ for(let i=0;i<70;i++)await controller.poll();assert.equal(reads,60);assert.match(controller.snapshot().notice,/paused/);
 });
 
 test('missing capability/routes, disabled workers and backend errors never inject fixtures or fake success',async t=>{
  const hidden=setup(t,{intelligenceSettings:async()=>({...capabilities,inbox:false}),inboxProposals:async()=>assert.fail('No list without capability')});await settle();assert.equal(hidden.controller.snapshot().available,false);
  const missing=setup(t,{intelligenceSettings:async()=>{throw new ApiError(404,'not_found','Not found');}});await settle();assert.equal(missing.controller.snapshot().available,false);assert.equal(missing.controller.snapshot().proposals.length,0);
- const disabled=setup(t,{intelligenceStatus:async()=>({...runtime,worker_enabled:false,deep_enabled:false,apply_enabled:false})});await settle();assert.equal(await disabled.controller.decide(proposalId,'accept'),false);assert.equal(await disabled.controller.decide(proposalId,'comment','text'),false);assert.match(disabled.controller.snapshot().notice,/выключена/);
+ const disabled=setup(t,{intelligenceStatus:async()=>({...runtime,worker_enabled:false,deep_enabled:false,apply_enabled:false})});await settle();assert.equal(await disabled.controller.decide(proposalId,'accept'),false);assert.equal(await disabled.controller.decide(proposalId,'comment','text'),false);assert.match(disabled.controller.snapshot().notice,/disabled/);
 });
 
 test('logout/account/controller replacement aborts reads/writes and discards late proposal/comment/history data; 401 expires session',async t=>{

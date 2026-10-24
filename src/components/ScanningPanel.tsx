@@ -1,27 +1,29 @@
 import type {MemoryInboxPresentation} from '../types/memoryInbox';
-const labels={requested:'Запрос зарегистрирован',scanning:'Обнаружение событий',processing:'Обработка',completed:'Проход завершён',completed_with_errors:'Проход завершён с ошибками'};
+import {tr} from '../i18n';
+import {formatDate} from '../i18n/format';
+const labels:Record<string,string>={requested:'scanRequested',scanning:'scanDiscovering',processing:'scanProcessing',completed:'scanCompleted',completed_with_errors:'scanErrors'};
 export function ScanningPanel({scanning:s}:{scanning:NonNullable<MemoryInboxPresentation['scanning']>}){
  const active=s.data?.sources.some(row=>s.selected.has(row.id)&&row.scan&&['requested','scanning','processing'].includes(row.scan.state));
- return <section aria-label="Сканирование" className="p-4 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] space-y-3">
-  <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Сканирование</h3>
-   <button type="button" onClick={s.onScan} disabled={s.busy||!s.selected.size||!!active||!s.data?.worker.enabled} className="text-sm text-[var(--mroya-primary)] disabled:opacity-50">{s.busy?'Подождите…':'Сканировать сейчас'}</button></div>
-  <p className="text-xs text-[var(--mroya-text-muted)]">События разрешённых календарей, включая импортированные из Google; до 50 календарей за запрос. Ручной проход проверяет существующие события. Новые и изменённые события обрабатываются автоматически, без повторного полного обхода. Подтверждение предложений выполняется отдельно.</p>
-  {s.error&&<p role="alert">{s.error}</p>}
-  {!s.data&&!s.error&&<p role="status">Загрузка состояния сканирования…</p>}
-  {s.data?.worker.last_seen_at&&<p className="text-xs text-[var(--mroya-text-muted)]">Heartbeat worker: {new Date(s.data.worker.last_seen_at).toLocaleString()}</p>}
-  {s.data?.worker.state==='unavailable'&&<p role="status">Нет свежего heartbeat worker. Обработка может быть остановлена или задержана.</p>}
-  {s.data?.worker.state==='disabled'&&<p role="status">Обработка на сервере выключена.</p>}
-  {s.data?.sources.length===0&&<p>Нет календарей. Разрешите анализ в Settings → Memory Intelligence.</p>}
+ return <section aria-label={tr('scanning',{ns:'connections'})} className="p-4 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] space-y-3">
+  <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{tr('scanning',{ns:'connections'})}</h3>
+   <button type="button" onClick={s.onScan} disabled={s.busy||!s.selected.size||!!active||!s.data?.worker.enabled} className="text-sm text-[var(--mroya-primary)] disabled:opacity-50">{s.busy?tr('pleaseWait',{ns:'connections'}):tr('scanNow',{ns:'connections'})}</button></div>
+  <p className="text-xs text-[var(--mroya-text-muted)]">{tr('scanDescription',{ns:'connections'})}</p>
+  {s.error&&<p role="alert">{tr('loadFailed',{ns:'common'})}</p>}
+  {!s.data&&!s.error&&<p role="status">{tr('scanLoading',{ns:'connections'})}</p>}
+  {s.data?.worker.last_seen_at&&<p className="text-xs text-[var(--mroya-text-muted)]">{tr('workerHeartbeat',{ns:'connections',date:formatDate(s.data.worker.last_seen_at,{dateStyle:'medium',timeStyle:'short'})})}</p>}
+  {s.data?.worker.state==='unavailable'&&<p role="status">{tr('workerNoHeartbeat',{ns:'connections'})}</p>}
+  {s.data?.worker.state==='disabled'&&<p role="status">{tr('workerDisabled',{ns:'connections'})}</p>}
+  {s.data?.sources.length===0&&<p>{tr('scanNoCalendars',{ns:'connections'})}</p>}
   {s.data?.sources.map(row=>{const p=row.scan;return <div key={row.id} className="border-t border-[var(--mroya-divider)] pt-3 text-sm space-y-1">
-   <label className="flex items-center gap-2"><input type="checkbox" disabled={!row.enabled||s.busy} checked={s.selected.has(row.id)} onChange={()=>s.onSelect(row.id)}/><span className="break-words">{row.name}</span><span className="text-xs text-[var(--mroya-text-muted)]">{row.enabled?'Анализ включён':'Анализ выключен'}</span></label>
-   <p>{p?'Ручной проход: '+labels[p.state]:'Ещё не сканировался'}{row.quota_blocked?' · Квота AI исчерпана':''}</p>
-   {row.last_scanned_at&&<p className="text-xs text-[var(--mroya-text-muted)]">Последний обход: {new Date(row.last_scanned_at).toLocaleString()}</p>}
-   {p&&<><p>Обнаружено: {p.discovered} · Проверено: {p.checked}{p.eligible!==null?` из ${p.eligible}`:''}</p>
-    {p.eligible!==null&&p.eligible>0&&<progress aria-label={`Проверено: ${row.name}`} value={p.checked} max={p.eligible} className="w-full"/>}
-    {p.eligible===0&&<p>Нет подходящих событий в этом проходе.</p>}
-    <p className="text-xs text-[var(--mroya-text-muted)]">Очередь: {p.queued} · Triage: {p.triage} · Deep Analysis: {p.deep_analysis} · Не требуют сохранения: {p.no_save} · Ожидают подтверждения: {p.awaiting_confirmation} · Ошибки: {p.errors} · Повтор после ошибки: {p.retrying} · Устарели: {p.stale}</p>
-    {!!p.error_codes.length&&<p role="status" className="text-xs">Причины: {p.error_codes.join(', ')}</p>}</>}
+   <label className="flex items-center gap-2"><input type="checkbox" disabled={!row.enabled||s.busy} checked={s.selected.has(row.id)} onChange={()=>s.onSelect(row.id)}/><span className="break-words">{row.name}</span><span className="text-xs text-[var(--mroya-text-muted)]">{row.enabled?tr('analysisEnabled',{ns:'connections'}):tr('analysisDisabled',{ns:'connections'})}</span></label>
+   <p>{p?tr('manualScanStatus',{ns:'connections',status:tr(labels[p.state]??'scanLoading',{ns:'connections'})}):tr('notScanned',{ns:'connections'})}{row.quota_blocked?' · '+tr('aiQuotaExhausted',{ns:'connections'}):''}</p>
+   {row.last_scanned_at&&<p className="text-xs text-[var(--mroya-text-muted)]">{tr('lastScan',{ns:'connections',date:formatDate(row.last_scanned_at,{dateStyle:'medium',timeStyle:'short'})})}</p>}
+   {p&&<><p>{tr('scanCounts',{ns:'connections',discovered:p.discovered,checked:p.checked,eligible:p.eligible??''})}</p>
+    {p.eligible!==null&&p.eligible>0&&<progress aria-label={tr('checkedCount',{ns:'connections',count:p.checked,source:row.name})} value={p.checked} max={p.eligible} className="w-full"/>}
+    {p.eligible===0&&<p>{tr('noEligibleEvents',{ns:'connections'})}</p>}
+    <p className="text-xs text-[var(--mroya-text-muted)]">{tr('scanQueueStats',{ns:'connections',queued:p.queued,triage:p.triage,deep:p.deep_analysis,noSave:p.no_save,awaiting:p.awaiting_confirmation,errors:p.errors,retrying:p.retrying,stale:p.stale})}</p>
+    {!!p.error_codes.length&&<p role="status" className="text-xs">{tr('scanIssues',{ns:'connections'})}</p>}</>}
   </div>})}
-  {s.data?.next_offset!==null&&s.data&&<button type="button" onClick={s.onMore} disabled={s.busy} className="text-sm underline">Ещё календари</button>}
+  {s.data?.next_offset!==null&&s.data&&<button type="button" onClick={s.onMore} disabled={s.busy} className="text-sm underline">{tr('moreCalendars',{ns:'connections'})}</button>}
  </section>;
 }

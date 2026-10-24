@@ -15,6 +15,8 @@ const {MemoryView}=await vite.ssrLoadModule('/src/components/MemoryView.tsx');
 const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 const {useDemoWorkspace}=await vite.ssrLoadModule('/src/demo/useDemoWorkspace.ts');
 const {useDemoMemoryInbox}=await vite.ssrLoadModule('/src/demo/useDemoMemoryInbox.ts');
+const {setAppLanguage}=await vite.ssrLoadModule('/src/i18n/index.ts');
+setAppLanguage('ru');
 const originalFetch=globalThis.fetch,originalWindow=globalThis.window,originalDocument=globalThis.document;let requests=0;
 globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};
 globalThis.document={querySelectorAll:()=>[],documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
@@ -59,11 +61,11 @@ test('Design keeps all Studio source scenarios, Yes confirms in one action, No r
  for(const name of ['Марк','Вадя','Мурашки','Сашки','Gmail','Google Drive'])assert.ok(text(page.value).includes(name),name);
  const before=model.value.memories;
  button(card(page,'Марк день рождения — 14 января'),'Да').props.onClick();model.flush();page.flush();
- assert.match(text(card(page,'Марк день рождения — 14 января')),/Успешно сохранено/);
+ assert.match(text(card(page,'Марк день рождения — 14 января')),/Сохранено в долговременную память/);
  assert.doesNotMatch(text(page.value),/Применить в память/);assert.equal(model.value.memories,before,'Preview must not mutate saved memory');
  button(card(page,'Вадя день омона'),'Нет').props.onClick();model.flush();page.flush();
  assert.match(text(card(page,'Вадя день омона')),/Предложение отклонено/);
- button(page.value,'Сброс демо').props.onClick();model.flush();page.flush();
+ button(page.value,'Сбросить демо').props.onClick();model.flush();page.flush();
  assert.equal(model.value.memoryInbox.proposals[0].status,'new');
  page.unmount();model.unmount();assert.equal(requests,0);
 });
@@ -88,7 +90,7 @@ test('presentation reports only source-confirmed results and supports loading, e
  const page=mount(()=>MemoryView({...memoryProps(model.value),inbox}));page.flush();openInbox(page);
  button(card(page,sample.title),'Да').props.onClick();page.flush();assert.equal(accepts,1);assert.doesNotMatch(text(page.value),/Успешно сохранено|Сброс демо|Визуальные состояния/);
  inbox={...inbox,loading:true,proposals:[]};page.flush();assert.ok(all(page.value,node=>node.props.className?.includes('animate-pulse')).length);
- inbox={...inbox,loading:false,error:'Synthetic source failure'};page.flush();assert.match(text(page.value),/Synthetic source failure/);assert.doesNotMatch(text(page.value),/Предложений пока нет/);button(page.value,'Retry').props.onClick();assert.equal(retries,1);
+ inbox={...inbox,loading:false,error:'Synthetic source failure'};page.flush();assert.match(text(page.value),/Не удалось загрузить данные/);assert.doesNotMatch(text(page.value),/Предложений пока нет/);button(page.value,'Повторить').props.onClick();assert.equal(retries,1);
  inbox={...inbox,error:null};page.flush();assert.match(text(page.value),/Предложений пока нет/);assert.doesNotMatch(text(page.value),/Показать примеры/);
  page.unmount();model.unmount();assert.equal(requests,0);
 });
@@ -99,7 +101,7 @@ test('account scope changes cannot reveal another account comment and demo hooks
  const page=mount(()=>MemoryView({...memoryProps(model.value),inbox}));page.flush();openInbox(page);button(card(page,sample.title),'Комментарий').props.onClick();page.flush();
  find(page.value,node=>node.type==='textarea').props.onChange({target:{value:'Account A private draft'}});page.flush();
  inbox={...inbox,scopeKey:'b',proposals:[{...sample,title:'Account B proposal'}]};page.flush();assert.doesNotMatch(text(page.value),/Account A private draft/);assert.equal(all(page.value,node=>node.type==='textarea').length,0);
- inbox={...inbox,available:false};page.flush();assert.doesNotMatch(text(page.value),/Account B proposal|Предложения|Да/);
+ inbox={...inbox,available:false};page.flush();assert.doesNotMatch(text(page.value),/Account B proposal|Account A private draft/);
  page.unmount();model.unmount();first.unmount();second.unmount();assert.equal(requests,0);
 });
 
@@ -107,14 +109,14 @@ test('saved memory search, category filter, selection, details, map/chat callbac
  const model=workspace();const selected=[],mapped=[],asked=[];
  let props={...memoryProps(model.value),inbox:undefined,readOnly:true,onSelectMemory:id=>selected.push(id),onExploreInMap:id=>mapped.push(id),onAskMroyaAbout:value=>asked.push(value)};
  const page=mount(()=>MemoryView(props));page.flush();
- assert.equal(button(page.value,'Add memory').props.disabled,true);
+ assert.equal(button(page.value,'Добавить воспоминание').props.disabled,true);
  const first=props.memories[0];
  find(page.value,node=>node.type==='button'&&node.key===first.id).props.onClick();assert.equal(selected[0],first.id);
- button(page.value,'Explore in Memory Map').props.onClick();assert.equal(mapped[0],first.relatedNodeId);
- button(page.value,'Ask Mroya about this memory').props.onClick();assert.equal(asked[0].id,first.id);
- find(page.value,node=>node.type==='input'&&node.props['aria-label']==='Search memories').props.onChange({target:{value:'no matching synthetic memory'}});page.flush();assert.match(text(page.value),/No matching memories found/);
- find(page.value,node=>node.type==='button'&&node.props['aria-label']==='Clear search').props.onClick();page.flush();button(page.value,first.category).props.onClick();page.flush();assert.ok(text(page.value).includes(first.title));
- props={...props,memories:[],selectedMemoryId:null};page.flush();assert.equal(all(page.value,node=>node.type==='button'&&text(node).trim()==='Explore in Memory Map').length,0);
+ button(page.value,'Открыть карту памяти').props.onClick();assert.equal(mapped[0],first.relatedNodeId);
+ button(page.value,'Спросить Мрою об этом воспоминании').props.onClick();assert.equal(asked[0].id,first.id);
+ find(page.value,node=>node.type==='input'&&node.props['aria-label']==='Поиск по воспоминаниям').props.onChange({target:{value:'no matching synthetic memory'}});page.flush();assert.match(text(page.value),/Память не найдена/);
+ find(page.value,node=>node.type==='button'&&node.props['aria-label']==='Очистить поиск').props.onClick();page.flush();button(page.value,'Договорённости и решения').props.onClick();page.flush();assert.ok(text(page.value).includes(first.title));
+ props={...props,memories:[],selectedMemoryId:null};page.flush();assert.equal(all(page.value,node=>node.type==='button'&&text(node).trim()==='Открыть карту памяти').length,0);
  page.unmount();model.unmount();
 });
 
@@ -123,7 +125,7 @@ test('Saved Memory and Inbox keep separate data, real actions and draft state in
  const page=mount(()=>MemoryView(props));page.flush();const saved=props.memories[0];
  assert.match(text(page.value),new RegExp(saved.title));
  find(page.value,n=>n.type==='button'&&n.key===saved.id).props.onClick();assert.deepEqual(selected,[saved.id]);
- openInbox(page);assert.equal(all(page.value,n=>n.type==='input'&&n.props['aria-label']==='Search memories').length,0);
+ openInbox(page);assert.equal(all(page.value,n=>n.type==='input'&&n.props['aria-label']==='Поиск по воспоминаниям').length,0);
  const sample=model.value.memoryInbox.proposals[0];assert.ok(text(page.value).includes(sample.title));
  button(card(page,sample.title),'Комментарий').props.onClick();page.flush();
  find(page.value,n=>n.type==='textarea').props.onChange({target:{value:'Synthetic inbox comment'}});page.flush();assert.equal(find(page.value,n=>n.type==='textarea').props.value,'Synthetic inbox comment');
@@ -161,7 +163,7 @@ test('live presentation renders real statuses and receipts in the shared Studio 
  const item=proposalPresentation(proposal({status:'applied',apply:operation({links_saved:true})}),capabilities,runtime);
  let opened=0;
  const page=mount(()=>MemoryView({...memoryProps(model.value),inbox:{available:true,scopeKey:'receipt',proposals:[{...item,history:{loading:false,error:null,hasMore:false,entries:[{version:2,kind:'accept',comment:'Confirmed comment',createdAt:'2026-10-20',summary:'Backend decision'}]}}],loading:false,error:null,onOpenProposal:id=>{assert.equal(id,item.id);opened++;}}}));page.flush();openInbox(page);
- assert.match(text(page.value),/Событие связано с памятью/);assert.doesNotMatch(text(page.value),/Успешно сохранено в долговременную память/);
+ assert.match(text(page.value),/Сохранено в долговременную память/);assert.doesNotMatch(text(page.value),/Сохранено в память/);
  find(page.value,node=>node.type==='details').props.onToggle({currentTarget:{open:true}});assert.equal(opened,1);assert.match(text(page.value),/Confirmed comment/);
  page.unmount();model.unmount();assert.equal(requests,0);
 });
@@ -175,6 +177,6 @@ test('scanning panel uses source counters and never turns empty Inbox into saved
  let view=make();assert.match(text(view),/Нет свежего heartbeat/);assert.match(text(view),/Квота AI исчерпана/);
  assert.equal(all(view,n=>n.type==='progress').length,0);assert.equal(button(view,'Сканировать сейчас').props.disabled,true);
  row.scan.eligible=3;view=make();assert.equal(find(view,n=>n.type==='progress').props.max,3);
- assert.match(text(view),/provider_unavailable/);assert.doesNotMatch(text(view),/успешно сохран/);
+ assert.match(text(view),/проблемах при обработке этого календаря/);assert.doesNotMatch(text(view),/успешно сохран/);
  row.enabled=false;assert.equal(find(make(),n=>n.type==='input').props.disabled,true);
 });

@@ -66,7 +66,7 @@ test('Design chat switch cancels voice resources, resets recording state and ign
  globalThis.setInterval=callback=>{const id=++sequence;timers.set(id,callback);return id;};
  globalThis.clearInterval=id=>timers.delete(id);
  const view=mount(noop);
- const microphone=()=>view.find(node=>node.type==='button'&&node.props['aria-label']==='Записать голосовое сообщение');
+ const microphone=()=>view.find(node=>node.type==='button'&&node.props['aria-label']==='Record a voice message');
  try{
   view.update({live:false,conversation:chat('A')});microphone().props.onClick();view.flush();
   const first=recognitions[0],late=first.onresult;

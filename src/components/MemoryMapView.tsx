@@ -16,7 +16,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../types/mroya';
-import { defaults } from './memory-map/forceDefaults.js';
+import {tr} from '../i18n';
+import { createMemoryMapRenderer, defaults } from './memory-map/renderer.js';
 import { renderGraph } from './memory-map/mapModel';
 import { presentationGraph } from './memory-map/graph.js';
 import { mapNodeLabel } from './memory-map/palette.js';
@@ -41,7 +42,15 @@ interface MemoryMapViewProps {
 type Renderer = Awaited<ReturnType<(typeof import("./memory-map/renderer.js"))["createMemoryMapRenderer"]>>;
 
 const relation = (n: { predicate?: string; relationship?: string; polarity?: string }) =>
-  `${n.polarity === 'negative' ? 'Not ' : ''}${n.predicate || n.relationship || ''}`;
+  `${n.polarity === 'negative' ? tr('not',{ns:'memory'})+' ' : ''}${n.predicate || n.relationship || ''}`;
+const localizeMapHint=(value:string)=>{
+  if(value==='Drag to explore · Scroll to zoom · Select to inspect')return tr('mapHint',{ns:'memory'});
+  if(value==='Image export is unavailable in this browser.')return tr('exportUnavailable',{ns:'memory'});
+  if(value==='Image export failed dimension verification.')return tr('exportFailed',{ns:'memory'});
+  const rendering=/^Rendering (.+) PNG locally…$/.exec(value);if(rendering)return tr('renderingExport',{ns:'memory',size:rendering[1]});
+  const done=/^(.+) PNG verified · download locally$/.exec(value);if(done)return tr('exportVerified',{ns:'memory',size:done[1]});
+  return value;
+};
 
 /** One Pixi scene for offline Studio and live Mroya; only typed props/actions cross this boundary. */
 export function MemoryMapView({
@@ -139,9 +148,7 @@ export function MemoryMapView({
       } catch {
         if (!cancelled) {
           setRenderError(
-            loadingModule
-              ? 'The memory map could not be loaded. Check your connection and reopen Memory Map. Your memories are still available in Memory.'
-              : 'The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.'
+            tr(loadingModule?'renderFailedLoad':'renderFailed',{ns:'memory'})
           );
         }
       }
@@ -186,15 +193,15 @@ export function MemoryMapView({
   };
 
   const stateMessage = loading
-    ? 'Connecting your memories…'
+    ? tr('connecting',{ns:'memory'})
     : (error && !nodes.length ? error : null) ||
       renderError ||
       (!nodes.length
-        ? 'Your map will grow as Mroya remembers more about your world.'
+        ? tr('mapEmpty',{ns:'memory'})
         : !ready
-        ? 'Preparing your memory map…'
+        ? tr('preparing',{ns:'memory'})
         : !display.nodes.length
-        ? 'No nodes remain with Hide Self enabled.'
+        ? tr('noNodesHideSelf',{ns:'memory'})
         : null);
 
   const matches = query.trim()
@@ -231,7 +238,7 @@ export function MemoryMapView({
     <section
       className={`mroya-memory-map${showcase ? ' map-showcase' : ''}`}
       data-map-theme={theme}
-      aria-label="Memory Map"
+      aria-label={tr('map',{ns:'memory'})}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           if (showcase) setShowcase(false);
@@ -251,7 +258,7 @@ export function MemoryMapView({
           <button
             type="button"
             className="map-nav-button map-mobile-menu"
-            aria-label="Open navigation"
+            aria-label={tr('openNavigation',{ns:'common'})}
             onClick={onOpenMobileMenu}
           >
             <Menu size={18} />
@@ -260,19 +267,19 @@ export function MemoryMapView({
             <button
               type="button"
               className="map-nav-button"
-              aria-label="Expand sidebar"
+              aria-label={tr('expandSidebar',{ns:'common'})}
               onClick={onExpandSidebar}
             >
               <PanelLeftOpen size={18} />
             </button>
           )}
           <div>
-            <p className="map-eyebrow">MROYA <span>/</span> MEMORY</p>
+            <p className="map-eyebrow">MROYA <span>/</span> {tr('mapEyebrow',{ns:'memory'})}</p>
             <h1>
-              <span>Memory Map</span>
+              <span>{tr('map',{ns:'memory'})}</span>
               <span className="map-heading-dot">.</span>
             </h1>
-            <p>The people, places and details that make up your world.</p>
+            <p>{tr('mapDescription',{ns:'memory'})}</p>
           </div>
         </div>
 
@@ -282,7 +289,7 @@ export function MemoryMapView({
           onClick={() => setShowcase(true)}
         >
           <Maximize2 size={13} />
-          <span>Showcase</span>
+          <span>{tr('showcase',{ns:'memory'})}</span>
         </button>
       </header>
 
@@ -292,9 +299,9 @@ export function MemoryMapView({
             ref={host}
             className="map-canvas"
             role="img"
-            aria-label="Interactive graph of your personal memories. Use search and Memory for non-visual navigation."
+            aria-label={tr('graph',{ns:'memory'})}
           >
-            <ul className="sr-only" aria-label="Memory nodes">
+            <ul className="sr-only" aria-label={tr('nodes',{ns:'memory'})}>
               {display.nodes.map((n) => (
                 <li key={n.id}>{n.label}</li>
               ))}
@@ -304,22 +311,22 @@ export function MemoryMapView({
           <div className="map-halo map-halo-two" aria-hidden="true" />
 
           {/* Map Toolbar (Top-Left) */}
-          <div className="map-toolbar" aria-label="Map controls">
+          <div className="map-toolbar" aria-label={tr('mapControls',{ns:'memory'})}>
             <div className="map-toolbar-line">
               <span className="map-live-dot" />
-              <span>YOUR UNIVERSE</span>
+              <span>{tr('universe',{ns:'memory'})}</span>
               <span className="map-toolbar-divider" />
-              <span className="map-visible-count">{count} nodes</span>
+              <span className="map-visible-count">{tr('nodeCount',{ns:'memory',count})}</span>
             </div>
 
-            <div className="map-mode" role="group" aria-label="Graph mode">
+            <div className="map-mode" role="group" aria-label={tr('graphMode',{ns:'memory'})}>
               <button
                 type="button"
                 className={mode === 'global' ? 'active' : ''}
                 aria-pressed={mode === 'global'}
                 onClick={() => setMode('global')}
               >
-                Global
+                {tr('global',{ns:'memory'})}
               </button>
               <button
                 type="button"
@@ -336,15 +343,15 @@ export function MemoryMapView({
                   setMode('local');
                 }}
               >
-                Local
+                {tr('local',{ns:'memory'})}
               </button>
               <select
-                aria-label="Local graph depth"
+                aria-label={tr('localGraphDepth',{ns:'memory'})}
                 value={depth}
                 onChange={(e) => setDepth(Number(e.target.value))}
               >
-                <option value={1}>1 hop</option>
-                <option value={2}>2 hops</option>
+                <option value={1}>{tr('hops',{ns:'memory',count:1})}</option>
+                <option value={2}>{tr('hops',{ns:'memory',count:2})}</option>
               </select>
             </div>
 
@@ -355,10 +362,10 @@ export function MemoryMapView({
               <input
                 ref={search}
                 type="search"
-                placeholder="Find a person, place, memory…"
+                placeholder={tr('searchMap',{ns:'memory'})}
                 autoComplete="off"
                 maxLength={100}
-                aria-label="Search map nodes"
+                aria-label={tr('searchNodes',{ns:'memory'})}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -375,20 +382,20 @@ export function MemoryMapView({
                     </button>
                   ))
                 ) : (
-                  <p>No matching nodes</p>
+                  <p>{tr('noMatchingNodes',{ns:'memory'})}</p>
                 )}
               </div>
             )}
 
             <details className="map-force">
               <summary>
-                <span>Graph settings</span>
+                <span>{tr('graphSettings',{ns:'memory'})}</span>
                 <ChevronDown size={12} />
               </summary>
               {graph.nodes.some((n) => n.is_self) && (
                 <label className="map-hide-self">
                   <span>
-                    Hide Self <small>Experimental</small>
+                    {tr('hideSelf',{ns:'memory'})} <small>{tr('experimental',{ns:'memory'})}</small>
                   </span>
                   <input
                     type="checkbox"
@@ -399,9 +406,9 @@ export function MemoryMapView({
               )}
               {(
                 [
-                  ['repulsion', 'Repulsion', 80, 500],
-                  ['linkDistance', 'Link distance', 60, 220],
-                  ['center', 'Center pull', 0, 100],
+                  ['repulsion', tr('repulsion',{ns:'memory'}), 80, 500],
+                  ['linkDistance', tr('linkDistance',{ns:'memory'}), 60, 220],
+                  ['center', tr('centerPull',{ns:'memory'}), 0, 100],
                 ] as const
               ).map(([key, label, min, max]) => (
                 <label key={key}>
@@ -417,7 +424,7 @@ export function MemoryMapView({
                 </label>
               ))}
               <button type="button" onClick={() => setForce({ ...defaults })}>
-                Reset defaults
+                {tr('resetDefaults',{ns:'memory'})}
               </button>
             </details>
           </div>
@@ -426,9 +433,9 @@ export function MemoryMapView({
           <div className="map-right-controls">
             <label className="map-export-label">
               <Download size={13} />
-              <span>Export image</span>
+              <span>{tr('exportImage',{ns:'memory'})}</span>
               <select
-                aria-label="Export map image resolution"
+                aria-label={tr('exportResolution',{ns:'memory'})}
                 value=""
                 onChange={(e) => {
                   if (e.target.value) {
@@ -437,7 +444,7 @@ export function MemoryMapView({
                   }
                 }}
               >
-                <option value="">Choose size…</option>
+                <option value="">{tr('chooseSize',{ns:'memory'})}</option>
                 <option value="1920x1080">Full HD · 1920 × 1080</option>
                 <option value="2560x1440">QHD · 2560 × 1440</option>
                 <option value="3840x2160">4K · 3840 × 2160</option>
@@ -449,23 +456,23 @@ export function MemoryMapView({
           {download && (
             <a className="map-download-link" href={download.url} download={download.name}>
               <Download size={13} />
-              <span>Download PNG ↓</span>
+              <span>{tr('downloadPng',{ns:'memory'})}</span>
             </a>
           )}
 
           {/* Detail Sidebar (Selected Node Inspector) */}
           {active && (
-            <aside className="map-sidebar" aria-label="Selected memory detail">
+            <aside className="map-sidebar" aria-label={tr('selectedMemory',{ns:'memory'})}>
               <button
                 className="map-sidebar-close"
                 type="button"
-                aria-label="Close detail"
+                aria-label={tr('closeDetail',{ns:'memory'})}
                 onClick={close}
               >
                 <X size={16} />
               </button>
               <p className="map-detail-eyebrow">
-                {active.type === 'entity' ? 'Entity · current memory' : 'Memory · current claim'}
+                {active.type === 'entity' ? tr('entityCurrent',{ns:'memory'}) : tr('memoryClaim',{ns:'memory'})}
               </p>
               <h2>{active.type === 'entity' ? active.label : relation(active) || active.label}</h2>
               <p className="map-detail-kind">{active.type === 'entity' ? active.kind : active.literal_type}</p>
@@ -475,7 +482,7 @@ export function MemoryMapView({
                   <p className="map-detail-main-value">{active.label}</p>
                   {active.subject && display.nodes.some((n) => n.id === active.subject) && (
                     <section className="map-detail-section">
-                      <h3>About</h3>
+                      <h3>{tr('about',{ns:'memory'})}</h3>
                       <button
                         type="button"
                         className="map-detail-link"
@@ -493,17 +500,17 @@ export function MemoryMapView({
                 active.learned_at ||
                 active.evidence_count !== undefined) && (
                 <section className="map-detail-section">
-                  <h3>Context</h3>
+                  <h3>{tr('context',{ns:'memory'})}</h3>
                   {(active.valid_from || active.valid_to) && (
                     <p className="map-detail-note">
-                      Effective: {active.valid_from || '…'} — {active.valid_to || '…'}
+                      {tr('effective',{ns:'memory'})}: {active.valid_from || '…'} — {active.valid_to || '…'}
                     </p>
                   )}
                   {active.learned_at && (
-                    <p className="map-detail-note">Learned: {active.learned_at}</p>
+                    <p className="map-detail-note">{tr('learned',{ns:'memory'})}: {active.learned_at}</p>
                   )}
                   {active.evidence_count !== undefined && (
-                    <p className="map-detail-note">{active.evidence_count} sources</p>
+                    <p className="map-detail-note">{tr('sourceCount',{ns:'memory',count:active.evidence_count})}</p>
                   )}
                 </section>
               )}
@@ -512,26 +519,26 @@ export function MemoryMapView({
                 {active.linkedMemoryId && (
                   <button type="button" onClick={() => onOpenMemory(active.linkedMemoryId!)}>
                     <BookOpen size={13} />
-                    <span>Open Memory</span>
+                    <span>{tr('openMemory',{ns:'memory'})}</span>
                   </button>
                 )}
                 <button type="button" onClick={() => onAskAboutNode(active)}>
                   <MessageSquare size={13} />
-                  <span>Ask in Chat</span>
+                  <span>{tr('askInChat',{ns:'memory'})}</span>
                 </button>
                 <button type="button" onClick={() => renderer.current?.select(active.id, true)}>
                   <Crosshair size={13} />
-                  <span>Center node</span>
+                  <span>{tr('centerNode',{ns:'memory'})}</span>
                 </button>
               </div>
 
-              {section('Current facts', facts)}
-              {section('Connections from', outgoing)}
-              {section('Connected by', incoming, true)}
+              {section(tr('currentFacts',{ns:'memory'}), facts)}
+              {section(tr('connectionsFrom',{ns:'memory'}), outgoing)}
+              {section(tr('connectedBy',{ns:'memory'}), incoming, true)}
 
               {active.type === 'entity' && (
                 <p className="map-detail-note">
-                  {active.memory_count} memories · {active.degree} connections
+                  {tr('memoryConnectionsCount',{ns:'memory',memories:active.memory_count,connections:active.degree})}
                 </p>
               )}
             </aside>
@@ -541,10 +548,9 @@ export function MemoryMapView({
           <div className="map-bottom-left">
             <div>
               <strong>
-                {display.stats.entities} entities · {display.stats.memories} memories ·{' '}
-                {display.stats.connections} connections
+                {tr('graphStats',{ns:'memory',entities:display.stats.entities,memories:display.stats.memories,connections:display.stats.connections})}
               </strong>
-              <span>{hint}</span>
+              <span>{localizeMapHint(hint)}</span>
             </div>
           </div>
 
@@ -552,21 +558,21 @@ export function MemoryMapView({
           <div className="map-bottom-right">
             <button
               type="button"
-              aria-label="Zoom in"
+              aria-label={tr('zoomIn',{ns:'memory'})}
               onClick={() => renderer.current?.zoom(1.2)}
             >
               <Plus size={14} />
             </button>
             <button
               type="button"
-              aria-label="Zoom out"
+              aria-label={tr('zoomOut',{ns:'memory'})}
               onClick={() => renderer.current?.zoom(0.82)}
             >
               <Minus size={14} />
             </button>
             <button
               type="button"
-              aria-label="Fit graph to view"
+              aria-label={tr('fitGraph',{ns:'memory'})}
               onClick={() => renderer.current?.fit()}
             >
               <Scan size={14} />
@@ -590,9 +596,9 @@ export function MemoryMapView({
           <div className="map-showcase-brand" aria-hidden="true">
             <Sparkles size={16} className="text-[var(--mroya-brand-honey)]" />
             <div>
-              <strong>My Memory Map</strong>
+                <strong>{tr('myMap',{ns:'memory'})}</strong>
               <small>
-                MROYA · {display.stats.entities} ENTITIES · {display.stats.memories} MEMORIES
+                MROYA · {tr('showcaseStats',{ns:'memory',entities:display.stats.entities,memories:display.stats.memories})}
               </small>
             </div>
           </div>
@@ -603,7 +609,7 @@ export function MemoryMapView({
             onClick={() => renderer.current?.exportImage(3840, 2160)}
           >
             <Download size={13} />
-            <span>Export 4K</span>
+            <span>{tr('export4k',{ns:'memory'})}</span>
           </button>
 
           <button
@@ -612,7 +618,7 @@ export function MemoryMapView({
             onClick={() => setShowcase(false)}
           >
             <X size={13} />
-            <span>Exit showcase</span>
+            <span>{tr('exitShowcase',{ns:'memory'})}</span>
           </button>
         </div>
       </div>

@@ -411,5 +411,5 @@ introduced. Missing event API is Unavailable; the existing calendar remains usab
 
 Backend scans API: session/CSRF `GET/POST /api/v1/memory-intelligence/scans/`.
 See [live integration and bounded polling](MEMORY-INBOX-SCANNING.md) and Backend
-`docs/MEMORY-INTELLIGENCE-SCANNING.md`. Requires the additive intelligence.0004
-migration and the updated existing worker. No production fake progress fallback.
+`docs/MEMORY-INTELLIGENCE-SCANNING.md`. Requires the additive intelligence.0004/0005
+migrations and the updated existing worker. No production fake progress fallback.

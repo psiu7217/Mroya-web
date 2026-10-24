@@ -1,6 +1,6 @@
 # Live Inbox scanning
 
-Requires the Backend scans API and additive intelligence.0004 migration; restart
+Requires the Backend scans API and additive intelligence.0004/0005 migrations; restart
 its existing worker to publish heartbeat. No production deployment performed by this PR.
 See Backend docs/MEMORY-INTELLIGENCE-SCANNING.md for the authoritative contract.
 
@@ -10,7 +10,12 @@ selected (up to 50 per request). Selection is controller memory, not source cons
 POST /api/v1/memory-intelligence/scans/ uses the existing session/CSRF client;
 202 only acknowledges a request. Active selected passes disable duplicate clicks.
 The Backend additionally deduplicates and enforces cooldown. Pagination loads more
-calendars explicitly. No Google/unknown-origin resources are enabled by the Web.
+calendars explicitly. The existing per-calendar Analyze permission includes imported Google events and
+allows event data to be sent to the external AI Provider. Google Connect/Sync alone
+does not grant analysis. Disconnect does not revoke this separate permission.
+Unknown-origin events remain excluded. No new permission controls are introduced.
+The worker scans existing events only on explicit manual request; after that it
+processes individual committed changes, not periodic full calendar sweeps.
 
 A progress bar appears only after discovery yields a known denominator. Completed
 means processing settled, not proposals accepted or memory saved. Empty Inbox says

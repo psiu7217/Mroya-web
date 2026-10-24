@@ -69,11 +69,11 @@ export class LiveMemoryInboxController {
  more=()=>{void this.refresh(true);};
  private schedule(){
   this.clearTimer();if(!this.active||!this.visible||!this.current.capabilities?.inbox)return;
-  if(this.pollCount>=12){this.emit({notice:runtimeNotice(this.current.capabilities!,this.current.runtime)+' Автообновление приостановлено. Нажмите «Обновить Inbox» для проверки результата.'});return;}
+  if(this.pollCount>=60){this.emit({notice:runtimeNotice(this.current.capabilities!,this.current.runtime)+' Автообновление приостановлено. Нажмите «Обновить Inbox» для проверки результата.'});return;}
   this.pollTimer=setTimeout(()=>{this.pollTimer=null;void this.poll();},5000);
  }
  poll=async()=>{
-  if(!this.active||!this.visible||this.polling||this.refreshFlight||this.scanFlight||this.current.scanBusy||this.pollCount>=12)return;this.polling=true;this.emit({});this.clearTimer();this.pollCount++;
+  if(!this.active||!this.visible||this.polling||this.refreshFlight||this.scanFlight||this.current.scanBusy||this.pollCount>=60)return;this.polling=true;this.emit({});this.clearTimer();this.pollCount++;
   const abort=this.request(),generation=this.generation;
   try{
    const runtime=await this.source.intelligenceStatus!(abort.signal);if(!this.valid(abort,generation))return;

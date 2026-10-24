@@ -19,7 +19,7 @@ observation, not a Docker status inference. Quota/error/disabled states are visi
 
 Polling includes the first proposals page even if initially empty, plus rotating
 batches of up to ten loaded processing cards and loaded calendar pages. It runs
-one round at a time every five seconds, up to twelve rounds per refresh/visibility
+one round at a time every five seconds, up to sixty rounds (five minutes plus request time) per refresh/visibility
 session. On exhaustion a pause notice offers manual refresh; no unbounded retries.
 Leaving Memory, tab hiding, logout or identity/controller replacement aborts work
 and rejects late responses. Re-entering resumes a bounded session. Interrupted

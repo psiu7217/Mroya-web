@@ -8,6 +8,7 @@ export function ScanningPanel({scanning:s}:{scanning:NonNullable<MemoryInboxPres
   <p className="text-xs text-[var(--mroya-text-muted)]">Только разрешённые локальные события, до 50 календарей за запрос. Подтверждение предложений выполняется отдельно.</p>
   {s.error&&<p role="alert">{s.error}</p>}
   {!s.data&&!s.error&&<p role="status">Загрузка состояния сканирования…</p>}
+  {s.data?.worker.last_seen_at&&<p className="text-xs text-[var(--mroya-text-muted)]">Heartbeat worker: {new Date(s.data.worker.last_seen_at).toLocaleString()}</p>}
   {s.data?.worker.state==='unavailable'&&<p role="status">Нет свежего heartbeat worker. Обработка может быть остановлена или задержана.</p>}
   {s.data?.worker.state==='disabled'&&<p role="status">Обработка на сервере выключена.</p>}
   {s.data?.sources.length===0&&<p>Нет календарей. Разрешите анализ в Settings → Memory Intelligence.</p>}

@@ -108,7 +108,7 @@ test('polling has a finite budget and apply retry keeps Backend operation identi
  const apply=operation();
  const {controller}=setup(t,{inboxProposals:async()=>({proposals:[proposal({status:'apply_retry',apply})],next_offset:null}),inboxProposal:async()=>{reads++;return proposal({status:'pending_apply',version:2,apply});},inboxDecision:async(id,action,input)=>{assert.equal(action,'retry');body=input;return {proposal:proposal({status:'pending_apply',version:2,apply}),replayed:false};}});await settle();
  assert.equal(await controller.retry(proposalId),true);assert.equal(body!.version,1);assert.equal(controller.snapshot().proposals[0].apply!.operation_id,apply.operation_id);
- for(let i=0;i<20;i++)await controller.poll();assert.equal(reads,12);assert.match(controller.snapshot().notice,/приостановлено/);
+ for(let i=0;i<70;i++)await controller.poll();assert.equal(reads,60);assert.match(controller.snapshot().notice,/приостановлено/);
 });
 
 test('missing capability/routes, disabled workers and backend errors never inject fixtures or fake success',async t=>{

@@ -26,8 +26,10 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { ReminderItem, CalendarEvent } from '../types/mroya';
+import {tr} from '../i18n';
+import {formatDate,formatTime} from '../i18n/format';
 import {
-  formatRecurrence,
+  localizedRecurrence,
   getEffectiveRecurrence,
   getNextOccurrenceDate,
 } from '../utils/recurrenceUtils';
@@ -71,6 +73,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
+  const formatCivilDate=(value:string)=>{const [y,m,d]=value.split('-').map(Number);return Number.isInteger(y)&&Number.isInteger(m)&&Number.isInteger(d)?formatDate(new Date(Date.UTC(y,m-1,d,12)),{year:'numeric',month:'short',day:'numeric'},'UTC'):value;};
+  const formatCivilTime=(value:string)=>{const [h,m]=value.split(':').map(Number);return Number.isInteger(h)&&Number.isInteger(m)?formatTime(new Date(Date.UTC(2000,0,1,h,m)),{},'UTC'):value;};
   const [filter, setFilter] = useState<'all' | 'standalone' | 'linked' | 'recurring' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [syncToast, setSyncToast] = useState<string | null>(null);
@@ -79,8 +83,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
     if(readOnly)return;
     onSimulateGoogleSync(reminderId);
     setSyncToast(
-      customMessage ||
-        'Updated from Google Calendar · Shared recurrence rule updated (no duplicate reminders)'
+      customMessage || tr('updatedFromGoogle',{ns:'reminders'})
     );
     setTimeout(() => {
       setSyncToast(null);
@@ -96,7 +99,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
     }
     const eff = getEffectiveRecurrence(reminder, events);
     const next = getNextOccurrenceDate(reminder.date, reminder.time, eff.rule, '2026-10-12');
-    setSyncToast(`Occurrence completed! Next alert scheduled for ${next.label}`);
+    setSyncToast(tr('occurrenceCompletedNext',{ns:'reminders',date:next.label}));
     setTimeout(() => setSyncToast(null), 4000);
   };
 
@@ -146,13 +149,13 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
 
   const formatOffset = (mins?: number) => {
     if (mins === undefined || mins === null) return '';
-    if (mins === 0) return 'At event time';
-    if (mins < 60) return `${mins} min before`;
-    if (mins === 60) return '1 hour before';
-    if (mins === 1440) return '1 day before';
+    if (mins === 0) return tr('atEventTime',{ns:'reminders'});
+    if (mins < 60) return tr('minutesBefore',{ns:'calendar',count:mins});
+    if (mins === 60) return tr('hoursBefore',{ns:'calendar',count:1});
+    if (mins === 1440) return tr('daysBefore',{ns:'calendar',count:1});
     const hrs = Math.floor(mins / 60);
     const rem = mins % 60;
-    return rem > 0 ? `${hrs}h ${rem}m before` : `${hrs} hours before`;
+    return rem > 0 ? tr('hoursMinutesBefore',{ns:'reminders',hours:hrs,minutes:rem}) : tr('hoursBefore',{ns:'calendar',count:hrs});
   };
 
   return (
@@ -163,7 +166,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            aria-label="Open menu"
+            aria-label={tr('openNavigation',{ns:'common'})}
             className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
           >
             <Menu className="w-5 h-5" />
@@ -171,19 +174,19 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
 
           <div>
             <h1 className="text-[17px] sm:text-[18px] font-bold text-[var(--mroya-text)] flex items-center gap-2">
-              <span>Reminders</span>
+              <span>{tr('navReminders',{ns:'sidebar'})}</span>
               <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]">
-                {totalScheduled} scheduled
+                {tr('scheduledCount',{ns:'reminders',count:totalScheduled})}
               </span>
               {recurringCount > 0 && (
                 <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                   <Repeat className="w-3 h-3" />
-                  <span>{recurringCount} recurring</span>
+                  <span>{tr('recurringCount',{ns:'reminders',count:recurringCount})}</span>
                 </span>
               )}
             </h1>
             <p className="hidden sm:block text-[11px] text-[var(--mroya-text-muted)] truncate">
-              Standalone & calendar-linked reminders with automatic recurrence inheritance.
+              {tr('description',{ns:'reminders'})}
             </p>
           </div>
         </div>
@@ -197,7 +200,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             className="px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[13px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:shadow-sm"
           >
             <Plus className="w-4 h-4 stroke-[2.4]" />
-            <span>New reminder</span>
+            <span>{tr('newReminder',{ns:'reminders'})}</span>
           </button>
         </div>
       </header>
@@ -214,7 +217,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             onClick={() => setSyncToast(null)}
             className="text-[11px] font-bold underline hover:opacity-80 cursor-pointer"
           >
-            Dismiss
+            {tr('dismiss',{ns:'common'})}
           </button>
         </div>
       )}
@@ -231,10 +234,10 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               </div>
               <div>
                 <span className="text-[13px] font-bold text-[var(--mroya-text)]">
-                  Shared Schedule with Google Calendar
+                  {tr('sharedSchedule',{ns:'reminders'})}
                 </span>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                  {readOnly ? 'Calendar sync is not available yet.' : 'Test external modifications: recurring series & one-off reminder rules update synchronously without duplicating objects.'}
+                  {readOnly ? tr('calendarSyncUnavailable',{ns:'reminders'}) : tr('simulateDescription',{ns:'reminders'})}
                 </p>
               </div>
             </div>
@@ -245,13 +248,13 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 onClick={() =>
                   handleSimulateSync(
                     'rem-weekly-meeting',
-                    'Weekly meeting synced from Google Calendar · Offset changed across all recurrences (15m before)'
+                    tr('weeklyDemoSyncToast',{ns:'reminders'})
                   )
                 }
                 className="px-2.5 py-1 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[11px] font-bold border border-purple-500/30 cursor-pointer transition-colors flex items-center gap-1"
               >
                 <Repeat className="w-3 h-3" />
-                <span>Simulate weekly series sync</span>
+                <span>{tr('simulateWeekly',{ns:'reminders'})}</span>
               </button>
               <button
                 type="button"
@@ -259,13 +262,13 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 onClick={() =>
                   handleSimulateSync(
                     'rem-doctor-appt',
-                    'Doctor appointment synced from Google Calendar · Offset changed from 1 hour to 30 min before'
+                    tr('doctorDemoSyncToast',{ns:'reminders'})
                   )
                 }
                 className="px-2.5 py-1 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] font-bold border border-blue-500/30 cursor-pointer transition-colors flex items-center gap-1"
               >
                 <RefreshCw className="w-3 h-3" />
-                <span>Simulate doctor sync</span>
+                <span>{tr('simulateDoctor',{ns:'reminders'})}</span>
               </button>
             </div>
           </div>
@@ -283,7 +286,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
                 }`}
               >
-                All ({reminders.length})
+                {tr('allCount',{ns:'reminders',count:reminders.length})}
               </button>
               <button
                 type="button"
@@ -294,7 +297,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
                 }`}
               >
-                Standalone
+                {tr('standalone',{ns:'reminders'})}
               </button>
               <button
                 type="button"
@@ -305,7 +308,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
                 }`}
               >
-                Linked to Calendar
+                {tr('linkedToCalendar',{ns:'reminders'})}
               </button>
               <button
                 type="button"
@@ -317,7 +320,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 }`}
               >
                 <Repeat className="w-3 h-3" />
-                <span>Recurring ({recurringCount})</span>
+                <span>{tr('recurringCount',{ns:'reminders',count:recurringCount})}</span>
               </button>
               <button
                 type="button"
@@ -328,7 +331,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
                 }`}
               >
-                Completed ({completedCount})
+                {tr('completedTab',{ns:'reminders',count:completedCount})}
               </button>
             </div>
 
@@ -337,7 +340,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--mroya-text-muted)]" />
               <input
                 type="text"
-                placeholder="Search reminders..."
+                placeholder={tr('search',{ns:'reminders'})}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full sm:w-56 pl-8 pr-3 py-1.5 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] shadow-2xs"
@@ -353,13 +356,11 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-[14px] font-bold text-[var(--mroya-text)] uppercase tracking-wider flex items-center gap-2">
-                    <span>Today</span>
-                    <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">
-                      · Monday, October 12
-                    </span>
+                    <span>{tr('today',{ns:'reminders'})}</span>
+                    <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">· {formatDate(new Date(Date.UTC(2026,9,12,12)),{weekday:'long',month:'long',day:'numeric',year:'numeric'},'UTC')}</span>
                   </h2>
                   <span className="text-[11px] font-semibold text-[var(--mroya-primary)]">
-                    {todayReminders.length} reminder{todayReminders.length > 1 ? 's' : ''}
+                    {tr('reminderCount',{ns:'reminders',count:todayReminders.length})}
                   </span>
                 </div>
 
@@ -374,13 +375,11 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-[14px] font-bold text-[var(--mroya-text)] uppercase tracking-wider flex items-center gap-2">
-                    <span>Tomorrow</span>
-                    <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">
-                      · Tuesday, October 13
-                    </span>
+                    <span>{tr('tomorrow',{ns:'reminders'})}</span>
+                    <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">· {formatDate(new Date(Date.UTC(2026,9,13,12)),{weekday:'long',month:'long',day:'numeric',year:'numeric'},'UTC')}</span>
                   </h2>
                   <span className="text-[11px] font-semibold text-[var(--mroya-primary)]">
-                    {tomorrowReminders.length} reminder{tomorrowReminders.length > 1 ? 's' : ''}
+                    {tr('reminderCount',{ns:'reminders',count:tomorrowReminders.length})}
                   </span>
                 </div>
 
@@ -395,10 +394,10 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-[14px] font-bold text-[var(--mroya-text)] uppercase tracking-wider flex items-center gap-2">
-                    <span>Upcoming</span>
+                    <span>{tr('upcoming',{ns:'reminders'})}</span>
                   </h2>
                   <span className="text-[11px] font-semibold text-[var(--mroya-text-muted)]">
-                    {upcomingReminders.length} scheduled
+                    {tr('scheduledCount',{ns:'reminders',count:upcomingReminders.length})}
                   </span>
                 </div>
 
@@ -413,10 +412,10 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <div className="space-y-2.5 pt-2">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-[14px] font-bold text-[var(--mroya-text-muted)] uppercase tracking-wider flex items-center gap-2">
-                    <span>Completed</span>
+                    <span>{tr('completed',{ns:'reminders'})}</span>
                   </h2>
                   <span className="text-[11px] font-medium text-[var(--mroya-text-muted)]">
-                    {completedReminders.length} item{completedReminders.length > 1 ? 's' : ''}
+                    {tr('itemCount',{ns:'reminders',count:completedReminders.length})}
                   </span>
                 </div>
 
@@ -434,12 +433,12 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-[15px] font-bold text-[var(--mroya-text)]">
-                    No reminders found
+                    {tr('emptyTitle',{ns:'reminders'})}
                   </h3>
                   <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-sm mx-auto mt-1">
                     {searchQuery
-                      ? 'No reminders match your current search query.'
-                      : readOnly ? 'Reminders API is not available yet.' : 'You are all caught up! Create a standalone recurring reminder or link one to your calendar.'}
+                      ? tr('emptySearch',{ns:'reminders'})
+                      : readOnly ? tr('apiUnavailable',{ns:'reminders'}) : tr('allCaughtUp',{ns:'reminders'})}
                   </p>
                 </div>
                 <button
@@ -448,7 +447,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   onClick={onOpenNewReminderModal}
                   className="px-4 py-2 rounded-full bg-[var(--mroya-primary)] text-white text-[13px] font-semibold hover:bg-[var(--mroya-primary-hover)] transition-colors cursor-pointer"
                 >
-                  Create a reminder
+                  {tr('newReminder',{ns:'reminders'})}
                 </button>
               </div>
             )}
@@ -486,7 +485,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               type="button"
               disabled={readOnly}
               onClick={() => onToggleComplete(reminder.id)}
-              aria-label={isCompleted ? 'Mark incomplete' : 'Mark completed'}
+              aria-label={isCompleted ? tr('markIncomplete',{ns:'reminders'}) : tr('markCompleted',{ns:'reminders'})}
               className="mt-0.5 text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)] cursor-pointer transition-colors shrink-0"
             >
               {isCompleted ? (
@@ -515,8 +514,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     <Repeat className="w-2.5 h-2.5" />
                     <span>
                       {eff.isInherited
-                        ? `Inherited: ${formatRecurrence(eff.rule)}`
-                        : formatRecurrence(eff.rule)}
+                        ? tr('inheritedRule',{ns:'reminders',rule:localizedRecurrence(eff.rule)})
+                        : localizedRecurrence(eff.rule)}
                     </span>
                   </span>
                 )}
@@ -531,14 +530,14 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 {/* Google Synced Badge */}
                 {reminder.syncedWithGoogle && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 whitespace-nowrap">
-                    Google Synced
+                    {tr('googleSynced',{ns:'reminders'})}
                   </span>
                 )}
 
                 {/* Paused Badge */}
                 {isPaused && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400">
-                    Paused
+                    {tr('paused',{ns:'reminders'})}
                   </span>
                 )}
               </div>
@@ -550,15 +549,15 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     type="button"
                     onClick={() => onOpenCalendarEvent(linkedEvent.id)}
                     className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer group"
-                    title="Open event in Mroya Calendar"
+                    title={tr('openEvent',{ns:'reminders'})}
                   >
                     <Calendar className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
-                    <span>Event: {linkedEvent.title} ({linkedEvent.date} · {linkedEvent.time})</span>
+                    <span>{tr('eventLabel',{ns:'reminders'})}: {linkedEvent.title} ({formatCivilDate(linkedEvent.date)} · {formatCivilTime(linkedEvent.time)})</span>
                     <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
                   {linkedEvent.recurrence && (
                     <span className="text-[10px] text-[var(--mroya-text-muted)] flex items-center gap-0.5">
-                      <Lock className="w-2.5 h-2.5" /> (controlled by event)
+                      <Lock className="w-2.5 h-2.5" /> {tr('controlledByEvent',{ns:'reminders'})}
                     </span>
                   )}
                 </div>
@@ -575,19 +574,19 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               <div className="flex items-center gap-2.5 pt-1 text-[11px] text-[var(--mroya-text-muted)] flex-wrap">
                 <span className="font-mono-tabular font-medium text-[var(--mroya-text)] flex items-center gap-1">
                   <Clock className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                  <span>Notifies: {reminder.date} at {reminder.time}</span>
+                  <span>{tr('notifiesAt',{ns:'reminders',date:formatCivilDate(reminder.date),time:formatCivilTime(reminder.time)})}</span>
                 </span>
                 <span className="text-[var(--mroya-divider)]">·</span>
                 <span className="flex items-center gap-1 text-[#229ED9] font-medium">
                   <Send className="w-3 h-3" />
-                  <span>Telegram</span>
+                  <span>{tr('telegram',{ns:'reminders'})}</span>
                 </span>
                 {eff.isRecurring && !isCompleted && (
                   <>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
                       <RotateCw className="w-3 h-3" />
-                      <span>Next occurrence: {nextInfo.label}</span>
+                      <span>{tr('nextOccurrence',{ns:'reminders',date:nextInfo.label})}</span>
                     </span>
                   </>
                 )}
@@ -595,7 +594,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   <>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ {reminder.completedOccurrencesCount} completed
+                      ✓ {tr('completedCount',{ns:'reminders',count:reminder.completedOccurrencesCount})}
                     </span>
                   </>
                 )}
@@ -611,11 +610,11 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 type="button"
                 disabled={readOnly}
                 onClick={() => handleAdvanceOccurrence(reminder)}
-                title="Mark this occurrence completed & schedule next occurrence"
+                title={tr('completeOccurrence',{ns:'reminders'})}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-500/30 cursor-pointer transition-colors mr-1"
               >
                 <Check className="w-3 h-3" />
-                <span className="hidden sm:inline">Complete occurrence</span>
+                <span className="hidden sm:inline">{tr('completeLabel',{ns:'reminders'})}</span>
               </button>
             )}
 
@@ -627,14 +626,14 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 onClick={() =>
                   handleSimulateSync(
                     reminder.id,
-                    'Doctor appointment synced from Google Calendar · Offset changed from 1 hour to 30 min before'
+                    tr('doctorDemoSyncToast',{ns:'reminders'})
                   )
                 }
-                title="Simulate external Google Calendar change (1h -> 30m before)"
+                title={tr('simulateExternalChange',{ns:'reminders'})}
                 className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] font-bold border border-blue-500/30 cursor-pointer transition-colors mr-1"
               >
                 <RefreshCw className="w-3 h-3" />
-                <span>Simulate Google update</span>
+                <span>{tr('simulateGoogle',{ns:'reminders'})}</span>
               </button>
             )}
 
@@ -643,8 +642,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               type="button"
               disabled={readOnly}
               onClick={() => onTogglePause(reminder.id)}
-              title={isPaused ? 'Resume reminder' : 'Pause reminder'}
-              aria-label={isPaused ? 'Resume' : 'Pause'}
+              title={isPaused ? tr('resume',{ns:'reminders'}) : tr('pause',{ns:'reminders'})}
+              aria-label={isPaused ? tr('resumeLabel',{ns:'reminders'}) : tr('pauseLabel',{ns:'reminders'})}
               className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
             >
               {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
@@ -655,8 +654,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               type="button"
               disabled={readOnly}
               onClick={() => onOpenEditReminderModal(reminder)}
-              title="Edit reminder"
-              aria-label="Edit"
+              title={tr('edit',{ns:'reminders'})}
+              aria-label={tr('editLabel',{ns:'reminders'})}
               className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
             >
               <Edit3 className="w-3.5 h-3.5" />
@@ -668,8 +667,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 type="button"
                 disabled={readOnly}
                 onClick={() => onUnlinkReminder(reminder.id)}
-                title="Unlink from calendar event (keep reminder as standalone)"
-                aria-label="Unlink"
+                title={tr('unlinkTitle',{ns:'reminders'})}
+                aria-label={tr('unlink',{ns:'reminders'})}
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
               >
                 <Unlink className="w-3.5 h-3.5" />
@@ -681,8 +680,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               type="button"
               disabled={readOnly}
               onClick={() => onDeleteReminder(reminder.id)}
-              title="Delete reminder"
-              aria-label="Delete"
+              title={tr('delete',{ns:'reminders'})}
+              aria-label={tr('deleteLabel',{ns:'reminders'})}
               className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-red-600 hover:bg-red-500/10 cursor-pointer transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />

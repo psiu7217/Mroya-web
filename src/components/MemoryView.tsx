@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { MemoryItem, MemoryCategory } from '../types/mroya';
 import type {MemoryInboxPresentation} from '../types/memoryInbox';
+import {tr} from '../i18n';
+import {currentLocale,formatDate} from '../i18n/format';
 
 export interface MemoryViewProps {
   inbox?: MemoryInboxPresentation;
@@ -53,6 +55,22 @@ const CATEGORIES: ('All' | MemoryCategory)[] = [
   'Dates & Commitments',
   'Preferences',
 ];
+const categoryKeys:Record<string,string>={
+  'Agreements & Decisions':'categoryAgreements',
+  'People & Clients':'categoryPeople',
+  'Dates & Commitments':'categoryDates',
+  'Personal memory':'personalMemory',
+  Preferences:'categoryPreferences',
+};
+const categoryLabel=(category:string)=>tr(category==='All'?'categoryAll':categoryKeys[category]??category,{ns:'memory'});
+const proposalStatusKeys:Record<string,string>={
+  new:'newProposal',pending:'statusPending',reanalyzing:'reanalyzingStatus',accepted:'acceptedStatus',
+  pending_apply:'statusPendingApply',applying:'statusApplying',search_pending:'statusSearchPending',
+  applied:'appliedStatus',declined:'declinedStatus',rejected:'statusRejected',outdated:'outdatedStatus',
+  stale:'statusStale',error:'statusError',apply_error:'statusApplyError',apply_retry:'statusApplyRetry',
+  apply_conflict:'statusConflict',no_proposal:'statusNoProposal',
+};
+const proposalStatusLabel=(status:string)=>tr(proposalStatusKeys[status]??'statusPending',{ns:'memory'});
 
 export const MemoryView: React.FC<MemoryViewProps> = ({
   readOnly=false,
@@ -69,6 +87,12 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
+  const language=currentLocale();
+  const localizedMemoryDate=(value:string)=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return value;
+    const date=new Date(`${value}T12:00:00Z`);
+    return Number.isFinite(date.getTime())?formatDate(date,{year:'numeric',month:'short',day:'numeric'},'UTC',language):value;
+  };
   // Main Navigation: 'memories' | 'inbox'
   const [activeMainTab, setActiveMainTab] = useState<'memories' | 'inbox'>(inbox?.focusedId?'inbox':'memories');
   const focusedProposal=useRef<HTMLElement|null>(null);
@@ -143,8 +167,8 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       summary: newSummary.trim(),
       details: newSummary.trim(),
       category: newCategory,
-      dateSaved: 'Oct 12, 2026',
-      source: 'Manual entry · Oct 12',
+      dateSaved: '2026-10-12',
+      source: tr('manualEntrySource',{ns:'memory',date:formatDate(new Date(Date.UTC(2026,9,12,12)),{month:'short',day:'numeric'},'UTC',language)}),
       entities: newEntities
         .split(',')
         .map((s) => s.trim())
@@ -181,7 +205,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            aria-label="Open navigation"
+            aria-label={tr('openNavigation',{ns:'common'})}
             className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]"
           >
             <Menu className="w-5 h-5" />
@@ -198,7 +222,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
             >
-              <span>Сохранённая память</span>
+              <span>{tr('savedMemories',{ns:'memory'})}</span>
               <span className="text-[11px] font-medium opacity-75">({memories.length})</span>
             </button>
 
@@ -213,7 +237,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
-              <span>Предложения</span>
+              <span>{tr('proposals',{ns:'memory'})}</span>
               {pendingProposalsCount > 0 && (
                 <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[11px] font-bold flex items-center justify-center">
                   {pendingProposalsCount}
@@ -232,12 +256,12 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
-            <span>Add memory</span>
+            <span>{tr('addMemory',{ns:'memory'})}</span>
           </button>
         ) : (
           <div className="text-[12px] text-[var(--mroya-text-muted)] hidden sm:flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
-            <span>AI Memory Intelligence</span>
+            <span>{tr('inboxTitle',{ns:'memory'})}</span>
           </div>
         )}
       </header>
@@ -253,15 +277,15 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search people, agreements, PO numbers..."
-                aria-label="Search memories"
+                placeholder={tr('searchMemories',{ns:'memory'})}
+                aria-label={tr('searchMemoriesLabel',{ns:'memory'})}
                 className="w-full pl-9 pr-8 py-1.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[13px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)]"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  aria-label="Clear search"
+                  aria-label={tr('clearSearch',{ns:'common'})}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -284,7 +308,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
-                    {cat}
+                    {categoryLabel(cat)}
                   </button>
                 );
               })}
@@ -313,9 +337,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                       }`}
                     >
                       <div className="text-[12px] text-[var(--mroya-text-muted)] flex items-center gap-1.5 mb-1 tabular-nums">
-                        <span>{mem.category}</span>
+                        <span>{categoryLabel(mem.category)}</span>
                         <span aria-hidden="true">·</span>
-                        <span>{mem.dateSaved}</span>
+                        <span>{localizedMemoryDate(mem.dateSaved)}</span>
                       </div>
                       <div className="text-[15px] font-semibold text-[var(--mroya-text)] mb-1">
                         {mem.title}
@@ -330,10 +354,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 {filteredMemories.length === 0 && (
                   <div className="p-8 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-center space-y-2">
                     <p className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                      No matching memories found
+                      {tr('noMatchingMemories',{ns:'memory'})}
                     </p>
                     <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                      Try clearing your search filter or add a new remembered fact.
+                      {tr('clearSearchDescription',{ns:'memory'})}
                     </p>
                   </div>
                 )}
@@ -345,9 +369,9 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   <div className="p-5 sm:p-6 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] space-y-5">
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[var(--mroya-divider)]">
                       <div className="text-[12px] text-[var(--mroya-text-muted)] flex items-center gap-1.5 tabular-nums">
-                        <span>{activeMemory.category}</span>
+                        <span>{categoryLabel(activeMemory.category)}</span>
                         <span aria-hidden="true">·</span>
-                        <span>Saved {activeMemory.dateSaved}</span>
+                        <span>{tr('savedAt',{ns:'memory',date:localizedMemoryDate(activeMemory.dateSaved)})}</span>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -360,7 +384,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[12px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer"
                             >
                               <Edit3 className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                              <span>Edit</span>
+                              <span>{tr('edit',{ns:'common'})}</span>
                             </button>
                             <button
                               type="button"
@@ -369,7 +393,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-error)]/15 text-[12px] font-semibold text-[var(--mroya-error)] transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              <span>Forget</span>
+                              <span>{tr('forgetMemory',{ns:'memory'})}</span>
                             </button>
                           </>
                         ) : (
@@ -379,7 +403,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               onClick={() => setIsEditing(false)}
                               className="px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] text-[12px] font-medium text-[var(--mroya-text)] cursor-pointer"
                             >
-                              Cancel
+                              {tr('cancel',{ns:'common'})}
                             </button>
                             <button
                               type="button"
@@ -387,7 +411,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[12px] font-semibold cursor-pointer"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Save changes</span>
+                              <span>{tr('saveChanges',{ns:'memory'})}</span>
                             </button>
                           </>
                         )}
@@ -411,7 +435,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         <div className="pt-4 border-t border-[var(--mroya-divider)] grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <div className="text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                              Source & provenance
+                              {tr('sourceProvenance',{ns:'memory'})}
                             </div>
                             <div className="flex items-center gap-2 text-[13px] font-medium text-[var(--mroya-text)]">
                               <FileText className="w-4 h-4 text-[var(--mroya-primary)] shrink-0" />
@@ -421,7 +445,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
                           <div>
                             <div className="text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                              Connected entities
+                              {tr('connectedEntities',{ns:'memory'})}
                             </div>
                             <div className="text-[13px] font-medium text-[var(--mroya-text)]">
                               {activeMemory.entities.join(' · ')}
@@ -436,7 +460,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer"
                           >
                             <Share2 className="w-4 h-4 text-[var(--mroya-primary)]" />
-                            <span>Explore in Memory Map</span>
+                            <span>{tr('exploreMap',{ns:'memory'})}</span>
                           </button>
 
                           <button
@@ -445,7 +469,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-primary)] transition-colors cursor-pointer"
                           >
                             <MessageSquare className="w-4 h-4" />
-                            <span>Ask Mroya about this memory</span>
+                            <span>{tr('askAboutMemory',{ns:'memory'})}</span>
                           </button>
                         </div>
                       </>
@@ -453,7 +477,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                       <div className="space-y-4">
                         <div>
                           <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                            Memory title
+                            {tr('memoryTitleLabel',{ns:'memory'})}
                           </label>
                           <input
                             type="text"
@@ -464,7 +488,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         </div>
                         <div>
                           <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                            Key summary
+                            {tr('memorySummaryLabel',{ns:'memory'})}
                           </label>
                           <textarea
                             rows={2}
@@ -475,7 +499,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         </div>
                         <div>
                           <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                            Full context & notes
+                            {tr('memoryDetailsLabel',{ns:'memory'})}
                           </label>
                           <textarea
                             rows={4}
@@ -507,10 +531,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   </div>
                   <div>
                     <h2 className="text-[18px] font-semibold text-[var(--mroya-text)]">
-                      Memory Inbox — Предложения AI
+                      {tr('inboxVisibleTitle',{ns:'memory'})}
                     </h2>
                     <p className="text-[13px] text-[var(--mroya-text-muted)] mt-0.5">
-                      Кандидаты в персональную память, обнаруженные моделью в календаре и внешних сервисах
+                      {tr('inboxDescription',{ns:'memory'})}
                     </p>
                   </div>
                 </div>
@@ -520,10 +544,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                     type="button"
                     onClick={inbox?.preview?.onReset}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-medium bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
-                    title="Сбросить все карточки к исходному состоянию"
+                    title={tr('resetDemo',{ns:'memory'})}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Сброс демо</span>
+                    <span>{tr('resetDemoShort',{ns:'memory'})}</span>
                   </button>
                 </div>}
               </div>
@@ -532,7 +556,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
               {inbox?.preview&&<div className="pt-3 border-t border-[var(--mroya-divider)]/60">
                 <div className="text-[11px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold mb-2 flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                  <span>Визуальные состояния Inbox:</span>
+                  <span>{tr('inboxVisualStates',{ns:'memory'})}</span>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {inbox.preview.filters.map((filterOption) => (
@@ -546,7 +570,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           : 'bg-[var(--mroya-surface-muted)]/60 hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)]'
                       }`}
                     >
-                      {filterOption.label}
+                      {filterOption.id==='all'?tr('filterAll',{ns:'memory',count:proposals.length}):filterOption.id==='new'?tr('filterNew',{ns:'memory',count:proposals.filter(p=>p.status==='new'||p.status==='pending').length}):filterOption.id==='empty'?tr('previewEmptyInbox',{ns:'memory'}):filterOption.id==='loading'?tr('previewLoading',{ns:'memory'}):proposalStatusLabel(filterOption.id)}
                     </button>
                   ))}
                 </div>
@@ -554,10 +578,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             </div>
 
             {inbox?.scanning&&<ScanningPanel scanning={inbox.scanning}/>}
-            {inbox?.error&&<div role="alert" className="p-3 rounded-[10px] bg-red-500/10 border border-red-500/25">{inbox.error}{inbox.onRetryProposal&&<button type="button" className="ml-3 underline" onClick={()=>void inbox.onRetryProposal?.()}>Retry</button>}</div>}
+            {inbox?.error&&<div role="alert" className="p-3 rounded-[10px] bg-red-500/10 border border-red-500/25">{tr('loadFailed',{ns:'common'})}{inbox.onRetryProposal&&<button type="button" className="ml-3 underline" onClick={()=>void inbox.onRetryProposal?.()}>{tr('retry',{ns:'common'})}</button>}</div>}
 
             {inbox?.notice&&<p role="status" className="text-[13px] text-[var(--mroya-text-muted)]">{inbox.notice}</p>}
-            {inbox?.onRefresh&&<button type="button" disabled={inbox.loading} onClick={inbox.onRefresh} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">Обновить Inbox</button>}
+            {inbox?.onRefresh&&<button type="button" disabled={inbox.loading} onClick={inbox.onRefresh} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">{tr('refreshInbox',{ns:'memory'})}</button>}
 
             {/* STATE: LOADING */}
             {inboxLoading && (
@@ -589,10 +613,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   <Inbox className="w-6 h-6" />
                 </div>
                 <h3 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                  Предложений пока нет
+                  {tr('emptyProposals',{ns:'memory'})}
                 </h3>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-md mx-auto leading-[20px]">
-                  {inbox?.emptyMessage??'В Memory Inbox сейчас нет ожидающих предложений. Искусственный интеллект продолжит мониторинг разрешенных источников и сформирует предложения при появлении новых фактов.'}
+                  {inbox?.emptyMessage?tr('emptyInboxDescription',{ns:'memory'}):tr('emptyProposalDescription',{ns:'memory'})}
                 </p>
                 {inbox?.preview&&(
                 <button
@@ -600,7 +624,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   onClick={inbox?.preview?.onReset}
                   className="mt-2 px-4 py-2 rounded-full text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)] transition-colors cursor-pointer"
                 >
-                  Показать примеры предложений
+                  {tr('showProposalExamples',{ns:'memory'})}
                 </button>)}
               </div>
             ) : null}
@@ -668,43 +692,43 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           {isNew && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-[var(--mroya-primary)]/15 text-[var(--mroya-primary)] border border-[var(--mroya-primary)]/30">
                               <Sparkles className="w-3 h-3" />
-                              <span>{proposal.statusLabel??'Новое предложение'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                           {isReanalyzing && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
                               <RefreshCw className={proposal.processingEnabled===false?"w-3 h-3":"w-3 h-3 animate-spin"} />
-                              <span>{proposal.statusLabel??'Повторный анализ…'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                           {isAccepted && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                               <Check className="w-3 h-3" />
-                              <span>{proposal.statusLabel??'Принято'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                           {isApplied && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-600/20 text-emerald-800 dark:text-emerald-200 border border-emerald-600/30">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>{proposal.statusLabel??'Успешно применено'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                           {isDeclined && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border border-zinc-500/30">
                               <X className="w-3 h-3" />
-                              <span>{proposal.statusLabel??'Отклонено'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                           {isOutdated && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                               <Clock className="w-3 h-3" />
-                              <span>{proposal.statusLabel??'Устаревшее предложение'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                           {isBackendError && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30">
                               <AlertCircle className="w-3 h-3" />
-                              <span>{proposal.statusLabel??'Ошибка'}</span>
+                              <span>{proposal.statusLabel??proposalStatusLabel(proposal.status)}</span>
                             </span>
                           )}
                         </div>
@@ -715,7 +739,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         {/* What the model proposes to do */}
                         <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)]">
                           <div className="text-[11.5px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold mb-1">
-                            Что предлагает сделать AI:
+                            {tr('actionProposed',{ns:'memory'})}
                           </div>
                           <div className="text-[13.5px] font-semibold text-[var(--mroya-text)] leading-[20px]">
                             {proposal.version!==undefined?proposal.actionProposed.split('\n').map((action,index)=><div key={index}>{action}</div>):proposal.actionProposed}
@@ -727,7 +751,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           <Brain className="w-4 h-4 text-[var(--mroya-brand-honey)] shrink-0 mt-0.5" />
                           <div className="space-y-1">
                             <span className="text-[11px] font-semibold text-[var(--mroya-text-muted)] uppercase tracking-wider block">
-                              Объяснение модели:
+                              {tr('modelExplanation',{ns:'memory'})}
                             </span>
                             <p className="text-[13px] text-[var(--mroya-text)] leading-[20px]">
                               {proposal.explanation}
@@ -739,7 +763,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         <div className="space-y-1.5">
                           <div className="text-[12px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                             <Users className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                            <span>Найденные совпадения в памяти:</span>
+                            <span>{tr('memoryMatches',{ns:'memory'})}</span>
                           </div>
 
                           {proposal.memoryMatches.length > 0 ? (
@@ -770,33 +794,33 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           ) : (
                             <div className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text-muted)] flex items-center gap-2">
                               <User className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
-                              <span>{proposal.version!==undefined?'Backend не указал найденные объекты памяти. Это не подтверждение отсутствия объекта.':'Совпадений в существующей памяти не найдено (новый объект). Информация не подтверждена до вашего одобрения.'}</span>
+                              <span>{tr(proposal.version!==undefined?'backendMatchesUnavailable':'noMatchesUnconfirmed',{ns:'memory'})}</span>
                             </div>
                           )}
                         </div>
 
-                        {proposal.busy&&<p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">Отправка решения…</p>}
+                        {proposal.busy&&<p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">{tr('decisionSending',{ns:'memory'})}</p>}
                         {!isApplied&&proposal.resultMessage&&<p className="text-[13px] text-[var(--mroya-text)]">{proposal.resultMessage}</p>}
-                        {proposal.sourceAvailable===false&&<p className="text-[12px] text-[var(--mroya-text-muted)]">Источник недоступен.</p>}
+                        {proposal.sourceAvailable===false&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{tr('sourceUnavailable',{ns:'memory'})}</p>}
                         {proposal.statusMessage&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{proposal.statusMessage}</p>}
                         {inbox?.onOpenProposal&&<details onToggle={e=>{if(e.currentTarget.open)inbox.onOpenProposal?.(proposal.id);}} className="text-[12px] text-[var(--mroya-text-muted)]">
-                          <summary className="cursor-pointer text-[var(--mroya-primary)]">Детали и история решений</summary>
-                          {proposal.history?.loading&&<p role="status">Загрузка истории…</p>}
-                          {proposal.history?.error&&<p role="alert">{proposal.history.error}<button type="button" className="ml-3 underline" onClick={()=>inbox.onOpenProposal?.(proposal.id)}>Retry</button></p>}
+                          <summary className="cursor-pointer text-[var(--mroya-primary)]">{tr('detailsAndHistory',{ns:'memory'})}</summary>
+                          {proposal.history?.loading&&<p role="status">{tr('historyLoading',{ns:'memory'})}</p>}
+                          {proposal.history?.error&&<p role="alert">{tr('loadFailed',{ns:'common'})}<button type="button" className="ml-3 underline" onClick={()=>inbox.onOpenProposal?.(proposal.id)}>{tr('retry',{ns:'common'})}</button></p>}
                           {proposal.history?.entries.map(entry=><div key={entry.version} className="py-2 border-b border-[var(--mroya-divider)] break-words">
                             <p>v{entry.version} · {entry.kind} · {entry.createdAt}</p><p>{entry.summary}</p>{entry.comment&&<p>{entry.comment}</p>}
                           </div>)}
-                          {proposal.history?.hasMore&&<button type="button" disabled={proposal.history.loading} onClick={()=>inbox.onMoreHistory?.(proposal.id)} className="text-[var(--mroya-primary)] hover:underline">Ещё история</button>}
+                          {proposal.history?.hasMore&&<button type="button" disabled={proposal.history.loading} onClick={()=>inbox.onMoreHistory?.(proposal.id)} className="text-[var(--mroya-primary)] hover:underline">{tr('moreHistory',{ns:'memory'})}</button>}
                         </details>}
 
-                        {!isError&&proposal.actions?.retry&&<button type="button" disabled={proposal.busy} onClick={()=>void inbox?.onRetryProposal?.(proposal.id)} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">Повторить запрос</button>}
+                        {!isError&&proposal.actions?.retry&&<button type="button" disabled={proposal.busy} onClick={()=>void inbox?.onRetryProposal?.(proposal.id)} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">{tr('retryRequest',{ns:'memory'})}</button>}
 
                         {/* REANALYZING ACTIVE FEEDBACK BLOCK */}
                         {isReanalyzing && (
                           <div className="p-3.5 rounded-[10px] bg-indigo-500/10 border border-indigo-500/20 space-y-1.5">
                             <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-[13px] font-semibold">
                               <RefreshCw className={proposal.processingEnabled===false?"w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400":"w-4 h-4 animate-spin shrink-0 text-indigo-600 dark:text-indigo-400"} />
-                              <span>{proposal.processingEnabled===false?'Повторный анализ ожидает включения фоновой обработки.':'Повторный семантический анализ с учетом вашего комментария…'}</span>
+                              <span>{tr(proposal.processingEnabled===false?'reanalysisAwaiting':'reanalysisRunning',{ns:'memory'})}</span>
                             </div>
                             {proposal.comment && (
                               <p className="text-[12px] text-[var(--mroya-text)] italic pl-6">
@@ -810,7 +834,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 onClick={() => void inbox?.onAcceptProposal?.(proposal.id)}
                                 className="px-3 py-1 rounded-[6px] text-[11.5px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
                               >
-                                Завершить анализ (Принять)
+                                {tr('finishAnalysisAccept',{ns:'memory'})}
                               </button>
                             </div>}
                           </div>
@@ -821,14 +845,14 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           <div className="p-3.5 rounded-[10px] bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200 text-[13px]">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span>{proposal.resultMessage??'Успешно сохранено в долговременную память. Карточка обновлена.'}</span>
+                              <span>{tr('appliedConfirmation',{ns:'memory'})}</span>
                             </div>
                             <button
                               type="button"
                               onClick={() => setActiveMainTab('memories')}
                               className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline whitespace-nowrap cursor-pointer"
                             >
-                              Перейти в память →
+                              {tr('goToMemoryArrow',{ns:'memory'})}
                             </button>
                           </div>
                         )}
@@ -837,7 +861,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         {isOutdated && (
                           <div className="p-3 rounded-[10px] bg-amber-500/10 border border-amber-500/25 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-[12.5px]">
                             <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            <span>{proposal.version!==undefined?'Предложение устарело. Требуется проверка источника и повторный анализ.':'Исходное событие было удалено из календаря. Предложение архивировано.'}</span>
+                            <span>{tr(proposal.version!==undefined?'proposalOutdated':'sourceRemovedArchived',{ns:'memory'})}</span>
                           </div>
                         )}
 
@@ -846,11 +870,11 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                           <div className="p-3.5 rounded-[10px] bg-red-500/10 border border-red-500/25 space-y-2">
                             <div className="flex items-center gap-2 text-red-800 dark:text-red-300 text-[13px] font-semibold">
                               <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
-                              <span>Ошибка обработки предложения</span>
+                              <span>{tr('proposalProcessingError',{ns:'memory'})}</span>
                             </div>
                             {proposal.errorMessage && (
                               <p className="text-[12px] text-red-700 dark:text-red-300">
-                                {proposal.errorMessage}
+                                {tr('requestFailed',{ns:'common'})}
                               </p>
                             )}
                             {(!proposal.actions||proposal.actions.retry||proposal.uncertain)&&<button
@@ -860,7 +884,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold bg-red-600 text-white hover:bg-red-700 cursor-pointer inline-flex items-center gap-1.5"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
-                              <span>Повторить запрос</span>
+                              <span>{tr('retryRequest',{ns:'memory'})}</span>
                             </button>}
                           </div>
                         )}
@@ -868,14 +892,14 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                         {/* DECLINED NOTICE BLOCK */}
                         {isDeclined && (
                           <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-between gap-3 text-[12.5px] text-[var(--mroya-text-muted)]">
-                            <span>{proposal.version!==undefined?'Предложение отклонено. Возобновление анализа требует явного пересмотра.':'Предложение отклонено. Модель учла это для последующих предложений.'}</span>
+                            <span>{tr(proposal.version!==undefined?'proposalRejectedNeedsReview':'proposalRejectedLearned',{ns:'memory'})}</span>
                             <button
                               type="button"
                               disabled={proposal.busy||proposal.uncertain||(proposal.actions?!proposal.actions.reconsider:!inbox?.onAcceptProposal)}
                                 onClick={() => void (proposal.actions?inbox?.onReconsiderProposal?.(proposal.id):inbox?.onAcceptProposal?.(proposal.id))}
                               className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                             >
-                              Отменить отклонение
+                              {tr('undoRejection',{ns:'memory'})}
                             </button>
                           </div>
                         )}
@@ -888,14 +912,14 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 htmlFor={`comment-${proposal.id}`}
                                 className="block text-[12px] font-semibold text-[var(--mroya-text)]"
                               >
-                                Комментарий для повторного анализа AI:
+                                {tr('commentForReanalysis',{ns:'memory'})}
                               </label>
                               <button
                                 type="button"
                                 onClick={() => handleToggleComment(proposal.id)}
                                 className="text-[11px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]"
                               >
-                                Закрыть
+                                {tr('close',{ns:'common'})}
                               </button>
                             </div>
 
@@ -904,13 +928,13 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                               rows={2}
                               value={drafts[proposal.id]?.text ?? ''}
                               onChange={(e) => handleDraftCommentChange(proposal.id, e.target.value)}
-                              placeholder={inbox?.preview?.commentPlaceholder??'Комментарий для уточнения предложения'}
+                              placeholder={tr('commentPlaceholder',{ns:'memory'})}
                               className="w-full p-2.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[13px] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] focus:outline-none focus:border-[var(--mroya-primary)]"
                             />
 
                             {proposal.suggestedComment && (
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[11px] text-[var(--mroya-text-muted)]">Пример уточнения:</span>
+                                <span className="text-[11px] text-[var(--mroya-text-muted)]">{tr('exampleClarification',{ns:'memory'})}</span>
                                 <button
                                   type="button"
                                   onClick={() => handleDraftCommentChange(proposal.id, proposal.suggestedComment || '')}
@@ -927,7 +951,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 onClick={() => handleToggleComment(proposal.id)}
                                 className="px-3 py-1.5 rounded-[8px] text-[12px] font-medium text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-active)]"
                               >
-                                Отмена
+                                {tr('cancel',{ns:'common'})}
                               </button>
                               <button
                                 type="button"
@@ -936,7 +960,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer"
                               >
                                 <Send className="w-3.5 h-3.5" />
-                                <span>Отправить на повторный анализ</span>
+                                <span>{tr('sendForReanalysis',{ns:'memory'})}</span>
                               </button>
                             </div>
                           </div>
@@ -955,7 +979,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer shadow-xs"
                               >
                                 <Check className="w-4 h-4" />
-                                <span>Да</span>
+                                <span>{tr('yes',{ns:'memory'})}</span>
                               </button>
 
                               {/* 2: НЕТ — отклонить предложение */}
@@ -966,7 +990,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                               >
                                 <X className="w-4 h-4" />
-                                <span>Нет</span>
+                                <span>{tr('no',{ns:'memory'})}</span>
                               </button>
 
                               {/* 3: КОММЕНТАРИЙ — открыть текстовое поле */}
@@ -977,12 +1001,12 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-medium bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                               >
                                 <MessageSquare className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                                <span>Комментарий</span>
+                                <span>{tr('comment',{ns:'memory'})}</span>
                               </button>
                             </div>
 
                           <div className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                            Требует подтверждения пользователя
+                            {tr('pendingConfirmationLabel',{ns:'memory'})}
                           </div>
                         </div>
                       )}
@@ -991,7 +1015,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 })}
               </div>
             )}
-            {inbox?.hasMore&&<button type="button" disabled={inbox.loadingMore||inbox.loading} onClick={inbox.onMore} className="text-[13px] font-semibold text-[var(--mroya-primary)] hover:underline">{inbox.loadingMore?'Загрузка…':'Ещё предложения'}</button>}
+            {inbox?.hasMore&&<button type="button" disabled={inbox.loadingMore||inbox.loading} onClick={inbox.onMore} className="text-[13px] font-semibold text-[var(--mroya-primary)] hover:underline">{inbox.loadingMore?tr('loading',{ns:'common'}):tr('moreProposals',{ns:'memory'})}</button>}
           </div>
         </div>
       )}
@@ -1002,12 +1026,12 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
           <div className="w-full max-w-md rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                Tell Mroya something to remember
+                {tr('tellMroyaToRemember',{ns:'memory'})}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                aria-label="Close modal"
+                aria-label={tr('closeModal',{ns:'memory'})}
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]"
               >
                 <X className="w-4 h-4" />
@@ -1017,51 +1041,51 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             <form onSubmit={handleCreateMemory} className="space-y-3.5">
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                  Title
+                  {tr('titleLabel',{ns:'memory'})}
                 </label>
                 <input
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g., Preferred meeting time"
+                  placeholder={tr('memoryTitlePlaceholder',{ns:'memory'})}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[14px] text-[var(--mroya-text)]"
                 />
               </div>
 
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                  Category
+                  {tr('categoryLabel',{ns:'memory'})}
                 </label>
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value as MemoryCategory)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[14px] text-[var(--mroya-text)]"
                 >
-                  <option value="Agreements & Decisions">Agreements & Decisions</option>
-                  <option value="People & Clients">People & Clients</option>
-                  <option value="Dates & Commitments">Dates & Commitments</option>
-                  <option value="Preferences">Preferences</option>
+                  <option value="Agreements & Decisions">{tr('categoryAgreements',{ns:'memory'})}</option>
+                  <option value="People & Clients">{tr('categoryPeople',{ns:'memory'})}</option>
+                  <option value="Dates & Commitments">{tr('categoryDates',{ns:'memory'})}</option>
+                  <option value="Preferences">{tr('categoryPreferences',{ns:'memory'})}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                  Fact or agreement details
+                  {tr('factDetails',{ns:'memory'})}
                 </label>
                 <textarea
                   rows={3}
                   required
                   value={newSummary}
                   onChange={(e) => setNewSummary(e.target.value)}
-                  placeholder="Write what Mroya should remember for future conversations..."
+                  placeholder={tr('addMemoryPlaceholder',{ns:'memory'})}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-input-outline)] text-[14px] text-[var(--mroya-text)]"
                 />
               </div>
 
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                  Related people or organizations (comma-separated)
+                  {tr('relatedEntities',{ns:'memory'})}
                 </label>
                 <input
                   type="text"
@@ -1077,14 +1101,14 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   onClick={() => setIsAddModalOpen(false)}
                   className="px-4 py-2 rounded-full bg-[var(--mroya-surface-muted)] text-[13px] font-medium text-[var(--mroya-text)]"
                 >
-                  Cancel
+                  {tr('cancel',{ns:'common'})}
                 </button>
                 <button
                   type="submit"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Save to memory</span>
+                  <span>{tr('saveToMemory',{ns:'memory'})}</span>
                 </button>
               </div>
             </form>

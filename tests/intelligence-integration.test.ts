@@ -12,6 +12,7 @@ import {notePresentation} from '../src/hooks/LiveNotesController.ts';
 import {INBOX_STATUSES,JOB_STATUSES} from '../src/types/intelligenceApi.ts';
 import {capabilities,runtime,proposal,proposalId} from './intelligence-fixture.ts';
 import {LiveMemoryInboxController} from '../src/hooks/useLiveMemoryInbox.ts';
+import {setAppLanguage} from '../src/i18n/index.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 const id='00000000-0000-4000-8000-000000000001',other='00000000-0000-4000-8000-000000000002';
 const source=(patch:Partial<WorkspaceSource>)=>({kind:'live',...patch}) as WorkspaceSource;
@@ -50,10 +51,11 @@ test('source pagination and operator config are independent; stale responses and
 });
 
 test('all event job/proposal enums, separate receipts, search_pending and no-job state use only confirmed data',()=>{
+ setAppLanguage('ru');
  assert.match(eventAnalysisMessages(readEventAnalysis(status(),id)).join(' '),/Нет данных/);assert.doesNotMatch(eventAnalysisMessages(readEventAnalysis(status(),id)).join(' '),/Проанализировано|сохранён/);
  for(const jobStatus of JOB_STATUSES)assert.ok(eventAnalysisMessages(readEventAnalysis(status({job:{status:jobStatus,decision:'candidate'}}),id)).length);
  for(const proposalStatus of INBOX_STATUSES){const value=readEventAnalysis(status({proposal:{id:other,status:proposalStatus,version:1,canonical_saved:false,links_saved:false,search_ready:false}}),id);assert.ok(eventAnalysisMessages(value).length);}
- const p={id:other,status:'applied',version:1,canonical_saved:false,links_saved:true,search_ready:false};let lines=eventAnalysisMessages(readEventAnalysis(status({proposal:p}),id)).join(' ');assert.match(lines,/Связь с памятью сохранена/);assert.match(lines,/Retrieval/);assert.doesNotMatch(lines,/Новый факт сохранён/);
+ const p={id:other,status:'applied',version:1,canonical_saved:false,links_saved:true,search_ready:false};let lines=eventAnalysisMessages(readEventAnalysis(status({proposal:p}),id)).join(' ');assert.match(lines,/Связь с памятью сохранена/);assert.match(lines,/Обновляется поисковый индекс/i);assert.doesNotMatch(lines,/Новый факт сохранён/);
  lines=eventAnalysisMessages(readEventAnalysis(status({proposal:{...p,links_saved:false,canonical_saved:true,search_ready:true}}),id)).join(' ');assert.match(lines,/Новый факт сохранён/);assert.doesNotMatch(lines,/Связь с памятью сохранена/);
  lines=eventAnalysisMessages(readEventAnalysis(status({proposal:{...p,status:'pending_apply',canonical_saved:true}}),id)).join(' ');assert.doesNotMatch(lines,/сохранена|сохранён/);assert.match(lines,/ещё не сохранено/);
  assert.throws(()=>readEventAnalysis(status({job:{status:'invented',decision:null}}),id));assert.throws(()=>readEventAnalysis(status({event_id:other}),id));

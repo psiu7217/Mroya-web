@@ -36,6 +36,7 @@ import type {
 } from '../types/inboxPipeline';
 import {computePipelineStats} from '../utils/inboxPipeline';
 import {InitialFilterQueuePanel} from './InitialFilterQueuePanel';
+import {tr} from '../i18n';
 
 export interface MemoryInboxViewProps {
   design?:boolean;
@@ -109,17 +110,18 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
             ...evt.history,
             {
               id: `h-${Date.now()}`,
-              timestamp: 'Только что',
-              stageName: 'Подтверждено пользователем',
+              timestamp: '',
+              stageName: '',
               actor: 'user',
-              actorLabel: 'Пользователь',
-              description: 'Предложение одобрено и сохранено в долговременную память.',
+              actorLabel: '',
+              description: '',
+              localized:{timestamp:'justNow',stageName:'confirmedByUser',actorLabel:'actorUser',description:'proposalApprovedSaved'},
             },
           ],
         };
       })
     );
-    showToast('Сохранено в память');
+    showToast(tr('savedToMemory',{ns:'memory'}));
   };
 
   // Primary Action: «Нет» (Decline proposal)
@@ -135,17 +137,18 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
             ...evt.history,
             {
               id: `h-${Date.now()}`,
-              timestamp: 'Только что',
-              stageName: 'Отклонено пользователем',
+              timestamp: '',
+              stageName: '',
               actor: 'user',
-              actorLabel: 'Пользователь',
-              description: 'Предложение отклонено пользователем.',
+              actorLabel: '',
+              description: '',
+              localized:{timestamp:'justNow',stageName:'proposalDeclinedByUser',actorLabel:'actorUser',description:'proposalDeclinedByUser'},
             },
           ],
         };
       })
     );
-    showToast('Предложение отклонено');
+    showToast(tr('proposalRejected',{ns:'memory'}));
   };
 
   // Primary Action: «Комментарий» (Toggle inline comment field)
@@ -164,25 +167,25 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
           ...evt,
           status: 'committed',
           committedMemoryId: evt.committedMemoryId || `mem-${evt.id}`,
-          shortDescription: comment ? `${evt.shortDescription} (Заметка: ${comment})` : evt.shortDescription,
+          shortDescription: evt.shortDescription,
+          ...(comment?{shortDescriptionTranslation:{key:'withNote',comment,description:evt.shortDescription}}:{}),
           history: [
             ...evt.history,
             {
               id: `h-${Date.now()}`,
-              timestamp: 'Только что',
-              stageName: 'Сохранено с комментарием',
+              timestamp: '',
+              stageName: '',
               actor: 'user',
-              actorLabel: 'Пользователь',
-              description: comment
-                ? `Сохранено с уточнением: «${comment}»`
-                : 'Сохранено в долговременную память.',
+              actorLabel: '',
+              description: '',
+              localized:comment?{timestamp:'justNow',stageName:'savedWithComment',actorLabel:'actorUser',description:'savedWithClarification',comment}:{timestamp:'justNow',stageName:'savedWithComment',actorLabel:'actorUser',description:'savedLongTerm'},
             },
           ],
         };
       })
     );
     setActiveCommentId(null);
-    showToast('Сохранено в память с вашим уточнением');
+    showToast(tr('savedWithComment',{ns:'memory'}));
   };
 
   // Action in History Tab: Send mistakenly rejected event to deep analysis
@@ -196,23 +199,24 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
           fastFilter: {
             ...evt.fastFilter,
             decision: 'APPROVE',
-            rationale: 'Передано на повторный анализ пользователем вручную.',
+            rationale: tr('manuallySentForAnalysis',{ns:'memory'}),
           },
           history: [
             ...evt.history,
             {
               id: `h-${Date.now()}`,
-              timestamp: 'Только что',
-              stageName: 'Повторный анализ',
+              timestamp: '',
+              stageName: '',
               actor: 'user',
-              actorLabel: 'Пользователь',
-              description: 'Событие отправлено на глубокий анализ в обход автоматического отклонения.',
+              actorLabel: '',
+              description: '',
+              localized:{timestamp:'justNow',stageName:'reanalyzingStatus',actorLabel:'actorUser',description:'eventSentDeepAnalysis'},
             },
           ],
         };
       })
     );
-    showToast('Событие отправлено на повторный анализ');
+    showToast(tr('sentForAnalysis',{ns:'memory'}));
   };
 
   // Reset demo state
@@ -225,7 +229,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
     setSelectedEventId(initialEvents?.[0]?.id??null);
     setHistoryStageFilter('all');
     setHistorySearchQuery('');
-    showToast('Демо-предложения восстановлены');
+    showToast(tr('restoreDemoToast',{ns:'memory'}));
   };
 
   // Filtered events for the History & Statuses tab
@@ -281,7 +285,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
               type="button"
               onClick={onOpenMobileMenu}
               className="lg:hidden p-1.5 rounded-[8px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-              aria-label="Open menu"
+              aria-label={tr('openNavigation',{ns:'common'})}
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -292,14 +296,13 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
               type="button"
               onClick={onExpandSidebar}
               className="hidden lg:flex p-1.5 rounded-[8px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-              aria-label="Expand sidebar"
+              aria-label={tr('expandSidebar',{ns:'common'})}
             >
               <PanelLeft className="w-5 h-5" />
             </button>
           )}
 
-          {/* Tab Navigation: «Требуют внимания» vs «История и статусы» */}
-          <nav aria-label="Memory Inbox tabs" className="flex items-center gap-1.5 bg-[var(--mroya-surface-muted)]/80 p-1 rounded-[10px] border border-[var(--mroya-divider)]/60">
+          <nav aria-label={tr('inboxTabs',{ns:'memory'})} className="flex items-center gap-1.5 bg-[var(--mroya-surface-muted)]/80 p-1 rounded-[10px] border border-[var(--mroya-divider)]/60">
             <button
               type="button"
               onClick={() => setActiveMainTab('attention')}
@@ -310,7 +313,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
               }`}
             >
               <Inbox className="w-4 h-4 text-[var(--mroya-primary)]" />
-              <span>Требуют внимания</span>
+              <span>{tr('inboxAttention',{ns:'memory'})}</span>
               {attentionItems.length > 0 ? (
                 <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 tabular-nums">
                   {attentionItems.length}
@@ -330,7 +333,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
               }`}
             >
               <History className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-              <span>История и статусы</span>
+              <span>{tr('inboxHistory',{ns:'memory'})}</span>
             </button>
           </nav>
         </div>
@@ -340,11 +343,11 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
           {design&&<button
             type="button"
             onClick={handleResetDemoData}
-            title="Восстановить демонстрационные карточки"
+            title={tr('restoreDemo',{ns:'memory'})}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Сброс демо</span>
+            <span className="hidden sm:inline">{tr('resetDemo',{ns:'memory'})}</span>
           </button>}
         </div>
       </header>
@@ -357,7 +360,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[var(--mroya-divider)]/60">
               <div>
                 <h1 className="text-[20px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
-                  <span>Требуют внимания</span>
+                  <span>{tr('inboxAttention',{ns:'memory'})}</span>
                   {attentionItems.length > 0 && (
                     <span className="text-[13px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 tabular-nums">
                       {attentionItems.length}
@@ -365,13 +368,13 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                   )}
                 </h1>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] mt-0.5">
-                  {design?'AI обнаружил эти события в календаре и предлагает зафиксировать важные факты в памяти':'Обработка предложений в этом интерфейсе пока не подключена.'}
+                  {tr(design?'attentionDescriptionDemo':'attentionDescriptionUnavailable',{ns:'memory'})}
                 </p>
               </div>
 
               {attentionItems.length > 0 && (
                 <div className="text-[12px] text-[var(--mroya-text-muted)] shrink-0 self-start sm:self-auto">
-                  Осталось подтвердить: <span className="font-semibold text-[var(--mroya-text)]">{attentionItems.length}</span>
+                  {tr('remainingToConfirm',{ns:'memory'})} <span className="font-semibold text-[var(--mroya-text)]">{attentionItems.length}</span>
                 </div>
               )}
             </div>
@@ -395,7 +398,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           <span>Google Calendar</span>
                         </span>
                         <span aria-hidden="true">·</span>
-                        <span>{item.sourceCalendarName || 'Календарь'}</span>
+                        <span>{item.sourceCalendarName || tr('calendarFallback',{ns:'memory'})}</span>
                         <span aria-hidden="true">·</span>
                         <span className="tabular-nums">{item.sourceDate}</span>
                         {item.sourceLocation && (
@@ -418,7 +421,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                       <div className="p-4 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)]/60 space-y-2">
                         <div className="text-[11.5px] font-semibold uppercase tracking-wider text-[var(--mroya-text-muted)] flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
-                          <span>Что AI предлагает запомнить:</span>
+                          <span>{tr('aiProposal',{ns:'memory'})}</span>
                         </div>
 
                         {item.deepAnalysis?.proposedSummary ? (
@@ -427,7 +430,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           </p>
                         ) : (
                           <p className="text-[14px] text-[var(--mroya-text)] leading-[22px]">
-                            {item.shortDescription}
+                            {item.shortDescriptionTranslation?tr(item.shortDescriptionTranslation.key,{ns:'memory',description:item.shortDescriptionTranslation.description,comment:item.shortDescriptionTranslation.comment}):item.shortDescription}
                           </p>
                         )}
 
@@ -452,7 +455,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         <div className="p-3.5 rounded-[10px] bg-[var(--mroya-bg)] border border-[var(--mroya-divider)] space-y-2.5 animate-in fade-in">
                           <div className="text-[12px] font-medium text-[var(--mroya-text)] flex items-center gap-1.5">
                             <MessageSquare className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                            <span>Ваш комментарий или уточнение к записи:</span>
+                            <span>{tr('commentPrompt',{ns:'memory'})}</span>
                           </div>
                           <textarea
                             rows={2}
@@ -463,7 +466,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                                 [item.id]: e.target.value,
                               }))
                             }
-                            placeholder="Например: Запомнить только дату, без модели техники... или Добавь номер телефона..."
+                            placeholder={tr('commentPlaceholder',{ns:'memory'})}
                             className="w-full p-2.5 text-[13px] rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] focus:outline-none focus:border-[var(--mroya-primary)]"
                           />
                           <div className="flex items-center justify-end gap-2">
@@ -472,7 +475,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                               onClick={() => handleToggleComment(item.id)}
                               className="px-3 py-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                             >
-                              Отмена
+                              {tr('cancelAction',{ns:'memory'})}
                             </button>
                             <button
                               type="button"
@@ -480,7 +483,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[7px] bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-semibold cursor-pointer shadow-sm transition-colors"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Сохранить с комментарием</span>
+                              <span>{tr('saveWithCommentButton',{ns:'memory'})}</span>
                             </button>
                           </div>
                         </div>
@@ -495,7 +498,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-[9px] bg-emerald-600 hover:bg-emerald-700 text-white text-[13.5px] font-semibold transition-all cursor-pointer shadow-sm active:scale-[0.98]"
                         >
                           <Check className="w-4 h-4 stroke-[2.5]" />
-                          <span>Да</span>
+                          <span>{tr('yes',{ns:'memory'})}</span>
                         </button>
 
                         {/* Button 2: «Нет» */}
@@ -505,7 +508,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-[9px] bg-[var(--mroya-surface-muted)] hover:bg-rose-500/15 text-[var(--mroya-text)] hover:text-rose-600 dark:hover:text-rose-400 border border-[var(--mroya-divider)] text-[13.5px] font-medium transition-colors cursor-pointer active:scale-[0.98]"
                         >
                           <X className="w-4 h-4" />
-                          <span>Нет</span>
+                          <span>{tr('no',{ns:'memory'})}</span>
                         </button>
 
                         {/* Button 3: «Комментарий» */}
@@ -519,7 +522,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           }`}
                         >
                           <MessageSquare className="w-4 h-4" />
-                          <span>Комментарий</span>
+                          <span>{tr('comment',{ns:'memory'})}</span>
                         </button>
                       </div>
                     </article>
@@ -535,15 +538,15 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
                 <div className="space-y-1.5 max-w-md mx-auto">
                   <h2 className="text-[20px] sm:text-[22px] font-semibold text-[var(--mroya-text)]">
-                    {design?'Всё разобрано!':'Предложения пока не подключены'}
+                    {tr(design?'emptyAttentionTitleDemo':'emptyAttentionTitleUnavailable',{ns:'memory'})}
                   </h2>
                   <p className="text-[14.5px] text-[var(--mroya-text-muted)] leading-[22px]">
-                    {design?'Пока ничего не требует вашего внимания':'Добавление событий в очередь доступно во вкладке «История и статусы».'}
+                    {tr(design?'emptyAttentionDescriptionDemo':'emptyAttentionDescriptionUnavailable',{ns:'memory'})}
                   </p>
                 </div>
 
                 <p className="text-[12.5px] text-[var(--mroya-text-muted)] max-w-sm mx-auto leading-[18px]">
-                  {design?'AI продолжит сканировать новые события календаря в фоновом режиме и подготовит предложения, как только появятся важные даты или договоренности.':'Постановка в очередь не запускает AI и не создаёт предложений.'}
+                  {tr(design?'emptyAttentionFootnoteDemo':'emptyAttentionFootnoteUnavailable',{ns:'memory'})}
                 </p>
 
                 <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
@@ -553,7 +556,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[9px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-colors cursor-pointer shadow-sm"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Сбросить демо / начать заново</span>
+                    <span>{tr('resetDemoRestart',{ns:'memory'})}</span>
                   </button>}
 
                   <button
@@ -562,7 +565,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[9px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-[var(--mroya-divider)] text-[13px] font-semibold transition-colors cursor-pointer"
                   >
                     <History className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-                    <span>Посмотреть историю и статусы</span>
+                    <span>{tr('viewHistory',{ns:'memory'})}</span>
                   </button>
                 </div>
               </div>
@@ -582,16 +585,16 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
               <div>
                 <h2 className="text-[14px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-[var(--mroya-primary)]" />
-                  <span>Прогресс обработки событий</span>
+                  <span>{tr('eventProgress',{ns:'memory'})}</span>
                 </h2>
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  Технический аудит фильтрации и очередей извлечения контекста из календаря
+                  {tr('technicalAudit',{ns:'memory'})}
                 </p>
               </div>
 
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[11.5px] text-[var(--mroya-text-muted)] self-start md:self-auto">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>Правило фильтра 1: сомнительное всегда одобряется (APPROVE)</span>
+                <span>{tr('filterRule1',{ns:'memory'})}</span>
               </div>
             </div>
 
@@ -607,13 +610,13 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  Всего событий
+                  {tr('totalEvents',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-[var(--mroya-text)] tabular-nums">
                   {stats.totalDetected}
                 </div>
                 <div className="text-[10.5px] text-[var(--mroya-text-muted)] flex items-center gap-1 mt-0.5">
-                  <span>в календаре</span>
+                  <span>{tr('inCalendar',{ns:'memory'})}</span>
                 </div>
               </div>
 
@@ -627,14 +630,14 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  Ожидают проверки
+                  {tr('awaitingReview',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-sky-600 dark:text-sky-400 tabular-nums">
                   {stats.pendingCheck}
                 </div>
                 <div className="text-[10.5px] text-[var(--mroya-text-muted)] flex items-center gap-1 mt-0.5">
                   <Clock className="w-3 h-3 text-sky-500" />
-                  <span>быстрый фильтр</span>
+                  <span>{tr('fastFilter',{ns:'memory'})}</span>
                 </div>
               </div>
 
@@ -648,14 +651,14 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  Отобрано AI
+                  {tr('selectedByAI',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {stats.fastApproved}
                 </div>
                 <div className="text-[10.5px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
                   <Check className="w-3 h-3" />
-                  <span>APPROVE</span>
+                  <span>{tr('approve',{ns:'memory'})}</span>
                 </div>
               </div>
 
@@ -669,14 +672,14 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  Отклонено AI
+                  {tr('rejectedByAIStat',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-[var(--mroya-text-muted)] tabular-nums">
                   {stats.fastRejected}
                 </div>
                 <div className="text-[10.5px] text-[var(--mroya-text-muted)] flex items-center gap-1 mt-0.5">
                   <X className="w-3 h-3 text-zinc-500" />
-                  <span>REJECT (шум)</span>
+                  <span>{tr('rejectNoise',{ns:'memory'})}</span>
                 </div>
               </div>
 
@@ -690,14 +693,14 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  В очереди анализа
+                  {tr('deepAnalysisQueue',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
                   {stats.inDeepQueue}
                 </div>
                 <div className="text-[10.5px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1 mt-0.5">
                   <Brain className="w-3 h-3" />
-                  <span>глубокий анализ</span>
+                  <span>{tr('deepAnalysis',{ns:'memory'})}</span>
                 </div>
               </div>
 
@@ -711,14 +714,14 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  На подтверждении
+                  {tr('awaitingConfirmation',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                   {stats.awaitingConfirmation}
                 </div>
                 <div className="text-[10.5px] text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
                   <Inbox className="w-3 h-3" />
-                  <span>требуют решения</span>
+                  <span>{tr('needDecision',{ns:'memory'})}</span>
                 </div>
               </div>
 
@@ -732,14 +735,14 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 }`}
               >
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] truncate">
-                  В памяти
+                  {tr('inMemory',{ns:'memory'})}
                 </div>
                 <div className="mt-1 text-[20px] font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
                   {stats.committed}
                 </div>
                 <div className="text-[10.5px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
                   <CheckCircle2 className="w-3 h-3" />
-                  <span>сохранено</span>
+                  <span>{tr('savedLabel',{ns:'memory'})}</span>
                 </div>
               </div>
             </div>
@@ -747,12 +750,12 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
             {/* Visual Pipeline Flow */}
             <div className="pt-2">
               <div className="text-[11.5px] font-semibold text-[var(--mroya-text-muted)] uppercase tracking-wider mb-2">
-                Стадии конвейера
+                {tr('pipelineStages',{ns:'memory'})}
               </div>
               <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-[12px]">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] font-medium text-[var(--mroya-text)]">
                   <CalendarIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span>1. Обнаружение</span>
+                  <span>{tr('stageDiscovery',{ns:'memory'})}</span>
                   <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                     ({stats.totalDetected})
                   </span>
@@ -762,7 +765,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] font-medium text-[var(--mroya-text)]">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>2. Быстрый фильтр (APPROVE / REJECT)</span>
+                  <span>{tr('stageFastFilter',{ns:'memory'})}</span>
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums">
                     +{stats.fastApproved}
                   </span>
@@ -775,7 +778,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] font-medium text-[var(--mroya-text)]">
                   <Brain className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                  <span>3. Глубокий анализ</span>
+                  <span>{tr('stageDeepAnalysis',{ns:'memory'})}</span>
                   <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                     ({stats.inDeepQueue + stats.awaitingConfirmation + stats.committed})
                   </span>
@@ -785,7 +788,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-amber-500/10 border border-amber-500/30 font-medium text-amber-700 dark:text-amber-300">
                   <Inbox className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>4. Подтверждение</span>
+                  <span>{tr('stageConfirmation',{ns:'memory'})}</span>
                   <span className="text-[11px] font-bold tabular-nums">
                     ({stats.awaitingConfirmation})
                   </span>
@@ -795,7 +798,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-emerald-500/10 border border-emerald-500/30 font-medium text-emerald-700 dark:text-emerald-300">
                   <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>5. Сохранение</span>
+                  <span>{tr('stageSaving',{ns:'memory'})}</span>
                   <span className="text-[11px] font-bold tabular-nums">
                     ({stats.committed})
                   </span>
@@ -820,7 +823,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                     type="text"
                     value={historySearchQuery}
                     onChange={(e) => setHistorySearchQuery(e.target.value)}
-                    placeholder="Поиск по истории событий…"
+                    placeholder={tr('searchHistory',{ns:'memory'})}
                     className="w-full pl-9 pr-8 py-1.5 text-[13px] rounded-[8px] bg-[var(--mroya-bg)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
                   {historySearchQuery && (
@@ -845,7 +848,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
-                    Все ({stats.totalDetected})
+                    {tr('filterAll',{ns:'memory',count:stats.totalDetected})}
                   </button>
                   <button
                     type="button"
@@ -856,7 +859,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
-                    Отклонено AI ({stats.fastRejected})
+                    {tr('filterRejected',{ns:'memory',count:stats.fastRejected})}
                   </button>
                   <button
                     type="button"
@@ -867,7 +870,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
-                    В очереди ({stats.inDeepQueue})
+                    {tr('filterQueued',{ns:'memory',count:stats.inDeepQueue})}
                   </button>
                   <button
                     type="button"
@@ -878,7 +881,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
-                    В памяти ({stats.committed})
+                    {tr('filterInMemory',{ns:'memory',count:stats.committed})}
                   </button>
                   <button
                     type="button"
@@ -889,7 +892,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
-                    Ожидают ({stats.pendingCheck})
+                    {tr('filterAwaiting',{ns:'memory',count:stats.pendingCheck})}
                   </button>
                 </div>
               </div>
@@ -900,7 +903,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                   <div className="p-8 text-center space-y-2">
                     <Inbox className="w-8 h-8 text-[var(--mroya-text-muted)] mx-auto opacity-50" />
                     <p className="text-[13px] font-medium text-[var(--mroya-text)]">
-                      Записи не найдены
+                      {tr('recordsNotFound',{ns:'memory'})}
                     </p>
                     <button
                       type="button"
@@ -910,7 +913,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                       }}
                       className="mt-2 text-[12px] text-[var(--mroya-primary)] font-medium hover:underline cursor-pointer"
                     >
-                      Показать все записи
+                      {tr('showAllRecords',{ns:'memory'})}
                     </button>
                   </div>
                 ) : (
@@ -938,7 +941,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           <div className="flex items-center gap-1.5 truncate">
                             <CalendarIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                             <span className="font-medium text-[var(--mroya-text)] truncate">
-                              {item.sourceCalendarName || 'Календарь'}
+                              {item.sourceCalendarName || tr('calendarFallback',{ns:'memory'})}
                             </span>
                             <span aria-hidden="true">·</span>
                             <span className="truncate">{item.sourceDate}</span>
@@ -948,19 +951,19 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                             {isApproved && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                                 <Check className="w-2.5 h-2.5" />
-                                <span>APPROVE</span>
+                                <span>{tr('approve',{ns:'memory'})}</span>
                               </span>
                             )}
                             {isRejected && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">
                                 <X className="w-2.5 h-2.5" />
-                                <span>REJECT</span>
+                                <span>{tr('reject',{ns:'memory'})}</span>
                               </span>
                             )}
                             {isPending && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-sky-500/15 text-sky-700 dark:text-sky-300">
                                 <Clock className="w-2.5 h-2.5" />
-                                <span>AI очередь</span>
+                                <span>{tr('aiQueue',{ns:'memory'})}</span>
                               </span>
                             )}
                           </div>
@@ -971,7 +974,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         </h3>
 
                         <p className="mt-1 text-[12px] text-[var(--mroya-text-muted)] leading-[17px] line-clamp-2">
-                          {item.shortDescription}
+                            {item.shortDescriptionTranslation?tr(item.shortDescriptionTranslation.key,{ns:'memory',description:item.shortDescriptionTranslation.description,comment:item.shortDescriptionTranslation.comment}):item.shortDescription}
                         </p>
 
                         <div className="mt-2.5 flex items-center justify-between gap-2 pt-2 border-t border-[var(--mroya-divider)]/40 text-[11px]">
@@ -979,30 +982,30 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                             {isCommitted && (
                               <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
                                 <CheckCircle2 className="w-3 h-3" />
-                                <span>Сохранено в память</span>
+                                <span>{tr('savedToMemory',{ns:'memory'})}</span>
                               </span>
                             )}
                             {item.status === 'in_queue' && (
                               <span className="inline-flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400">
                                 <Brain className="w-3 h-3" />
-                                <span>Глубокий анализ</span>
+                                <span>{tr('deepAnalysis',{ns:'memory'})}</span>
                               </span>
                             )}
                             {item.status === 'fast_rejected' && (
                               <span className="text-[var(--mroya-text-muted)]">
-                                Отклонено (шум)
+                                {tr('rejectedNoise',{ns:'memory'})}
                               </span>
                             )}
                             {item.status === 'declined' && (
                               <span className="text-[var(--mroya-text-muted)]">
-                                Отклонено пользователем
+                                {tr('rejectedByUserLabel',{ns:'memory'})}
                               </span>
                             )}
                           </div>
 
                           {item.fastFilter.confidence > 0 && (
                             <span className="text-[10.5px] text-[var(--mroya-text-muted)] tabular-nums">
-                              Уверенность: {item.fastFilter.confidence}%
+                              {tr('confidence',{ns:'memory',value:item.fastFilter.confidence})}
                             </span>
                           )}
                         </div>
@@ -1029,10 +1032,10 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
                     >
                       <ArrowLeft className="w-4 h-4" />
-                      <span>Назад к списку</span>
+                      <span>{tr('backToList',{ns:'memory'})}</span>
                     </button>
                     <span className="text-[12px] text-[var(--mroya-text-muted)]">
-                      Запись #{selectedHistoryEvent.id.replace('pipe-evt-', '')}
+                      {tr('recordNumber',{ns:'memory',id:selectedHistoryEvent.id.replace('pipe-evt-', '')})}
                     </span>
                   </div>
 
@@ -1068,31 +1071,31 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                         {selectedHistoryEvent.status === 'committed' && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border border-emerald-600/30">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span>Сохранено в память</span>
+                            <span>{tr('savedToMemory',{ns:'memory'})}</span>
                           </span>
                         )}
                         {selectedHistoryEvent.status === 'fast_rejected' && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border border-zinc-500/30">
                             <X className="w-3.5 h-3.5" />
-                            <span>Отклонено AI (шум)</span>
+                            <span>{tr('rejectedByAI',{ns:'memory'})}</span>
                           </span>
                         )}
                         {selectedHistoryEvent.status === 'in_queue' && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
                             <Brain className="w-3.5 h-3.5" />
-                            <span>В очереди глубокого анализа</span>
+                            <span>{tr('queuedDeepAnalysis',{ns:'memory'})}</span>
                           </span>
                         )}
                         {selectedHistoryEvent.status === 'pending_check' && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-semibold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30">
                             <Clock className="w-3.5 h-3.5" />
-                            <span>Ожидает первого фильтра AI</span>
+                            <span>{tr('awaitingAIFilter',{ns:'memory'})}</span>
                           </span>
                         )}
                         {selectedHistoryEvent.status === 'declined' && (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border border-zinc-500/30">
                             <X className="w-3.5 h-3.5" />
-                            <span>Отклонено пользователем</span>
+                            <span>{tr('rejectedByUser',{ns:'memory'})}</span>
                           </span>
                         )}
                       </div>
@@ -1107,7 +1110,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
                         >
                           <Send className="w-4 h-4" />
-                          <span>Передать на анализ</span>
+                          <span>{tr('sendForAnalysis',{ns:'memory'})}</span>
                         </button>
                       )}
 
@@ -1118,12 +1121,12 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                             if (onNavigateToMemory) {
                               onNavigateToMemory(selectedHistoryEvent.committedMemoryId);
                             }
-                            showToast('Переход в раздел Memory…');
+                            showToast(tr('navigateMemoryToast',{ns:'memory'}));
                           }}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] text-[13px] font-semibold transition-colors cursor-pointer"
                         >
                           <BookOpen className="w-4 h-4" />
-                          <span>Открыть в Memory</span>
+                          <span>{tr('openInMemory',{ns:'memory'})}</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -1136,7 +1139,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                     <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-3">
                       <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                         <CalendarIcon className="w-4 h-4 text-blue-500" />
-                        <span>Исходное событие из календаря</span>
+                        <span>{tr('sourceCalendarEvent',{ns:'memory'})}</span>
                       </div>
                       <div className="p-3.5 rounded-[8px] bg-[var(--mroya-bg)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] leading-[21px]">
                         {selectedHistoryEvent.rawEventSnippet}
@@ -1148,25 +1151,25 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                       <div className="flex items-center justify-between">
                         <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                           <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
-                          <span>Решение первого AI-фильтра (Tier 1: Fast Filter)</span>
+                          <span>{tr('firstFilterDecision',{ns:'memory'})}</span>
                         </div>
                         {selectedHistoryEvent.fastFilter.decision === 'APPROVE' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11.5px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                             <Check className="w-3.5 h-3.5" />
-                            <span>APPROVE</span>
+                            <span>{tr('approve',{ns:'memory'})}</span>
                           </span>
                         )}
                         {selectedHistoryEvent.fastFilter.decision === 'REJECT' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11.5px] font-bold bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border border-zinc-500/30">
                             <X className="w-3.5 h-3.5" />
-                            <span>REJECT (шум)</span>
+                            <span>{tr('rejectNoise',{ns:'memory'})}</span>
                           </span>
                         )}
                       </div>
 
                       <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] space-y-1">
                         <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--mroya-text-muted)]">
-                          Обоснование:
+                            {tr('rationale',{ns:'memory'})}
                         </div>
                         <p className="text-[13px] text-[var(--mroya-text)] leading-[20px]">
                           {selectedHistoryEvent.fastFilter.rationale}
@@ -1178,7 +1181,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                     <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-3">
                       <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                         <Brain className="w-4 h-4 text-indigo-500" />
-                        <span>Предлагаемая информация для памяти</span>
+                        <span>{tr('proposedMemoryInfo',{ns:'memory'})}</span>
                       </div>
                       {selectedHistoryEvent.deepAnalysis ? (
                         <div className="space-y-3">
@@ -1203,8 +1206,8 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                       ) : (
                         <p className="text-[13px] text-[var(--mroya-text-muted)]">
                           {selectedHistoryEvent.status === 'fast_rejected'
-                            ? 'Событие отклонено первым фильтром — глубокий анализ не проводился.'
-                            : 'Событие находится в очереди глубокого анализа.'}
+                            ? tr('fastFilterRejectedExplanation',{ns:'memory'})
+                            : tr('eventInDeepQueue',{ns:'memory'})}
                         </p>
                       )}
                     </div>
@@ -1213,7 +1216,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                     <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-3">
                       <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                         <Layers className="w-4 h-4 text-[var(--mroya-primary)]" />
-                        <span>История обработки (Audit Log)</span>
+                        <span>{tr('processingHistory',{ns:'memory'})}</span>
                       </div>
                       <div className="relative pl-6 space-y-3 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-[var(--mroya-divider)]">
                         {selectedHistoryEvent.history.map((hist) => (
@@ -1221,15 +1224,15 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                             <div className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-[var(--mroya-primary)] ring-4 ring-[var(--mroya-surface)]" />
                             <div className="flex items-center gap-2 text-[11px] text-[var(--mroya-text-muted)]">
                               <span className="font-semibold text-[var(--mroya-text)]">
-                                {hist.stageName}
+                                {hist.localized?tr(hist.localized.stageName,{ns:'memory'}):hist.stageName}
                               </span>
                               <span>·</span>
-                              <span>{hist.actorLabel}</span>
+                              <span>{hist.localized?tr(hist.localized.actorLabel,{ns:'memory'}):hist.actorLabel}</span>
                               <span>·</span>
-                              <span>{hist.timestamp}</span>
+                              <span>{hist.localized?tr(hist.localized.timestamp,{ns:'memory'}):hist.timestamp}</span>
                             </div>
                             <p className="mt-0.5 text-[12.5px] text-[var(--mroya-text)]">
-                              {hist.description}
+                              {hist.localized?tr(hist.localized.description,{ns:'memory',comment:hist.localized.comment}):hist.description}
                             </p>
                           </div>
                         ))}
@@ -1239,7 +1242,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                 </div>
               ) : (
                 <div className="flex-1 flex items-center justify-center p-8 text-center text-[var(--mroya-text-muted)]">
-                  Выберите запись для просмотра
+                  {tr('selectRecord',{ns:'memory'})}
                 </div>
               )}
             </main>

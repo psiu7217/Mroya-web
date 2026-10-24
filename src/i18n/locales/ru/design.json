@@ -1,0 +1,6 @@
+{
+  "states": "Состояния дизайна",
+  "scenario": "Сценарий",
+  "scenarioLabel": "Сценарий дизайна",
+  "blockedOnProduction": "Режим дизайна нельзя запустить на production-хосте. Используйте проверенную production-сборку."
+}

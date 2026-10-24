@@ -1,5 +1,7 @@
 import type {CalendarEventDto,CalendarRecurrence,CalendarWrite,GoogleConnectionDto} from '../types/calendarApi.ts';
 import type {CalendarEvent,RecurrenceRule,GoogleSyncState} from '../types/mroya.ts';
+import {tr} from '../i18n/index.ts';
+import {formatDate} from '../i18n/format.ts';
 const weekdays=['SU','MO','TU','WE','TH','FR','SA'];
 export function recurrenceFromApi(rule:CalendarEventDto['recurrence']):RecurrenceRule|undefined{
  if(!rule||'provider_rules' in rule)return undefined;
@@ -54,14 +56,20 @@ export function calendarWrite(event:Omit<CalendarEvent,'id'>,timezone:string):Ca
 }
 export function googleSyncPresentation(connection?:GoogleConnectionDto):{state:GoogleSyncState;notice:string}{
  if(!connection||connection.status==='disconnected')return {state:'disconnected',notice:''};
- if(connection.status==='reconnect')return {state:'reconnect_required',notice:'Google authorization requires reconnection.'};
+ if(connection.status==='reconnect')return {state:'reconnect_required',notice:tr('googleReconnectRequired',{ns:'connections'})};
  const codes=[connection.error_code,...connection.calendars.filter(c=>c.selected&&c.available).map(c=>c.error_code)].filter(Boolean);
- if(connection.jobs.conflict>0||codes.includes('sync_conflict'))return {state:'conflict',notice:'Synchronization is paused by a conflict. No resolution API is available.'};
- const detail=[...new Set(codes)].join(', ');
- if(['pending','running'].includes(connection.sync_status))return {state:connection.initial_synced_at?'syncing':'initial_syncing',notice:'Synchronization is pending on the backend.'};
- if(['partial','needs_destination'].includes(connection.sync_status)||connection.jobs.error>0||codes.length)return {state:'sync_error',notice:
-  (connection.sync_status==='partial'?'Partial synchronization. ':connection.sync_status==='needs_destination'?'Choose a writable export calendar. ':'Synchronization needs attention. ')+detail+
-  (connection.next_retry_at?' · Backend retry: '+connection.next_retry_at:'')};
- if(connection.sync_requested||['pending','running'].includes(connection.sync_status)||connection.sync_enabled&&(connection.jobs.pending>0||connection.jobs.retry>0))return {state:connection.initial_synced_at?'syncing':'initial_syncing',notice:'Synchronization is pending on the backend.'};
- return {state:connection.sync_enabled?'connected_auto_on':'connected_auto_off',notice:connection.sync_status==='succeeded'?'Last requested cycle completed.':connection.sync_status==='not_started'?'Initial synchronization has not completed.':connection.sync_status==='paused'?'Automatic synchronization is paused. Manual Sync now runs one cycle.':''};
+ if(connection.jobs.conflict>0||codes.includes('sync_conflict'))return {state:'conflict',notice:tr('googleConflictPaused',{ns:'connections'})};
+ if(['pending','running'].includes(connection.sync_status))return {state:connection.initial_synced_at?'syncing':'initial_syncing',notice:tr('googleSyncPending',{ns:'connections'})};
+ if(['partial','needs_destination'].includes(connection.sync_status)||connection.jobs.error>0||codes.length){
+  const issueCount=Math.max(connection.jobs.error,codes.length);
+  const notice=[
+   connection.sync_status==='partial'?tr('googleSyncPartial',{ns:'connections'}):undefined,
+   connection.sync_status==='needs_destination'?tr('googleSyncChooseExport',{ns:'connections'}):undefined,
+   issueCount?tr('googleSyncAttention',{ns:'connections',count:issueCount}):undefined,
+   connection.next_retry_at?tr('googleSyncRetryAt',{ns:'connections',date:formatDate(connection.next_retry_at,{dateStyle:'short',timeStyle:'short'})}):undefined,
+  ].filter(Boolean).join(' ');
+  return {state:'sync_error',notice};
+ }
+ if(connection.sync_requested||['pending','running'].includes(connection.sync_status)||connection.sync_enabled&&(connection.jobs.pending>0||connection.jobs.retry>0))return {state:connection.initial_synced_at?'syncing':'initial_syncing',notice:tr('googleSyncPending',{ns:'connections'})};
+ return {state:connection.sync_enabled?'connected_auto_on':'connected_auto_off',notice:connection.sync_status==='succeeded'?tr('googleSyncCompleted',{ns:'connections'}):connection.sync_status==='not_started'?tr('googleInitialSyncIncomplete',{ns:'connections'}):connection.sync_status==='paused'?tr('googleSyncPaused',{ns:'connections'}):''};
 }

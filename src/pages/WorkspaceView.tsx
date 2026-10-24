@@ -14,6 +14,7 @@ import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
 import { NotesView } from '../components/NotesView';
 import { MemoryInboxView } from '../components/MemoryInboxView';
+import {tr} from '../i18n';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
  const feedback=model.feedback??runtime;
@@ -57,17 +58,17 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       {/* Center Primary Workspace + Optional Contextual Memory Details */}
       <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
         {feedback && (feedback.error || feedback.loading) && <div role={feedback.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-          {feedback.error ?? 'Loading your workspace…'}
-          {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">Check server status</button>}
+          {feedback.error ? tr('loadFailed',{ns:'workspace'}) : tr('loading',{ns:'workspace'})}
+          {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">{tr('checkServer',{ns:'workspace'})}</button>}
         </div>}
         {runtime?.timezoneSettings?.status==='error'&&<div role="alert" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-          {runtime.timezoneSettings.error}
-          <button type="button" onClick={()=>onSidebarOpenSettingsTab('profile')} className="ml-3 underline">Choose timezone in Profile</button>
+          {tr('timezoneError',{ns:'workspace'})}
+          <button type="button" onClick={()=>onSidebarOpenSettingsTab('profile')} className="ml-3 underline">{tr('chooseTimezone',{ns:'workspace'})}</button>
         </div>}
-        {runtime && !runtime.loading && !runtime.error && ((activeSection==='calendar'&&!runtime.calendarAvailable)||(activeSection==='reminders'&&!runtime.remindersAvailable)||(activeSection==='chat'&&!runtime.chatAvailable)||((activeSection==='memory'||activeSection==='memory-map')&&!runtime.memoryAvailable)) && <p role="status" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">Not available yet. No changes have been saved.</p>}
-        {runtime?.hasOlder && activeSection==='chat' && <button disabled={runtime.loading||runtime.busy} onClick={runtime.onOlder} className="py-2 text-xs underline shrink-0">Load earlier messages</button>}
-        {runtime && activeSection==='memory' && <div className="px-4 py-2 text-xs shrink-0">Read-only list. Ask Mroya in chat to update your memory.{runtime.hasMoreMemories&&<button disabled={runtime.loading||runtime.busy} onClick={runtime.onMoreMemories} className="ml-3 underline">Load more memories</button>}</div>}
-        {runtime?.truncated && activeSection==='memory-map' && <p role="status" className="p-2 text-xs shrink-0">This map is limited by the server; some connections are not shown.</p>}
+        {runtime && !runtime.loading && !runtime.error && ((activeSection==='calendar'&&!runtime.calendarAvailable)||(activeSection==='reminders'&&!runtime.remindersAvailable)||(activeSection==='chat'&&!runtime.chatAvailable)||((activeSection==='memory'||activeSection==='memory-map')&&!runtime.memoryAvailable)) && <p role="status" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">{tr('unavailable',{ns:'workspace'})}</p>}
+        {runtime?.hasOlder && activeSection==='chat' && <button disabled={runtime.loading||runtime.busy} onClick={runtime.onOlder} className="py-2 text-xs underline shrink-0">{tr('loadEarlier',{ns:'workspace'})}</button>}
+        {runtime && activeSection==='memory' && <div className="px-4 py-2 text-xs shrink-0">{tr('readOnlyMemory',{ns:'workspace'})}{runtime.hasMoreMemories&&<button disabled={runtime.loading||runtime.busy} onClick={runtime.onMoreMemories} className="ml-3 underline">{tr('loadMoreMemories',{ns:'workspace'})}</button>}</div>}
+        {runtime?.truncated && activeSection==='memory-map' && <p role="status" className="p-2 text-xs shrink-0">{tr('mapTruncated',{ns:'workspace'})}</p>}
         <div className="flex flex-1 min-w-0 min-h-0">
         {activeSection === 'chat' && (
           <>
@@ -168,7 +169,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
 
-        {activeSection==='memory'&&runtime&&!runtime.memoryInboxAvailable&&model.memoryInbox?.error&&<p role="alert" className="px-4 py-2 text-sm border-b border-[var(--mroya-divider)]">{model.memoryInbox.error}<button type="button" className="ml-3 underline" onClick={model.memoryInbox.onRefresh}>Retry Inbox</button></p>}
+        {activeSection==='memory'&&runtime&&!runtime.memoryInboxAvailable&&model.memoryInbox?.error&&<p role="alert" className="px-4 py-2 text-sm border-b border-[var(--mroya-divider)]">{tr('loadFailed',{ns:'workspace'})}<button type="button" className="ml-3 underline" onClick={model.memoryInbox.onRefresh}>{tr('retryInbox',{ns:'workspace'})}</button></p>}
         {activeSection === 'memory' && (
           <MemoryView
             key={model.memoryInbox?.scopeKey??'saved-memory'}
@@ -260,6 +261,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             live={!!runtime}
             telegram={runtime?.telegram}
             preferenceSave={runtime?.preferenceSave}
+            languageSave={runtime?.languageSave}
+            language={model.language}
+            onChangeLanguage={model.onChangeLanguage}
             showModelReasoning={runtime?.showModelReasoning}
             onToggleShowModelReasoning={runtime?.onToggleShowModelReasoning}
             onSaveNickname={runtime?.onSaveNickname ?? model.onSaveNickname}
@@ -292,7 +296,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
         </div>
-        {runtime?.notice && <div className="absolute top-16 left-3 right-3 z-40 max-w-md mx-auto"><AccessNotice message={runtime.notice} onClose={runtime.onCloseNotice}/></div>}
+        {runtime?.notice && <div className="absolute top-16 left-3 right-3 z-40 max-w-md mx-auto"><AccessNotice message={tr(runtime.notice,{ns:'workspace'})} onClose={runtime.onCloseNotice}/></div>}
       </main>
 
       {/* Subscription Plan Preview Modal (Free vs Mroya Premium) */}
@@ -303,13 +307,13 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
                 <h2 className="text-[17px] font-semibold text-[var(--mroya-text)]">
-                  Mroya Subscription Preview
+                    {tr('subscriptionPreview',{ns:'workspace'})}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClosePlanPreview}
-                aria-label="Close plan modal"
+                aria-label={tr('close',{ns:'common'})}
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -317,7 +321,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             </div>
 
             <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-              Preview how Mroya presents subscription states in the sidebar and workspace header.
+              {tr('subscriptionHelp',{ns:'workspace'})}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -330,10 +334,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               >
                 <div className="space-y-1.5">
                   <div className="text-[15px] font-semibold text-[var(--mroya-text)]">
-                    Free Plan
+                    {tr('freePlan',{ns:'workspace'})}
                   </div>
                   <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
-                    Clean default state with a quiet Upgrade link and no intrusive banners.
+                    {tr('freePlanHelp',{ns:'workspace'})}
                   </p>
                 </div>
                 <button
@@ -341,7 +345,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                   onClick={onPreviewFreePlan}
                   className="w-full py-2 px-3 rounded-full bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
                 >
-                  {plan === 'free' ? 'Active (Free)' : 'Switch to Free'}
+                  {plan === 'free' ? tr('activeFree',{ns:'workspace'}) : tr('switchFree',{ns:'workspace'})}
                 </button>
               </div>
 
@@ -358,7 +362,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                     <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                   </div>
                   <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
-                    Restrained warm-gold accent with upgrade prompts removed.
+                    {tr('premiumDescription',{ns:'workspace'})}
                   </p>
                 </div>
                 <button
@@ -367,7 +371,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                   className="w-full py-2 px-3 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{plan === 'premium' ? 'Active (Premium)' : 'Preview Mroya Premium'}</span>
+                  <span>{plan === 'premium' ? tr('activePremium',{ns:'workspace'}) : tr('previewPremium',{ns:'workspace'})}</span>
                 </button>
               </div>
             </div>

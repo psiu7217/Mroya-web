@@ -45,7 +45,9 @@ import {
 import { GoogleSyncState, CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
 import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
 import { RecurrenceEditor } from './RecurrenceEditor';
-import { doesEventOccurOnDate, formatRecurrence } from '../utils/recurrenceUtils';
+import { doesEventOccurOnDate, localizedRecurrence } from '../utils/recurrenceUtils';
+import {tr} from '../i18n';
+import {formatDate,monthName,weekdayName} from '../i18n/format';
 
 interface CalendarViewProps {
   eventAnalysis?:import('../types/intelligenceApi').EventAnalysisPresentation;
@@ -79,37 +81,6 @@ interface CalendarViewProps {
   onOpenMobileMenu: () => void;
 }
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-const SHORT_MONTH_NAMES = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-
 export const CalendarView: React.FC<CalendarViewProps> = ({
   eventAnalysis,memoryLinksNavigation,
   readOnly=false,live=false,calendar,googleCalendarAvailable=false,googleCalendarNotice,
@@ -132,10 +103,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onExpandSidebar,
   onOpenMobileMenu,
 }) => {
-  const googleStatus=(readOnly||live&&!googleCalendarAvailable)?'Coming soon':{
-    disconnected:'Disconnected',connecting:'Connecting',initial_syncing:'Initial syncing',
-    connected_auto_off:'Connected · Automatic sync OFF',connected_auto_on:'Connected · Automatic sync ON',
-    syncing:'Syncing',sync_error:'Sync error',conflict:'Conflict · Sync paused',reconnect_required:'Reconnect required',
+  const monthNames=Array.from({length:12},(_,index)=>monthName(index));
+  const shortMonthNames=Array.from({length:12},(_,index)=>monthName(index,'short'));
+  const shortWeekdays=Array.from({length:7},(_,index)=>weekdayName(index,'narrow'));
+  const weekDayNames=Array.from({length:7},(_,index)=>weekdayName(index,'short'));
+  const googleStatus=(readOnly||live&&!googleCalendarAvailable)?tr('googleComingSoon',{ns:'calendar'}):{
+    disconnected:tr('googleDisconnected',{ns:'calendar'}),connecting:tr('googleConnecting',{ns:'calendar'}),initial_syncing:tr('googleInitialSync',{ns:'calendar'}),
+    connected_auto_off:tr('googleConnectedAutoOff',{ns:'calendar'}),connected_auto_on:tr('googleConnectedAutoOn',{ns:'calendar'}),
+    syncing:tr('googleSyncing',{ns:'calendar'}),sync_error:tr('syncError',{ns:'calendar'}),conflict:tr('googleConflict',{ns:'calendar'}),reconnect_required:tr('reconnectRequired',{ns:'connections'}),
   }[gcalSyncState];
   const googleStatusLabel=googleStatus+(!readOnly&&googleCalendarEmail&&!['disconnected','connecting'].includes(gcalSyncState)?` (${googleCalendarEmail})`:'');
   const today=live||readOnly?(()=>{const [y,m,d]=dateInTimezone(new Date(),calendar?.timezone??'').split('-').map(Number);return calendarDate(y,m-1,d);})():new Date(2026,9,12);
@@ -223,19 +198,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const formatOffset = (mins?: number) => {
     if (mins === undefined || mins === null) return '';
-    if (mins === 0) return 'At event time';
-    if (mins < 60) return `${mins} min before`;
-    if (mins === 60) return '1 hour before';
-    if (mins === 1440) return '1 day before';
+    if (mins === 0) return tr('atTime',{ns:'calendar'});
+    if (mins < 60) return tr('minutesBefore',{ns:'calendar',count:mins});
+    if (mins === 60) return tr('hoursBefore',{ns:'calendar',count:1});
+    if (mins === 1440) return tr('daysBefore',{ns:'calendar',count:1});
     const hrs = Math.floor(mins / 60);
     const rem = mins % 60;
-    return rem > 0 ? `${hrs}h ${rem}m before` : `${hrs} hours before`;
+    return rem > 0 ? tr('hoursMinutesBefore',{ns:'calendar',hours:hrs,minutes:rem}) : tr('hoursBefore',{ns:'calendar',count:hrs});
   };
 
   const handleSimulateSync = (reminderId: string) => {
     if(live||readOnly||!['connected_auto_off','connected_auto_on'].includes(gcalSyncState))return;
     onSimulateGoogleSync(reminderId);
-    setSyncToast('Demo schedule update applied locally');
+    setSyncToast('demoScheduleUpdate');
     setTimeout(() => setSyncToast(null), 4000);
   };
 
@@ -262,9 +237,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       offsetMinutes: quickOffset,
       channel: 'telegram',
       status: 'scheduled',
-      notes: `${event.title} starts at ${event.time}`,
+      notes: tr('eventStartsAtTime',{ns:'calendar',title:event.title,time:event.time}),
       syncedWithGoogle: event.id === 'evt-oct13-doctor' || event.id === 'evt-weekly-meeting',
-      lastSyncedNote: 'Synced with Google Calendar',
+      lastSyncedNote: tr('googleSynced',{ns:'calendar'}),
     });
     setAddingReminderForEventId(null);
   };
@@ -281,11 +256,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
     return { daysInMonth, firstDayOffset, leadingDays, days };
-  };
-
-  const getDayOfWeekName = (year: number, monthIndex: number, day: number) => {
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return dayNames[new Date(year, monthIndex, day).getDay()];
   };
 
   const getEventsForDay = (year: number, monthIndex: number, day: number) => {
@@ -337,7 +307,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if(accepted===false||!mounted.current)return;
     const submitted=pendingForm.current;pendingForm.current=null;
     if(submitted&&submitted.signature===draftSignatures.current.create){finishForm(submitted);const [year,month,day]=newDate.split('-').map(Number);selectDate(year,month-1,day);}
-    }catch(error){if(mounted.current)setSyncToast(error instanceof Error?error.message:'Event was not saved.');}
+    }catch{if(mounted.current)setSyncToast('calendarSaveFailed');}
     finally{mutationRef.current=false;}
   };
 
@@ -381,9 +351,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     mutationRef.current=true;
     pendingForm.current={kind:'edit',signature:draftSignatures.current.edit};
     try{const accepted=await onEditEvent?.(updated);if(accepted===false||!mounted.current)return;
-      const submitted=pendingForm.current;pendingForm.current=null;if(submitted)finishForm(submitted);setSyncToast(live?'Commitment saved in Mroya. Google sync is confirmed separately.':'Commitment updated locally · Not yet synchronized');
+      const submitted=pendingForm.current;pendingForm.current=null;if(submitted)finishForm(submitted);setSyncToast(live?'eventSaved':'eventUpdated');
       setTimeout(() => setSyncToast(null),3500);
-    }catch(error){if(mounted.current)setSyncToast(error instanceof Error?error.message:'Event was not saved.');}
+    }catch{if(mounted.current)setSyncToast('calendarSaveFailed');}
     finally{mutationRef.current=false;}
   };
 
@@ -398,8 +368,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     mutationRef.current=true;
     pendingForm.current={kind:'delete',signature:draftSignatures.current.delete};
     try{const accepted=await onDeleteEvent?.(deletingEvent.id,deletingEvent.api?.version);if(accepted===false||!mounted.current)return;
-      const submitted=pendingForm.current;pendingForm.current=null;if(submitted)finishForm(submitted);setSyncToast('Commitment permanently deleted from calendar');setTimeout(()=>setSyncToast(null),3500);
-    }catch(error){if(mounted.current)setSyncToast(error instanceof Error?error.message:'Event was not deleted.');}
+      const submitted=pendingForm.current;pendingForm.current=null;if(submitted)finishForm(submitted);setSyncToast('eventDeleted');setTimeout(()=>setSyncToast(null),3500);
+    }catch{if(mounted.current)setSyncToast('calendarDeleteFailed');}
     finally{mutationRef.current=false;}
   };
 
@@ -427,7 +397,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] px-2 py-0.5 rounded-full border border-[var(--mroya-divider)] shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-primary)]" />
-        <span>Mroya (Local)</span>
+        <span>{tr('sourceMroya',{ns:'calendar'})}</span>
       </span>
     );
   };
@@ -437,7 +407,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-1.5 py-0.5 rounded-[5px] border border-[var(--mroya-divider)] shrink-0">
           <Lock className="w-2.5 h-2.5" />
-          <span>External</span>
+          <span>{tr('external',{ns:'calendar'})}</span>
         </span>
       );
     }
@@ -446,7 +416,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-[5px] border border-emerald-500/20 shrink-0">
           <Check className="w-3 h-3 stroke-[2.5]" />
-          <span>Synced</span>
+          <span>{tr('synced',{ns:'calendar'})}</span>
         </span>
       );
     }
@@ -454,7 +424,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-blue-700 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-[5px] border border-blue-500/20 shrink-0">
           <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-          <span>Pending sync</span>
+          <span>{tr('pendingSync',{ns:'calendar'})}</span>
         </span>
       );
     }
@@ -462,13 +432,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-[5px] border border-amber-500/20 shrink-0">
           <AlertTriangle className="w-2.5 h-2.5" />
-          <span>Sync error</span>
+          <span>{tr('syncError',{ns:'calendar'})}</span>
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-1.5 py-0.5 rounded-[5px] border border-[var(--mroya-divider)] shrink-0">
-        <span>Local only</span>
+        <span>{tr('localOnly',{ns:'calendar'})}</span>
       </span>
     );
   };
@@ -544,7 +514,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const currentMonthData = getMonthCalendarData(currentYear, currentMonthIndex);
   const dayEvents = getEventsForDay(currentYear, currentMonthIndex, selectedDay);
-  const formattedDayTitle = `${getDayOfWeekName(currentYear, currentMonthIndex, selectedDay)}, ${MONTH_NAMES[currentMonthIndex]} ${selectedDay}`;
+  const formatCivilDate=(year:number,monthIndex:number,day:number,options:Intl.DateTimeFormatOptions)=>formatDate(new Date(Date.UTC(year,monthIndex,day,12)),options,'UTC');
+  const formattedDayTitle = formatCivilDate(currentYear,currentMonthIndex,selectedDay,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
   const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
   useEffect(()=>{calendar?.upcoming?.onStartChange(calendarKey(selectedDate));},[calendar?.upcoming?.onStartChange,currentYear,currentMonthIndex,selectedDay]);
@@ -554,8 +525,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const availableYears=calendarYears(currentYear);
 
   const calendarStatus=calendar&&(calendar.error||calendar.busy)&&<div role={calendar.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-        {calendar.error??'Saving calendar change…'}
-        {calendar.error&&<button type="button" disabled={calendar.busy||calendar.loading} onClick={()=>void retryCalendar()} className="ml-3 underline">Retry / check calendar</button>}
+        {calendar.error?tr('saveFailed',{ns:'common'}):tr('savingCalendarChange',{ns:'calendar'})}
+        {calendar.error&&<button type="button" disabled={calendar.busy||calendar.loading} onClick={()=>void retryCalendar()} className="ml-3 underline">{tr('retryCalendar',{ns:'calendar'})}</button>}
       </div>;
 
   return (
@@ -572,7 +543,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            aria-label="Open menu"
+            aria-label={tr('openMenu',{ns:'calendar'})}
             className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
           >
             <Menu className="w-5 h-5" />
@@ -582,8 +553,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             onClick={() => setViewMode(viewMode === 'year' ? 'month' : 'year')}
-            title={viewMode === 'year' ? 'Back to month calendar' : 'Zoom out to year calendar'}
-            aria-label={viewMode === 'year' ? 'Back to month calendar' : 'Show year calendar'}
+            title={viewMode === 'year' ? tr('backMonth',{ns:'calendar'}) : tr('zoomYear',{ns:'calendar'})}
+            aria-label={viewMode === 'year' ? tr('backMonth',{ns:'calendar'}) : tr('showYear',{ns:'calendar'})}
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)]/80 shadow-2xs transition-all cursor-pointer group shrink-0"
           >
             <ChevronLeft className="w-4 h-4 stroke-[2.5] text-[var(--mroya-brand-honey)] group-hover:-translate-x-0.5 transition-transform" />
@@ -599,8 +570,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <button
               type="button"
               onClick={handlePrevMonth}
-              title="Previous month"
-              aria-label="Previous month"
+              title={tr('previousMonthTitle',{ns:'calendar'})}
+              aria-label={tr('previousMonthTitle',{ns:'calendar'})}
               className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--mroya-text)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface)] cursor-pointer shrink-0 transition-all shadow-2xs"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -611,10 +582,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               type="button"
               onClick={() => setIsMonthPickerOpen(true)}
               className="w-[150px] sm:w-[160px] shrink-0 justify-center px-2.5 py-1 rounded-full hover:bg-[var(--mroya-surface)] flex items-center gap-1.5 transition-all cursor-pointer group"
-              title="Click to jump to another month or year"
+              title={tr('jumpMonth',{ns:'calendar'})}
             >
               <span className="text-[15px] sm:text-[16px] font-bold text-[var(--mroya-text)] group-hover:text-[var(--mroya-primary)] transition-colors truncate">
-                {MONTH_NAMES[currentMonthIndex]}
+                {monthNames[currentMonthIndex]}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0 transition-transform group-hover:translate-y-0.5" />
             </button>
@@ -622,8 +593,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <button
               type="button"
               onClick={handleNextMonth}
-              title="Next month"
-              aria-label="Next month"
+              title={tr('nextMonthTitle',{ns:'calendar'})}
+              aria-label={tr('nextMonthTitle',{ns:'calendar'})}
               className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--mroya-text)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface)] cursor-pointer shrink-0 transition-all shadow-2xs"
             >
               <ChevronRight className="w-4 h-4" />
@@ -634,7 +605,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         {/* Year view subtitle when in year view */}
         {viewMode === 'year' && (
           <div className="hidden sm:flex items-center text-[12px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-3 py-1 rounded-full border border-[var(--mroya-divider)]/60">
-            Tap any month or day to zoom in
+            {tr('calendarZoomHint',{ns:'calendar'})}
           </div>
         )}
 
@@ -645,7 +616,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <button
               type="button"
               onClick={() => setViewMode('year')}
-              title="Zoom out to Year (12 months)"
+              title={tr('zoomYearMonths',{ns:'calendar'})}
               className={`px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                 viewMode === 'year'
                   ? 'bg-[var(--mroya-surface)] text-[var(--mroya-primary)] shadow-xs'
@@ -653,13 +624,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               }`}
             >
               <Grid2x2 className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline sm:inline">Year</span>
+              <span className="hidden xs:inline sm:inline">{tr('year',{ns:'calendar'})}</span>
             </button>
 
             <button
               type="button"
               onClick={() => setViewMode('month')}
-              title="Month calendar"
+              title={tr('monthCalendar',{ns:'calendar'})}
               className={`px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                 viewMode === 'month'
                   ? 'bg-[var(--mroya-surface)] text-[var(--mroya-primary)] shadow-xs'
@@ -667,20 +638,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               }`}
             >
               <CalendarDays className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline sm:inline">Month</span>
+              <span className="hidden xs:inline sm:inline">{tr('month',{ns:'calendar'})}</span>
             </button>
 
             <button
               type="button"
               onClick={() => setViewMode('week')}
-              title="Week schedule"
+              title={tr('weekSchedule',{ns:'calendar'})}
               className={`hidden md:inline-flex px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer ${
                 viewMode === 'week'
                   ? 'bg-[var(--mroya-surface)] text-[var(--mroya-primary)] shadow-xs'
                   : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
               }`}
             >
-              Week
+              {tr('week',{ns:'calendar'})}
             </button>
           </div>
 
@@ -688,10 +659,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             onClick={handleJumpToToday}
-            title={live||readOnly?'Jump to today':'Jump to today (Oct 12)'}
+            title={live||readOnly?tr('todayButton',{ns:'calendar'}):tr('todayDemoButton',{ns:'calendar'})}
             className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-[12px] font-bold text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] hover:bg-[var(--mroya-brand-honey)]/25 border border-[var(--mroya-brand-honey)]/40 shadow-2xs transition-all cursor-pointer shrink-0"
           >
-            Today
+            {tr('today',{ns:'calendar'})}
           </button>
 
           {/* + Add Event Button: Radiant Primary Action */}
@@ -699,11 +670,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             type="button"
             disabled={readOnly}
             onClick={openNewEvent}
-            aria-label="New commitment"
+            aria-label={tr('newCommitment',{ns:'calendar'})}
             className="w-8 h-8 sm:w-auto sm:px-3.5 sm:py-1 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs hover:shadow-sm shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[2.4]" />
-            <span className="hidden sm:inline">Event</span>
+            <span className="hidden sm:inline">{tr('event',{ns:'calendar'})}</span>
           </button>
         </div>
       </header>
@@ -713,14 +684,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="px-4 py-2.5 bg-emerald-500/15 border-b border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-[12px] font-semibold flex items-center justify-between gap-3 animate-in fade-in duration-200">
           <div className="flex items-center gap-2">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
-            <span>{syncToast}</span>
+            <span>{tr(syncToast,{ns:'calendar'})}</span>
           </div>
           <button
             type="button"
             onClick={() => setSyncToast(null)}
             className="text-[11px] underline cursor-pointer"
           >
-            Dismiss
+            {tr('dismissSyncBanner',{ns:'calendar'})}
           </button>
         </div>
       )}
@@ -733,10 +704,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="flex items-center justify-between pb-2 border-b border-[var(--mroya-divider)]">
               <div>
                 <h3 className="text-[15px] font-bold text-[var(--mroya-text)]">
-                  Jump to Month & Year
+                  {tr('monthYearPickerHeading',{ns:'calendar'})}
                 </h3>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                  Switch instantly or scale to full year
+                  {tr('monthYearPickerDescription',{ns:'calendar'})}
                 </p>
               </div>
               <button
@@ -751,7 +722,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {/* Year Selector Row */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--mroya-text-muted)]">
-                Select Year
+                {tr('selectYear',{ns:'calendar'})}
               </label>
               <div className="flex items-center justify-between gap-1 p-1 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]">
                 {availableYears.map((yr) => (
@@ -777,7 +748,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 Select Month ({currentYear})
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {MONTH_NAMES.map((name, idx) => {
+                {monthNames.map((name, idx) => {
                   const isCurrent = currentMonthIndex === idx;
                   const isTodayMonth = currentYear === today.getFullYear() && idx === today.getMonth();
                   const count = getEventsForMonthCount(currentYear, idx);
@@ -795,7 +766,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)] text-[var(--mroya-text)]'
                       }`}
                     >
-                      <span className="text-[13px]">{SHORT_MONTH_NAMES[idx]}</span>
+                      <span className="text-[13px]">{shortMonthNames[idx]}</span>
                       {count > 0 && (
                         <span className="text-[10px] text-[var(--mroya-brand-honey)] font-medium">
                           {count} ev.
@@ -821,14 +792,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 className="flex-1 py-2 rounded-[10px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Grid2x2 className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                <span>Annual View ({currentYear})</span>
+                <span>{tr('annualView',{ns:'calendar',year:currentYear})}</span>
               </button>
               <button
                 type="button"
                 onClick={handleJumpToToday}
                 className="py-2 px-3 rounded-[10px] bg-[var(--mroya-primary)] text-white text-[12px] font-semibold transition-colors cursor-pointer"
               >
-                Jump to Today
+                {tr('jumpToday',{ns:'calendar'})}
               </button>
             </div>
           </div>
@@ -852,11 +823,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                   <div>
                     <h2 className="text-[16px] sm:text-[18px] font-bold text-[var(--mroya-text)] flex items-center gap-2">
-                      <span>Annual Calendar</span>
+                      <span>{tr('annualCalendar',{ns:'calendar'})}</span>
                       <span className="text-[var(--mroya-primary)]">· {currentYear}</span>
                     </h2>
                     <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                      Tap any month to zoom in, or tap a date to open its schedule.
+                      {tr('yearZoomHint',{ns:'calendar'})}
                     </p>
                   </div>
                 </div>
@@ -884,7 +855,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               {/* 12-Month Responsive Grid: 1 col on mobile, 2 col on sm, 3 col on lg, 4 col on xl */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
-                {MONTH_NAMES.map((mName, mIdx) => {
+                {monthNames.map((mName, mIdx) => {
                   const mData = getMonthCalendarData(currentYear, mIdx);
                   const evtCount = getEventsForMonthCount(currentYear, mIdx);
                   const isCurrentViewingMonth = currentMonthIndex === mIdx;
@@ -906,7 +877,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         type="button"
                         onClick={() => handleSelectMonthFromYearView(mIdx)}
                         className="w-full flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--mroya-divider)]/40 text-left cursor-pointer group-hover:text-[var(--mroya-primary)] transition-colors"
-                        title={`Zoom into ${mName}`}
+                        title={tr('openMonth',{ns:'calendar',month:mName})}
                       >
                         <span className={`text-[15px] font-bold ${isRealTodayMonth ? 'text-[var(--mroya-primary)]' : 'text-[var(--mroya-text)] group-hover:text-[var(--mroya-primary)]'}`}>
                           {mName}
@@ -923,13 +894,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                       {/* Mini weekday initials */}
                       <div className="grid grid-cols-7 mb-1 text-center text-[9px] font-semibold text-[var(--mroya-text-muted)]">
-                        <div>M</div>
-                        <div>T</div>
-                        <div>W</div>
-                        <div>T</div>
-                        <div>F</div>
-                        <div>S</div>
-                        <div>S</div>
+                        {shortWeekdays.map((day,index)=><div key={index}>{day}</div>)}
                       </div>
 
                       {/* Mini dates grid */}
@@ -947,7 +912,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               key={`y-day-${day}`}
                               type="button"
                               onClick={() => handleSelectMonthFromYearView(mIdx, day)}
-                              title={`${mName} ${day} — click to view`}
+                              title={tr('monthDay',{ns:'calendar',month:mName,day})+' — '+tr('viewDetails',{ns:'calendar'})}
                               className="h-5 flex flex-col items-center justify-center relative hover:scale-115 transition-transform cursor-pointer"
                             >
                               <span
@@ -975,7 +940,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         onClick={() => handleSelectMonthFromYearView(mIdx)}
                         className="w-full mt-2.5 pt-1 text-[11px] font-semibold text-[var(--mroya-primary)] hover:underline flex items-center justify-center gap-1 cursor-pointer"
                       >
-                        <span>Open {SHORT_MONTH_NAMES[mIdx]}</span>
+                        <span>{tr('openMonth',{ns:'calendar',month:shortMonthNames[mIdx]})}</span>
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -999,14 +964,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       onClick={() => setIsMonthPickerOpen(true)}
                       className="text-[14px] font-bold text-[var(--mroya-text)] flex items-center gap-1 cursor-pointer"
                     >
-                      <span>{MONTH_NAMES[currentMonthIndex]} {currentYear}</span>
+                      <span>{monthNames[currentMonthIndex]} {currentYear}</span>
                       <ChevronDown className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                     </button>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={handlePrevMonth}
-                        aria-label="Previous month"
+                        aria-label={tr('previousMonthTitle',{ns:'calendar'})}
                         className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
                       >
                         <ChevronLeft className="w-3.5 h-3.5" />
@@ -1014,7 +979,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       <button
                         type="button"
                         onClick={handleNextMonth}
-                        aria-label="Next month"
+                        aria-label={tr('nextMonthTitle',{ns:'calendar'})}
                         className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
@@ -1024,13 +989,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                   {/* iOS Days of week row */}
                   <div className="grid grid-cols-7 mb-2 text-center text-[11px] font-semibold tracking-wider text-[var(--mroya-text-muted)]">
-                    <div>M</div>
-                    <div>T</div>
-                    <div>W</div>
-                    <div>T</div>
-                    <div>F</div>
-                    <div>S</div>
-                    <div>S</div>
+                    {shortWeekdays.map((day,index)=><div key={index}>{day}</div>)}
                   </div>
 
                   {/* iOS Dates Grid */}
@@ -1093,8 +1052,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       </h2>
                       <div className="text-[12px] text-[var(--mroya-text-muted)]">
                         {dayEvents.length > 0
-                          ? `${dayEvents.length} commitment${dayEvents.length > 1 ? 's' : ''}`
-                          : 'No events scheduled'}
+                          ? tr('commitmentsCount',{ns:'calendar',count:dayEvents.length})
+                          : tr('noEventsScheduled',{ns:'calendar'})}
                       </div>
                     </div>
                     <button
@@ -1103,7 +1062,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       onClick={openNewEvent}
                       className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      + Add event
+                      {tr('addEvent',{ns:'calendar'})}
                     </button>
                   </div>
 
@@ -1147,7 +1106,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 {ev.recurrence && (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded-full border border-purple-500/20">
                                     <Repeat className="w-2.5 h-2.5" />
-                                    <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
+                                    <span>{tr('recurringSeriesLabel',{ns:'calendar',rule:localizedRecurrence(ev.recurrence)})}</span>
                                   </span>
                                 )}
                               </div>
@@ -1179,7 +1138,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   className="text-[11px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer flex items-center gap-1"
                                 >
                                   <Eye className="w-3 h-3" />
-                                  <span>Details</span>
+                                  <span>{tr('details',{ns:'calendar'})}</span>
                                 </button>
                                 {!readOnly && !ev.isReadOnly && (
                                   <div className="flex items-center gap-2">
@@ -1188,14 +1147,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       onClick={() => handleOpenEdit(ev)}
                                       className="text-[11px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] p-0.5 cursor-pointer"
                                     >
-                                      Edit
+                                      {tr('edit',{ns:'common'})}
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handleOpenDelete(ev)}
                                       className="text-[11px] text-red-500 hover:underline p-0.5 cursor-pointer"
                                     >
-                                      Delete
+                                      {tr('deleteConfirm',{ns:'calendar'})}
                                     </button>
                                   </div>
                                 )}
@@ -1210,7 +1169,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     <div className="flex items-center justify-between text-[11px]">
                                       <span className="font-semibold text-[var(--mroya-text)] flex items-center gap-1">
                                         <Bell className="w-3 h-3 text-[var(--mroya-primary)]" />
-                                        <span>Reminders ({eventReminders.length})</span>
+                                        <span>{tr('remindersCount',{ns:'calendar',count:eventReminders.length})}</span>
                                       </span>
                                       <button
                                         type="button"
@@ -1222,7 +1181,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         }
                                         className="font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                                       >
-                                        {addingReminderForEventId === ev.id ? 'Cancel' : '+ Add'}
+                                        {addingReminderForEventId === ev.id ? tr('cancel',{ns:'common'}) : tr('addReminder',{ns:'calendar'})}
                                       </button>
                                     </div>
 
@@ -1260,7 +1219,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       </div>
                                     ) : (
                                       <div className="text-[10px] text-[var(--mroya-text-muted)] italic">
-                                        No reminders set for this event
+                                        {tr('noRemindersForEvent',{ns:'calendar'})}
                                       </div>
                                     )}
 
@@ -1274,21 +1233,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         className="w-full py-1 px-2 rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-500/30 flex items-center justify-center gap-1 cursor-pointer"
                                       >
                                         <RefreshCw className="w-2.5 h-2.5" />
-                                        <span>Simulate Google update (1h → 30m)</span>
+                                        <span>{tr('simulateGoogleUpdate',{ns:'calendar'})}</span>
                                       </button>
                                     )}
 
                                     {addingReminderForEventId === ev.id && (
                                       <div className="p-2 rounded-[8px] bg-[var(--mroya-surface-active)]/60 border border-[var(--mroya-divider)] space-y-1.5">
                                         <div className="text-[10px] font-semibold text-[var(--mroya-text)]">
-                                          Notification offset:
+                                          {tr('notificationOffset',{ns:'calendar'})}
                                         </div>
                                         <div className="grid grid-cols-4 gap-1">
                                           {[
-                                            { label: 'At time', val: 0 },
-                                            { label: '15m', val: 15 },
-                                            { label: '30m', val: 30 },
-                                            { label: '1h', val: 60 },
+                                            { label: tr('atTime',{ns:'calendar'}), val: 0 },
+                                            { label: tr('minutesBefore',{ns:'calendar',count:15}), val: 15 },
+                                            { label: tr('minutesBefore',{ns:'calendar',count:30}), val: 30 },
+                                            { label: tr('hoursBefore',{ns:'calendar',count:1}), val: 60 },
                                           ].map((p) => (
                                             <button
                                               key={p.val}
@@ -1310,14 +1269,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             onClick={() => setAddingReminderForEventId(null)}
                                             className="text-[10px] text-[var(--mroya-text-muted)] hover:underline cursor-pointer"
                                           >
-                                            Cancel
+                                            {tr('cancel',{ns:'common'})}
                                           </button>
                                           <button
                                             type="button"
                                             onClick={() => handleQuickAddReminder(ev)}
                                             className="px-2 py-0.5 rounded bg-[var(--mroya-primary)] text-white text-[10px] font-semibold cursor-pointer"
                                           >
-                                            Save
+                                            {tr('save',{ns:'common'})}
                                           </button>
                                         </div>
                                       </div>
@@ -1333,10 +1292,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   ) : (
                     <div className="p-6 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-center space-y-1">
                       <div className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                        No Events
+                        {tr('noEvents',{ns:'calendar'})}
                       </div>
                       <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                        {readOnly ? 'Calendar API is not available yet.' : live?'Tap + to schedule a commitment':'Protected deep work block · Tap + to schedule a commitment'}
+                        {readOnly ? tr('calendarApiUnavailable',{ns:'calendar'}) : live?tr('tapToSchedule',{ns:'calendar'}):tr('protectedDeepWork',{ns:'calendar'})}
                       </div>
                     </div>
                   )}
@@ -1350,7 +1309,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                     <div className="min-w-0">
                       <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
-                        Google Calendar
+                        {tr('googleCalendar',{ns:'calendar'})}
                       </div>
                       <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
                         {googleStatusLabel}
@@ -1362,7 +1321,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onClick={onOpenConnections}
                     className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline shrink-0 cursor-pointer"
                   >
-                    Settings
+                    {tr('tabsSettings',{ns:'connections'})}
                   </button>
                 </div>
               </div>
@@ -1377,13 +1336,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                     <div>
                       <div className="text-[14px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
-                        <span>Google Calendar integration</span>
+                        <span>{tr('googleIntegration',{ns:'calendar'})}</span>
                         <span className="text-[12px] font-normal text-[var(--mroya-text-muted)]">
                           · {googleStatusLabel}
                         </span>
                       </div>
                       <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                        {readOnly ? 'Calendar integration is not available yet.' : live?'Mroya calendar · Google synchronization is managed by the backend.':'Mroya cross-references your calendar with saved client commitments and protects mornings before 11:00 AM.'}
+                        {readOnly ? tr('calendarIntegrationUnavailable',{ns:'calendar'}) : live?tr('googleSyncManaged',{ns:'calendar'}):tr('calendarIntegrationDescription',{ns:'calendar'})}
                       </p>
                     </div>
                   </div>
@@ -1393,7 +1352,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-medium text-[var(--mroya-text)] transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <Link2 className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                    <span>Manage connection</span>
+                    <span>{tr('manageConnection',{ns:'calendar'})}</span>
                   </button>
                 </div>}
 
@@ -1402,13 +1361,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {/* Left 8 cols: Calendar Grid */}
                   <div className="col-span-8 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] p-4 sm:p-5">
                     <div className="grid grid-cols-7 gap-1 mb-2 text-center text-[12px] font-medium text-[var(--mroya-text-muted)]">
-                      <div>Mon</div>
-                      <div>Tue</div>
-                      <div>Wed</div>
-                      <div>Thu</div>
-                      <div>Fri</div>
-                      <div>Sat</div>
-                      <div>Sun</div>
+                      {weekDayNames.map((day,index)=><div key={index}>{day}</div>)}
                     </div>
 
                     {viewMode === 'month' ? (
@@ -1450,7 +1403,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 </span>
                                 {isToday && (
                                   <span className="text-[10px] font-medium text-[var(--mroya-primary)]">
-                                    Today
+                                    {tr('today',{ns:'calendar'})}
                                   </span>
                                 )}
                               </div>
@@ -1494,7 +1447,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               }`}
                             >
                               <div className="text-[13px] font-semibold text-[var(--mroya-text)] tabular-nums border-b border-[var(--mroya-divider)] pb-1.5">
-                                {SHORT_MONTH_NAMES[month]} {day}{live||readOnly ? ', '+year : ''} {isToday ? '· Today' : ''}
+                                {shortMonthNames[month]} {day}{live||readOnly ? ', '+year : ''} {isToday ? '· '+tr('today',{ns:'calendar'}) : ''}
                               </div>
                               <div className="space-y-2">
                                 {evts.map((ev) => (
@@ -1534,7 +1487,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-3">
                       <div className="flex items-center justify-between">
                         <h2 className="text-[14px] font-semibold text-[var(--mroya-text)] tabular-nums">
-                          {MONTH_NAMES[currentMonthIndex]} {selectedDay}, {currentYear}
+                          {monthNames[currentMonthIndex]} {selectedDay}, {currentYear}
                         </h2>
                         <button
                           type="button"
@@ -1574,19 +1527,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   {ev.recurrence && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
                                       <Repeat className="w-3 h-3" />
-                                      <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
+                                      <span>{tr('recurringSeriesLabel',{ns:'calendar',rule:localizedRecurrence(ev.recurrence)})}</span>
                                     </span>
                                   )}
-                                  {(!live && ev.person?.includes('Александр')) && (
+                                  {(!live && !!ev.person) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
                                       <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                                      <span>{live?'AI analysis':'Проанализировано AI · Preview'}</span>
+                                    <span>{tr(live?'aiAnalysis':'analyzedByAI',{ns:'calendar'})}{live?'':' · '+tr('preview',{ns:'common'})}</span>
                                     </span>
                                   )}
                                 </div>
                                 {ev.person && (
                                   <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                                    With {ev.person}
+                                    {tr('withLabel',{ns:'calendar'})} {ev.person}
                                     {ev.organization ? ` · ${ev.organization}` : ''}
                                   </div>
                                 )}
@@ -1611,7 +1564,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                                   >
                                     <Eye className="w-3.5 h-3.5" />
-                                    <span>View details</span>
+                                    <span>{tr('viewDetails',{ns:'calendar'})}</span>
                                   </button>
                                   <div className="flex items-center gap-2">
                                     {!readOnly && !ev.isReadOnly && (
@@ -1619,7 +1572,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => handleOpenEdit(ev)}
-                                          title="Edit commitment"
+                                          title={tr('editCommitment',{ns:'calendar'})}
                                           className="p-1 rounded-[5px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
                                         >
                                           <Pencil className="w-3.5 h-3.5" />
@@ -1627,7 +1580,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => handleOpenDelete(ev)}
-                                          title="Delete commitment"
+                                          title={tr('deleteCommitment',{ns:'calendar'})}
                                           className="p-1 rounded-[5px] text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
@@ -1637,7 +1590,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     {ev.isReadOnly && (
                                       <span className="text-[11px] text-[var(--mroya-text-muted)] flex items-center gap-1">
                                         <Lock className="w-3 h-3" />
-                                        <span>Read-only</span>
+                                        <span>{tr('readOnly',{ns:'calendar'})}</span>
                                       </span>
                                     )}
                                   </div>
@@ -1652,7 +1605,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       <div className="flex items-center justify-between text-[12px]">
                                         <div className="font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                                           <Bell className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                                          <span>Reminders</span>
+                                          <span>{tr('reminders',{ns:'calendar'})}</span>
                                           {eventReminders.length > 0 && (
                                             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]">
                                               {eventReminders.length}
@@ -1669,7 +1622,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                           }
                                           className="text-[11px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                                         >
-                                          {addingReminderForEventId === ev.id ? 'Cancel' : '+ Add reminder'}
+                                          {addingReminderForEventId === ev.id ? tr('cancel',{ns:'common'}) : tr('addReminder',{ns:'calendar'})}
                                         </button>
                                       </div>
 
@@ -1691,7 +1644,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                                 </span>
                                                 {r.syncedWithGoogle && (
                                                   <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                                                    Google Synced
+                                                    {tr('googleSynced',{ns:'calendar'})}
                                                   </span>
                                                 )}
                                               </div>
@@ -1701,17 +1654,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                                   <button
                                                     type="button"
                                                     onClick={() => handleSimulateSync(r.id)}
-                                                    title="Simulate Google Calendar external update"
+                                                    title={tr('simulateExternalUpdate',{ns:'calendar'})}
                                                     className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 cursor-pointer flex items-center gap-1 transition-colors"
                                                   >
                                                     <RefreshCw className="w-2.5 h-2.5" />
-                                                    <span>Sync update</span>
+                                                    <span>{tr('syncUpdate',{ns:'calendar'})}</span>
                                                   </button>
                                                 )}
                                                 <button
                                                   type="button"
                                                   onClick={() => onDeleteReminder(r.id)}
-                                                  title="Remove reminder"
+                                                  title={tr('removeReminder',{ns:'calendar'})}
                                                   className="w-5 h-5 rounded flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-red-500 cursor-pointer"
                                                 >
                                                   <X className="w-3.5 h-3.5" />
@@ -1722,7 +1675,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         </div>
                                       ) : (
                                         <div className="text-[11px] text-[var(--mroya-text-muted)] italic">
-                                          No reminders configured. Default calendar events have no alerts.
+                                          {tr('noRemindersConfigured',{ns:'calendar'})}
                                         </div>
                                       )}
 
@@ -1730,9 +1683,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       {isDoctor && (
                                         <div className="p-2.5 rounded-[10px] bg-blue-500/10 border border-blue-500/20 text-[12px] text-blue-900 dark:text-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                           <div>
-                                            <span className="font-semibold">Doctor appointment (Google Synced)</span>
+                                            <span className="font-semibold">Doctor appointment ({tr('googleSynced',{ns:'calendar'})})</span>
                                             <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
-                                              Simulate external Google Calendar change from 1 hour to 30 min before
+                                              {tr('simulateExternalAlertChange',{ns:'calendar'})}
                                             </p>
                                           </div>
                                           <button
@@ -1743,7 +1696,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             }}
                                             className="px-2.5 py-1 rounded-[6px] bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
                                           >
-                                            Simulate Google Calendar update
+                                            {tr('simulateGoogleUpdateAction',{ns:'calendar'})}
                                           </button>
                                         </div>
                                       )}
@@ -1754,10 +1707,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                           <div>
                                             <span className="font-semibold flex items-center gap-1.5">
                                               <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                                              <span>Weekly team meeting · Recurring Series</span>
+                                              <span>{tr('recurringDemoCallout',{ns:'calendar',title:'Weekly team meeting'})}</span>
                                             </span>
                                             <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
-                                              Parent event is source of truth. Simulates Google Calendar updating recurring alert across all Mondays.
+                                              {tr('repeatSourceHelp',{ns:'calendar'})}
                                             </p>
                                           </div>
                                           <button
@@ -1768,7 +1721,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             }}
                                             className="px-2.5 py-1 rounded-[6px] bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
                                           >
-                                            Simulate recurrence sync
+                                            {tr('simulateRecurrenceSync',{ns:'calendar'})}
                                           </button>
                                         </div>
                                       )}
@@ -1777,9 +1730,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       {ev.id === 'evt-annas-birthday' && (
                                         <div className="p-2.5 rounded-[10px] bg-pink-500/10 border border-pink-500/20 text-[12px] text-pink-900 dark:text-pink-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                           <div>
-                                            <span className="font-semibold">Anna's birthday (Google Contacts · Annual)</span>
+                                            <span className="font-semibold">{tr('annualContactDemoCallout',{ns:'calendar',title:"Anna's birthday"})}</span>
                                             <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
-                                              Annual reminder inherited from contact calendar. Alerts on April 16 at 09:00 via Telegram.
+                                              {tr('annualReminderDescription',{ns:'calendar'})}
                                             </p>
                                           </div>
                                           <button
@@ -1790,7 +1743,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             }}
                                             className="px-2.5 py-1 rounded-[6px] bg-pink-600 hover:bg-pink-700 text-white text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs shrink-0"
                                           >
-                                            Test sync
+                                            {tr('testSync',{ns:'calendar'})}
                                           </button>
                                         </div>
                                       )}
@@ -1799,14 +1752,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       {addingReminderForEventId === ev.id && (
                                         <div className="p-2.5 rounded-[10px] bg-[var(--mroya-surface-active)]/50 border border-[var(--mroya-divider)] space-y-2 animate-in fade-in duration-150">
                                           <div className="text-[11px] font-semibold text-[var(--mroya-text)]">
-                                            Select notification offset before start:
+                                            {tr('selectNotificationOffset',{ns:'calendar'})}
                                           </div>
                                           <div className="grid grid-cols-4 gap-1.5">
                                             {[
-                                              { label: 'At time', val: 0 },
-                                              { label: '15m before', val: 15 },
-                                              { label: '30m before', val: 30 },
-                                              { label: '1h before', val: 60 },
+                                              { label: tr('atTime',{ns:'calendar'}), val: 0 },
+                                              { label: tr('minutesBefore',{ns:'calendar',count:15}), val: 15 },
+                                              { label: tr('minutesBefore',{ns:'calendar',count:30}), val: 30 },
+                                              { label: tr('hoursBefore',{ns:'calendar',count:1}), val: 60 },
                                             ].map((p) => (
                                               <button
                                                 key={p.val}
@@ -1828,14 +1781,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                               onClick={() => setAddingReminderForEventId(null)}
                                               className="text-[11px] text-[var(--mroya-text-muted)] hover:underline cursor-pointer"
                                             >
-                                              Cancel
+                                              {tr('cancel',{ns:'common'})}
                                             </button>
                                             <button
                                               type="button"
                                               onClick={() => handleQuickAddReminder(ev)}
                                               className="px-3 py-1 rounded bg-[var(--mroya-primary)] text-white text-[11px] font-semibold cursor-pointer shadow-xs"
                                             >
-                                              Save reminder
+                                              {tr('saveReminderAction',{ns:'calendar'})}
                                             </button>
                                           </div>
                                         </div>
@@ -1849,7 +1802,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </div>
                       ) : (
                         <p className="text-[13px] text-[var(--mroya-text-muted)] py-3">
-                          {readOnly ? 'Calendar API is not available yet.' : <>No commitments scheduled for {MONTH_NAMES[currentMonthIndex]} {selectedDay}. {!live&&'Mornings before 11:00 AM are protected for deep work.'}</>}
+                          {readOnly ? tr('noEventsReadOnly',{ns:'calendar'}) : <>{tr('noEventsForDate',{ns:'calendar',date:`${monthNames[currentMonthIndex]} ${selectedDay}`})} {!live&&tr('protectedMornings',{ns:'calendar'})}</>}
                         </p>
                       )}
                     </div>
@@ -1857,11 +1810,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {/* All Upcoming Commitments List */}
                     <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-3">
                       <h3 className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                        Upcoming commitments
+                        {tr('upcoming',{ns:'calendar'})}
                       </h3>
                       <div className="divide-y divide-[var(--mroya-divider)]">
-                        {live&&calendar?.upcoming?.error&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{calendar.upcoming.error} <button type="button" onClick={calendar.upcoming.onRetry} className="underline">Retry upcoming</button></p>}
-                        {!upcoming.length&&!calendar?.upcoming?.error&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{calendar?.upcoming?.loading?'Checking upcoming commitments…':'No upcoming commitments in the next 12 months.'}</p>}
+                        {live&&calendar?.upcoming?.error&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{tr('loadFailed',{ns:'workspace'})} <button type="button" onClick={calendar.upcoming.onRetry} className="underline">{tr('retryUpcoming',{ns:'calendar'})}</button></p>}
+                        {!upcoming.length&&!calendar?.upcoming?.error&&<p className="text-[12px] text-[var(--mroya-text-muted)]">{calendar?.upcoming?.loading?tr('checkingUpcoming',{ns:'calendar'}):tr('noUpcoming',{ns:'calendar'})}</p>}
                         {upcoming.map((ev) => (
                           <button
                             key={ev.id}
@@ -1879,12 +1832,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 {ev.title}
                               </div>
                               <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                                {ev.person || 'Personal commitment'} · {ev.category}
+                                {ev.person || tr('personalCommitment',{ns:'calendar'})} · {tr(ev.category,{ns:'calendar'})}
                               </div>
                             </div>
                             <div className="text-right shrink-0 tabular-nums">
                               <div className="text-[12px] font-semibold text-[var(--mroya-primary)]">
-                                {SHORT_MONTH_NAMES[Number(ev.date.slice(5,7))-1]} {Number(ev.date.slice(8,10))}{', '+ev.date.slice(0,4)}
+                                {formatCivilDate(Number(ev.date.slice(0,4)),Number(ev.date.slice(5,7))-1,Number(ev.date.slice(8,10)),{month:'short',day:'numeric',year:'numeric'})}
                               </div>
                               <div className="text-[11px] text-[var(--mroya-text-muted)] flex items-center justify-end gap-1">
                                 <Clock className="w-3 h-3" />
@@ -1911,12 +1864,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                New calendar commitment
+                {tr('newCommitmentModal',{ns:'calendar'})}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsNewModalOpen(false)}
-                aria-label="Close modal"
+                aria-label={tr('closeModal',{ns:'calendar'})}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -1927,12 +1880,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {calendarStatus}
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Commitment title *
+                  {tr('eventTitleLabel',{ns:'calendar'})}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder={samples?.titlePlaceholder??'Event title'}
+                  placeholder={samples?.titlePlaceholder??tr('eventTitle',{ns:'calendar'})}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
@@ -1942,7 +1895,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Date
+                    {tr('date',{ns:'calendar'})}
                   </label>
                   <input
                     type="date"
@@ -1954,12 +1907,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Time
+                    {tr('time',{ns:'calendar'})}
                   </label>
                   <input
                     type="text"
                     placeholder="15:00"
-                    aria-label="New event time"
+                    aria-label={tr('newEventTime',{ns:'calendar'})}
                     inputMode="numeric"
                     maxLength={5}
                     disabled={isAllDay(newTime)}
@@ -1968,14 +1921,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onChange={(e) => changeTime(e.target,setNewTime,()=>setNewTimeError(null))}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
-                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(newTime)} onChange={e=>{setNewTime(e.target.checked?'All day':'14:00');setNewTimeError(null);}}/>All day</label>
-                  {newTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{newTimeError}</p>}
+                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(newTime)} onChange={e=>{setNewTime(e.target.checked?'All day':'14:00');setNewTimeError(null);}}/>{tr('allDay',{ns:'calendar'})}</label>
+                  {newTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{tr('invalidTime',{ns:'calendar'})}</p>}
                 </div>
               </div>
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Category
+                  {tr('category',{ns:'calendar'})}
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
@@ -1989,7 +1942,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
                       }`}
                     >
-                      {cat}
+                      {tr(cat,{ns:'calendar'})}
                     </button>
                   ))}
                 </div>
@@ -1997,11 +1950,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Person / Counterparty
+                  {tr('personCounterparty',{ns:'calendar'})}
                 </label>
                 <input
                   type="text"
-                  placeholder={samples?.personPlaceholder??'Person or organization'}
+                  placeholder={samples?.personPlaceholder??tr('person',{ns:'calendar'})}
                   value={newPerson}
                   disabled={live}
                   onChange={(e) => setNewPerson(e.target.value)}
@@ -2011,11 +1964,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Notes & Context
+                  {tr('notesContext',{ns:'calendar'})}
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Agenda, prep requirements, or memory references"
+                  placeholder={tr('eventNotes',{ns:'calendar'})}
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
@@ -2044,20 +1997,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   />
                   <span className="text-[12px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                     <Bell className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                    <span>{live?'Reminders · Coming soon':'Set a reminder for this commitment'}</span>
+                    <span>{live?tr('remindersComingSoon',{ns:'calendar'}):tr('setReminder',{ns:'calendar'})}</span>
                   </span>
                 </label>
                 {newReminderEnabled && (
                   <div className="pt-1 space-y-1.5 animate-in fade-in duration-150">
                     <div className="text-[11px] text-[var(--mroya-text-muted)]">
-                      Notify before event start:
+                      {tr('notifyBefore',{ns:'calendar'})}
                     </div>
                     <div className="grid grid-cols-4 gap-1.5">
                       {[
-                        { label: '15m before', val: 15 },
-                        { label: '30m before', val: 30 },
-                        { label: '1h before', val: 60 },
-                        { label: '1d before', val: 1440 },
+                        { label: tr('minutesBefore',{ns:'calendar',count:15}), val: 15 },
+                        { label: tr('minutesBefore',{ns:'calendar',count:30}), val: 30 },
+                        { label: tr('hoursBefore',{ns:'calendar',count:1}), val: 60 },
+                        { label: tr('daysBefore',{ns:'calendar',count:1}), val: 1440 },
                       ].map((chip) => (
                         <button
                           key={chip.val}
@@ -2075,7 +2028,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                     <p className="text-[10px] text-[var(--mroya-text-muted)] flex items-center gap-1">
                       <Send className="w-3 h-3 text-[#229ED9]" />
-                      <span>Alert will be sent via Telegram (@MroyaBot)</span>
+                      <span>{tr('telegramAlert',{ns:'calendar'})}</span>
                     </p>
                   </div>
                 )}
@@ -2087,14 +2040,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onClick={() => setIsNewModalOpen(false)}
                   className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                 >
-                  Cancel
+                  {tr('cancel',{ns:'common'})}
                 </button>
                 <button
                   type="submit"
                   disabled={calendar?.busy||calendar?.mutationPending}
                   className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
                 >
-                  Save commitment
+                  {tr('saveEvent',{ns:'calendar'})}
                 </button>
               </div>
             </form>
@@ -2131,7 +2084,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 type="button"
                 onClick={() => setViewingEvent(null)}
-                aria-label="Close details"
+                aria-label={tr('closeDetails',{ns:'calendar'})}
                 className="p-1 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -2155,7 +2108,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {/* Counterparty / Organization */}
               {viewingEvent.person && (
                 <div className="pt-3 flex items-start gap-2">
-                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">With:</div>
+                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">{tr('withLabel',{ns:'calendar'})}</div>
                   <div className="font-medium text-[var(--mroya-text)]">
                     {viewingEvent.person}
                     {viewingEvent.organization ? ` · ${viewingEvent.organization}` : ''}
@@ -2166,7 +2119,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {/* Location or Link */}
               {viewingEvent.locationOrLink && (
                 <div className="pt-3 flex items-start gap-2">
-                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">Location:</div>
+                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">{tr('locationLabel',{ns:'calendar'})}</div>
                   <div className="font-medium text-[var(--mroya-text)]">
                     {viewingEvent.locationOrLink}
                   </div>
@@ -2176,21 +2129,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {/* Recurrence Series */}
               <div className="pt-3 space-y-1">
                 <div className="text-[var(--mroya-text-muted)] text-[12px] font-medium">
-                  Recurrence:
+                  {tr('recurrenceLabel',{ns:'calendar'})}
                 </div>
                 {(viewingEvent.recurrence||viewingEvent.api?.edit_scope==='series') ? (
                   <div className="p-2.5 rounded-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-900 dark:text-purple-200 text-[12px] space-y-1">
                     <div className="flex items-center gap-1.5 font-semibold">
                       <Repeat className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>Part of a recurring series ({viewingEvent.recurrence?formatRecurrence(viewingEvent.recurrence):'Google provider rule'}). Changes apply to the whole series.</span>
+                      <span>{tr('recurringSeriesDetail',{ns:'calendar',rule:viewingEvent.recurrence?localizedRecurrence(viewingEvent.recurrence):tr('googleProviderRule',{ns:'calendar'})})}</span>
                     </div>
                     <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
-                      Modifications apply to the entire recurring series. Individual instance exceptions are not supported by Backend yet.
+                      {tr('seriesEditWarning',{ns:'calendar'})}
                     </p>
                   </div>
                 ) : (
                   <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                    Single commitment (does not repeat)
+                    {tr('singleCommitment',{ns:'calendar'})}
                   </div>
                 )}
               </div>
@@ -2201,7 +2154,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {viewingEvent.notes && (
                 <div className="pt-3 space-y-1">
                   <div className="text-[var(--mroya-text-muted)] text-[12px] font-medium">
-                    Notes & Context:
+                    {tr('notesAndContext',{ns:'calendar'})}
                   </div>
                   <p className="p-2.5 rounded-[8px] bg-[var(--mroya-surface-muted)] text-[12.5px] leading-[19px] text-[var(--mroya-text)] whitespace-pre-wrap">
                     {viewingEvent.notes}
@@ -2215,9 +2168,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <div className="p-3 rounded-[10px] bg-pink-500/10 border border-pink-500/20 text-pink-900 dark:text-pink-200 text-[12px] flex items-start gap-2">
                     <Lock className="w-4 h-4 text-pink-600 dark:text-pink-400 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-semibold">Read-only external event</span>
+                      <span className="font-semibold">{tr('readOnlyExternalEvent',{ns:'calendar'})}</span>
                       <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
-                        This commitment is imported from an external read-only calendar ({viewingEvent.sourceName || 'Google Contacts'}). Editing and deleting must be done in the source application.
+                        {tr('externalReadOnlyDescription',{ns:'calendar',source:viewingEvent.sourceName||tr('googleContacts',{ns:'calendar'})})}
                       </p>
                     </div>
                   </div>
@@ -2238,7 +2191,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     className="px-3 py-1.5 rounded-[8px] border border-red-500/30 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
+                    <span>{tr('deleteEventAction',{ns:'calendar'})}</span>
                   </button>
                 )}
               </div>
@@ -2248,7 +2201,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onClick={() => setViewingEvent(null)}
                   className="px-3.5 py-1.5 rounded-[8px] border border-[var(--mroya-divider)] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                 >
-                  Close
+                  {tr('close',{ns:'common'})}
                 </button>
                 {!viewingEvent.isReadOnly && !readOnly && (
                   <button
@@ -2257,7 +2210,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12.5px] font-semibold cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
                     <Pencil className="w-3.5 h-3.5" />
-                    <span>{viewingEvent.api?.edit_scope==='series'?'Edit entire series':'Edit commitment'}</span>
+                    <span>{tr(viewingEvent.api?.edit_scope==='series'?'editEntireSeries':'editCommitment',{ns:'calendar'})}</span>
                   </button>
                 )}
               </div>
@@ -2282,7 +2235,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <h2 id="edit-event-title" className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                  Edit commitment
+                  {tr('editCommitment',{ns:'calendar'})}
                 </h2>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
                   {editingEvent.sourceName || 'Mroya Calendar'}
@@ -2291,7 +2244,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 type="button"
                 onClick={() => setEditingEvent(null)}
-                aria-label="Close edit modal"
+                aria-label={tr('closeEdit',{ns:'calendar'})}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2302,7 +2255,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {calendarStatus}
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Commitment title *
+                  {tr('eventTitleLabel',{ns:'calendar'})}
                 </label>
                 <input
                   type="text"
@@ -2316,7 +2269,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Date
+                    {tr('date',{ns:'calendar'})}
                   </label>
                   <input
                     type="date"
@@ -2328,11 +2281,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Time
+                    {tr('time',{ns:'calendar'})}
                   </label>
                   <input
                     type="text"
-                    aria-label="Edit event time"
+                    aria-label={tr('editEventTime',{ns:'calendar'})}
                     inputMode="numeric"
                     maxLength={5}
                     disabled={isAllDay(editTime)}
@@ -2341,14 +2294,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onChange={(e) => changeTime(e.target,setEditTime,()=>setEditTimeError(null))}
                     className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                   />
-                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(editTime)} onChange={e=>{setEditTime(e.target.checked?'All day':'14:00');setEditTimeError(null);}}/>All day</label>
-                  {editTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{editTimeError}</p>}
+                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(editTime)} onChange={e=>{setEditTime(e.target.checked?'All day':'14:00');setEditTimeError(null);}}/>{tr('allDay',{ns:'calendar'})}</label>
+                  {editTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{tr('invalidTime',{ns:'calendar'})}</p>}
                 </div>
               </div>
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Category
+                  {tr('category',{ns:'calendar'})}
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
@@ -2362,7 +2315,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
                       }`}
                     >
-                      {cat}
+                      {tr(cat,{ns:'calendar'})}
                     </button>
                   ))}
                 </div>
@@ -2370,21 +2323,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Person / Counterparty
+                  {tr('personCounterparty',{ns:'calendar'})}
                 </label>
                 <input
                   type="text"
                   value={editPerson}
                   disabled={live}
                   onChange={(e) => setEditPerson(e.target.value)}
-                  placeholder="Person or organization"
+                  placeholder={tr('person',{ns:'calendar'})}
                   className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
                 />
               </div>
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  Notes & Context
+                  {tr('notesContext',{ns:'calendar'})}
                 </label>
                 <textarea
                   rows={2}
@@ -2399,7 +2352,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {(editingEvent.recurrence||editingEvent.api?.edit_scope==='series') && (
                   <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1 mb-1">
                     <Repeat className="w-3.5 h-3.5" />
-                    <span>Part of a recurring series (Applies to all occurrences)</span>
+                    <span>{tr('recurringSeries',{ns:'calendar'})}</span>
                   </div>
                 )}
                 <RecurrenceEditor
@@ -2416,14 +2369,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onClick={() => setEditingEvent(null)}
                   className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                 >
-                  Cancel
+                  {tr('cancelAction',{ns:'calendar'})}
                 </button>
                 <button
                   type="submit"
                   disabled={calendar?.busy||calendar?.mutationPending}
                   className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
                 >
-                  Save changes
+                  {tr('saveChanges',{ns:'calendar'})}
                 </button>
               </div>
             </form>
@@ -2450,7 +2403,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   id="delete-event-dialog-title"
                   className="text-[16px] font-semibold text-[var(--mroya-text)] tracking-[-0.01em]"
                 >
-                  {(deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series') ? 'Delete recurring series?' : 'Delete commitment?'}
+                  {tr((deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series')?'deleteSeriesPrompt':'deleteCommitmentPrompt',{ns:'calendar'})}
                 </h3>
                 <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
                   {deletingEvent.title}
@@ -2459,7 +2412,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <button
                 type="button"
                 onClick={() => setDeletingEvent(null)}
-                aria-label="Close dialog"
+                aria-label={tr('closeDialog',{ns:'calendar'})}
                 className="p-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2468,8 +2421,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             <p className="text-[13.5px] leading-[20px] text-[var(--mroya-text-muted)]">
               {(deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series')
-                ? 'Permanently delete this recurring series and all its scheduled occurrences? This cannot be undone.'
-                : 'Permanently delete this commitment from your calendar? This cannot be undone.'}
+                ? tr('deleteSeriesConfirmation',{ns:'calendar'})
+                : tr('deleteCommitmentConfirmation',{ns:'calendar'})}
             </p>
 
             {calendarStatus}
@@ -2479,7 +2432,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 onClick={() => setDeletingEvent(null)}
                 className="px-3.5 py-2 rounded-[8px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] text-[13px] font-medium text-[var(--mroya-text)] cursor-pointer"
               >
-                Cancel
+                {tr('cancel',{ns:'common'})}
               </button>
               <button
                 type="button"
@@ -2487,7 +2440,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 disabled={calendar?.busy||calendar?.mutationPending}
                 className="px-3.5 py-2 rounded-[8px] bg-[var(--mroya-error)] hover:opacity-90 active:scale-[0.98] text-white text-[13px] font-semibold transition-all cursor-pointer shadow-2xs"
               >
-                Delete
+                {tr('delete',{ns:'common'})}
               </button>
             </div>
           </div>

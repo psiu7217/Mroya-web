@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { BrandMark } from './BrandMark';
+import {tr} from '../i18n';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
 import { ChatActivityTimeline } from './ChatActivityTimeline';
 import {
@@ -70,12 +71,6 @@ export interface ChatWorkspaceProps {
   isThinking?: boolean;
 }
 
-const STARTER_SUGGESTIONS = [
-  'What do you remember about me?',
-  "What's coming up this week?",
-  'Remember something important',
-];
-
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
   memoriesCount,
@@ -100,6 +95,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   isAdmin = true,
   isThinking = false,
 }) => {
+  const starterSuggestions=[tr('starterRememberMe',{ns:'chat'}),tr('starterUpcoming',{ns:'chat'}),tr('starterRemember',{ns:'chat'})];
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
@@ -352,10 +348,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const handleStarterClick = (promptText: string) => {
-    if (promptText === 'Remember something important') {
+    if (promptText === tr('starterRemember',{ns:'chat'})) {
       draftRevision.current++;
       setInput(
-        samples?.memoryPrompt ?? 'Remember that '
+        samples?.memoryPrompt ?? tr('starterPromptInput',{ns:'chat'})
       );
       textareaRef.current?.focus();
     } else {
@@ -387,7 +383,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <button
               type="button"
               onClick={onOpenMobileMenu}
-              aria-label="Open navigation menu"
+              aria-label={tr('openNavigation',{ns:'common'})}
               className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer shrink-0"
             >
               <Menu className="w-5 h-5" />
@@ -397,7 +393,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               type="button"
               onClick={onNewChat}
               className="group flex items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
-              title="Mroya (бел. «мроя») — светлая мара, летуценне і памяць"
+              title={tr('brandMeaning',{ns:'common'})}
             >
               <BrandMark size="sm" glow />
               <div className="flex flex-col min-w-0">
@@ -405,7 +401,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   Mroya
                 </span>
                 <span className="text-[8.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-0.5 opacity-75 uppercase">
-                  мроя · dream & memory
+                  {tr('brandTagline',{ns:'common'})}
                 </span>
               </div>
             </button>
@@ -415,7 +411,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           <div className="hidden lg:flex items-center gap-2.5 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <h1 className="text-[15px] font-semibold text-[var(--mroya-text)] truncate">
-                {conversation ? conversation.title : 'New chat'}
+                {conversation ? conversation.title : tr('newChat',{ns:'chat'})}
               </h1>
               <span
                 className="text-[var(--mroya-text-muted)]"
@@ -424,7 +420,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 ·
               </span>
               <span className="text-[13px] text-[var(--mroya-text-muted)] whitespace-nowrap">
-                Personal space
+                {tr('personalWorkspace',{ns:'chat'})}
               </span>
             </div>
           </div>
@@ -438,7 +434,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               type="button"
               onClick={() => setMobileUserMenuOpen((prev) => !prev)}
               aria-expanded={mobileUserMenuOpen}
-              aria-label="User account and options"
+              aria-label={tr('accountOptions',{ns:'chat'})}
               className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[12px] font-bold text-[var(--mroya-primary)] hover:opacity-90 transition-opacity cursor-pointer shadow-2xs"
             >
               {account.initials}
@@ -447,7 +443,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {mobileUserMenuOpen && (
               <div
                 role="menu"
-                aria-label="Mobile user menu"
+                aria-label={tr('mobileUserMenu',{ns:'chat'})}
                 className="absolute right-0 mt-2 w-64 py-1 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-50 animate-in fade-in zoom-in-95 duration-100"
               >
                 {/* User Header */}
@@ -466,7 +462,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
                       <span className="font-semibold text-[var(--mroya-text)] truncate">
-                        {live ? 'Personal workspace' : plan === 'premium' ? 'Mroya Premium' : 'Free Plan'}
+                        {live ? tr('personalWorkspace',{ns:'chat'}) : plan === 'premium' ? 'Mroya Premium' : tr('freePlan',{ns:'chat'})}
                       </span>
                     </div>
                     <button
@@ -477,7 +473,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       }}
                       className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)] transition-colors cursor-pointer shrink-0"
                     >
-                      {plan === 'premium' ? 'Manage' : 'Upgrade'}
+                      {plan === 'premium' ? tr('manage',{ns:'chat'}) : tr('upgrade',{ns:'chat'})}
                     </button>
                   </div>
                 </div>
@@ -493,7 +489,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                   >
                     <Plus className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-                    <span>New chat</span>
+                    <span>{tr('newChat',{ns:'chat'})}</span>
                   </button>
 
                   <button
@@ -506,10 +502,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   >
                     <span className="flex items-center gap-2.5">
                       <BookOpen className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-                      <span>Memory details</span>
+                      <span>{tr('memoryDetails',{ns:'chat'})}</span>
                     </span>
                     <span className="text-[11px] text-[var(--mroya-text-muted)] font-medium">
-                      {isContextPanelOpen ? 'Open' : 'Closed'}
+                      {isContextPanelOpen ? tr('open',{ns:'chat'}) : tr('closed',{ns:'chat'})}
                     </span>
                   </button>
 
@@ -526,10 +522,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       ) : (
                         <Sun className="w-4 h-4 text-[var(--mroya-text-muted)]" />
                       )}
-                      <span>Appearance</span>
+                      <span>{tr('appearance',{ns:'chat'})}</span>
                     </span>
                     <span className="text-[11px] text-[var(--mroya-text-muted)] capitalize font-medium">
-                      {theme} mode
+                      {tr('themeMode',{ns:'chat',theme})}
                     </span>
                   </button>
 
@@ -543,7 +539,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                     >
                       <Settings className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-                      <span>Settings & accounts</span>
+                      <span>{tr('settingsAccounts',{ns:'chat'})}</span>
                     </button>
                   )}
                 </div>
@@ -556,14 +552,14 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {/* Subscription state indicator & demo switch */}
             {plan === 'free' ? (
               <div className="flex items-center gap-1.5 text-[12px] text-[var(--mroya-text-muted)]">
-                <span>{live ? 'Account' : 'Free'}</span>
+                <span>{live ? tr('account',{ns:'chat'}) : tr('free',{ns:'chat'})}</span>
                 <span aria-hidden="true">·</span>
                 <button
                   type="button"
                   onClick={onOpenPlanModal}
                   className="px-2.5 py-1 rounded-full text-[12px] font-semibold text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  Upgrade
+                  {tr('upgrade',{ns:'chat'})}
                 </button>
               </div>
             ) : (
@@ -581,8 +577,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <button
               type="button"
               onClick={onToggleTheme}
-              title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
-              aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+              title={theme === 'light' ? tr('switchDark',{ns:'chat'}) : tr('switchLight',{ns:'chat'})}
+              aria-label={theme === 'light' ? tr('switchDark',{ns:'chat'}) : tr('switchLight',{ns:'chat'})}
               className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
             >
               {theme === 'light' ? (
@@ -596,8 +592,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <button
               type="button"
               onClick={onToggleContextPanel}
-              title={isContextPanelOpen ? 'Hide memory details' : 'Show memory details'}
-              aria-label="Toggle memory details panel"
+              title={isContextPanelOpen ? tr('hideMemoryDetails',{ns:'chat'}) : tr('showMemoryDetails',{ns:'chat'})}
+              aria-label={tr('toggleMemoryDetails',{ns:'chat'})}
               aria-pressed={isContextPanelOpen}
               className={`h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
                 isContextPanelOpen
@@ -606,7 +602,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               }`}
             >
               <PanelRight className="w-4 h-4" />
-              <span>Memory details</span>
+              <span>{tr('memoryDetails',{ns:'chat'})}</span>
             </button>
 
             {/* Contextual header menu */}
@@ -614,7 +610,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               <button
                 type="button"
                 onClick={() => setHeaderMenuOpen((v) => !v)}
-                aria-label="Conversation options"
+                aria-label={tr('conversationOptions',{ns:'chat'})}
                 className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4" />
@@ -630,7 +626,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-                    <span>Start new chat</span>
+                    <span>{tr('startNewChat',{ns:'chat'})}</span>
                   </button>
                   <button
                     type="button"
@@ -641,7 +637,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
                   >
                     <BookOpen className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-                    <span>{isContextPanelOpen ? 'Hide' : 'Show'} related memories</span>
+                    <span>{isContextPanelOpen ? tr('hideRelatedMemories',{ns:'chat'}) : tr('showRelatedMemories',{ns:'chat'})}</span>
                   </button>
                   <button
                     type="button"
@@ -653,7 +649,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                     <span>
-                      {live ? 'Subscription unavailable' : <>Switch to {plan === 'free' ? 'Premium' : 'Free'} preview</>}
+                      {live ? tr('subscriptionUnavailable',{ns:'chat'}) : tr('switchPlanPreview',{ns:'chat',plan:plan === 'free' ? tr('premium',{ns:'chat'}) : tr('free',{ns:'chat'})})}
                     </span>
                   </button>
                 </div>
@@ -706,10 +702,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-error)] shrink-0" />
                           )}
                           {msg.status === 'failed'
-                            ? 'Reply failed'
+                            ? tr('replyFailed',{ns:'chat'})
                             : msg.status === 'streaming'
-                            ? 'Receiving reply…'
-                            : 'Processing…'}
+                            ? tr('receivingReply',{ns:'chat'})
+                            : tr('processing',{ns:'chat'})}
                         </span>
                       )}
                     </div>
@@ -727,7 +723,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             }
                             className="font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                           >
-                            Review
+                            {tr('review',{ns:'chat'})}
                           </button>
                         </div>
                       )}
@@ -755,10 +751,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                               <AlertTriangle className="w-4 h-4 text-[var(--mroya-error)] shrink-0 mt-0.5" />
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                                  Reply failed
+                                  {tr('replyFailed',{ns:'chat'})}
                                 </div>
                                 <p className="text-[12.5px] leading-relaxed text-[var(--mroya-text-muted)] mt-0.5">
-                                  An error occurred while communicating with the assistant service or the model API is temporarily unreachable.
+                                  {tr('assistantError',{ns:'chat'})}
                                 </p>
                               </div>
                             </div>
@@ -767,7 +763,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 type="button"
                                 onClick={() => handleReportIssue(msg)}
                                 disabled={!actionState?.available || reporting || reported}
-                                aria-label="Report issue to backend"
+                                aria-label={tr('reportIssue',{ns:'chat'})}
                                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] text-[12px] font-medium transition-colors cursor-pointer select-none ${
                                   reported
                                     ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] cursor-default'
@@ -777,17 +773,17 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 {reporting ? (
                                   <>
                                     <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
-                                    <span>Sending report…</span>
+                                    <span>{tr('sendingReport',{ns:'chat'})}</span>
                                   </>
                                 ) : reported ? (
                                   <>
                                     <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                                    <span>Report sent</span>
+                                    <span>{tr('reportSent',{ns:'chat'})}</span>
                                   </>
                                 ) : (
                                   <>
                                     <Flag className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
-                                    <span>Report issue</span>
+                                    <span>{tr('reportIssueLabel',{ns:'chat'})}</span>
                                   </>
                                 )}
                               </button>
@@ -797,8 +793,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                   type="button"
                                   onClick={() => handleCopyAdminDiagnostics(msg)}
                                   disabled={!actionState?.available || actionState.copying}
-                                  title="Admin only: Copy complete error diagnostics payload to clipboard"
-                                  aria-label="Copy Error For Admin Diagnostics"
+                                  title={tr('adminDiagnosticsTitle',{ns:'chat'})}
+                                  aria-label={tr('copyDiagnostics',{ns:'chat'})}
                                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] text-[12px] font-medium transition-colors cursor-pointer select-none ${
                                     copied
                                       ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] cursor-default'
@@ -808,12 +804,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                   {copied ? (
                                     <>
                                       <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                                      <span>Diagnostics copied!</span>
+                                      <span>{tr('diagnosticsCopied',{ns:'chat'})}</span>
                                     </>
                                   ) : (
                                     <>
                                       <Terminal className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
-                                      <span>Copy Error For Admin Diagnostics</span>
+                                      <span>{tr('copyDiagnostics',{ns:'chat'})}</span>
                                     </>
                                   )}
                                 </button>
@@ -821,7 +817,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                               {reported && (
                                 <span className="text-[11px] text-[var(--mroya-text-muted)] animate-in fade-in duration-150">
-                                  Thank you. Error report sent to backend.
+                                  {tr('thankYouReport',{ns:'chat'})}
                                 </span>
                               )}
                             </div>
@@ -830,7 +826,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                         <AssistantMarkdown content={msg.content} />
 
-                        {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">Sign in</button>}
+                        {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}
                         {msg.structuredPoints && msg.structuredPoints.length > 0 && (
                           <div className="pt-3 border-t border-[var(--mroya-divider)]/70 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
@@ -908,7 +904,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                       )}
                                       <span>
                                         {isAdded && act.type === 'add-calendar'
-                                          ? 'Added to Oct 16 calendar'
+                                          ? tr('addedCalendarDate',{ns:'chat'})
                                           : act.label}
                                       </span>
                                     </button>
@@ -925,8 +921,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         <button
                           type="button"
                           onClick={() => handleCopyMessage(msg.id, msg.content)}
-                          aria-label={copiedMessageId === msg.id ? 'Copied' : 'Copy response'}
-                          title={copiedMessageId === msg.id ? 'Copied!' : 'Copy'}
+                          aria-label={copiedMessageId === msg.id ? tr('copied',{ns:'common'}) : tr('copyResponse',{ns:'chat'})}
+                          title={copiedMessageId === msg.id ? tr('copiedBang',{ns:'chat'}) : tr('copy',{ns:'chat'})}
                           className="inline-flex items-center justify-center p-1 -ml-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
                         >
                           {copiedMessageId === msg.id ? (
@@ -951,7 +947,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </div>
 
                   <div className="w-fit min-w-[72px] px-4 py-3 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] flex items-center justify-center">
-                    <div role="status" aria-label="Mroya is thinking" className="flex items-center gap-1.5 py-0.5">
+                    <div role="status" aria-label={tr('thinking',{ns:'chat'})} className="flex items-center gap-1.5 py-0.5">
                       <span className="guest-dot" />
                       <span className="guest-dot" />
                       <span className="guest-dot" />
@@ -969,15 +965,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 className="text-[24px] sm:text-[28px] font-semibold tracking-[-0.02em] text-[var(--mroya-text)] mb-2"
                 style={{ textWrap: 'balance' }}
               >
-                Good afternoon. What&apos;s on your mind?
+                {tr('goodAfternoon',{ns:'chat'})}
               </h2>
               <p className="text-[14px] text-[var(--mroya-text-muted)] max-w-md mb-8">
-                {live ? 'Ask about your conversations, or tell Mroya something to remember.' : 'Ask about past conversations, client agreements, upcoming deadlines, or tell Mroya something new to remember.'}
+                {live ? tr('askConversationsRemember',{ns:'chat'}) : tr('askPastConversations',{ns:'chat'})}
               </p>
 
               {/* 3 Subtle Starter Suggestions */}
               <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-xl">
-                {STARTER_SUGGESTIONS.map((suggestion) => (
+                {starterSuggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
@@ -1009,7 +1005,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={() => setAttachedFile(null)}
-                    aria-label="Remove attachment"
+                    aria-label={tr('removeAttachment',{ns:'chat'})}
                     className="text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -1020,7 +1016,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
             <div className="px-3.5 pt-3 pb-2">
               <label htmlFor="mroya-chat-composer" className="sr-only">
-                Message Mroya
+                {tr('messageLabel',{ns:'chat'})}
               </label>
               <textarea
                 id="mroya-chat-composer"
@@ -1029,7 +1025,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 value={input}
                 onChange={(e) => { draftRevision.current++; setInput(e.target.value); }}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Mroya anything..."
+                placeholder={tr('askPlaceholder',{ns:'chat'})}
                 className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border-0 border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 max-h-40"
               />
             </div>
@@ -1063,7 +1059,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     {liveTranscript ? (
                       <span className="italic font-medium">&ldquo;{liveTranscript}&rdquo;</span>
                     ) : (
-                      <span className="text-[var(--mroya-text-muted)]">Запись голоса... говорите сообщение</span>
+                      <span className="text-[var(--mroya-text-muted)]">{tr('recordingPreview',{ns:'chat'})}</span>
                     )}
                   </div>
                 </div>
@@ -1073,8 +1069,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handleCancelRecording}
-                    title="Отменить запись"
-                    aria-label="Отменить запись"
+                    title={tr('cancelRecording',{ns:'chat'})}
+                    aria-label={tr('cancelRecording',{ns:'chat'})}
                     className="p-1.5 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
@@ -1084,22 +1080,22 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handleStopAndInsertText}
-                    title="Остановить запись и вставить текст в сообщение"
+                    title={tr('stopRecordingInsert',{ns:'chat'})}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
                   >
                     <Square className="w-3.5 h-3.5 text-[var(--mroya-primary)] fill-current" />
-                    <span>Остановить</span>
+                    <span>{tr('stop',{ns:'chat'})}</span>
                   </button>
 
                   {/* Button: Отправить запись (голос в текст + авто-отправка) */}
                   <button
                     type="button"
                     onClick={handleStopAndSend}
-                    title="Перевести голос в текст и сразу отправить"
+                    title={tr('transcribeSend',{ns:'chat'})}
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12px] font-semibold transition-colors cursor-pointer shadow-xs whitespace-nowrap"
                   >
                     <ArrowUp className="w-3.5 h-3.5 stroke-[2.4]" />
-                    <span>Отправить</span>
+                    <span>{tr('send',{ns:'chat'})}</span>
                   </button>
                 </div>
               </div>
@@ -1110,8 +1106,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handleAttachSample}
-                    title="Attach note or document"
-                    aria-label="Attach note or document"
+                    title={tr('attachNote',{ns:'chat'})}
+                    aria-label={tr('attachNote',{ns:'chat'})}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors cursor-pointer ${
                       attachedFile
                         ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]'
@@ -1119,30 +1115,30 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     }`}
                   >
                     <Paperclip className="w-4 h-4" />
-                    <span className="hidden sm:inline">Attach</span>
+                    <span className="hidden sm:inline">{tr('attach',{ns:'chat'})}</span>
                   </button>
 
                   {/* Voice recording button */}
                   <button
                     type="button"
                     onClick={startRecording}
-                    title="Записать голосовое сообщение (переводится в текст)"
-                    aria-label="Записать голосовое сообщение"
+                    title={tr('recordVoiceHelp',{ns:'chat'})}
+                    aria-label={tr('recordVoice',{ns:'chat'})}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
                   >
                     <Mic className="w-4 h-4 text-[var(--mroya-primary)]" />
-                    <span className="hidden sm:inline">Голос</span>
+                    <span className="hidden sm:inline">{tr('voice',{ns:'chat'})}</span>
                   </button>
 
                   <span className="text-[12px] text-[var(--mroya-text-muted)] hidden sm:inline pl-1">
-                    Recalling across {memoriesCount} saved memories · Enter to send
+                    {tr('recallingMemories',{ns:'chat',count:memoriesCount})}
                   </span>
                 </div>
 
                 <button
                   type="submit"
                   disabled={pending || submitting || (!input.trim() && !attachedFile)}
-                  aria-label="Send message"
+                  aria-label={tr('sendMessage',{ns:'chat'})}
                   className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >
                   <ArrowUp className="w-4 h-4 stroke-[2.4]" />

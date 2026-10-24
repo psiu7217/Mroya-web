@@ -41,18 +41,18 @@ function mount(initial){
 const note=(id,content,title=id)=>Object.freeze({id,title,content,summary:'Synthetic summary',tags:['Synthetic'],category:'Checklist',noteType:'checklist',updatedAt:'2026-10-22'});
 const click=task=>{const target={closest:()=>null};task.props.onClick({target,currentTarget:target,preventDefault(){},stopPropagation(){}});};
 test('real GFM tasks toggle by click/Enter/Space, Reset clears them, source and copied Markdown remain unchanged',async()=>{
- const source='- [x] First\n- [ ] Second',notes=[note('one',source)],view=mount({notes});view.open('one');assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[true,false]);assert.match(view.html,/1 из 2 выполнено/);
- click(view.tasks[1]);view.flush();assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[true,true]);assert.match(view.html,/2 из 2 выполнено/);
+ const source='- [x] First\n- [ ] Second',notes=[note('one',source)],view=mount({notes});view.open('one');assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[true,false]);assert.match(view.html,/1 of 2 completed/);
+ click(view.tasks[1]);view.flush();assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[true,true]);assert.match(view.html,/2 of 2 completed/);
  for(const keyName of ['Enter',' ']){const task=view.tasks[0],target={};task.props.onKeyDown({key:keyName,target,currentTarget:target,preventDefault(){},stopPropagation(){}});view.flush();}
  assert.equal(view.tasks[0].props['aria-checked'],true);
- button(view,'Сбросить список').props.onClick();view.flush();assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[false,false]);assert.match(view.html,/0 из 2 выполнено/);
+ button(view,'Reset checklist').props.onClick();view.flush();assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[false,false]);assert.match(view.html,/0 of 2 completed/);
  let copied;clipboard=async value=>{copied=value;};await button(view,'Copy note text').props.onClick();view.flush();assert.equal(copied,'one\n\n'+source);assert.equal(notes[0].content,source);
  view.unmount();assert.equal(requests,0);
 });
 test('ordered, nested, quoted and loose tasks use parsed source positions; fenced/escaped markers are not tasks',()=>{
  const source='```md\n- [ ] Code only\n```\n\n1. [x] Ordered\n   - [ ] Nested\n\n> - [x] Quoted\n\n- [x] Loose\n\n  Extra paragraph\n\n\\- [ ] Escaped';
- const view=mount({notes:[note('complex',source)]});view.open('complex');assert.equal(view.tasks.length,4);assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[true,false,true,true]);assert.match(view.html,/3 из 4 выполнено/);
- click(view.tasks[1]);view.flush();assert.match(view.html,/4 из 4 выполнено/);assert.equal(view.tasks[0].props['aria-checked'],true);view.unmount();
+ const view=mount({notes:[note('complex',source)]});view.open('complex');assert.equal(view.tasks.length,4);assert.deepEqual(view.tasks.map(t=>t.props['aria-checked']),[true,false,true,true]);assert.match(view.html,/3 of 4 completed/);
+ click(view.tasks[1]);view.flush();assert.match(view.html,/4 of 4 completed/);assert.equal(view.tasks[0].props['aria-checked'],true);view.unmount();
 });
 test('checks are note/source-scoped, retained on back navigation, discarded on unmount or changed canonical content',()=>{
  const a=note('a','- [ ] A'),b=note('b','- [ ] B'),view=mount({notes:[a,b]});view.open('a');click(view.tasks[0]);view.flush();view.open('Back to Notes');view.open('b');assert.equal(view.tasks[0].props['aria-checked'],false);view.open('Back to Notes');view.open('a');assert.equal(view.tasks[0].props['aria-checked'],true);
@@ -83,7 +83,7 @@ test('live Notes distinguish pending/error/confirmed empty; retry/pagination cal
  let retries=0,more=0;
  const runtime={scopeKey:'synthetic-scope',loaded:false,loading:true,loadingMore:false,error:null,hasMore:false,selectedId:null,detail:null,detailLoading:false,detailError:null,onSelect(){},onRetry(){retries++;},onMore(){more++;},onRetryDetail(){}};
  const view=mount({notes:[],designPreview:false,runtime});assert.match(view.html,/Loading notes/);assert.doesNotMatch(view.html,/No notes yet|Empty state/);
- runtime.loading=false;runtime.error='Synthetic load error';view.update({runtime:{...runtime}});assert.match(view.html,/Synthetic load error/);assert.doesNotMatch(view.html,/No notes yet/);view.open('Retry');assert.equal(retries,1);
+ runtime.loading=false;runtime.error='Synthetic load error';view.update({runtime:{...runtime}});assert.match(view.html,/Could not load this information/);assert.doesNotMatch(view.html,/No notes yet/);view.open('Try again');assert.equal(retries,1);
  runtime.loaded=true;runtime.error=null;view.update({runtime:{...runtime}});assert.match(view.html,/No notes yet/);
  runtime.hasMore=true;view.update({notes:[{...note('a','not searched content'),category:undefined,noteType:undefined}],runtime:{...runtime}});view.open('Load more notes');assert.equal(more,1);assert.match(view.html,/loaded note metadata only/);assert.doesNotMatch(view.html,/Empty state/);view.unmount();assert.equal(requests,0);
 });
@@ -94,7 +94,7 @@ test('live selected note shows only confirmed detail, preserves local checklists
  const runtime={scopeKey:'live-scope',loaded:true,loading:false,loadingMore:false,error:null,hasMore:false,selectedId:null,detail:null,detailLoading:false,detailError:null,onSelect(id){selected=id;},onRetry(){},onMore(){},onRetryDetail(){detailRetries++;}};
  const view=mount({notes:[brief],designPreview:false,runtime});view.open('remote');assert.equal(selected,'remote');
  runtime.selectedId='remote';runtime.detailLoading=true;view.update({runtime:{...runtime}});assert.match(view.html,/Loading note/);assert.equal(button(view,'Copy note text').props.disabled,true);assert.equal(view.tasks.length,0);
- runtime.detailLoading=false;runtime.detailError='Note unavailable';view.update({runtime:{...runtime}});assert.match(view.html,/Note unavailable/);view.open('Retry');assert.equal(detailRetries,1);
+ runtime.detailLoading=false;runtime.detailError='Note unavailable';view.update({runtime:{...runtime}});assert.match(view.html,/Could not load this information/);view.open('Try again');assert.equal(detailRetries,1);
  runtime.detailError=null;runtime.detail={...brief,content:original};view.update({runtime:{...runtime}});assert.equal(view.tasks.length,1);click(view.tasks[0]);view.flush();assert.equal(view.tasks[0].props['aria-checked'],true);
  let copied;clipboard=async v=>{copied=v;};await button(view,'Copy note text').props.onClick();assert.equal(copied,'remote\n\n'+original);assert.equal(runtime.detail.content,original);view.open('Back to Notes');assert.equal(selected,null);
  runtime.selectedId=null;runtime.detail=null;view.update({notes:[{...brief,content:'Secret body-only term'}],runtime:{...runtime}});

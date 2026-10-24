@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Repeat, ChevronDown, Check, Calendar, Hash } from 'lucide-react';
 import { RecurrenceRule, RecurrenceFrequency } from '../types/mroya';
-import { formatRecurrence, WEEKDAYS } from '../utils/recurrenceUtils';
+import { formatRecurrence,localizedRecurrence,WEEKDAYS } from '../utils/recurrenceUtils';
+import {tr} from '../i18n';
+import {weekdayName} from '../i18n/format';
 
 interface RecurrenceEditorProps {
   value?: RecurrenceRule | null;
@@ -150,7 +152,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
       <div>
         <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1 flex items-center gap-1.5">
           <Repeat className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-          <span>Repeat</span>
+          <span>{tr('repeat',{ns:'reminders'})}</span>
         </label>
         <div className="relative">
           <select
@@ -158,12 +160,12 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
             onChange={(e) => handleModeChange(e.target.value)}
             className="w-full px-3 py-2 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] shadow-2xs cursor-pointer appearance-none pr-8 font-medium"
           >
-            <option value="none">Does not repeat</option>
-            <option value="daily">Every day</option>
-            <option value="weekly">Every week</option>
-            <option value="monthly">Every month</option>
-            <option value="yearly">Every year</option>
-            <option value="custom">Custom...</option>
+            <option value="none">{tr('doesNotRepeat',{ns:'reminders'})}</option>
+            <option value="daily">{tr('everyDay',{ns:'reminders'})}</option>
+            <option value="weekly">{tr('everyWeek',{ns:'reminders',days:''})}</option>
+            <option value="monthly">{tr('everyMonth',{ns:'reminders'})}</option>
+            <option value="yearly">{tr('everyYear',{ns:'reminders'})}</option>
+            <option value="custom">{tr('custom',{ns:'reminders'})}</option>
           </select>
           <ChevronDown className="w-4 h-4 text-[var(--mroya-text-muted)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
@@ -174,7 +176,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
         <div className="p-3.5 rounded-[12px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-3.5 text-[12px] animate-in fade-in duration-150">
           {/* Interval and Frequency */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <span className="text-[var(--mroya-text)] font-medium shrink-0">Repeat every</span>
+            <span className="text-[var(--mroya-text)] font-medium shrink-0">{tr('repeatEvery',{ns:'reminders'})}</span>
             <input
               type="number"
               min="1"
@@ -196,10 +198,10 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
               }}
               className="px-3 py-1.5 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] font-medium text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
             >
-              <option value="daily">{interval === 1 ? 'day' : 'days'}</option>
-              <option value="weekly">{interval === 1 ? 'week' : 'weeks'}</option>
-              <option value="monthly">{interval === 1 ? 'month' : 'months'}</option>
-              <option value="yearly">{interval === 1 ? 'year' : 'years'}</option>
+              <option value="daily">{tr('unitDay',{ns:'reminders',count:interval})}</option>
+              <option value="weekly">{tr('unitWeek',{ns:'reminders',count:interval})}</option>
+              <option value="monthly">{tr('unitMonth',{ns:'reminders',count:interval})}</option>
+              <option value="yearly">{tr('unitYear',{ns:'reminders',count:interval})}</option>
             </select>
           </div>
 
@@ -207,7 +209,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
           {frequency === 'weekly' && (
             <div>
               <label className="block text-[11px] font-semibold text-[var(--mroya-text-muted)] uppercase tracking-wider mb-1.5">
-                On days
+                {tr('onDays',{ns:'reminders'})}
               </label>
               <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map((d) => {
@@ -217,14 +219,14 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
                       key={d.value}
                       type="button"
                       onClick={() => toggleWeekday(d.value)}
-                      title={d.full}
+                      title={weekdayName((d.value+6)%7)}
                       className={`h-8 rounded-[8px] text-[12px] font-semibold transition-all cursor-pointer flex items-center justify-center border ${
                         selected
                           ? 'bg-[var(--mroya-primary)] text-white border-[var(--mroya-primary)] shadow-2xs'
                           : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)]'
                       }`}
                     >
-                      {d.short.slice(0, 1)}
+                      {weekdayName((d.value+6)%7,'short')}
                     </button>
                   );
                 })}
@@ -235,7 +237,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
           {/* Ends option */}
           <div className="pt-2 border-t border-[var(--mroya-divider)]/70">
             <label className="block text-[11px] font-semibold text-[var(--mroya-text-muted)] uppercase tracking-wider mb-2">
-              Ends
+              {tr('ends',{ns:'reminders'})}
             </label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -249,7 +251,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
                   }}
                   className="accent-[var(--mroya-primary)]"
                 />
-                <span className="text-[var(--mroya-text)] font-medium">Never</span>
+                <span className="text-[var(--mroya-text)] font-medium">{tr('never',{ns:'reminders'})}</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
@@ -263,7 +265,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
                   }}
                   className="accent-[var(--mroya-primary)]"
                 />
-                <span className="text-[var(--mroya-text)] font-medium">On date</span>
+                <span className="text-[var(--mroya-text)] font-medium">{tr('onDate',{ns:'reminders'})}</span>
                 {endCondition === 'on_date' && (
                   <input
                     type="date"
@@ -288,7 +290,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
                   }}
                   className="accent-[var(--mroya-primary)]"
                 />
-                <span className="text-[var(--mroya-text)] font-medium">After</span>
+                <span className="text-[var(--mroya-text)] font-medium">{tr('after',{ns:'reminders'})}</span>
                 {endCondition === 'after_count' && (
                   <div className="flex items-center gap-1.5 ml-2">
                     <input
@@ -303,7 +305,7 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
                       }}
                       className="w-14 px-2 py-1 rounded-[6px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] text-center font-bold text-[var(--mroya-text)]"
                     />
-                    <span className="text-[var(--mroya-text-muted)]">occurrences</span>
+                    <span className="text-[var(--mroya-text-muted)]">{tr('occurrences',{ns:'reminders'})}</span>
                   </div>
                 )}
               </label>
@@ -318,10 +320,10 @@ export const RecurrenceEditor: React.FC<RecurrenceEditorProps> = ({
           <Repeat className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0 mt-0.5" />
           <div className="space-y-0.5">
             <span className="font-semibold text-[var(--mroya-primary)]">
-              {formatRecurrence(value)} at {baseTime}
+              {localizedRecurrence(value)} · {baseTime}
             </span>
             <p className="text-[var(--mroya-text-muted)]">
-              Telegram notification will repeat according to this schedule.
+              {tr('repeatScheduleHelp',{ns:'reminders'})}
             </p>
           </div>
         </div>

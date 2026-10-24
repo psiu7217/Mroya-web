@@ -2,6 +2,7 @@ import React from 'react';
 import Markdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import {tr} from '../i18n';
 
 export interface AssistantMarkdownProps { content: string; variant?: 'assistant' | 'user' }
 
@@ -34,8 +35,8 @@ export function AssistantMarkdown({content, variant = 'assistant'}: AssistantMar
         a: ({href, children}) => href
           ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
           : <span>{children}</span>,
-        img: ({alt}) => <span className="mroya-markdown-image">{alt || 'Image omitted'}</span>,
-        table: ({children}) => <div className="mroya-markdown-scroll" role="region" aria-label="Message table" tabIndex={0}><table>{children}</table></div>,
+        img: ({alt}) => <span className="mroya-markdown-image">{alt || tr('imageOmitted',{ns:'notes'})}</span>,
+        table: ({children}) => <div className="mroya-markdown-scroll" role="region" aria-label={tr('messageTable',{ns:'chat'})} tabIndex={0}><table>{children}</table></div>,
         pre: ({children}) => <pre tabIndex={0}>{children}</pre>,
       }}>{content}</Markdown>
   </div>;

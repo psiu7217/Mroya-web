@@ -1,4 +1,5 @@
 import {ApiError} from '../api/errors.ts';
+import {formatDate} from '../i18n/format.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {NoteSummaryDto,NoteDetailDto} from '../types/notesApi.ts';
 import type {NoteItem} from '../types/notes.ts';
@@ -11,8 +12,8 @@ const initial=():NotesState=>({rows:[],loaded:false,loading:false,loadingMore:fa
 export function notePresentation(note:NoteSummaryDto|NoteDetailDto):NoteItem {
  return {id:note.id,title:note.title,summary:note.summary,tags:[...note.keywords],searchPhrases:[...note.search_phrases],
   memoryLinks:'memory_links' in note?note.memory_links.map(link=>({...link})):undefined,
-  content:'content' in note?note.content:'',createdAt:note.created_at,
-  updatedAt:new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'short',year:'numeric'}).format(new Date(note.updated_at))};
+  content:'content' in note?note.content:'',createdAt:note.created_at,updatedAtRaw:note.updated_at,
+  updatedAt:formatDate(note.updated_at,{day:'2-digit',month:'short',year:'numeric'})};
 }
 export const notesSourceAvailable=(source:WorkspaceSource,capable:boolean)=>source.kind==='live'&&capable===true&&typeof source.notes==='function'&&typeof source.note==='function';
 // Preserve PostgreSQL's microsecond ordering before the UUID tie-breaker.

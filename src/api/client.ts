@@ -14,6 +14,7 @@ import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
+import {tr} from '../i18n/index.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
   const user=value as Record<string,unknown>;
@@ -23,6 +24,8 @@ function checkedUser(value: unknown): ApiUser {
     throw new ApiError(502,'invalid_response','Invalid API preferences');
   const reasoning=(user.preferences as Record<string,unknown>).show_model_reasoning;
   if(reasoning!==undefined&&typeof reasoning!=='boolean')throw new ApiError(502,'invalid_response','Invalid reasoning preference');
+  const language=(user.preferences as Record<string,unknown>).language;
+  if(language!==undefined&&language!==''&&language!=='en'&&language!=='ru')throw new ApiError(502,'invalid_response','Invalid interface language preference');
   return value as ApiUser;
 }
 // A link is a bearer credential. Never include its value in errors or persistence.
@@ -156,7 +159,10 @@ export class MroyaApi {
   async login(username:string,password:string,signal?:AbortSignal):Promise<ApiUser>{const data=await this.json<{user:ApiUser;csrf_token:string}>('auth/login/',{username,password},signal);if(typeof data.csrf_token!=='string'||!data.csrf_token)throw new ApiError(502,'invalid_response','Missing login fields');this.token=data.csrf_token;return checkedUser(data.user);}
   async savePreferences(changes:PreferencesPatch,signal?:AbortSignal):Promise<ApiUser>{
     const keys=Object.keys(changes);
-    if(keys.some(key=>key!=='theme'&&key!=='nickname'&&key!=='show_model_reasoning'&&key!=='timezone'&&key!=='timezone_only_if_unset'))throw new Error('Invalid preferences payload');
+    if(keys.some(key=>key!=='theme'&&key!=='nickname'&&key!=='show_model_reasoning'&&key!=='timezone'&&key!=='timezone_only_if_unset'&&key!=='language'&&key!=='language_only_if_unset'))throw new Error('Invalid preferences payload');
+    if(changes.language!==undefined&&changes.language!=='en'&&changes.language!=='ru')throw new Error('Invalid interface language');
+    if(changes.language_only_if_unset!==undefined&&(typeof changes.language_only_if_unset!=='boolean'||changes.language===undefined))
+      throw new ApiError(400,'invalid_preferences','Interface language is required with a boolean initialization flag.');
     if(changes.timezone!==undefined&&(typeof changes.timezone!=='string'||!changes.timezone||changes.timezone.length>128||changes.timezone.trim()!==changes.timezone))
       throw new ApiError(400,'invalid_preferences','Choose a non-empty IANA timezone without surrounding whitespace.');
     if('timezone_only_if_unset' in changes&&(typeof changes.timezone_only_if_unset!=='boolean'||changes.timezone===undefined))
@@ -167,6 +173,10 @@ export class MroyaApi {
       throw new ApiError(502,'invalid_response','Reasoning preference was not confirmed');
     if(changes.timezone!==undefined&&(!user.timezone||!changes.timezone_only_if_unset&&user.timezone!==changes.timezone))
       throw new ApiError(502,'invalid_response','Timezone was not confirmed by the backend.');
+    if(changes.language!==undefined&&changes.language_only_if_unset===true&&!['en','ru'].includes(user.preferences.language??''))
+      throw new ApiError(502,'invalid_response','The server did not return a confirmed interface language.');
+    if(changes.language!==undefined&&changes.language_only_if_unset!==true&&user.preferences.language!==changes.language)
+      throw new ApiError(502,'invalid_response','Interface language was not confirmed by the backend.');
     return user;
   }
   async reportChatIssue(context:ReportContext,signal?:AbortSignal):Promise<IssueReportResponse>{
@@ -267,7 +277,7 @@ export class MroyaApi {
   capabilities(signal?:AbortSignal):Promise<Capabilities>{return this.json('capabilities/',undefined,signal);}
   turn(id:string,signal?:AbortSignal):Promise<TurnResponse>{if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))throw new Error('Invalid turn UUID');return this.json('chat/turns/'+id+'/',undefined,signal);}
   async send(content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={},path='chat/send/'):Promise<void>{
-    if(!content.trim()||content.length>16000)throw new Error('Message must contain 1вЂ“16000 characters');
+    if(!content.trim()||content.length>16000)throw new Error(tr('messageLengthInvalid',{ns:'chat'}));
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submissionId))throw new Error('Invalid submission UUID');
     if(!this.token)await this.csrf(options.signal);
     const response=await this.fetcher('/api/v1/'+path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,

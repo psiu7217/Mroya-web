@@ -14,9 +14,11 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { ReminderItem, CalendarEvent, RecurrenceRule } from '../types/mroya';
+import {tr} from '../i18n';
+import {formatDate,formatTime} from '../i18n/format';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import {
-  formatRecurrence,
+  localizedRecurrence,
   getEffectiveRecurrence,
   getNextOccurrenceDate,
 } from '../utils/recurrenceUtils';
@@ -32,12 +34,7 @@ interface ReminderEditorModalProps {
 }
 
 const PRESET_OFFSETS = [
-  { label: 'At event time', minutes: 0 },
-  { label: '5 min before', minutes: 5 },
-  { label: '15 min before', minutes: 15 },
-  { label: '30 min before', minutes: 30 },
-  { label: '1 hour before', minutes: 60 },
-  { label: '1 day before', minutes: 1440 },
+  { minutes: 0 },{ minutes: 5 },{ minutes: 15 },{ minutes: 30 },{ minutes: 60 },{ minutes: 1440 },
 ];
 
 export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
@@ -70,6 +67,8 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
   const [standaloneRecurrence, setStandaloneRecurrence] = useState<
     RecurrenceRule | undefined
   >(editingReminder?.recurrence);
+  const formatCivilDate=(value:string)=>{const [y,m,d]=value.split('-').map(Number);return Number.isInteger(y)&&Number.isInteger(m)&&Number.isInteger(d)?formatDate(new Date(Date.UTC(y,m-1,d,12)),{year:'numeric',month:'short',day:'numeric'},'UTC'):value;};
+  const formatCivilTime=(value:string)=>{const [h,m]=value.split(':').map(Number);return Number.isInteger(h)&&Number.isInteger(m)?formatTime(new Date(Date.UTC(2000,0,1,h,m)),{},'UTC'):value;};
 
   // Sync state when editingReminder or preselectedEventId changes
   useEffect(() => {
@@ -170,13 +169,13 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
   );
 
   const formatOffsetLabel = (mins: number) => {
-    if (mins === 0) return 'At event time';
-    if (mins < 60) return `${mins} min before`;
-    if (mins === 60) return '1 hour before';
-    if (mins === 1440) return '1 day before';
+    if (mins === 0) return tr('atEventTime',{ns:'reminders'});
+    if (mins < 60) return tr('minutesBefore',{ns:'calendar',count:mins});
+    if (mins === 60) return tr('hoursBefore',{ns:'calendar',count:1});
+    if (mins === 1440) return tr('daysBefore',{ns:'calendar',count:1});
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
-    return remMins > 0 ? `${hrs}h ${remMins}m before` : `${hrs} hours before`;
+    return remMins > 0 ? tr('hoursMinutesBefore',{ns:'reminders',hours:hrs,minutes:remMins}) : tr('hoursBefore',{ns:'calendar',count:hrs});
   };
 
   const handleSelectEvent = (eventId: string) => {
@@ -191,12 +190,12 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
     e.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle) {
-      setErrors('Please enter a reminder title.');
+      setErrors(tr('titleRequiredError',{ns:'reminders'}));
       return;
     }
 
     if (type === 'calendar_linked' && !selectedEvent) {
-      setErrors('Please select a calendar event to link.');
+      setErrors(tr('selectEventError',{ns:'reminders'}));
       return;
     }
 
@@ -232,7 +231,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
         (selectedEvent?.id === 'evt-oct13-doctor' ||
           selectedEvent?.id === 'evt-weekly-meeting' ||
           selectedEvent?.id === 'evt-annas-birthday')
-          ? 'Synced with Google Calendar'
+          ? tr('googleSynced',{ns:'reminders'})
           : undefined,
     };
 
@@ -251,17 +250,17 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
             </div>
             <div>
               <h2 className="text-[17px] font-bold text-[var(--mroya-text)]">
-                {editingReminder ? 'Edit Reminder' : 'New Reminder'}
+                {editingReminder ? tr('editReminderTitle',{ns:'reminders'}) : tr('newReminderTitle',{ns:'reminders'})}
               </h2>
               <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                Deliver alerts right on time via Telegram
+                {tr('telegramDeliveryHelp',{ns:'reminders'})}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={tr('close',{ns:'common'})}
             className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
           >
             <X className="w-4 h-4" />
@@ -279,7 +278,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
           {/* Reminder Type Segmented Selector */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--mroya-text-muted)] mb-1.5">
-              Reminder Type
+              {tr('reminderType',{ns:'reminders'})}
             </label>
             <div className="grid grid-cols-2 gap-2 p-1 rounded-[12px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)]">
               <button
@@ -292,7 +291,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                 }`}
               >
                 <Clock className="w-4 h-4" />
-                <span>Standalone</span>
+                <span>{tr('standalone',{ns:'reminders'})}</span>
               </button>
               <button
                 type="button"
@@ -309,28 +308,28 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                 }`}
               >
                 <Calendar className="w-4 h-4" />
-                <span>Linked to Event</span>
+                <span>{tr('linkedEvent',{ns:'reminders'})}</span>
               </button>
             </div>
             <p className="text-[11px] text-[var(--mroya-text-muted)] mt-1.5 px-0.5">
               {type === 'standalone'
-                ? 'Quick alert at a specific time or recurring schedule without cluttering your calendar.'
-                : 'Shares rules with Google Calendar; inherits recurrence directly from the event.'}
+                ? tr('standaloneHelp',{ns:'reminders'})
+                : tr('linkedHelp',{ns:'reminders'})}
             </p>
           </div>
 
           {/* Title */}
           <div>
             <label className="block text-[12px] font-bold text-[var(--mroya-text)] mb-1">
-              Reminder Title *
+              {tr('title',{ns:'reminders'})}
             </label>
             <input
               type="text"
               required
               placeholder={
                 type === 'standalone'
-                  ? 'e.g. Take daily vitamins, Water the plants, Pay rent'
-                  : 'e.g. Doctor appointment, Weekly team meeting'
+                  ? tr('standaloneTitlePlaceholder',{ns:'reminders'})
+                  : tr('linkedTitlePlaceholder',{ns:'reminders'})
               }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -344,7 +343,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                    Notification Date
+                    {tr('notificationDate',{ns:'reminders'})}
                   </label>
                   <input
                     type="date"
@@ -359,7 +358,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       onClick={() => setDate('2026-10-12')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      Today
+                      {tr('today',{ns:'reminders'})}
                     </button>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <button
@@ -367,14 +366,14 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       onClick={() => setDate('2026-10-13')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      Tomorrow
+                      {tr('tomorrow',{ns:'reminders'})}
                     </button>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                    Notification Time
+                    {tr('notificationTime',{ns:'reminders'})}
                   </label>
                   <input
                     type="time"
@@ -389,7 +388,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       onClick={() => setTime('09:00')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      Morning (09:00)
+                      {tr('morning',{ns:'reminders'})}
                     </button>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <button
@@ -397,7 +396,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       onClick={() => setTime('14:00')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      Afternoon (14:00)
+                      {tr('afternoon',{ns:'reminders'})}
                     </button>
                     <span className="text-[var(--mroya-divider)]">·</span>
                     <button
@@ -405,7 +404,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       onClick={() => setTime('18:00')}
                       className="text-[11px] font-medium text-[var(--mroya-primary)] hover:underline cursor-pointer"
                     >
-                      Evening (18:00)
+                      {tr('evening',{ns:'reminders'})}
                     </button>
                   </div>
                 </div>
@@ -429,7 +428,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               {/* Event Selector */}
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1">
-                  Select Calendar Event
+                  {tr('selectEvent',{ns:'reminders'})}
                 </label>
                 <select
                   value={selectedEventId}
@@ -438,8 +437,8 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                 >
                   {events.map((ev) => (
                     <option key={ev.id} value={ev.id}>
-                      {ev.title} ({ev.date} · {ev.time})
-                      {ev.recurrence ? ` [🔁 ${formatRecurrence(ev.recurrence)}]` : ''}
+                      {ev.title} ({formatCivilDate(ev.date)} · {formatCivilTime(ev.time)})
+                      {ev.recurrence ? ` [🔁 ${localizedRecurrence(ev.recurrence)}]` : ''}
                     </option>
                   ))}
                 </select>
@@ -454,7 +453,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                         {selectedEvent.title}
                       </span>
                       <div className="text-[11px] text-[var(--mroya-text-muted)]">
-                        {selectedEvent.date} at {selectedEvent.time}
+                        {formatCivilDate(selectedEvent.date)} · {formatCivilTime(selectedEvent.time)}
                         {selectedEvent.person ? ` · ${selectedEvent.person}` : ''}
                       </div>
                     </div>
@@ -463,14 +462,14 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                     {selectedEvent.recurrence && (
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-1">
                         <Repeat className="w-2.5 h-2.5" />
-                        <span>Recurring</span>
+                        <span>{tr('recurring',{ns:'reminders'})}</span>
                       </span>
                     )}
                     {(selectedEvent.id === 'evt-oct13-doctor' ||
                       selectedEvent.id === 'evt-weekly-meeting' ||
                       selectedEvent.id === 'evt-annas-birthday') && (
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                        Google Synced
+                        {tr('googleSynced',{ns:'reminders'})}
                       </span>
                     )}
                   </div>
@@ -482,10 +481,10 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                 <div className="flex items-center justify-between text-[12px]">
                   <div className="flex items-center gap-1.5 font-semibold text-[var(--mroya-text)]">
                     <Repeat className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                    <span>Recurrence</span>
+                    <span>{tr('recurrence',{ns:'reminders'})}</span>
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-[var(--mroya-surface-active)] text-[var(--mroya-text-muted)] flex items-center gap-0.5 font-medium">
                       <Lock className="w-2.5 h-2.5" />
-                      <span>Inherited</span>
+                      <span>{tr('inherited',{ns:'reminders'})}</span>
                     </span>
                   </div>
                   {selectedEvent && onNavigateToCalendar && (
@@ -494,7 +493,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                       onClick={() => onNavigateToCalendar(selectedEvent.id)}
                       className="text-[11px] text-[var(--mroya-primary)] hover:underline flex items-center gap-1 cursor-pointer font-medium"
                     >
-                      <span>Edit event in Calendar</span>
+                      <span>{tr('editEventCalendar',{ns:'reminders'})}</span>
                       <ExternalLink className="w-3 h-3" />
                     </button>
                   )}
@@ -503,15 +502,15 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                 {selectedEvent?.recurrence ? (
                   <div className="text-[12px]">
                     <span className="font-semibold text-purple-600 dark:text-purple-400">
-                      Repeats {formatRecurrence(selectedEvent.recurrence).toLowerCase()}
+                      {tr('repeats',{ns:'reminders',rule:localizedRecurrence(selectedEvent.recurrence)})}
                     </span>
                     <p className="text-[11px] text-[var(--mroya-text-muted)] mt-0.5">
-                      Recurrence is controlled by the parent calendar event. When the meeting occurs, this reminder alerts you {formatOffsetLabel(effectiveOffset)}.
+                      {tr('recurrenceControlledHelp',{ns:'reminders',offset:formatOffsetLabel(effectiveOffset)})}
                     </p>
                   </div>
                 ) : (
                   <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                    Does not repeat (parent calendar event is a single occurrence).
+                    {tr('noRecurrenceHelp',{ns:'reminders'})}
                   </p>
                 )}
               </div>
@@ -519,7 +518,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               {/* Relative Timing Offset */}
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--mroya-text)] mb-1.5">
-                  When to notify relative to the event?
+                  {tr('notifyRelativeLabel',{ns:'reminders'})}
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {PRESET_OFFSETS.map((preset) => (
@@ -536,7 +535,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                           : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)]'
                       }`}
                     >
-                      {preset.label}
+                      {formatOffsetLabel(preset.minutes)}
                     </button>
                   ))}
                 </div>
@@ -552,7 +551,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'
                     }`}
                   >
-                    {isCustomOffset ? 'Using custom offset:' : '+ Custom minutes before'}
+                    {isCustomOffset ? tr('usingCustomOffset',{ns:'reminders'}) : tr('customOffset',{ns:'reminders'})}
                   </button>
                   {isCustomOffset && (
                     <div className="flex items-center gap-1.5">
@@ -565,7 +564,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                         className="w-16 px-2 py-1 rounded bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] text-center font-bold"
                       />
                       <span className="text-[11px] text-[var(--mroya-text-muted)]">
-                        minutes before
+                        {tr('minutesBeforeUnit',{ns:'reminders'})}
                       </span>
                     </div>
                   )}
@@ -576,9 +575,9 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                   <div className="mt-2.5 p-2 rounded-[8px] bg-[var(--mroya-surface-active)]/60 border border-[var(--mroya-divider)]/80 text-[11px] text-[var(--mroya-text)] flex items-center gap-2">
                     <Clock className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
                     <span>
-                      Alert scheduled for{' '}
+                      {tr('alertScheduledFor',{ns:'reminders'})}{' '}
                       <strong className="text-[var(--mroya-primary)]">
-                        {computedNotification.calcDate} at {computedNotification.calcTime}
+                        {formatCivilDate(computedNotification.calcDate)} · {formatCivilTime(computedNotification.calcTime)}
                       </strong>{' '}
                       ({formatOffsetLabel(effectiveOffset)})
                     </span>
@@ -596,26 +595,26 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               </div>
               <div>
                 <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                  Delivery via Telegram
+                  {tr('deliveryTelegram',{ns:'reminders'})}
                 </span>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                  Delivered straight to @MroyaBot on your phone
+                  {tr('telegramDeliveryDevice',{ns:'reminders'})}
                 </p>
               </div>
             </div>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-              Active
+              {tr('active',{ns:'reminders'})}
             </span>
           </div>
 
           {/* Optional Notes */}
           <div>
             <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-              Context Notes (Optional)
+              {tr('contextNotes',{ns:'reminders'})}
             </label>
             <input
               type="text"
-              placeholder="e.g. Bring health insurance card and vaccination record"
+              placeholder={tr('descriptionPlaceholder',{ns:'reminders'})}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] shadow-2xs"
@@ -627,12 +626,12 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--mroya-text-muted)] flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                <span>Telegram Notification Preview</span>
+                <span>{tr('telegramPreview',{ns:'reminders'})}</span>
               </label>
               {effectiveRecurrenceRule && (
                 <span className="text-[10px] font-medium text-purple-500 flex items-center gap-1">
                   <Repeat className="w-3 h-3" />
-                  <span>{formatRecurrence(effectiveRecurrenceRule)}</span>
+                  <span>{localizedRecurrence(effectiveRecurrenceRule)}</span>
                 </span>
               )}
             </div>
@@ -648,17 +647,17 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
                 </span>
               </div>
               <div className="text-[13px] font-bold text-white leading-snug">
-                🔔 {title || 'Reminder Title'}
+                🔔 {title || tr('reminderTitle',{ns:'reminders'})}
               </div>
               <p className="text-[12px] text-white/80 leading-relaxed">
                 {type === 'calendar_linked' && selectedEvent
-                  ? `${selectedEvent.title} starts in ${formatOffsetLabel(effectiveOffset).replace(' before', '')} — ${selectedEvent.time}${selectedEvent.locationOrLink ? ` (${selectedEvent.locationOrLink})` : ''}`
-                  : notes || 'Scheduled reminder from Mroya.'}
+                  ? tr('eventStartsIn',{ns:'reminders',title:selectedEvent.title,offset:formatOffsetLabel(effectiveOffset),time:formatCivilTime(selectedEvent.time),location:selectedEvent.locationOrLink?` (${selectedEvent.locationOrLink})`:''})
+                  : notes || tr('scheduledReminder',{ns:'reminders'})}
               </p>
               {effectiveRecurrenceRule && (
                 <div className="pt-1.5 border-t border-white/10 text-[11px] text-white/60 flex items-center justify-between">
-                  <span>🔁 Repeats: {formatRecurrence(effectiveRecurrenceRule)}</span>
-                  <span>Next: {nextOccurrenceInfo.label}</span>
+                  <span>🔁 {tr('repeats',{ns:'reminders',rule:localizedRecurrence(effectiveRecurrenceRule)})}</span>
+                  <span>{tr('next',{ns:'reminders',date:nextOccurrenceInfo.label})}</span>
                 </div>
               )}
             </div>
@@ -671,14 +670,14 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-[10px] text-[13px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer transition-colors"
             >
-              Cancel
+              {tr('cancel',{ns:'common'})}
             </button>
             <button
               type="submit"
               className="px-5 py-2 rounded-[10px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[13px] font-semibold cursor-pointer shadow-xs transition-colors flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              <span>{editingReminder ? 'Save changes' : 'Create reminder'}</span>
+              <span>{editingReminder ? tr('save',{ns:'common'}) : tr('createReminder',{ns:'reminders'})}</span>
             </button>
           </div>
         </form>

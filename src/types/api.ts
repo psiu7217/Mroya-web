@@ -3,8 +3,9 @@ export interface TelegramConnectionStatus {configured:boolean;connected:boolean;
 export interface TelegramLinkResponse {url:string;expires_at:string}
 export interface TelegramDisconnectResponse {connected:false}
 export type ThemeMode = 'system'|'light'|'dark';
-export interface ApiUser { id:number; username:string; email:string; first_name:string; last_name:string; timezone:string; nickname:string; preferences:{theme:ThemeMode;show_model_reasoning?:boolean} }
-export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode;show_model_reasoning:boolean;timezone:string;timezone_only_if_unset:boolean}>;
+export type AppLanguage='en'|'ru';
+export interface ApiUser { id:number; username:string; email:string; first_name:string; last_name:string; timezone:string; nickname:string; preferences:{theme:ThemeMode;show_model_reasoning?:boolean;language?:AppLanguage|''} }
+export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode;show_model_reasoning:boolean;timezone:string;timezone_only_if_unset:boolean;language:AppLanguage;language_only_if_unset:boolean}>;
 export interface ReportContext {turn_id:string;request_trace_id:number;report_url:string}
 export interface IssueReportResponse {issue:{id:string;turn_id:string;request_trace_id:number;status:'new'|'investigating'|'resolved';created_at:string};created:boolean}
 export type LiveToolName = 'search_memory'|'fast_search_memory'|'prepare_memory_write'|'expand_memory_entities'|'write_statements'|'revise_memory_statements'|'forget_memory_statements'|'resolve_memory_write'|'echo'|'search_calendar_events'|'get_calendar_events'|'create_calendar_events'|'update_calendar_events'|'delete_calendar_events'|'create_note'|'get_note'|'update_note'|'delete_note'|'tool';

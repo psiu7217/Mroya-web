@@ -1,4 +1,5 @@
 import {ApiError} from '../api/errors.ts';
+import {tr} from '../i18n/index.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {InitialDecision,InitialResultsState} from '../types/initialResults.ts';
 const initial=():InitialResultsState=>({data:null,decision:'APPROVE',offset:0,loading:false,error:null});
@@ -26,7 +27,7 @@ export class InitialFilterResultsController {
    if(data.processing_enabled&&!data.is_complete)this.timer=setTimeout(()=>void this.refresh(),5000);
   }catch(e){if(valid()){
    if(e instanceof ApiError&&e.status===401){this.stop();this.expired();return;}
-   this.emit({error:e instanceof ApiError&&[404,405,501].includes(e.status)?'Результаты первоначальной проверки пока недоступны на этом сервере. Требуется обновление Backend.':'Не удалось обновить результаты. Показанные данные могут быть устаревшими. Повторите загрузку.'});
+   this.emit({error:e instanceof ApiError&&[404,405,501].includes(e.status)?tr('initialFilterUnavailable',{ns:'connections'}):tr('initialFilterStale',{ns:'connections'})});
   }}finally{if(valid())this.emit({loading:false});}
  };
 }

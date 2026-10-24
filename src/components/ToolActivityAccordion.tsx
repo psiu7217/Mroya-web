@@ -13,6 +13,7 @@ import {
   MinusCircle,
 } from 'lucide-react';
 import type { ToolActivity, ToolActivityStatus } from '../types/toolActivity';
+import {tr} from '../i18n';
 
 export interface ToolActivityAccordionProps {
   activity: ToolActivity;
@@ -66,7 +67,7 @@ export const ToolStatusBadge: React.FC<{ status: ToolActivityStatus; isTruncated
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] text-[10.5px] font-medium bg-[var(--mroya-brand-honey)]/15 text-[var(--mroya-brand-honey)] border border-[var(--mroya-brand-honey)]/30"
         >
           <Loader2 className="w-3 h-3 animate-spin" />
-          <span>Running</span>
+          <span>{tr('toolRunning',{ns:'chat'})}</span>
         </span>
       )}
       {status === 'success' && (
@@ -75,7 +76,7 @@ export const ToolStatusBadge: React.FC<{ status: ToolActivityStatus; isTruncated
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] text-[10.5px] font-medium bg-[var(--mroya-primary)]/15 text-[var(--mroya-primary)] border border-[var(--mroya-primary)]/30"
         >
           <Check className="w-3 h-3 stroke-[2.5]" />
-          <span>Success</span>
+          <span>{tr('toolSuccess',{ns:'chat'})}</span>
         </span>
       )}
       {status === 'failed' && (
@@ -84,7 +85,7 @@ export const ToolStatusBadge: React.FC<{ status: ToolActivityStatus; isTruncated
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] text-[10.5px] font-medium bg-[var(--mroya-error)]/12 text-[var(--mroya-error)] border border-[var(--mroya-error)]/25"
         >
           <AlertCircle className="w-3 h-3" />
-          <span>Failed</span>
+          <span>{tr('toolFailed',{ns:'chat'})}</span>
         </span>
       )}
       {status === 'skipped' && (
@@ -93,15 +94,15 @@ export const ToolStatusBadge: React.FC<{ status: ToolActivityStatus; isTruncated
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] text-[10.5px] font-medium bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]"
         >
           <MinusCircle className="w-3 h-3" />
-          <span>Skipped</span>
+          <span>{tr('toolSkipped',{ns:'chat'})}</span>
         </span>
       )}
       {isTruncated && (
         <span
-          title="Result was truncated by model policy"
+          title={tr('truncatedTitle',{ns:'chat'})}
           className="inline-flex items-center px-1.5 py-0.5 rounded-[5px] text-[10px] font-semibold tracking-wide uppercase bg-[var(--mroya-brand-honey)]/15 text-[var(--mroya-brand-honey)] border border-[var(--mroya-brand-honey)]/30"
         >
-          Truncated
+          {tr('truncated',{ns:'chat'})}
         </span>
       )}
     </div>
@@ -140,17 +141,17 @@ export const JsonPayloadViewer: React.FC<{
             type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[11px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-            aria-label={`Copy ${title} JSON`}
+            aria-label={tr('copyJson',{ns:'chat',title})}
           >
             {copied ? (
               <>
                 <Check className="w-3 h-3 text-[var(--mroya-primary)]" />
-                <span className="text-[var(--mroya-primary)]">Copied</span>
+                <span className="text-[var(--mroya-primary)]">{tr('copied',{ns:'common'})}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3 h-3" />
-                <span>Copy</span>
+                <span>{tr('copy',{ns:'common'})}</span>
               </>
             )}
           </button>
@@ -165,21 +166,21 @@ export const JsonPayloadViewer: React.FC<{
         ) : status === 'running' ? (
           <div className="flex items-center gap-2 text-[11px] text-[var(--mroya-text-muted)] italic py-1">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--mroya-brand-honey)]" />
-            <span>Waiting for tool response…</span>
+            <span>{tr('waitingTool',{ns:'chat'})}</span>
           </div>
         ) : status === 'skipped' ? (
           <div className="text-[11px] text-[var(--mroya-text-muted)] italic py-1">
-            Execution was skipped
+            {tr('executionSkipped',{ns:'chat'})}
           </div>
         ) : (
           <div className="text-[11px] text-[var(--mroya-text-muted)] italic py-1">
-            No data
+            {tr('noData',{ns:'chat'})}
           </div>
         )}
       </div>
       {isTruncated && (
         <div className="text-[10.5px] text-[var(--mroya-brand-honey)] italic">
-          Output exceeds maximum size and was truncated.
+          {tr('outputTruncated',{ns:'chat'})}
         </div>
       )}
     </div>
@@ -240,9 +241,9 @@ export const ToolActivityAccordion: React.FC<ToolActivityAccordionProps> = ({
 
       {isExpanded && (
         <div className="px-3 pb-3 pt-1 border-t border-[var(--mroya-divider)]/50 space-y-2.5">
-          <JsonPayloadViewer title="Input" data={activity.input} />
+          <JsonPayloadViewer title={tr('input',{ns:'chat'})} data={activity.input} />
           <JsonPayloadViewer
-            title="Output"
+            title={tr('output',{ns:'chat'})}
             data={activity.output}
             status={activity.status}
             isTruncated={activity.isTruncated}

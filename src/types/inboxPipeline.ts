@@ -17,6 +17,7 @@ export interface PipelineHistoryEntry {
   actor: 'scanner' | 'ai_fast_filter' | 'ai_deep_analyzer' | 'user';
   actorLabel: string;
   description: string;
+  localized?: {stageName:string;actorLabel:string;timestamp:string;description:string;comment?:string};
   detail?: string;
 }
 
@@ -32,6 +33,7 @@ export interface PipelineEventItem {
   rawEventSnippet: string;
   status: PipelineFilterStage;
   shortDescription: string;
+  shortDescriptionTranslation?: {key:string;comment:string;description:string};
   
   // Fast AI Filter (Step 2)
   fastFilter: {

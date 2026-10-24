@@ -1,6 +1,7 @@
 import {InitialFilterResultsController} from './InitialFilterResultsController.ts';
 import {useEffect,useMemo,useSyncExternalStore} from 'react';
 import {ApiError} from '../api/errors.ts';
+import {tr} from '../i18n/index.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {InitialQueuePresentation,InitialQueueReceipt,InitialQueueTotals} from '../types/initialQueue.ts';
 import type {IntelligenceSource} from '../types/intelligenceApi.ts';
@@ -18,11 +19,11 @@ export class InitialFilterQueueController {
  private valid(abort:AbortController,ticket:number){return this.active&&!abort.signal.aborted&&ticket===this.generation;}
  private fail(e:unknown){
   if(e instanceof ApiError&&e.status===401){this.stop();this.expired();return;}
-  this.emit({error:e instanceof ApiError&&e.status===409&&e.code==='source_unavailable'?'Для календаря не включено согласие на анализ. Проверьте разрешения в настройках.':e instanceof ApiError&&e.status===403?'Проверка сессии/CSRF не пройдена. Обновите данные и повторите действие вручную.':e instanceof ApiError&&[404,405,501].includes(e.status)?'Календарь или очередь недоступны на этом сервере.':'Операция не подтверждена. Обновите счётчики. Автоматический повтор добавления не выполняется.'});
+  this.emit({error:e instanceof ApiError&&e.status===409&&e.code==='source_unavailable'?tr('initialQueueConsentRequired',{ns:'connections'}):e instanceof ApiError&&e.status===403?tr('initialQueueSessionError',{ns:'connections'}):e instanceof ApiError&&[404,405,501].includes(e.status)?tr('initialQueueUnsupported',{ns:'connections'}):tr('initialQueueActionUnconfirmed',{ns:'connections'})});
  }
  refresh=async(more=false)=>{
   if(!this.active||this.current.busy||this.current.loading)return;
-  if(this.source.kind!=='live'||!this.source.initialFilterQueue||!this.source.intelligenceSources){this.emit({error:'Очередь недоступна на этом сервере.'});return;}
+  if(this.source.kind!=='live'||!this.source.initialFilterQueue||!this.source.intelligenceSources){this.emit({error:tr('initialQueueUnavailable',{ns:'connections'})});return;}
   const offset=more?this.current.next:0;if(offset===null)return;
   const abort=this.request=new AbortController(),ticket=++this.generation;this.emit({loading:true,error:null});
   try{
@@ -35,7 +36,7 @@ export class InitialFilterQueueController {
  };
  enqueue=async()=>{
   const s=this.source,id=this.current.selectedId;if(!this.active||this.current.busy||this.current.loading)return;
-  if(!this.current.sources.find(source=>source.id===id)?.enabled){this.emit({error:'Выберите календарь с разрешением на анализ. Согласие включается только в настройках.'});return;}
+  if(!this.current.sources.find(source=>source.id===id)?.enabled){this.emit({error:tr('initialQueueSelectPermission',{ns:'connections'})});return;}
   if(s.kind!=='live'||!s.enqueueInitialFilter||!s.initialFilterQueue)return;
   const abort=this.request=new AbortController(),ticket=++this.generation;this.emit({busy:true,error:null,receipt:null,totals:null});
   try{
@@ -43,7 +44,7 @@ export class InitialFilterQueueController {
    this.emit({receipt});this.onQueued();
    const totals=await s.initialFilterQueue(abort.signal);if(this.valid(abort,ticket))this.emit({totals});
   }catch(e){if(this.valid(abort,ticket)){
-   if(this.current.receipt&&!(e instanceof ApiError&&e.status===401))this.emit({error:'Добавление подтверждено Backend, но счётчики не обновлены. Нажмите «Обновить»; повтор добавления не выполняется.'});
+   if(this.current.receipt&&!(e instanceof ApiError&&e.status===401))this.emit({error:tr('initialQueueReceiptStale',{ns:'connections'})});
    else this.fail(e);
   }}
   finally{if(this.valid(abort,ticket))this.emit({busy:false});}

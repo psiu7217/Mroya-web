@@ -58,7 +58,7 @@ test('network error/loading never becomes Coming soon; retry retains loaded serv
  for(const patch of [{loading:true},{error:'Server unavailable',chatAvailable:false}]){
   const html=renderToStaticMarkup(React.createElement(WorkspaceView,{model:{...base,activeConversation:conversation,conversations:[conversation],activeSection:'chat',runtime:{...runtime,...patch}}}));
   assert.match(html,/<strong>Server answer<\/strong>/);assert.doesNotMatch(html,/Not available yet/);
-  if(patch.error){assert.match(html,/Server unavailable/);assert.match(html,/Check server status/);}
+  if(patch.error){assert.match(html,/couldn’t load your workspace/i);assert.match(html,/Check server status/);}
  }
 });
 test('canonical memory/map/context and pagination use the same shared components',()=>{

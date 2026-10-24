@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../types/mroya';
-import { createMemoryMapRenderer, defaults } from './memory-map/renderer.js';
+import { defaults } from './memory-map/forceDefaults.js';
 import { renderGraph } from './memory-map/mapModel';
 import { presentationGraph } from './memory-map/graph.js';
 import { mapNodeLabel } from './memory-map/palette.js';
@@ -38,7 +38,7 @@ interface MemoryMapViewProps {
   displayName?: string;
 }
 
-type Renderer = Awaited<ReturnType<typeof createMemoryMapRenderer>>;
+type Renderer = Awaited<ReturnType<(typeof import("./memory-map/renderer.js"))["createMemoryMapRenderer"]>>;
 
 const relation = (n: { predicate?: string; relationship?: string; polarity?: string }) =>
   `${n.polarity === 'negative' ? 'Not ' : ''}${n.predicate || n.relationship || ''}`;
@@ -101,27 +101,34 @@ export function MemoryMapView({
 
   useEffect(() => {
     let cancelled = false;
+    const initialization = new AbortController();
+    let loadingModule = true;
     let instance: Renderer | null = null;
-    createMemoryMapRenderer(host.current!, {
-      onSelect: (id) => {
-        if (cancelled || synchronizing.current) return;
-        callbacks.current.onSelectNode(id);
-        if (id === null) setMode('global');
-      },
-      onTooltip: (v) => {
-        if (!cancelled) setTooltip(v);
-      },
-      onCount: (n) => {
-        if (!cancelled) setCount(n);
-      },
-      onExport: (v) => {
-        if (!cancelled) setDownload(v);
-      },
-      onHint: (v) => {
-        if (!cancelled) setHint(v);
-      },
-    })
-      .then((value) => {
+    // Pixi and the force layout load only when the map mounts instead of in the initial bundle.
+    void (async () => {
+      try {
+        const { createMemoryMapRenderer } = await import('./memory-map/renderer.js');
+        if (cancelled) return;
+        loadingModule = false;
+        const value = await createMemoryMapRenderer(host.current!, {
+          onSelect: (id) => {
+            if (cancelled || synchronizing.current) return;
+            callbacks.current.onSelectNode(id);
+            if (id === null) setMode('global');
+          },
+          onTooltip: (v) => {
+            if (!cancelled) setTooltip(v);
+          },
+          onCount: (n) => {
+            if (!cancelled) setCount(n);
+          },
+          onExport: (v) => {
+            if (!cancelled) setDownload(v);
+          },
+          onHint: (v) => {
+            if (!cancelled) setHint(v);
+          },
+        }, initialization.signal);
         instance = value;
         if (cancelled) {
           value.destroy();
@@ -129,16 +136,19 @@ export function MemoryMapView({
         }
         renderer.current = value;
         setReady(true);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setRenderError(
-            'The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.'
+            loadingModule
+              ? 'The memory map could not be loaded. Check your connection and reopen Memory Map. Your memories are still available in Memory.'
+              : 'The map could not be rendered. WebGL may be unavailable. Your memories are still available in Memory.'
           );
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
+      initialization.abort();
       instance?.destroy();
       renderer.current = null;
     };

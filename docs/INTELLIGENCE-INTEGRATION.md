@@ -19,6 +19,8 @@ Only the confirmed response changes a radio/checkbox; rejected/uncertain mutatio
 require read-only Refresh, never an automatic repeat of the PATCH.
 GET memory-intelligence/status/ supplies actual worker_enabled/deep_enabled/
 apply_enabled, independently shown from capability support and user policy.
+worker_enabled means processing is permitted by configuration, not that a worker
+process is running; the UI explicitly states that process health is not checked.
 
 Google synchronization, per-calendar AI permission and the separate optional
 Google/provider privacy consent are different settings. This change calls no

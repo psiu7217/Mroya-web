@@ -1577,7 +1577,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       <span>Recurring · {formatRecurrence(ev.recurrence)}</span>
                                     </span>
                                   )}
-                                  {(live || ev.person?.includes('Александр')) && (
+                                  {(!live && ev.person?.includes('Александр')) && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
                                       <Sparkles className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
                                       <span>{live?'AI analysis':'Проанализировано AI · Preview'}</span>

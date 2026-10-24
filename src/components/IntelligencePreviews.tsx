@@ -332,7 +332,7 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
 
                 {live&&<div className="text-[12px] text-[var(--mroya-text-muted)] space-y-1">
                  {live.loading&&<p role="status">Загрузка настроек…</p>}{live.error&&<p role="alert">{live.error}</p>}
-                 <p>Worker: {live.runtime?(live.runtime.worker_enabled?'ON':'OFF'):'Unknown'}</p><p>Deep Analysis: {live.runtime?(live.runtime.deep_enabled?'ON':'OFF'):'Unknown'}</p><p>Apply: {live.runtime?(live.runtime.apply_enabled?'ON':'OFF'):'Unknown'}</p>
+                 <p>Обработка разрешена: {live.runtime?(live.runtime.worker_enabled?'ON':'OFF'):'Unknown'}</p><p>Состояние процесса worker не проверяется.</p><p>Deep Analysis: {live.runtime?(live.runtime.deep_enabled?'ON':'OFF'):'Unknown'}</p><p>Apply: {live.runtime?(live.runtime.apply_enabled?'ON':'OFF'):'Unknown'}</p>
                  <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">Refresh / Retry</button>
                 </div>}
                 {/* 3 Autonomy Levels */}
@@ -409,7 +409,7 @@ export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolea
                             </span>
                           </div>
                           <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
-                            События и письма связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.
+                            {live?'События календарей связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.':'События и письма связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.'}
                           </p>
                         </div>
                       </div>

@@ -64,6 +64,9 @@ export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
+    pipelineSamples?:import('./inboxPipeline').PipelineEventItem[];
+    initialQueue?:import('./initialQueue').InitialQueuePresentation;
+    onInitialQueueVisible?:(visible:boolean)=>void;
     intelligence?:import('./intelligenceApi').IntelligencePresentation;
     eventAnalysis?:import('./intelligenceApi').EventAnalysisPresentation;
     memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;

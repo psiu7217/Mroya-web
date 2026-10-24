@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo,useEffect } from 'react';
 import {
   Inbox,
   Sparkles,
@@ -34,9 +34,13 @@ import type {
   FastFilterDecision,
   PipelineStats,
 } from '../types/inboxPipeline';
-import { DEFAULT_PIPELINE_EVENTS, computePipelineStats } from '../data/inboxPipelineData';
+import {computePipelineStats} from '../utils/inboxPipeline';
+import {InitialFilterQueuePanel} from './InitialFilterQueuePanel';
 
 export interface MemoryInboxViewProps {
+  design?:boolean;
+  queue?:import('../types/initialQueue').InitialQueuePresentation;
+  onHistoryVisible?:(visible:boolean)=>void;
   initialEvents?: PipelineEventItem[];
   isSidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
@@ -45,7 +49,7 @@ export interface MemoryInboxViewProps {
 }
 
 export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
-  initialEvents,
+  initialEvents,design=false,queue,onHistoryVisible,
   isSidebarCollapsed = false,
   onExpandSidebar,
   onOpenMobileMenu,
@@ -53,9 +57,10 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 }) => {
   // Main view mode: 'attention' (Primary human-friendly view) | 'history' (Technical audit & progress)
   const [activeMainTab, setActiveMainTab] = useState<'attention' | 'history'>('attention');
+  useEffect(()=>{onHistoryVisible?.(activeMainTab==='history');return()=>onHistoryVisible?.(false);},[activeMainTab,onHistoryVisible]);
 
   // All events repository (demonstration state)
-  const [events, setEvents] = useState<PipelineEventItem[]>(() => initialEvents ?? DEFAULT_PIPELINE_EVENTS);
+  const [events, setEvents] = useState<PipelineEventItem[]>(() => design?(initialEvents ?? []):[]);
 
   // Set of dismissed/handled proposal IDs from the Attention screen
   const [handledAttentionIds, setHandledAttentionIds] = useState<Set<string>>(new Set());
@@ -65,7 +70,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
   // Selected event in technical History tab
-  const [selectedEventId, setSelectedEventId] = useState<string | null>('pipe-evt-1');
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEvents?.[0]?.id??null);
   const [historyStageFilter, setHistoryStageFilter] = useState<PipelineFilterStage>('all');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -212,11 +217,12 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
   // Reset demo state
   const handleResetDemoData = () => {
-    setEvents(DEFAULT_PIPELINE_EVENTS);
+    if(!design)return;
+    setEvents(initialEvents??[]);
     setHandledAttentionIds(new Set());
     setCommentDrafts({});
     setActiveCommentId(null);
-    setSelectedEventId('pipe-evt-1');
+    setSelectedEventId(initialEvents?.[0]?.id??null);
     setHistoryStageFilter('all');
     setHistorySearchQuery('');
     showToast('Демо-предложения восстановлены');
@@ -331,7 +337,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
+          {design&&<button
             type="button"
             onClick={handleResetDemoData}
             title="Восстановить демонстрационные карточки"
@@ -339,7 +345,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Сброс демо</span>
-          </button>
+          </button>}
         </div>
       </header>
 
@@ -359,7 +365,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
                   )}
                 </h1>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] mt-0.5">
-                  AI обнаружил эти события в календаре и предлагает зафиксировать важные факты в памяти
+                  {design?'AI обнаружил эти события в календаре и предлагает зафиксировать важные факты в памяти':'Обработка предложений в этом интерфейсе пока не подключена.'}
                 </p>
               </div>
 
@@ -529,26 +535,26 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
 
                 <div className="space-y-1.5 max-w-md mx-auto">
                   <h2 className="text-[20px] sm:text-[22px] font-semibold text-[var(--mroya-text)]">
-                    Всё разобрано!
+                    {design?'Всё разобрано!':'Предложения пока не подключены'}
                   </h2>
                   <p className="text-[14.5px] text-[var(--mroya-text-muted)] leading-[22px]">
-                    Пока ничего не требует вашего внимания
+                    {design?'Пока ничего не требует вашего внимания':'Добавление событий в очередь доступно во вкладке «История и статусы».'}
                   </p>
                 </div>
 
                 <p className="text-[12.5px] text-[var(--mroya-text-muted)] max-w-sm mx-auto leading-[18px]">
-                  AI продолжит сканировать новые события календаря в фоновом режиме и подготовит предложения, как только появятся важные даты или договоренности.
+                  {design?'AI продолжит сканировать новые события календаря в фоновом режиме и подготовит предложения, как только появятся важные даты или договоренности.':'Постановка в очередь не запускает AI и не создаёт предложений.'}
                 </p>
 
                 <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
-                  <button
+                  {design&&<button
                     type="button"
                     onClick={handleResetDemoData}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[9px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-colors cursor-pointer shadow-sm"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Сбросить демо / начать заново</span>
-                  </button>
+                  </button>}
 
                   <button
                     type="button"
@@ -568,6 +574,8 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
       {/* VIEW 2: ДОПОЛНИТЕЛЬНАЯ ВКЛАДКА («История и статусы») */}
       {activeMainTab === 'history' && (
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
+          {queue&&<InitialFilterQueuePanel queue={queue}/>}
+          {design&&<>
           {/* SECTION 1: Общий прогресс обработки & статистика */}
           <section className="p-4 sm:p-6 border-b border-[var(--mroya-divider)] bg-[var(--mroya-surface)] shrink-0 space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -1236,6 +1244,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
               )}
             </main>
           </div>
+          </>}
         </div>
       )}
     </div>

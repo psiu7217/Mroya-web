@@ -413,3 +413,33 @@ Backend scans API: session/CSRF `GET/POST /api/v1/memory-intelligence/scans/`.
 See [live integration and bounded polling](MEMORY-INBOX-SCANNING.md) and Backend
 `docs/MEMORY-INTELLIGENCE-SCANNING.md`. Requires the additive intelligence.0004/0005
 migrations and the updated existing worker. No production fake progress fallback.
+
+
+## Parked initial-filter queue (Backend PR #50)
+
+Reviewed API main `824bcb6a71a244a008d12d3671be890699580f5d`; PR #50 is merged,
+which does not prove deployment. Session + existing CSRF transport:
+
+- GET `memory-intelligence/sources/?limit=50&offset=0` supplies owned calendar IDs,
+  names and existing analysis permission. Missing permission is never enabled here.
+- POST `memory-intelligence/initial-filter-queue/` body `{calendar_id: UUID}`;
+  HTTP 200 `{added,already_queued,queue_total}`. Backend deduplicates repeated
+  requests; Frontend also prevents concurrent double submission. No auto retry.
+- GET the same queue path returns `{queue_total,calendars:[{calendar_id,pending}]}`.
+  Counters are read on opening History and after confirmed POST; they persist on
+  Backend and are not stored locally. A failed/unknown POST never claims success;
+  Refresh reads counters without repeating the mutation.
+- 409 `source_unavailable`: show the existing analysis settings entry. 401 expires
+  session, 403 does not imply consent or success; 404/405/501 are unavailable.
+
+This only registers parked jobs. It does not scan, call AI, run stage two, accept
+proposals or write Memory. Existing automatic processing is independent. Counts
+are registered-queue snapshots, not live mirrors of later calendar edits/deletions.
+The new Studio attention layout is retained, but its demo actions/fixtures remain
+Design-only. Real attention/technical pipeline stages are not integrated by this
+queue change, and Production does not fabricate those results. Design scenarios
+are injected from src/demo, never imported by the shared component.
+
+Manual check after approved release: History -> calendar A -> add; B -> add;
+reload and reopen History; re-add A and verify added=0 and unchanged total.
+Verify a disabled source leads to settings without automatically granting consent.

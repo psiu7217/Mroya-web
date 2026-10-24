@@ -50,7 +50,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
         notesAvailable={notesAvailable}
         notesCount={notesAvailable?(model.notes ?? []).length:0}
-        memoryInboxCount={4}
+        memoryInboxCount={runtime?undefined:4}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 
@@ -190,6 +190,11 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'memory-inbox' && (
           <MemoryInboxView
+            key={model.initialQueue?.scopeKey??'design-inbox'}
+            design={!runtime}
+            initialEvents={runtime?undefined:model.pipelineSamples}
+            queue={model.initialQueue}
+            onHistoryVisible={model.onInitialQueueVisible}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onMemoryViewExpandSidebar}
             onOpenMobileMenu={onMemoryViewOpenMobileMenu}

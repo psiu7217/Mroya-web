@@ -14,6 +14,7 @@ after(() => vite.close());
 
 const { Sidebar } = await vite.ssrLoadModule('/src/components/Sidebar.tsx');
 const { WorkspaceView } = await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
+const {DEFAULT_PIPELINE_EVENTS}=await vite.ssrLoadModule('/src/demo/inboxPipelineData.ts');
 const { MemoryInboxView } = await vite.ssrLoadModule('/src/components/MemoryInboxView.tsx');
 const { useDemoWorkspace } = await vite.ssrLoadModule('/src/demo/useDemoWorkspace.ts');
 
@@ -99,7 +100,7 @@ test('WorkspaceView renders MemoryInboxView with "Требуют внимани�
 
 test('MemoryInboxView renders empty state when all attention proposals are resolved', () => {
   // Empty initial events with no proposals in awaiting_confirmation
-  const html = renderToStaticMarkup(React.createElement(MemoryInboxView, { initialEvents: [] }));
+  const html = renderToStaticMarkup(React.createElement(MemoryInboxView, { design:true,initialEvents: [] }));
 
   assert.ok(html.includes('Всё разобрано!'), 'Contains "Всё разобрано!"');
   assert.ok(html.includes('Пока ничего не требует вашего внимания'), 'Contains "Пока ничего не требует вашего внимания"');
@@ -110,11 +111,11 @@ test('MemoryInboxView technical tab renders pipeline stats, stages and re-analys
   // In SSR we can render with activeMainTab state by testing the History view elements
   function HistoryWrapper() {
     const [view, setView] = React.useState('history');
-    return React.createElement(MemoryInboxView, {});
+    return React.createElement(MemoryInboxView, {design:true,initialEvents:DEFAULT_PIPELINE_EVENTS});
   }
   
   // Directly instantiate with history tab or test history elements
-  const html = renderToStaticMarkup(React.createElement(MemoryInboxView, {}));
+  const html = renderToStaticMarkup(React.createElement(MemoryInboxView, {design:true,initialEvents:DEFAULT_PIPELINE_EVENTS}));
   assert.ok(html.includes('История и статусы'), 'Tab switcher has History button');
   assert.ok(html.includes('Требуют внимания'), 'Tab switcher has Attention button');
 });

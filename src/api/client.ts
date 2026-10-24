@@ -1,3 +1,4 @@
+import {readInitialQueue,readInitialQueueReceipt} from './initialQueue.ts';
 import {readScanning} from './intelligence.ts';
 import {readIntelligencePreferences,readIntelligenceSources,readIntelligenceSource,readEventAnalysis} from './intelligence.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
@@ -32,6 +33,12 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async initialFilterQueue(signal?:AbortSignal){return readInitialQueue(await this.json('memory-intelligence/initial-filter-queue/',undefined,signal));}
+  async enqueueInitialFilter(calendarId:string,signal?:AbortSignal){
+    if(!isTurnUuid(calendarId))throw new ApiError(400,'invalid_initial_queue_request','Invalid calendar UUID');
+    return readInitialQueueReceipt(await this.json('memory-intelligence/initial-filter-queue/',{calendar_id:calendarId},signal,'POST',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Queue registration was not confirmed');}));
+  }
+
   async intelligencePreferences(signal?:AbortSignal){return readIntelligencePreferences(await this.json('memory-intelligence/settings/',undefined,signal));}
   async saveIntelligencePreferences(autonomy:'review_all'|'auto_link',signal?:AbortSignal){
     if(!['review_all','auto_link'].includes(autonomy))throw new ApiError(400,'invalid_autonomy','Unsupported autonomy');

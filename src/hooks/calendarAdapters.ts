@@ -22,7 +22,7 @@ export function validCalendarDate(value:string):boolean{
 }
 export function calendarPresentation(dto:CalendarEventDto):CalendarEvent{
  const clock=dto.time_kind==='all_day'?'All day':dto.start_time??'';
- return {id:dto.occurrence_id??dto.id,api:dto,title:dto.title,date:dto.date,dayOfMonth:Number(dto.date.slice(8)),
+ return {id:dto.occurrence_id??dto.id,api:dto,memoryLinks:dto.memory_links?.map(link=>({...link})),title:dto.title,date:dto.date,dayOfMonth:Number(dto.date.slice(8)),
   time:clock+(dto.timezone&&dto.time_kind==='exact'?' · '+dto.timezone:''),
   duration:dto.end_time?`${dto.start_time}–${dto.end_time}${dto.end_date!==dto.date?' · '+dto.end_date:''}`:dto.end_date?`Ends before ${dto.end_date}`:'No end specified',
   category:['meeting','deadline','reminder'].includes(dto.event_type)?dto.event_type as CalendarEvent['category']:'meeting',

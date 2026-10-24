@@ -1,12 +1,20 @@
+import type {IntelligencePresentation,EventAnalysisPresentation} from '../types/intelligenceApi';
+import {eventAnalysisMessages} from '../utils/eventAnalysis';
 // Shared Studio visuals. Production uses inert, explicitly labelled public examples.
 import React,{useState} from 'react';
 import {Sparkles,Check,Clock,User,Building2,MapPin,Brain,ExternalLink,CheckCircle2,HelpCircle,AlertTriangle,Calendar as CalendarIcon,RefreshCw,AlertCircle} from 'lucide-react';
 import type {CalendarEvent} from '../types/mroya';
 
-export function EventAnalysisPreview({preview=true,event,variant='conflict',onViewProposal}:{preview?:boolean;event?:CalendarEvent;variant?:'unavailable'|'queued'|'conflict'|'standard';onViewProposal?:()=>void}) {
+export function EventAnalysisPreview({analysis,preview=true,event,variant='conflict',onViewProposal}:{analysis?:EventAnalysisPresentation;preview?:boolean;event?:CalendarEvent;variant?:'unavailable'|'queued'|'conflict'|'standard';onViewProposal?:()=>void}) {
  // A Production example never receives or derives claims from a real event/memory.
  const viewingEvent=preview?{id:'public-illustration',title:'Пример встречи',person:'Пример участника',organization:'Пример компании',locationOrLink:'Пример места'}:event!;
  const [confirmedAiProposals,setConfirmedAiProposals]=useState<Record<string,boolean>>({});
+ if(analysis)return <div className="pt-3 space-y-3">
+  <div className="flex items-center justify-between gap-2 flex-wrap"><div className="text-[12.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]"/><span>Memory Intelligence · Анализ события</span></div><button type="button" disabled={analysis.loading} onClick={analysis.onRefresh} className="text-[12px] text-[var(--mroya-primary)] hover:underline">Refresh</button></div>
+  {analysis.loading?<p role="status">Загрузка статуса…</p>:analysis.error?<p role="alert">{analysis.error}</p>:analysis.data?<div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">{eventAnalysisMessages(analysis.data).map(line=><p key={line}>{line}</p>)}</div>:<p>Нет данных об обработке этого события.</p>}
+  {!analysis.loading&&analysis.data?.proposal&&<button type="button" onClick={()=>analysis.onProposal(analysis.data!.proposal!.id)} className="text-[12.5px] font-semibold text-[var(--mroya-primary)] hover:underline">Посмотреть предложение</button>}
+ </div>;
+
  return (<div className="pt-3 space-y-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="text-[12.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
@@ -152,29 +160,40 @@ export function EventAnalysisPreview({preview=true,event,variant='conflict',onVi
                 )}
               </div>);
 };
-export function IntelligenceSourcesPreview({preview=true}:{preview?:boolean}) {
- const [calendarAnalysisEnabled,setCalendarAnalysisEnabled]=useState(true);
+export function IntelligenceSourcesPreview({preview=true,live,calendars=[]}:{preview?:boolean;live?:IntelligencePresentation;calendars?:{id:string;name:string;desc:string;defaultActive:boolean}[]}) {
+ const [demoCalendarAnalysisEnabled,setCalendarAnalysisEnabled]=useState(true);
  const [calendarAnalysisSpecific,setCalendarAnalysisSpecific]=useState<Record<string,boolean>>({work:true,personal:false,holidays:false});
+ const calendarAnalysisEnabled=live?live.sources.some(source=>source.enabled):demoCalendarAnalysisEnabled;
+ const shownCalendars=live?live.sources.map(source=>({id:source.id,name:source.name,desc:'',defaultActive:source.enabled})):calendars;
+ const locked=!!live&&(!live.available||live.loading||live.busy||!!live.error);
+
  return (<div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
                   <div className="flex items-center gap-2.5">
                     <Brain className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
                     <div>
                       <h3 className="text-[15px] font-semibold text-[var(--mroya-text)]">
-                        Memory Intelligence · Разрешения источников · Preview
+                        Memory Intelligence · Разрешения источников{!live&&' · Preview'}
                       </h3>
                       <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
-                        {preview?'Пример · Soon. Календари ниже — иллюстрация, а не ваши источники. Функция скоро появится.':'Design preview: выберите источники для локальной симуляции.'}
+                        {live?'Google Sync не означает согласие на AI-анализ. Каждый календарь разрешается отдельно.':preview?'Пример · Soon. Календари ниже — иллюстрация, а не ваши источники. Функция скоро появится.':'Design preview: выберите источники для локальной симуляции.'}
                       </p>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-[var(--mroya-divider)] space-y-3">
+                    {live&&<div className="text-[12px] text-[var(--mroya-text-muted)] space-y-2">
+                     {live.loading&&<p role="status">Загрузка источников…</p>}{live.busy&&<p role="status">Ожидается подтверждение Backend…</p>}{live.error&&<p role="alert">{live.error}</p>}
+                     {!live.available&&!live.loading&&!live.error&&<p>Unavailable · Soon</p>}
+                     {live.available&&!live.loading&&!live.error&&!live.sources.length&&<p>Нет доступных календарей.</p>}
+                     <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">Refresh / Retry</button>
+                     {live.hasMore&&<button type="button" disabled={live.loading||live.busy} onClick={live.onMore} className="ml-3 text-[var(--mroya-primary)] hover:underline">Ещё календари</button>}
+                    </div>}
                     {/* Google Calendar Master Switch */}
                     <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
                       <div className="space-y-0.5">
                         <div className="text-[13.5px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
                           <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
-                          <span>Google Calendar — Анализ событий</span>
+                          <span>{live?'Календари — Анализ событий':'Google Calendar — Анализ событий'}</span>
                         </div>
                         <p className="text-[12px] text-[var(--mroya-text-muted)]">
                           Разрешить модели анализировать встречи для поиска новых договоренностей и фактов
@@ -184,7 +203,8 @@ export function IntelligenceSourcesPreview({preview=true}:{preview?:boolean}) {
                         <input
                           type="checkbox"
                           checked={calendarAnalysisEnabled}
-                          disabled={preview}
+                          aria-label="Есть разрешённые календари"
+                          disabled={!!live||preview}
                           onChange={preview?undefined:(e) => setCalendarAnalysisEnabled(e.target.checked)}
                           className="sr-only peer"
                         />
@@ -193,18 +213,14 @@ export function IntelligenceSourcesPreview({preview=true}:{preview?:boolean}) {
                     </div>
 
                     {/* Granular Calendar Permissions */}
-                    {calendarAnalysisEnabled && (
+                    {(live||calendarAnalysisEnabled) && (
                       <div className="pl-3 border-l-2 border-[var(--mroya-primary)]/40 space-y-2 pt-1 animate-in fade-in duration-150">
                         <div className="text-[11.5px] uppercase tracking-wider text-[var(--mroya-text-muted)] font-semibold">
                           Разрешения для конкретных календарей:
                         </div>
                         <div className="space-y-1.5">
-                          {[
-                            { id: 'work', name: 'Рабочий календарь (Work)', desc: 'Встречи, клиенты, спринты и договоренности', defaultActive: true },
-                            { id: 'personal', name: 'Личный календарь (Personal)', desc: 'Личные планы, тренировки и частные дела', defaultActive: false },
-                            { id: 'holidays', name: 'Праздники и контакты', desc: 'Дни рождения и государственные праздники', defaultActive: false },
-                          ].map((cal) => {
-                            const isActive = calendarAnalysisSpecific[cal.id] ?? cal.defaultActive;
+                          {shownCalendars.map((cal) => {
+                            const isActive = live?cal.defaultActive:calendarAnalysisSpecific[cal.id] ?? cal.defaultActive;
                             return (
                               <label
                                 key={cal.id}
@@ -225,8 +241,9 @@ export function IntelligenceSourcesPreview({preview=true}:{preview?:boolean}) {
                                   <input
                                     type="checkbox"
                                     checked={isActive}
-                                    disabled={preview}
-                                    onChange={preview?undefined:() =>
+                                    aria-label={"AI-анализ: "+cal.name}
+                                    disabled={!!live?locked:preview}
+                                    onChange={live?(e)=>live.onSource(cal.id,e.target.checked):preview?undefined:() =>
                                       setCalendarAnalysisSpecific((prev) => ({
                                         ...prev,
                                         [cal.id]: !isActive,
@@ -269,26 +286,30 @@ export function IntelligenceSourcesPreview({preview=true}:{preview?:boolean}) {
                   </div>
                 </div>);
 };
-export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
- const [autonomyLevel,setAutonomyLevel]=useState<'manual'|'auto_link'|'auto_save'>('auto_link');
- const [autonomySaveStatus,setAutonomySaveStatus]=useState<'saving'|'saved'|'error'>('saved');
+export function IntelligenceAutonomyPreview({preview=true,live}:{preview?:boolean;live?:IntelligencePresentation}) {
+ const [demoAutonomyLevel,setAutonomyLevel]=useState<'manual'|'auto_link'|'auto_save'>('auto_link');
+ const [demoAutonomySaveStatus,setAutonomySaveStatus]=useState<'saving'|'saved'|'error'>('saved');
+ const autonomyLevel=live?(live.preferences?.autonomy==='review_all'?'manual':live.preferences?.autonomy==='auto_link'?'auto_link':live.preferences?.autonomy==='auto_write'?'auto_save':''):demoAutonomyLevel;
+ const autonomySaveStatus=live?(live.busy?'saving':live.error?'error':live.preferences?'saved':'loading'):demoAutonomySaveStatus;
+ const locked=!!live&&(!live.available||live.loading||live.busy||!!live.error);
+
  return (<div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2.5">
                     <Sparkles className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
                     <div>
                       <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                        Автономность Memory Intelligence · Preview
+                        Автономность Memory Intelligence{!live&&' · Preview'}
                       </h2>
                       <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
-                        {preview?'Preview · Soon. Пример будущей настройки, не текущая политика сохранения вашей памяти.':'Design preview: локальная симуляция настройки автономности.'}
+                        {live?'Подтверждённая политика Backend. Новые факты требуют ручного подтверждения.':preview?'Preview · Soon. Пример будущей настройки, не текущая политика сохранения вашей памяти.':'Design preview: локальная симуляция настройки автономности.'}
                       </p>
                     </div>
                   </div>
 
                   {/* Save Status Indicator */}
                   <div className="text-[12px]">
-                    {!preview && autonomySaveStatus === 'saving' && (
+                    {(!!live||!preview) && autonomySaveStatus === 'saving' && (
                       <span className="inline-flex items-center gap-1.5 text-[var(--mroya-text-muted)] font-medium">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin text-[var(--mroya-primary)]" />
                         <span>Сохранение…</span>
@@ -297,10 +318,10 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                     {autonomySaveStatus === 'saved' && (
                       <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
                         <Check className="w-3.5 h-3.5" />
-                        <span>{preview?'Soon':'Сохранено · Simulation'}</span>
+                        <span>{live?'Подтверждено Backend':preview?'Soon':'Сохранено · Simulation'}</span>
                       </span>
                     )}
-                    {!preview && autonomySaveStatus === 'error' && (
+                    {(!!live||!preview) && autonomySaveStatus === 'error' && (
                       <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400 font-semibold">
                         <AlertCircle className="w-3.5 h-3.5" />
                         <span>Ошибка сохранения</span>
@@ -309,11 +330,16 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                   </div>
                 </div>
 
+                {live&&<div className="text-[12px] text-[var(--mroya-text-muted)] space-y-1">
+                 {live.loading&&<p role="status">Загрузка настроек…</p>}{live.error&&<p role="alert">{live.error}</p>}
+                 <p>Обработка разрешена: {live.runtime?(live.runtime.worker_enabled?'ON':'OFF'):'Unknown'}</p><p>Состояние процесса worker не проверяется.</p><p>Deep Analysis: {live.runtime?(live.runtime.deep_enabled?'ON':'OFF'):'Unknown'}</p><p>Apply: {live.runtime?(live.runtime.apply_enabled?'ON':'OFF'):'Unknown'}</p>
+                 <button type="button" disabled={live.loading||live.busy} onClick={live.onRefresh} className="text-[var(--mroya-primary)] hover:underline">Refresh / Retry</button>
+                </div>}
                 {/* 3 Autonomy Levels */}
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
                   {/* Option 1: Manual */}
                   <label
-                    onClick={preview?undefined:() => {
+                    onClick={live||preview?undefined:() => {
                       setAutonomyLevel('manual');
                       setAutonomySaveStatus('saved');
                     }}
@@ -329,8 +355,8 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                           type="radio"
                           name="memory_autonomy"
                           checked={autonomyLevel === 'manual'}
-                          disabled={preview}
-                          onChange={preview?undefined:() => {
+                          disabled={live?locked:preview}
+                          onChange={live?()=>live.onAutonomy('review_all'):preview?undefined:() => {
                             setAutonomyLevel('manual');
                             setAutonomySaveStatus('saved');
                           }}
@@ -350,7 +376,7 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
 
                   {/* Option 2: Automatic Links (Recommended — Visual Accent) */}
                   <label
-                    onClick={preview?undefined:() => {
+                    onClick={live||preview?undefined:() => {
                       setAutonomyLevel('auto_link');
                       setAutonomySaveStatus('saved');
                     }}
@@ -366,8 +392,8 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                           type="radio"
                           name="memory_autonomy"
                           checked={autonomyLevel === 'auto_link'}
-                          disabled={preview}
-                          onChange={preview?undefined:() => {
+                          disabled={live?locked||!live.preferences?.capabilities.auto_link:preview}
+                          onChange={live?()=>live.onAutonomy('auto_link'):preview?undefined:() => {
                             setAutonomyLevel('auto_link');
                             setAutonomySaveStatus('saved');
                           }}
@@ -383,7 +409,7 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                             </span>
                           </div>
                           <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
-                            События и письма связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.
+                            {live?'События календарей связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.':'События и письма связываются с уже известными сущностями автоматически. Новые контакты и факты создаются только после ручного подтверждения.'}
                           </p>
                         </div>
                       </div>
@@ -392,7 +418,7 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
 
                   {/* Option 3: Automatic Save */}
                   <label
-                    onClick={preview?undefined:() => {
+                    onClick={live||preview?undefined:() => {
                       setAutonomyLevel('auto_save');
                       setAutonomySaveStatus('saved');
                     }}
@@ -408,7 +434,7 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                           type="radio"
                           name="memory_autonomy"
                           checked={autonomyLevel === 'auto_save'}
-                          disabled={preview}
+                          disabled={!!live||preview}
                           onChange={preview?undefined:() => {
                             setAutonomyLevel('auto_save');
                             setAutonomySaveStatus('saved');
@@ -420,7 +446,7 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                             Автоматическое сохранение
                           </div>
                           <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5 leading-[18px]">
-                            Модель самостоятельно сохраняет факты с высокой уверенностью (&gt;90%). Спорные и неоднозначные случаи направляются в Memory Inbox.
+                            {live?'Soon · Автоматическое сохранение новых фактов недоступно.':'Модель самостоятельно сохраняет факты с высокой уверенностью (>90%). Спорные и неоднозначные случаи направляются в Memory Inbox.'}
                           </p>
                         </div>
                       </div>
@@ -429,7 +455,7 @@ export function IntelligenceAutonomyPreview({preview=true}:{preview?:boolean}) {
                 </div>
 
                 {/* Design Mode State Preview Switcher */}
-                {!preview && (
+                {!live&&!preview && (
                   <div className="pt-3 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[11.5px] text-[var(--mroya-text-muted)] flex-wrap gap-2">
                     <span>Тест состояний сохранения:</span>
                     <div className="flex items-center gap-1.5">

@@ -4,6 +4,11 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     kind:'live',
+    intelligencePreferences:signal=>api.intelligencePreferences(signal),
+    saveIntelligencePreferences:(autonomy,signal)=>api.saveIntelligencePreferences(autonomy,signal),
+    intelligenceSources:(offset,signal)=>api.intelligenceSources(offset,signal),
+    saveIntelligenceSource:(id,enabled,signal)=>api.saveIntelligenceSource(id,enabled,signal),
+    eventAnalysis:(id,signal)=>api.eventAnalysis(id,signal),
     notes:(offset,signal)=>api.notes(offset,signal),
     note:(id,signal)=>api.note(id,signal),
     notificationSettings:signal=>api.notificationSettings(signal),

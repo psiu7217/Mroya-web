@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect,useRef } from 'react';
 import {
   Search,
   Plus,
@@ -69,7 +69,11 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   onOpenMobileMenu,
 }) => {
   // Main Navigation: 'memories' | 'inbox'
-  const [activeMainTab, setActiveMainTab] = useState<'memories' | 'inbox'>('memories');
+  const [activeMainTab, setActiveMainTab] = useState<'memories' | 'inbox'>(inbox?.focusedId?'inbox':'memories');
+  const focusedProposal=useRef<HTMLElement|null>(null);
+  const scrolledFocus=useRef<string|null>(null);
+  useEffect(()=>{if(inbox?.focusedId)setActiveMainTab('inbox');},[inbox?.focusToken,inbox?.scopeKey]);
+  useEffect(()=>{const ticket=inbox?.scopeKey+':'+inbox?.focusToken;if(activeMainTab==='inbox'&&focusedProposal.current&&ticket!==scrolledFocus.current){focusedProposal.current.scrollIntoView?.({block:'nearest'});scrolledFocus.current=ticket;}},[inbox?.focusToken,activeMainTab,inbox?.proposals]);
 
   // Memories tab state
   const [searchQuery, setSearchQuery] = useState('');
@@ -615,6 +619,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   return (
                     <div
                       key={proposal.id}
+                      ref={node=>{if(proposal.id===inbox?.focusedId)focusedProposal.current=node;}}
                       className={`p-5 sm:p-6 rounded-[12px] bg-[var(--mroya-surface)] border transition-all ${
                         isNew
                           ? 'border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)]'

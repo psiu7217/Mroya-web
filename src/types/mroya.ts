@@ -165,6 +165,7 @@ export interface GoogleSyncResult {
 }
 
 export interface CalendarEvent {
+  memoryLinks?:import('./memoryLinks').MemoryLink[];
   api?:import('./calendarApi').CalendarEventDto; // Canonical metadata; occurrences keep a separate presentation id.
   id: string;
   title: string;

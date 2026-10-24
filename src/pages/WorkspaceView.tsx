@@ -113,6 +113,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'calendar' && (
           <CalendarView
+            eventAnalysis={model.eventAnalysis}
+            memoryLinksNavigation={model.memoryLinksNavigation}
             designEventAnalysis={runtime?undefined:model.designIntelligence?.EventAnalysis}
             samples={model.calendarSamples}
             readOnly={!!runtime&&!runtime.calendarAvailable}
@@ -204,6 +206,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            intelligence={model.intelligence}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
             designIntelligence={runtime?undefined:model.designIntelligence}
@@ -257,6 +260,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'notes' && notesAvailable && (
           <NotesView
+            memoryLinksNavigation={model.memoryLinksNavigation}
             key={model.notesRuntime?.scopeKey}
             runtime={model.notesRuntime}
             notes={model.notes ?? []}

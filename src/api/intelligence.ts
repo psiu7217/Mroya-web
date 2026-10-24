@@ -70,3 +70,15 @@ export function readEventAnalysis(v:unknown,id:string):import('../types/intellig
  if(value.proposal!==null){const p=record(value.proposal);if(!INBOX_STATUSES.some(s=>s===p.status))invalid();proposal={id:uuid(p.id),status:p.status as NonNullable<typeof proposal>['status'],version:integer(p.version,1),canonical_saved:bool(p.canonical_saved),links_saved:bool(p.links_saved),search_ready:bool(p.search_ready)};}
  return {event_id:id,source:{kind:'calendar',id:uuid(source.id),enabled:bool(source.enabled)},runtime:readIntelligenceRuntime(value.runtime),job,proposal};
 }
+
+export function readScanning(v:unknown,offset=0):import('../types/intelligenceApi.ts').ScanningPage {
+ const r=record(v),w=record(r.worker),state=text(w.state);
+ if(!['disabled','recent','unavailable'].includes(state))invalid();
+ return {worker:{enabled:bool(w.enabled),state:state as 'disabled'|'recent'|'unavailable',last_seen_at:w.last_seen_at===null?null:time(w.last_seen_at)},
+ sources:list(r.sources,50).map(value=>{const row=record(value);let scan=null;
+ if(row.scan!==null){const x=record(row.scan),state=text(x.state);if(!['requested','scanning','processing','completed','completed_with_errors'].includes(state))invalid();
+ scan={id:uuid(x.id),state:state as 'requested'|'scanning'|'processing'|'completed'|'completed_with_errors',requested_at:time(x.requested_at),started_at:x.started_at===null?null:time(x.started_at),discovered_at:x.discovered_at===null?null:time(x.discovered_at),eligible:x.eligible===null?null:integer(x.eligible),
+ discovered:integer(x.discovered),checked:integer(x.checked),queued:integer(x.queued),triage:integer(x.triage),deep_analysis:integer(x.deep_analysis),no_save:integer(x.no_save),stale:integer(x.stale),errors:integer(x.errors),retrying:integer(x.retrying),awaiting_confirmation:integer(x.awaiting_confirmation),error_codes:list(x.error_codes,10).map(v=>text(v,64))};
+ if(scan.checked>scan.discovered||scan.eligible!==null&&scan.eligible!==scan.discovered)invalid();}
+ return {id:uuid(row.id),name:text(row.name,240),enabled:bool(row.enabled),last_scanned_at:row.last_scanned_at===null?null:time(row.last_scanned_at),quota_blocked:bool(row.quota_blocked),scan};}),next_offset:nextOffset(r.next_offset,offset)};
+}

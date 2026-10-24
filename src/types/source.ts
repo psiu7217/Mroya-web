@@ -14,6 +14,8 @@ export interface WorkspaceSource {
   testNotification?:MroyaApi['testNotification'];
   notification?:MroyaApi['notification'];
   intelligenceSettings?:MroyaApi['intelligenceSettings'];
+  intelligenceScans?:MroyaApi['intelligenceScans'];
+  scanIntelligence?:MroyaApi['scanIntelligence'];
   intelligenceStatus?:MroyaApi['intelligenceStatus'];
   inboxProposals?:MroyaApi['inboxProposals'];
   inboxProposal?:MroyaApi['inboxProposal'];

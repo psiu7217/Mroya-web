@@ -77,7 +77,7 @@ test('comments and retry update the same demo proposal; empty/loading previews r
  assert.equal(model.value.memoryInbox.proposals.length,8);assert.equal(model.value.memoryInbox.proposals[0].comment,'Synthetic clarification');
  assert.equal(model.value.memoryInbox.proposals[0].status,'reanalyzing');assert.equal(all(card(page,title),node=>node.type==='textarea').length,0);
  button(card(page,'Проектная спецификация Alpha'),'Повторить запрос').props.onClick();model.flush();page.flush();assert.equal(model.value.memoryInbox.proposals[7].status,'reanalyzing');
- button(page.value,'Пустой Inbox').props.onClick();model.flush();page.flush();assert.match(text(page.value),/Все предложения обработаны/);
+ button(page.value,'Пустой Inbox').props.onClick();model.flush();page.flush();assert.match(text(page.value),/Предложений пока нет/);
  button(page.value,'Загрузка').props.onClick();model.flush();page.flush();assert.ok(all(page.value,node=>node.props.className?.includes('animate-pulse')).length);
  page.unmount();model.unmount();assert.equal(requests,0);
 });
@@ -88,8 +88,8 @@ test('presentation reports only source-confirmed results and supports loading, e
  const page=mount(()=>MemoryView({...memoryProps(model.value),inbox}));page.flush();openInbox(page);
  button(card(page,sample.title),'Да').props.onClick();page.flush();assert.equal(accepts,1);assert.doesNotMatch(text(page.value),/Успешно сохранено|Сброс демо|Визуальные состояния/);
  inbox={...inbox,loading:true,proposals:[]};page.flush();assert.ok(all(page.value,node=>node.props.className?.includes('animate-pulse')).length);
- inbox={...inbox,loading:false,error:'Synthetic source failure'};page.flush();assert.match(text(page.value),/Synthetic source failure/);assert.doesNotMatch(text(page.value),/Все предложения обработаны/);button(page.value,'Retry').props.onClick();assert.equal(retries,1);
- inbox={...inbox,error:null};page.flush();assert.match(text(page.value),/Все предложения обработаны/);assert.doesNotMatch(text(page.value),/Показать примеры/);
+ inbox={...inbox,loading:false,error:'Synthetic source failure'};page.flush();assert.match(text(page.value),/Synthetic source failure/);assert.doesNotMatch(text(page.value),/Предложений пока нет/);button(page.value,'Retry').props.onClick();assert.equal(retries,1);
+ inbox={...inbox,error:null};page.flush();assert.match(text(page.value),/Предложений пока нет/);assert.doesNotMatch(text(page.value),/Показать примеры/);
  page.unmount();model.unmount();assert.equal(requests,0);
 });
 
@@ -164,4 +164,17 @@ test('live presentation renders real statuses and receipts in the shared Studio 
  assert.match(text(page.value),/Событие связано с памятью/);assert.doesNotMatch(text(page.value),/Успешно сохранено в долговременную память/);
  find(page.value,node=>node.type==='details').props.onToggle({currentTarget:{open:true}});assert.equal(opened,1);assert.match(text(page.value),/Confirmed comment/);
  page.unmount();model.unmount();assert.equal(requests,0);
+});
+
+
+test('scanning panel uses source counters and never turns empty Inbox into saved memory',async()=>{
+ const {ScanningPanel}=await vite.ssrLoadModule('/src/components/ScanningPanel.tsx');
+ const row={id:'synthetic',name:'Synthetic local calendar',enabled:true,last_scanned_at:null,quota_blocked:true,
+ scan:{id:'generation',state:'processing',eligible:null,discovered:3,checked:1,queued:1,triage:0,deep_analysis:1,no_save:1,stale:0,errors:0,retrying:1,awaiting_confirmation:0,error_codes:['provider_unavailable']}};
+ const make=()=>ScanningPanel({scanning:{data:{worker:{enabled:true,state:'unavailable',last_seen_at:null},sources:[row],next_offset:null},error:null,busy:false,selected:new Set(['synthetic']),onSelect(){},onScan(){},onMore(){}}});
+ let view=make();assert.match(text(view),/Нет свежего heartbeat/);assert.match(text(view),/Квота AI исчерпана/);
+ assert.equal(all(view,n=>n.type==='progress').length,0);assert.equal(button(view,'Сканировать сейчас').props.disabled,true);
+ row.scan.eligible=3;view=make();assert.equal(find(view,n=>n.type==='progress').props.max,3);
+ assert.match(text(view),/provider_unavailable/);assert.doesNotMatch(text(view),/успешно сохран/);
+ row.enabled=false;assert.equal(find(make(),n=>n.type==='input').props.disabled,true);
 });

@@ -1,3 +1,4 @@
+import {readScanning} from './intelligence.ts';
 import {readIntelligencePreferences,readIntelligenceSources,readIntelligenceSource,readEventAnalysis} from './intelligence.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
@@ -65,6 +66,8 @@ export class MroyaApi {
     return readNotification(await this.json('me/notifications/'+id+'/',undefined,signal),id);
   }
   async intelligenceSettings(signal?:AbortSignal){return readIntelligenceSettings(await this.json('memory-intelligence/settings/',undefined,signal));}
+  async intelligenceScans(offset=0,signal?:AbortSignal){if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw Error('Invalid offset');return readScanning(await this.json('memory-intelligence/scans/?limit=50&offset='+offset,undefined,signal),offset);}
+  async scanIntelligence(calendar_ids:string[],signal?:AbortSignal){if(!calendar_ids.length||calendar_ids.length>50||calendar_ids.some(id=>!isTurnUuid(id))||new Set(calendar_ids).size!==calendar_ids.length)throw Error('Invalid calendars');return readScanning(await this.json('memory-intelligence/scans/',{calendar_ids},signal));}
   async intelligenceStatus(signal?:AbortSignal){return readIntelligenceRuntime(await this.json('memory-intelligence/status/',undefined,signal));}
   async inboxProposals(offset=0,signal?:AbortSignal){return readProposalPage(await this.json('memory-intelligence/proposals/?limit=50&offset='+offset,undefined,signal),offset);}
   async inboxProposal(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');const v=await this.json<{proposal:unknown}>('memory-intelligence/proposals/'+id+'/',undefined,signal);return readIntelligenceProposal(v.proposal,id);}
@@ -251,7 +254,7 @@ export class MroyaApi {
   capabilities(signal?:AbortSignal):Promise<Capabilities>{return this.json('capabilities/',undefined,signal);}
   turn(id:string,signal?:AbortSignal):Promise<TurnResponse>{if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))throw new Error('Invalid turn UUID');return this.json('chat/turns/'+id+'/',undefined,signal);}
   async send(content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={},path='chat/send/'):Promise<void>{
-    if(!content.trim()||content.length>16000)throw new Error('Message must contain 1–16000 characters');
+    if(!content.trim()||content.length>16000)throw new Error('Message must contain 1вЂ“16000 characters');
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submissionId))throw new Error('Invalid submission UUID');
     if(!this.token)await this.csrf(options.signal);
     const response=await this.fetcher('/api/v1/'+path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,

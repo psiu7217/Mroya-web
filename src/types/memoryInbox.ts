@@ -47,6 +47,7 @@ export interface InboxProposal {
 // Presentation contract only, not a claim that an Inbox API exists.
 export type InboxPreviewFilter = ProposalStatus | 'all' | 'empty' | 'loading';
 export interface MemoryInboxPresentation {
+  scanning?:{data:import('./intelligenceApi').ScanningPage|null;error:string|null;busy:boolean;selected:ReadonlySet<string>;onSelect:(id:string)=>void;onScan:()=>void;onMore:()=>void};
   focusedId?:string;focusToken?:number;
   available: boolean;
   scopeKey: string; // Account/controller lifetime; changing it discards UI drafts.

@@ -108,7 +108,7 @@ test('polling has a finite budget and apply retry keeps Backend operation identi
  const apply=operation();
  const {controller}=setup(t,{inboxProposals:async()=>({proposals:[proposal({status:'apply_retry',apply})],next_offset:null}),inboxProposal:async()=>{reads++;return proposal({status:'pending_apply',version:2,apply});},inboxDecision:async(id,action,input)=>{assert.equal(action,'retry');body=input;return {proposal:proposal({status:'pending_apply',version:2,apply}),replayed:false};}});await settle();
  assert.equal(await controller.retry(proposalId),true);assert.equal(body!.version,1);assert.equal(controller.snapshot().proposals[0].apply!.operation_id,apply.operation_id);
- for(let i=0;i<20;i++)await controller.poll();assert.equal(reads,12);assert.match(controller.snapshot().notice,/приостановлено/);
+ for(let i=0;i<70;i++)await controller.poll();assert.equal(reads,60);assert.match(controller.snapshot().notice,/приостановлено/);
 });
 
 test('missing capability/routes, disabled workers and backend errors never inject fixtures or fake success',async t=>{
@@ -162,4 +162,42 @@ test('confirmed canonical transitions refresh Saved Memory/Map from existing rea
  const controller=new LiveMemoryInboxController(inboxSource,1,()=>{},change);controller.start();controller.setVisible(true);t.after(()=>controller.stop());await settle();assert.equal(reads,1);
  await controller.poll();await settle();assert.equal(reads,2);assert.equal(maps,2);assert.equal(workspace.snapshot().history.messages.length,0);
  await controller.poll();await settle();assert.equal(reads,2,'Same receipt does not refresh repeatedly');
+});
+
+
+const calendarId='30000000-0000-4000-8000-000000000001';
+const scanningPage=()=>({worker:{enabled:true,state:'recent' as const,last_seen_at:'2026-10-24T00:00:00Z'},sources:[{id:calendarId,name:'Synthetic calendar',enabled:true,last_scanned_at:null,quota_blocked:false,scan:null}],next_offset:null});
+test('empty Inbox discovers new proposals on bounded polling without a pending card',async t=>{
+ let calls=0;
+ const {controller}=setup(t,{inboxProposals:async()=>({proposals:++calls===1?[]:[proposal()],next_offset:null}),intelligenceScans:async()=>scanningPage()});
+ await settle();assert.equal(controller.snapshot().proposals.length,0);
+ await controller.poll();assert.equal(controller.snapshot().proposals.length,1);assert.equal(calls,2);
+});
+test('scan writes use session+CSRF and the existing same-origin client',async()=>{
+ const calls:{url:string;init?:RequestInit}[]=[];
+ const api=new MroyaApi((async(url,init)=>{calls.push({url:String(url),init});return json(String(url).endsWith('/csrf/')?{csrf_token:'synthetic-token'}:scanningPage());}) as typeof fetch);
+ await api.scanIntelligence([calendarId]);
+ const write=calls.find(c=>c.init?.method==='POST')!;
+ assert.equal(write.url,'/api/v1/memory-intelligence/scans/');
+ assert.equal(write.init?.credentials,'same-origin');assert.equal((write.init?.headers as Record<string,string>)['X-CSRFToken'],'synthetic-token');
+ assert.deepEqual(JSON.parse(String(write.init?.body)),{calendar_ids:[calendarId]});
+ await assert.rejects(api.scanIntelligence([]));await assert.rejects(api.scanIntelligence([calendarId,calendarId]));
+});
+test('manual scan prevents overlapping writes; failures do not report success or create proposals',async t=>{
+ const pending=gate();let writes=0;
+ const {controller}=setup(t,{intelligenceScans:async()=>scanningPage(),scanIntelligence:async()=>{writes++;return pending.promise;},inboxProposals:async()=>({proposals:[],next_offset:null})});await settle();
+ const first=controller.scanNow();await controller.scanNow();assert.equal(writes,1);
+ pending.resolve(scanningPage());await first;assert.equal(controller.snapshot().scanBusy,false);assert.equal(controller.snapshot().proposals.length,0);
+});
+test('leaving Memory aborts scan reads and late results cannot enter the next visible session',async t=>{
+ let signal:AbortSignal|undefined;const pending=gate();
+ const {controller}=setup(t,{intelligenceScans:async(offset,s)=>{signal=s;return pending.promise;}});await settle();
+ controller.setVisible(false);assert.equal(signal?.aborted,true);pending.resolve(scanningPage());await settle();assert.equal(controller.snapshot().scanning,null);
+});
+test('scan progress parser rejects fictional counters and preserves quota/worker failure states',async()=>{
+ const {readScanning}=await import('../src/api/intelligence.ts');
+ assert.equal(readScanning(scanningPage()).worker.state,'recent');
+ assert.throws(()=>readScanning({...scanningPage(),worker:{enabled:true,state:'invented',last_seen_at:null}}));
+ const page=scanningPage();page.worker.state='unavailable' as 'recent';page.sources[0].quota_blocked=true;
+ assert.equal(readScanning(page).worker.state,'unavailable');assert.equal(readScanning(page).sources[0].quota_blocked,true);
 });

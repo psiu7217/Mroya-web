@@ -8,20 +8,21 @@ import {inboxActions,inboxStatusLabels,proposalPresentation,runtimeNotice} from 
 type HistoryState={entries:IntelligenceHistory[];next:number|null;loading:boolean;error:string|null};
 type Operation={id:string;action:ProposalDecision;body:DecisionBody};
 export interface InboxState {
+ scanning:import('../types/intelligenceApi.ts').ScanningPage|null;scanError:string|null;scanBusy:boolean;selected:ReadonlySet<string>;
  focusedId?:string;focusToken?:number;
  available:boolean;loading:boolean;loadingMore:boolean;error:string|null;notice:string;
  capabilities:IntelligenceCapabilities|null;runtime:IntelligenceRuntime|null;
  proposals:IntelligenceProposal[];next:number|null;
  histories:Record<string,HistoryState>;busy:ReadonlySet<string>;uncertain:ReadonlySet<string>;errors:Record<string,string>;
 }
-const initial=():InboxState=>({available:false,loading:false,loadingMore:false,error:null,notice:'',capabilities:null,runtime:null,proposals:[],next:null,histories:{},busy:new Set(),uncertain:new Set(),errors:{}});
+const initial=():InboxState=>({scanning:null,scanError:null,scanBusy:false,selected:new Set(),available:false,loading:false,loadingMore:false,error:null,notice:'',capabilities:null,runtime:null,proposals:[],next:null,histories:{},busy:new Set(),uncertain:new Set(),errors:{}});
 const waiting=(p:IntelligenceProposal,r:IntelligenceRuntime|null)=>!!r?.worker_enabled&&((p.status==='reanalyzing'&&r.deep_enabled)||(['pending_apply','applying','apply_retry','search_pending'].includes(p.status)&&r.apply_enabled));
 const sort=(rows:IntelligenceProposal[])=>rows.sort((a,b)=>a.updated_at===b.updated_at?(a.id>b.id?-1:a.id<b.id?1:0):(a.updated_at>b.updated_at?-1:1));
 const conflictText:Record<string,string>={proposal_version_conflict:'Предложение изменилось. Проверьте актуальную карточку и подтвердите решение заново.',idempotency_conflict:'Ключ запроса уже использован с другим действием. Обновите карточку.',source_revision_conflict:'Источник изменился. Требуется повторный анализ.',source_unavailable:'Источник недоступен.',memory_context_changed:'Память изменилась. Требуется повторная проверка.',apply_in_progress_or_completed:'Применение уже началось или завершено. Дождитесь подтверждённого результата.',new_entity_candidate_found:'Найден возможный существующий объект. Требуется уточнение.',link_identity_ambiguous:'Связь с объектом неоднозначна.',confirmed_memory_conflict:'Предложение конфликтует с подтверждённой памятью.',revision_target_changed:'Изменяемый факт уже изменился.',autonomy_changed:'Настройки автономности изменились.',canonical_context_changed:'Память изменилась во время применения.',proposal_not_approvable:'Это предложение нельзя подтвердить. Добавьте уточнение.',proposal_state_conflict:'Состояние предложения изменилось.',comment_limit_reached:'Достигнут лимит комментариев.'};
 export class LiveMemoryInboxController {
  private current=initial();private listeners=new Set<()=>void>();private active=false;private generation=0;private visible=false;
  private reads=new Set<AbortController>();private operations=new Map<string,Operation>();
- private polling=false;private refreshFlight=false;private dataEpoch=0;private historyEpoch=new Map<string,number>();
+ private scanFlight=false;private scannedSelection=false;private polling=false;private refreshFlight=false;private dataEpoch=0;private historyEpoch=new Map<string,number>();
  private pollTimer:ReturnType<typeof setTimeout>|null=null;private pollCount=0;private pollCursor=0;
  private source:WorkspaceSource;private expired:()=>void;private changed:()=>void;
  readonly scopeKey:string;
@@ -30,9 +31,9 @@ export class LiveMemoryInboxController {
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private emit(patch:Partial<InboxState>){if(!this.active)return;this.current={...this.current,...patch};this.listeners.forEach(fn=>fn());}
  start=()=>{this.active=true;};
- stop=()=>{this.active=false;this.generation++;this.dataEpoch++;for(const abort of this.reads)abort.abort();this.reads.clear();this.operations.clear();this.historyEpoch.clear();this.refreshFlight=false;this.polling=false;this.clearTimer();this.current=initial();};
+ stop=()=>{this.active=false;this.generation++;this.dataEpoch++;for(const abort of this.reads)abort.abort();this.reads.clear();this.operations.clear();this.historyEpoch.clear();this.refreshFlight=false;this.scanFlight=false;this.scannedSelection=false;this.polling=false;this.clearTimer();this.current=initial();};
  private clearTimer(){if(this.pollTimer!==null)clearTimeout(this.pollTimer);this.pollTimer=null;}
- setVisible=(visible:boolean)=>{this.visible=visible;if(!visible){this.clearTimer();return;}this.pollCount=0;void this.refresh();};
+ setVisible=(visible:boolean)=>{this.visible=visible;if(!visible){this.generation++;for(const abort of this.reads)abort.abort();this.reads.clear();this.refreshFlight=false;this.polling=false;this.scanFlight=false;this.emit({scanBusy:false,busy:new Set(),uncertain:new Set([...this.current.uncertain,...this.operations.keys()])});this.clearTimer();return;}this.pollCount=0;void this.refresh();};
  private request(){const abort=new AbortController();this.reads.add(abort);return abort;}
  private valid(abort:AbortController,generation:number){return this.active&&!abort.signal.aborted&&this.generation===generation;}
  private expiredError(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return true;}return false;}
@@ -44,7 +45,7 @@ export class LiveMemoryInboxController {
  }
  private put(p:IntelligenceProposal){this.putMany([p]);}
  refresh=async(more=false)=>{
-  if(!this.active||!this.visible||this.refreshFlight)return;
+  if(!this.active||!this.visible||this.refreshFlight||this.polling||this.scanFlight||this.current.scanBusy)return;
   const s=this.source;if(!s.intelligenceSettings||!s.intelligenceStatus||!s.inboxProposals||!s.inboxProposal||!s.inboxHistory||!s.inboxDecision)return;
   const offset=more?this.current.next:0;if(offset===null)return;
   this.refreshFlight=true;const abort=this.request(),generation=this.generation,epoch=this.dataEpoch;
@@ -54,6 +55,8 @@ export class LiveMemoryInboxController {
    if(!this.valid(abort,generation))return;
    this.emit({available:capabilities.inbox,capabilities,runtime,notice:runtimeNotice(capabilities,runtime)});
    if(!capabilities.inbox){this.emit({proposals:[],next:null});return;}
+   await this.readScans(abort,generation);
+   if(!this.valid(abort,generation))return;
    const page=await s.inboxProposals(offset,abort.signal);
    if(!this.valid(abort,generation)||epoch!==this.dataEpoch)return;
    this.putMany(page.proposals,{next:more||this.current.proposals.length<=50?page.next_offset:this.current.next});
@@ -65,23 +68,53 @@ export class LiveMemoryInboxController {
  };
  more=()=>{void this.refresh(true);};
  private schedule(){
-  this.clearTimer();if(!this.active||!this.visible||!this.current.proposals.some(p=>waiting(p,this.current.runtime)))return;
-  if(this.pollCount>=12){this.emit({notice:runtimeNotice(this.current.capabilities!,this.current.runtime)+' Автообновление приостановлено. Нажмите «Обновить Inbox» для проверки результата.'});return;}
+  this.clearTimer();if(!this.active||!this.visible||!this.current.capabilities?.inbox)return;
+  if(this.pollCount>=60){this.emit({notice:runtimeNotice(this.current.capabilities!,this.current.runtime)+' Автообновление приостановлено. Нажмите «Обновить Inbox» для проверки результата.'});return;}
   this.pollTimer=setTimeout(()=>{this.pollTimer=null;void this.poll();},5000);
  }
  poll=async()=>{
-  if(!this.active||!this.visible||this.polling||this.pollCount>=12)return;this.polling=true;this.clearTimer();this.pollCount++;
+  if(!this.active||!this.visible||this.polling||this.refreshFlight||this.scanFlight||this.current.scanBusy||this.pollCount>=60)return;this.polling=true;this.emit({});this.clearTimer();this.pollCount++;
   const abort=this.request(),generation=this.generation;
   try{
    const runtime=await this.source.intelligenceStatus!(abort.signal);if(!this.valid(abort,generation))return;
    this.emit({runtime,notice:runtimeNotice(this.current.capabilities!,runtime)});
+   await this.readScans(abort,generation);
+   if(!this.valid(abort,generation))return;
+   const page=await this.source.inboxProposals!(0,abort.signal);
+   if(!this.valid(abort,generation))return;
+   this.putMany(page.proposals,{next:this.current.proposals.length<=50?page.next_offset:this.current.next});
    const rows=this.current.proposals.filter(p=>waiting(p,runtime));
    // At most ten loaded cards per round; rotate so later loaded pages are not starved.
    const batch=rows.length?Array.from({length:Math.min(10,rows.length)},(_,i)=>rows[(this.pollCursor+i)%rows.length]):[];
    this.pollCursor+=batch.length;
    await Promise.all(batch.map(async p=>{try{const card=await this.source.inboxProposal!(p.id,abort.signal);if(this.valid(abort,generation))this.put(card);}catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({errors:{...this.current.errors,[p.id]:this.message(error)}});}}));
   }catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({runtime:null,error:this.message(error),notice:runtimeNotice(this.current.capabilities!,null)});}
-  finally{this.reads.delete(abort);if(this.active&&generation===this.generation){this.polling=false;this.schedule();}}
+  finally{this.reads.delete(abort);if(this.active&&generation===this.generation){this.polling=false;this.emit({});this.schedule();}}
+ };
+ private async readScans(abort:AbortController,generation:number,more=false){
+  if(!this.source.intelligenceScans)return;
+  try{
+   const offset=more?this.current.scanning?.next_offset??0:0;
+   const page=await this.source.intelligenceScans(offset,abort.signal);
+   if(!this.valid(abort,generation))return;
+   const sources=more?[...(this.current.scanning?.sources??[]),...page.sources]:[...page.sources];
+   let next=page.next_offset;
+   while(!more&&next!==null&&sources.length<(this.current.scanning?.sources.length??0)){
+    const extra=await this.source.intelligenceScans(next,abort.signal);sources.push(...extra.sources);next=extra.next_offset;
+   }
+   if(!this.valid(abort,generation))return;
+   const selected=this.scannedSelection?new Set([...this.current.selected].filter(id=>sources.some(s=>s.id===id&&s.enabled))):new Set(sources.filter(s=>s.enabled).slice(0,50).map(s=>s.id));
+   this.scannedSelection=true;this.emit({scanning:{...page,sources,next_offset:next},selected,scanError:null});
+  }catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({scanError:this.message(error)});}
+ }
+ selectScan=(id:string)=>{if(this.current.scanBusy)return;const selected=new Set(this.current.selected);if(selected.has(id))selected.delete(id);else if(this.current.scanning?.sources.some(s=>s.id===id&&s.enabled)&&selected.size<50)selected.add(id);this.emit({selected});};
+ private moreScans=async()=>{if(this.refreshFlight||this.polling||this.scanFlight||this.current.scanBusy)return;const abort=this.request(),generation=this.generation;this.scanFlight=true;this.emit({});try{await this.readScans(abort,generation,true);}finally{this.reads.delete(abort);if(generation===this.generation){this.scanFlight=false;this.emit({});this.schedule();}}};
+ scanNow=async()=>{
+  if(!this.active||!this.visible||this.current.scanBusy||this.refreshFlight||this.polling||this.scanFlight||!this.source.scanIntelligence||!this.current.selected.size)return;
+  const abort=this.request(),generation=this.generation;this.emit({scanBusy:true,scanError:null});
+  try{await this.source.scanIntelligence([...this.current.selected],abort.signal);if(!this.valid(abort,generation))return;this.pollCount=0;await this.readScans(abort,generation);}
+  catch(error){if(this.valid(abort,generation)&&!this.expiredError(error))this.emit({scanError:this.message(error)});}
+  finally{this.reads.delete(abort);if(this.active&&generation===this.generation){this.emit({scanBusy:false});this.schedule();}}
  };
  focus=async(id:string)=>{
   if(!this.active||!this.source.inboxProposal)return;
@@ -157,7 +190,7 @@ export class LiveMemoryInboxController {
       summary:[inboxStatusLabels[entry.snapshot.status as keyof typeof inboxStatusLabels]??String(entry.snapshot.status??''),entry.snapshot.plan&&typeof entry.snapshot.plan==='object'&&!Array.isArray(entry.snapshot.plan)?JSON.stringify(entry.snapshot.plan):'',entry.snapshot.apply&&typeof entry.snapshot.apply==='object'&&!Array.isArray(entry.snapshot.apply)?JSON.stringify(entry.snapshot.apply):''].filter(Boolean).join(' · ')}))}}:{}),
    };
   }):[];
-  return {focusedId:s.focusedId,focusToken:s.focusToken,available:s.available,scopeKey:this.scopeKey,proposals,loading:s.loading,error:s.error,notice:s.notice,emptyMessage:'В Memory Inbox сейчас нет предложений. Доступность фонового анализа указана выше.',hasMore:s.next!==null,loadingMore:s.loadingMore,onMore:this.more,
+  return {scanning:this.source.intelligenceScans?{data:s.scanning,error:s.scanError,busy:s.scanBusy||this.refreshFlight||this.polling||this.scanFlight,selected:s.selected,onSelect:this.selectScan,onScan:()=>void this.scanNow(),onMore:()=>void this.moreScans()}:undefined,focusedId:s.focusedId,focusToken:s.focusToken,available:s.available,scopeKey:this.scopeKey,proposals,loading:s.loading,error:s.error,notice:s.notice,emptyMessage:'Предложений пока нет. Статус обработки разрешённых календарей указан в панели сканирования.',hasMore:s.next!==null,loadingMore:s.loadingMore,onMore:this.more,
    onRefresh:()=>{this.pollCount=0;void this.refresh();},onOpenProposal:id=>{void this.open(id);},onMoreHistory:id=>{void this.open(id,true);},
    onAcceptProposal:id=>this.decide(id,'accept'),onRejectProposal:id=>this.decide(id,'reject'),onCommentProposal:(id,text)=>this.decide(id,'comment',text),onReconsiderProposal:id=>this.decide(id,'reconsider'),onRetryProposal:this.retry};
  };

@@ -13,6 +13,7 @@ import { MemoryMapView } from '../components/MemoryMapView';
 import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
 import { NotesView } from '../components/NotesView';
+import { MemoryInboxView } from '../components/MemoryInboxView';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
  const feedback=model.feedback??runtime;
@@ -49,6 +50,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
         notesAvailable={notesAvailable}
         notesCount={notesAvailable?(model.notes ?? []).length:0}
+        memoryInboxCount={4}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 
@@ -183,6 +185,20 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onMemoryViewExpandSidebar}
             onOpenMobileMenu={onMemoryViewOpenMobileMenu}
+          />
+        )}
+
+        {activeSection === 'memory-inbox' && (
+          <MemoryInboxView
+            isSidebarCollapsed={isSidebarCollapsed}
+            onExpandSidebar={onMemoryViewExpandSidebar}
+            onOpenMobileMenu={onMemoryViewOpenMobileMenu}
+            onNavigateToMemory={(id) => {
+              if (id) {
+                onMemoryViewSelectMemory(id);
+              }
+              onSidebarSelectSection('memory');
+            }}
           />
         )}
 

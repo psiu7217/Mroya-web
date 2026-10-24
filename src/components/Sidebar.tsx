@@ -22,6 +22,7 @@ import {
   Pencil,
   Trash2,
   FileText,
+  Inbox,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {
@@ -59,6 +60,7 @@ export interface SidebarProps {
   pendingRemindersCount: number;
   notesCount?: number;
   notesAvailable?: boolean;
+  memoryInboxCount?: number;
   onOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
 }
 
@@ -90,6 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingRemindersCount,
   notesCount = 0,
   notesAvailable = false,
+  memoryInboxCount,
   onOpenSettingsTab,
 }) => {
   const [mobileViewport, setMobileViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
@@ -234,6 +237,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Memory',
       icon: BookOpen,
       meta: String(memoriesCount),
+    },
+    {
+      id: 'memory-inbox',
+      label: 'Memory Inbox',
+      icon: Inbox,
+      meta: memoryInboxCount !== undefined && memoryInboxCount > 0 ? String(memoryInboxCount) : undefined,
     },
     { id: 'memory-map', label: 'Memory Map', icon: Share2 },
     { id: 'connections', label: 'Connections', icon: Link2 },

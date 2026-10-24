@@ -1,3 +1,4 @@
+import {ScanningPanel} from './ScanningPanel';
 import React, { useState,useEffect,useRef } from 'react';
 import {
   Search,
@@ -552,6 +553,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
               </div>}
             </div>
 
+            {inbox?.scanning&&<ScanningPanel scanning={inbox.scanning}/>}
             {inbox?.error&&<div role="alert" className="p-3 rounded-[10px] bg-red-500/10 border border-red-500/25">{inbox.error}{inbox.onRetryProposal&&<button type="button" className="ml-3 underline" onClick={()=>void inbox.onRetryProposal?.()}>Retry</button>}</div>}
 
             {inbox?.notice&&<p role="status" className="text-[13px] text-[var(--mroya-text-muted)]">{inbox.notice}</p>}
@@ -587,7 +589,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   <Inbox className="w-6 h-6" />
                 </div>
                 <h3 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                  Все предложения обработаны
+                  Предложений пока нет
                 </h3>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] max-w-md mx-auto leading-[20px]">
                   {inbox?.emptyMessage??'В Memory Inbox сейчас нет ожидающих предложений. Искусственный интеллект продолжит мониторинг разрешенных источников и сформирует предложения при появлении новых фактов.'}

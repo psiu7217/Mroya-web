@@ -47,3 +47,11 @@ export interface EventAnalysisPresentation {
  eventId:string|null;loading:boolean;error:string|null;unavailable:boolean;data:EventAnalysisStatus|null;
  onSelect:(id:string|null)=>void;onRefresh:()=>void;onProposal:(id:string)=>void;
 }
+
+export interface SourceScanProgress {
+ id:string;name:string;enabled:boolean;last_scanned_at:string|null;quota_blocked:boolean;
+ scan:null|{id:string;state:'requested'|'scanning'|'processing'|'completed'|'completed_with_errors';
+ requested_at:string;started_at:string|null;discovered_at:string|null;eligible:number|null;discovered:number;checked:number;
+ queued:number;triage:number;deep_analysis:number;no_save:number;stale:number;errors:number;retrying:number;awaiting_confirmation:number;error_codes:string[]};
+}
+export interface ScanningPage {worker:{enabled:boolean;state:'disabled'|'recent'|'unavailable';last_seen_at:string|null};sources:SourceScanProgress[];next_offset:number|null}

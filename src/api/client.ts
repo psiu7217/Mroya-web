@@ -1,3 +1,5 @@
+import {readInitialResults} from './initialResults.ts';
+import type {InitialDecision} from '../types/initialResults.ts';
 import {readInitialQueue,readInitialQueueReceipt} from './initialQueue.ts';
 import {readScanning} from './intelligence.ts';
 import {readIntelligencePreferences,readIntelligenceSources,readIntelligenceSource,readEventAnalysis} from './intelligence.ts';
@@ -33,6 +35,10 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async initialFilterResults(decision:InitialDecision='APPROVE',offset=0,signal?:AbortSignal){
+    if(!['APPROVE','REJECT'].includes(decision)||!Number.isSafeInteger(offset)||offset<0)throw new ApiError(400,'invalid_request','Invalid results page');
+    return readInitialResults(await this.json(`memory-intelligence/initial-filter-results/?decision=${decision}&limit=50&offset=${offset}`,undefined,signal),decision,offset);
+  }
   async initialFilterQueue(signal?:AbortSignal){return readInitialQueue(await this.json('memory-intelligence/initial-filter-queue/',undefined,signal));}
   async enqueueInitialFilter(calendarId:string,signal?:AbortSignal){
     if(!isTurnUuid(calendarId))throw new ApiError(400,'invalid_initial_queue_request','Invalid calendar UUID');

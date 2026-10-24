@@ -1,3 +1,4 @@
+import {InitialFilterResultsController} from './InitialFilterResultsController.ts';
 import {useEffect,useMemo,useSyncExternalStore} from 'react';
 import {ApiError} from '../api/errors.ts';
 import type {WorkspaceSource} from '../types/source.ts';
@@ -7,8 +8,8 @@ type State={sources:IntelligenceSource[];selectedId:string;loading:boolean;busy:
 const initial=():State=>({sources:[],selectedId:'',loading:false,busy:false,error:null,totals:null,receipt:null,next:null});
 export class InitialFilterQueueController {
  private current=initial();private active=false;private generation=0;private request:AbortController|null=null;private listeners=new Set<()=>void>();
- private source:WorkspaceSource;private expired:()=>void;readonly scopeKey='initial-queue-'+crypto.randomUUID();
- constructor(source:WorkspaceSource,expired:()=>void){this.source=source;this.expired=expired;}
+ private onQueued:()=>void;private source:WorkspaceSource;private expired:()=>void;readonly scopeKey='initial-queue-'+crypto.randomUUID();
+ constructor(source:WorkspaceSource,expired:()=>void,onQueued:()=>void=()=>{}){this.source=source;this.expired=expired;this.onQueued=onQueued;}
  snapshot=()=>this.current;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private emit(v:Partial<State>){if(this.active){this.current={...this.current,...v};this.listeners.forEach(fn=>fn());}}
  start=()=>{this.active=true;void this.refresh();};
@@ -39,7 +40,7 @@ export class InitialFilterQueueController {
   const abort=this.request=new AbortController(),ticket=++this.generation;this.emit({busy:true,error:null,receipt:null,totals:null});
   try{
    const receipt=await s.enqueueInitialFilter(id,abort.signal);if(!this.valid(abort,ticket))return;
-   this.emit({receipt});
+   this.emit({receipt});this.onQueued();
    const totals=await s.initialFilterQueue(abort.signal);if(this.valid(abort,ticket))this.emit({totals});
   }catch(e){if(this.valid(abort,ticket)){
    if(this.current.receipt&&!(e instanceof ApiError&&e.status===401))this.emit({error:'Добавление подтверждено Backend, но счётчики не обновлены. Нажмите «Обновить»; повтор добавления не выполняется.'});
@@ -49,9 +50,12 @@ export class InitialFilterQueueController {
  };
 }
 export function useInitialFilterQueue(source:WorkspaceSource,userId:number,visible:boolean,onExpired:()=>void,onSettings:()=>void){
- const controller=useMemo(()=>new InitialFilterQueueController(source,onExpired),[source,userId,onExpired]);
+ const results=useMemo(()=>new InitialFilterResultsController(source,onExpired),[source,userId,onExpired]);
+ const resultsState=useSyncExternalStore(results.subscribe,results.snapshot,results.snapshot);
+ useEffect(()=>{if(visible)results.start();return results.stop;},[results,visible]);
+ const controller=useMemo(()=>new InitialFilterQueueController(source,onExpired,()=>void results.refresh()),[source,userId,onExpired,results]);
  const state=useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
  useEffect(()=>{if(visible)controller.start();return controller.stop;},[controller,visible]);
- const presentation:InitialQueuePresentation={...state,scopeKey:controller.scopeKey,hasMoreSources:state.next!==null,onSelect:controller.select,onEnqueue:()=>void controller.enqueue(),onRefresh:()=>void controller.refresh(),onMoreSources:()=>void controller.refresh(true),onSettings};
- return {controller,presentation};
+ const presentation:InitialQueuePresentation={...state,results:{...resultsState,onDecision:results.select,onRefresh:()=>void results.refresh(),onNext:results.next,onPrevious:results.previous},scopeKey:controller.scopeKey,hasMoreSources:state.next!==null,onSelect:controller.select,onEnqueue:()=>void controller.enqueue(),onRefresh:()=>void controller.refresh(),onMoreSources:()=>void controller.refresh(true),onSettings};
+ return {controller:{stop:()=>{controller.stop();results.stop();}},presentation};
 }

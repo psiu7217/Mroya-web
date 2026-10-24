@@ -443,3 +443,13 @@ are injected from src/demo, never imported by the shared component.
 Manual check after approved release: History -> calendar A -> add; B -> add;
 reload and reopen History; re-add A and verify added=0 and unchanged total.
 Verify a disabled source leads to settings without automatically granting consent.
+
+## Initial Filter Results (pending Backend implementation)
+
+Frontend integration follows the owner-provided contract dated 2026-10-24. This route is **not confirmed implemented, merged or deployed**; a missing endpoint produces an explicit unavailable state, never demo data.
+
+`GET memory-intelligence/initial-filter-results/?decision=APPROVE|REJECT&limit=50&offset=0` uses the existing session client. `decision` is optional on Backend (all completed decisions when omitted); Web always requests one result tab. Response: `summary: {total,pending,processing,approved,rejected,errors}`, `is_complete`, `processing_enabled`, `results`, `next_offset` (null at end). Summary is global regardless of page/filter; total equals the sum of all five status counts. Each result contains `event_id`, `title`, `calendar_name`, `date` (YYYY-MM-DD), `decision`, `probability` (0..1), `model`, `processed_at`. APPROVE requires probability >=0.80; REJECT <0.80. Errors are terminal jobs, never REJECT results.
+
+The processed counter includes approved + rejected + terminal errors; a separate error counter explains this. Poll every 5 seconds only while processing_enabled && !is_complete. Complete means pending=processing=0, even with errors. Stop on request failure (manual Retry), disabled processing, tab close or logout/account change. Opening History reloads persisted results; confirmed enqueue refreshes results and resumes polling when appropriate. Pagination follows next_offset and preserves Backend order; Web does not load other stages or write memory. Offset pages can shift while processing adds results; Refresh/reopening reloads the selected page, and Previous returns toward the first page.
+
+Live acceptance requires the matching Backend endpoint deployment. Verify enqueue A/B, counters increasing, both paginated decision lists, terminal errors, disabled processing, and persistence after reload. Tests use synthetic transport only, with no AI requests.

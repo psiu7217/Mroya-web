@@ -40,6 +40,7 @@ export class UserPreferenceStore {
   private dirty={theme:false,nickname:false,show_model_reasoning:false,language:false};
   private revisions={theme:0,nickname:0,show_model_reasoning:0,language:0};
   private automaticLanguageInitPending=false;
+  private languageConfirmed:boolean;
   private fallbackLanguage:AppLanguage;
   private source:WorkspaceSource;
   private userId:number;
@@ -47,8 +48,9 @@ export class UserPreferenceStore {
   constructor(source:WorkspaceSource,userId:number,user:ApiUser,onExpired:()=>void,fallbackLanguage:AppLanguage='en'){
     this.source=source;this.userId=userId;this.onExpired=onExpired;this.fallbackLanguage=fallbackLanguage;
     const savedLanguage=validLanguage(user.preferences.language);
+    this.languageConfirmed=savedLanguage!==null;
     this.confirmed=values(user,savedLanguage??fallbackLanguage);
-    this.current={...this.confirmed,status:'saved',error:null,languageStatus:'saved',languageError:null};
+    this.current={...this.confirmed,status:'saved',error:null,languageStatus:this.languageConfirmed?'saved':'saving',languageError:null};
     this.automaticLanguageInitPending=!savedLanguage;
   }
   readonly snapshot=()=>this.current;
@@ -56,7 +58,15 @@ export class UserPreferenceStore {
   start(){if(!this.active||!this.automaticLanguageInitPending)return;this.emit({...this.current,status:'saving',error:null,languageStatus:'saving',languageError:null});void this.flush();}
   private emit(next:PreferenceView){if(!this.active)return;this.current=next;this.listeners.forEach(listener=>listener());}
   setTheme=(theme:ThemeMode)=>{if(!['system','light','dark'].includes(theme))return;this.edit({theme});};
-  setLanguage=(language:AppLanguage)=>{if(!validLanguage(language))return;this.automaticLanguageInitPending=false;this.dirty.language=true;this.revisions.language++;this.validationError=null;this.blocked=false;this.current={...this.current,language,languageStatus:'saving',languageError:null};this.emit({...this.current,status:'saving',error:null});void this.flush();};
+  setLanguage=(language:AppLanguage)=>{
+    if(!validLanguage(language))return;
+    this.automaticLanguageInitPending=false;
+    if(this.blocked&&!this.ambiguous&&!this.csrfRequired&&!this.validationError)this.blocked=false;
+    this.dirty.language=true;this.revisions.language++;
+    this.current={...this.current,language,languageStatus:this.blocked?'unsaved':'saving',languageError:this.blocked?this.current.languageError:null};
+    this.emit({...this.current,status:this.busy?'saving':this.blocked?'unsaved':'saving',error:this.blocked?this.current.error:null});
+    if(!this.blocked)void this.flush();
+  };
   setShowModelReasoning=(enabled:boolean)=>{if(typeof enabled==='boolean')this.edit({show_model_reasoning:enabled});};
   setNickname=(nickname:string)=>{
     nickname=typeof nickname==='string'?nickname.trim():nickname;
@@ -78,6 +88,7 @@ export class UserPreferenceStore {
   private async flush():Promise<void>{
     if(!this.active||this.busy||this.blocked||this.validationError)return;
     const patch=difference(this.current,this.confirmed);
+    if(this.dirty.language&&!this.languageConfirmed&&patch.language===undefined)patch.language=this.current.language;
     if(this.automaticLanguageInitPending&&!('language' in patch)){
       patch.language=this.current.language;patch.language_only_if_unset=true;
     }
@@ -100,6 +111,7 @@ export class UserPreferenceStore {
       const user=await this.source.savePreferences(patch,abort.signal);
       if(!this.active||abort.signal.aborted)return;
       if(user.id!==this.userId)throw new ApiError(401,'session_changed','Account changed during preferences update.');
+      if(validLanguage(user.preferences.language))this.languageConfirmed=true;
       this.accept(user,patch,sent);
       if(patch.language!==undefined){
         const savedLanguage=validLanguage(user.preferences.language);
@@ -131,14 +143,16 @@ export class UserPreferenceStore {
     }
   }
   private accept(user:ApiUser,patch:PreferencesPatch={},sent=this.revisions){
+    if(validLanguage(user.preferences.language))this.languageConfirmed=true;
     this.confirmed=values(user,this.fallbackLanguage);
     let next={...this.current};
     for(const field of ['theme','nickname','show_model_reasoning','language'] as const){
-      if(!this.dirty[field]||(patch[field]!==undefined&&this.revisions[field]===sent[field])){
+      const canAdopt=field!=='language'||this.languageConfirmed;
+      if(canAdopt&&(!this.dirty[field]||(patch[field]!==undefined&&this.revisions[field]===sent[field]))){
         next={...next,[field]:this.confirmed[field]};this.dirty[field]=false;
-      }else if(next[field]===this.confirmed[field])this.dirty[field]=false;
+      }else if(canAdopt&&next[field]===this.confirmed[field])this.dirty[field]=false;
     }
-    if(!this.dirty.language||(patch.language!==undefined&&this.revisions.language===sent.language)||next.language===this.confirmed.language){this.dirty.language=false;next={...next,languageStatus:'saved',languageError:null};}
+    if(this.languageConfirmed&&(!this.dirty.language||(patch.language!==undefined&&this.revisions.language===sent.language)||next.language===this.confirmed.language)){this.dirty.language=false;next={...next,languageStatus:'saved',languageError:null};}
     this.current=next;
   }
   retry=async()=>{

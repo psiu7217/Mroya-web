@@ -40,5 +40,9 @@
   "loadingNotes": "Loading notes…",
   "loadMore": "Load more notes",
   "keyTags": "Key tags:",
-  "imageOmitted": "Image omitted"
+  "imageOmitted": "Image omitted",
+  "accessDenied": "Notes access was denied. Check your session and retry.",
+  "noteUnavailable": "This note is no longer available.",
+  "loadError": "Unable to load Notes. Check your connection and retry.",
+  "paginationLimit": "Notes pagination limit reached. Reopen Notes to refresh the list."
 }

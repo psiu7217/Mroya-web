@@ -14,6 +14,7 @@ const {NotesView}=await vite.ssrLoadModule('/src/components/NotesView.tsx');
 const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 const {Sidebar}=await vite.ssrLoadModule('/src/components/Sidebar.tsx');
 const {useDemoWorkspace}=await vite.ssrLoadModule('/src/demo/useDemoWorkspace.ts');
+const {appI18n}=await vite.ssrLoadModule('/src/i18n/index.ts');
 const originals=Object.fromEntries(['window','navigator','fetch'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
 let requests=0,clipboard=async()=>{};
 globalThis.window={getSelection:()=>({toString:()=>''}),matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};Object.defineProperty(globalThis,'navigator',{configurable:true,value:{clipboard:{writeText:text=>clipboard(text)}}});globalThis.fetch=()=>{requests++;throw Error('Notes must stay offline');};
@@ -65,6 +66,15 @@ test('search/category/Empty preview work offline; read-only mode has no demo sta
 });
 test('safe Markdown blocks raw HTML, dangerous links/images and keeps tables/code internally scrollable',()=>{
  const view=mount({notes:[note('unsafe','<script>alert(1)</script>\n\n[bad](javascript:alert%281%29) ![remote](https://example.test/pixel.png)\n\n| A | B |\n|---|---|\n| x | y |\n\n```html\n<img src=x onerror=alert(1)>\n```')]});view.open('unsafe');assert.doesNotMatch(view.html,/<script|href="javascript:|src="https:\/\/example.test\/pixel|onerror="/);assert.match(view.html,/Note table/);assert.match(view.html,/mroya-markdown-scroll/);assert.match(view.html,/&lt;img/);view.unmount();
+});
+test('already loaded Notes dates reformat immediately after changing the interface language',async()=>{
+ await appI18n.changeLanguage('en');
+ const dated={...note('dated','Note body'),updatedAtRaw:'2026-10-22T12:00:00Z',updatedAt:'Oct 22, 2026'};
+ const view=mount({notes:[dated],designPreview:false});
+ assert.match(view.html,/Oct 22, 2026/);view.open('dated');assert.match(view.html,/Oct 22, 2026/);
+ await appI18n.changeLanguage('ru');view.update({});
+ assert.match(view.html,/22 окт\. 2026 г\./);
+ await appI18n.changeLanguage('en');view.update({});view.unmount();
 });
 test('late or rejected clipboard writes never show Copied on another note',async()=>{
  let resolve;clipboard=()=>new Promise(r=>resolve=r);const view=mount({notes:[note('a','A'),note('b','B')]});view.open('a');const pending=button(view,'Copy note text').props.onClick();view.open('Back to Notes');view.open('b');resolve();await pending;view.flush();assert.doesNotMatch(view.html,/>Copied</);

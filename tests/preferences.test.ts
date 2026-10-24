@@ -137,6 +137,30 @@ test('failed language save stays unsaved, preserves selection and retry confirms
  await s.retry();await nextTick();
  assert.equal(writes,2);assert.equal(s.snapshot().language,'ru');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
 });
+test('manually selecting the same fallback language still writes an unset Backend preference',async()=>{
+ const sent:PreferencesPatch[]=[];let writes=0;
+ const uninitialized={...user,preferences:{theme:'system' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async patch=>{
+  sent.push(patch);writes++;
+  if(writes===1)throw new ApiError(400,'initialization_failed','Initialization failed');
+  return {...uninitialized,preferences:{theme:'system' as const,language:patch.language??undefined}};
+ }}),7,uninitialized,()=>{},'en');
+ s.start();await nextTick();assert.equal(s.snapshot().languageStatus,'unsaved');
+ s.setLanguage('en');await nextTick();
+ assert.deepEqual(sent,[{language:'en',language_only_if_unset:true},{language:'en'}]);
+ assert.equal(s.snapshot().language,'en');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
+});
+test('changing language after an ambiguous PATCH waits for Backend reconciliation before retrying',async()=>{
+ const events:string[]=[];let server:ApiUser={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const s=new UserPreferenceStore(source({savePreferences:async patch=>{
+  events.push('PATCH '+patch.language);if(events.length===1){server={...server,preferences:{...server.preferences,language:patch.language}};throw Error('Lost response');}
+  server={...server,preferences:{...server.preferences,language:patch.language??server.preferences.language}};return server;
+ },session:async()=>{events.push('GET');return {status:'authenticated',user:server};}}),7,server,()=>{});
+ s.setLanguage('en');await nextTick();assert.equal(s.snapshot().languageStatus,'unsaved');
+ s.setLanguage('ru');await nextTick();assert.deepEqual(events,['PATCH en']);assert.equal(s.snapshot().languageStatus,'unsaved');
+ await s.retry();await nextTick();await nextTick();
+ assert.deepEqual(events,['PATCH en','GET','PATCH ru']);assert.equal(s.snapshot().language,'ru');assert.equal(s.snapshot().languageStatus,'saved');s.dispose();
+});
 test('normalizing an old nickname response does not overwrite a newer nickname or theme',async()=>{
  let finish!:(u:ApiUser)=>void;const sent:PreferencesPatch[]=[];
  const s=new UserPreferenceStore(source({savePreferences:async p=>{sent.push(p);return new Promise(resolve=>{finish=resolve;});}}),7,user,()=>{});

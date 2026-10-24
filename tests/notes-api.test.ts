@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {MroyaApi} from '../src/api/client.ts';
 import {createLiveSource} from '../src/providers/liveSource.ts';
 import {ApiError} from '../src/api/errors.ts';
+import {appI18n} from '../src/i18n/index.ts';
 import {LiveNotesController,notePresentation,notesSourceAvailable} from '../src/hooks/LiveNotesController.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 import type {NoteSummaryDto,NoteDetailDto} from '../src/types/notesApi.ts';
@@ -78,6 +79,18 @@ test('selected detail remains retryable if a concurrent first-page refresh no lo
  const c=store(source({notes:async()=>page(++reads===1?[brief()]:[]),note:async()=>detail.promise}));await tick();
  c.select(id(1));await c.refresh();assert.equal(c.snapshot().rows.length,0);assert.equal(c.snapshot().selectedSummary?.id,id(1));
  detail.resolve(full());await tick();assert.equal(c.snapshot().detail?.id,id(1));c.select(null);assert.equal(c.snapshot().selectedSummary,null);c.stop();
+});
+test('Notes controller translates access, unavailable-note and network errors in the active locale',async()=>{
+ await appI18n.changeLanguage('en');
+ const denied=store(source({notes:async()=>{throw new ApiError(403,'denied','Backend text');},note:async()=>full()}));await tick();
+ assert.equal(denied.snapshot().error,'Notes access was denied. Check your session and retry.');
+ await appI18n.changeLanguage('ru');await denied.refresh();
+ assert.equal(denied.snapshot().error,'Нет доступа к заметкам. Проверьте авторизацию и повторите попытку.');denied.stop();
+ const unavailable=store(source({notes:async()=>page([brief()]),note:async()=>{throw new ApiError(404,'note_not_found','Backend text');}}));await tick();
+ unavailable.select(id(1));await tick();assert.equal(unavailable.snapshot().detailError,'Заметка больше недоступна.');unavailable.stop();
+ const network=store(source({notes:async()=>{throw new TypeError('network details');},note:async()=>full()}));await tick();
+ assert.equal(network.snapshot().error,'Не удалось загрузить заметки. Проверьте подключение и повторите попытку.');network.stop();
+ await appI18n.changeLanguage('en');
 });
 
 

@@ -365,7 +365,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
               <div className="flex items-center gap-1.5 text-[12.5px]">
                 <Calendar className="w-3.5 h-3.5 opacity-60" />
-                <span>{activeNote.updatedAt}</span>
+                <span>{noteDate(activeNote)}</span>
               </div>
             </div>
 
@@ -698,7 +698,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                               <span className="opacity-40">·</span>
                             </>
                           )}
-                          <span>{note.updatedAt}</span>
+                          <span>{noteDate(note)}</span>
                         </div>
                       </div>
 

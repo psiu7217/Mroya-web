@@ -1,5 +1,6 @@
 import {ApiError} from '../api/errors.ts';
 import {formatDate} from '../i18n/format.ts';
+import {tr} from '../i18n/index.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {NoteSummaryDto,NoteDetailDto} from '../types/notesApi.ts';
 import type {NoteItem} from '../types/notes.ts';
@@ -36,7 +37,11 @@ export class LiveNotesController {
   if(visible)void this.refresh();
   else {this.cancel();this.emit({loading:false,loadingMore:false,selectedId:null,selectedSummary:null,detail:null,detailLoading:false,detailError:null});}
  };
- private message(error:unknown){return error instanceof ApiError?(error.status===403?'Notes access was denied. Check your session and retry.':error.status===404?'This note is no longer available.':error.message):'Unable to load Notes. Check your connection and retry.';}
+ private message(error:unknown){
+  if(error instanceof ApiError&&error.status===403)return tr('accessDenied',{ns:'notes'});
+  if(error instanceof ApiError&&error.status===404)return tr('noteUnavailable',{ns:'notes'});
+  return tr('loadError',{ns:'notes'});
+ }
  private failure(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return true;}return false;}
  refresh=()=>this.load(false);
  more=()=>this.load(true);
@@ -44,7 +49,7 @@ export class LiveNotesController {
   if(!this.active||!this.visible||!this.source.notes||this.source.kind!=='live')return;
   if(more&&(this.state.loading||this.state.loadingMore||this.state.next===null))return;
   const offset=more?this.state.next!:0;
-  if(offset>10000){this.emit({error:'Notes pagination limit reached. Reopen Notes to refresh the list.',next:null});return;}
+  if(offset>10000){this.emit({error:tr('paginationLimit',{ns:'notes'}),next:null});return;}
   this.listAbort?.abort();const abort=this.listAbort=new AbortController(),epoch=++this.epoch;
   this.emit({loading:!more,loadingMore:more,error:null});
   try {

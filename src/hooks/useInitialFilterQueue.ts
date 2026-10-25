@@ -1,4 +1,5 @@
 import {InitialFilterResultsController} from './InitialFilterResultsController.ts';
+import {MemoryReviewController} from './MemoryReviewController.ts';
 import {useEffect,useMemo,useSyncExternalStore} from 'react';
 import {ApiError} from '../api/errors.ts';
 import {tr} from '../i18n/index.ts';
@@ -51,12 +52,16 @@ export class InitialFilterQueueController {
  };
 }
 export function useInitialFilterQueue(source:WorkspaceSource,userId:number,visible:boolean,onExpired:()=>void,onSettings:()=>void){
- const results=useMemo(()=>new InitialFilterResultsController(source,onExpired),[source,userId,onExpired]);
+ const review=useMemo(()=>new MemoryReviewController(source,onExpired),[source,userId,onExpired]);
+ const reviewState=useSyncExternalStore(review.subscribe,review.snapshot,review.snapshot);
+ useEffect(()=>{if(visible)review.start();return review.stop;},[review,visible]);
+ const results=useMemo(()=>new InitialFilterResultsController(source,onExpired,review.invalidate),[source,userId,onExpired,review]);
  const resultsState=useSyncExternalStore(results.subscribe,results.snapshot,results.snapshot);
  useEffect(()=>{if(visible)results.start();return results.stop;},[results,visible]);
  const controller=useMemo(()=>new InitialFilterQueueController(source,onExpired,()=>void results.refresh()),[source,userId,onExpired,results]);
  const state=useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
  useEffect(()=>{if(visible)controller.start();return controller.stop;},[controller,visible]);
  const presentation:InitialQueuePresentation={...state,results:{...resultsState,onDecision:results.select,onRefresh:()=>void results.refresh(),onNext:results.next,onPrevious:results.previous},scopeKey:controller.scopeKey,hasMoreSources:state.next!==null,onSelect:controller.select,onEnqueue:()=>void controller.enqueue(),onRefresh:()=>void controller.refresh(),onMoreSources:()=>void controller.refresh(true),onSettings};
- return {controller:{stop:()=>{controller.stop();results.stop();}},presentation};
+ presentation.review={...reviewState,onEnqueue:()=>void review.enqueue(),onRefresh:()=>void review.refresh(),onRetry:id=>void review.retry(id),onNext:review.next,onPrevious:review.previous};
+ return {controller:{stop:()=>{controller.stop();results.stop();review.stop();}},presentation};
 }

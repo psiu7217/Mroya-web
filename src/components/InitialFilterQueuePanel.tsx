@@ -23,6 +23,6 @@ export function InitialFilterQueuePanel({queue}:{queue:InitialQueuePresentation}
   {queue.receipt&&<p role="status" className="text-[13px] text-[var(--mroya-text)]">{tr('enqueueReceipt',{ns:'connections',added:queue.receipt.added,alreadyQueued:queue.receipt.already_queued})}</p>}
   {queue.totals&&<div className="text-[13px] text-[var(--mroya-text)] space-y-1"><p>{tr('totalQueuedEvents',{ns:'connections'})}: <strong>{queue.totals.queue_total}</strong></p>{queue.totals.calendars.map((row,index)=><p key={row.calendar_id}>{queue.sources.find(source=>source.id===row.calendar_id)?.name??tr('calendarNameUnavailable',{ns:'connections',count:index+1})}: {row.pending}</p>)}</div>}
   <div className="flex gap-3 text-[12px] text-[var(--mroya-primary)]"><button type="button" disabled={waiting} onClick={queue.onRefresh} className="hover:underline">{tr('refreshRetry',{ns:'connections'})}</button>{queue.hasMoreSources&&<button type="button" disabled={waiting} onClick={queue.onMoreSources} className="hover:underline">{tr('moreCalendars',{ns:'connections'})}</button>}</div>
-  {queue.results&&<InitialFilterResultsPanel results={queue.results}/>}
+  {queue.results&&<InitialFilterResultsPanel results={queue.results} review={queue.review}/>}
  </section>;
 }

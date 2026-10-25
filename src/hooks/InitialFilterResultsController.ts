@@ -6,7 +6,8 @@ const initial=():InitialResultsState=>({data:null,decision:'APPROVE',offset:0,lo
 export class InitialFilterResultsController {
  private current=initial();private active=false;private generation=0;private request:AbortController|null=null;private timer:ReturnType<typeof setTimeout>|null=null;
  private listeners=new Set<()=>void>();private source:WorkspaceSource;private expired:()=>void;
- constructor(source:WorkspaceSource,expired:()=>void){this.source=source;this.expired=expired;}
+ private updated:()=>void;
+ constructor(source:WorkspaceSource,expired:()=>void,updated:()=>void=()=>{}){this.source=source;this.expired=expired;this.updated=updated;}
  snapshot=()=>this.current;subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private emit(v:Partial<InitialResultsState>){if(this.active){this.current={...this.current,...v};this.listeners.forEach(fn=>fn());}}
  private clearTimer(){if(this.timer!==null)clearTimeout(this.timer);this.timer=null;}
@@ -23,7 +24,7 @@ export class InitialFilterResultsController {
   try{
    if(!this.source.initialFilterResults)throw new ApiError(404,'unavailable','Unavailable');
    const data=await this.source.initialFilterResults(decision,offset,request.signal);if(!valid())return;
-   this.emit({data});
+   this.emit({data});this.updated();
    if(data.processing_enabled&&!data.is_complete)this.timer=setTimeout(()=>void this.refresh(),5000);
   }catch(e){if(valid()){
    if(e instanceof ApiError&&e.status===401){this.stop();this.expired();return;}

@@ -3,7 +3,7 @@ import type {InitialResultsPresentation} from '../types/initialResults';
 import {tr} from '../i18n';
 import {formatDate} from '../i18n/format';
 import {currentLocale} from '../i18n/format';
-export function InitialFilterResultsPanel({results:r}:{results:InitialResultsPresentation}){
+export function InitialFilterResultsPanel({results:r,review}:{results:InitialResultsPresentation;review?:import('../types/memoryReview').ReviewPresentation}){
  const language=currentLocale();
  const s=r.data?.summary,processed=s?s.approved+s.rejected+s.errors:0;
  const percent=s?.total?Math.floor(processed/s.total*100):0;
@@ -22,6 +22,7 @@ export function InitialFilterResultsPanel({results:r}:{results:InitialResultsPre
    {(['APPROVE','REJECT'] as const).map(d=><button type="button" role="tab" aria-selected={r.decision===d} key={d} onClick={()=>r.onDecision(d)} className="px-3 py-2 rounded-[8px] border border-[var(--mroya-divider)] aria-selected:text-[var(--mroya-primary)] aria-selected:bg-[var(--mroya-bg)]">{d==='APPROVE'?tr('initialFilterApproved',{ns:'connections'}):tr('initialFilterRejected',{ns:'connections'})}</button>)}
   </div>
   {r.data&&<div role="tabpanel" className="space-y-2">
+   {r.decision==='APPROVE'&&review&&<button type="button" disabled={review.busy||review.loading||!review.data?.eligible_count||!review.data.processing_enabled} onClick={review.onEnqueue} className="px-3 py-2 rounded-[8px] bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-50">{tr('reviewEnqueue',{ns:'memory',count:review.data?.eligible_count??0})}</button>}
    {!r.data.results.length&&<p className="text-[var(--mroya-text-muted)]">{tr('initialFilterNoResults',{ns:'connections'})}</p>}
    {r.data.results.map(row=><div key={row.event_id} className="p-3 rounded-[8px] border border-[var(--mroya-divider)] flex flex-wrap justify-between gap-2">
     <div className="min-w-0 break-words"><p className="font-medium">{row.title}</p><p className="text-[12px] text-[var(--mroya-text-muted)]">{row.calendar_name} · <time dateTime={row.date}>{formattedDate(row.date)}</time></p></div>

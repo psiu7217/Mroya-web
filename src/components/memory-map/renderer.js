@@ -1,44 +1,11 @@
 // Ported from psiu7217/Personal-Memory-OS @ 38892fa5e25e30c908e0c8ad5c2032d02d248d36.
-import { Application, Circle, Container, DOMAdapter, Graphics, Text } from "pixi.js";
+import { Application, Circle, Container, Graphics, Text } from "pixi.js";
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY } from "d3-force";
 import { localIds, nodeRadius, pngDimensions, presentationGraph } from "./graph.js";
 import { mapPalettes, mapNodeLabel, colorHex, paletteForTheme } from "./palette.js";
 import { defaults } from "./forceDefaults.js";
-import { mapCanvasAdapter } from "./canvasAdapter.js";
+import { initializeMapApplication } from "./initialization.js";
 export { defaults };
-
-// Pixi is used only by Memory Map and loaded on demand. Install once per module,
-// not per scene; text/batching probes also need this adapter after app.init().
-DOMAdapter.set(mapCanvasAdapter(DOMAdapter.get()));
-
-// A driver can pass Pixi's cached support probe and fail on the real context.
-// Remember that failure for this page lifetime, including reopening the map.
-let canvasOnly = false;
-function destroyApplication(app) {
-  if (app.renderer) app.destroy(true, {children:true});
-  else app.stage?.destroy({children:true}); // init rejected before assignment/plugins
-}
-async function initializeApplication(options, signal) {
-  const useCanvas = canvasOnly;
-  let app = new Application();
-  try {
-    await app.init({...options, preference:useCanvas ? ["canvas"] : ["webgl", "canvas"]});
-  } catch (error) {
-    destroyApplication(app);
-    signal?.throwIfAborted();
-    if (useCanvas) throw error;
-    canvasOnly = true;
-    app = new Application();
-    try {
-      await app.init({...options, preference:["canvas"]});
-    } catch (fallbackError) {
-      destroyApplication(app);
-      throw fallbackError;
-    }
-  }
-  if (signal?.aborted) { destroyApplication(app); signal.throwIfAborted(); }
-  return app;
-}
 /**
  * Instance-local renderer. React owns all controls/details; no transport or global DOM IDs.
  * @param {HTMLElement} host
@@ -59,8 +26,8 @@ const state = { graph: null, displayGraph: null, hideSelf: false, nodeById: new 
 
 let disposed = false, cameraFrame = null, showcase = false;
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-const app = await initializeApplication({width:Math.max(1,host.clientWidth),height:Math.max(1,host.clientHeight),antialias:true,
-  backgroundAlpha:0,resolution:Math.min(window.devicePixelRatio||1,2),autoDensity:true}, signal);
+const app = new Application();
+await initializeMapApplication(app, host, signal);
 // Pixi init is asynchronous: never attach a scene to a host that has unmounted.
 if (signal?.aborted) { app.destroy(true,{children:true}); signal.throwIfAborted(); }
 state.app=app; host.append(app.canvas);

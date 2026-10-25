@@ -11,7 +11,7 @@ const vite=await createServer({mode:'design',server:{middlewareMode:true},appTyp
  // Explicit virtual imports prevent Vite SSR's normal package externalization.
  resolveId(id){if(id.startsWith('virtual:map-surface-'))return '\0map-surface:'+id.slice('virtual:map-surface-'.length);},
  load(id){
-  if(id==='\0map-surface:pixi.js')return `const env=globalThis.${key};export const {Application,Circle,Container,DOMAdapter,Graphics,Text}=env.pixi;`;
+  if(id==='\0map-surface:pixi.js')return `const env=globalThis.${key};export const {Application,Circle,Container,Graphics,Text}=env.pixi;`;
   if(id==='\0map-surface:d3-force')return `import * as d3 from 'd3-force';
    export const {forceLink,forceManyBody,forceCollide,forceX,forceY}=d3;
    export function forceSimulation(nodes){globalThis.${key}.simulations++;return d3.forceSimulation(nodes);}`;
@@ -44,10 +44,9 @@ class Application {
  stage=new Container();screen={width:1000,height:700};canvas={};
  renderer={resize:(width,height)=>{this.screen={width,height};}};
  constructor(){environment.apps.push(this);}
- async init(options){this.options=options;await environment.initGate;environment.initialize?.(this);}
- destroy(){this.destroyed=true;}
+ async init(){await environment.initGate;}destroy(){this.destroyed=true;}
 }
-environment.pixi={Application,Circle:class {},Container,Graphics,Text,DOMAdapter:{get:()=>({createCanvas:()=>document.createElement('canvas')}),set(){}}};
+environment.pixi={Application,Circle:class {},Container,Graphics,Text};
 globalThis[key]=environment;
 const {createMemoryMapRenderer}=await vite.ssrLoadModule('/src/components/memory-map/renderer.js');
 const globals=['window','ResizeObserver','requestAnimationFrame','cancelAnimationFrame','getComputedStyle','document'];
@@ -63,7 +62,7 @@ globalThis.document={createElement:()=>{
  const ctx={texts:[],background:null,createRadialGradient:()=>({stops:[],addColorStop(offset,color){this.stops.push([offset,color]);}}),
   fillRect(){this.background=this.fillStyle;},fillText(text){this.texts.push({text,color:this.fillStyle});},
   beginPath(){},moveTo(){},lineTo(){},stroke(){},arc(){},fill(){}};
- const canvas={width:0,height:0,getContext:()=>ctx,toBlob(callback){const header=new Uint8Array(24);header.set([137,80,78,71,13,10,26,10]);const view=new DataView(header.buffer);view.setUint32(16,this.width);view.setUint32(20,this.height);snapshots.push(ctx);callback(new Blob([header]));}};
+ const canvas=Object.assign(new EventTarget(),{remove(){},width:0,height:0,getContext:()=>ctx,toBlob(callback){const header=new Uint8Array(24);header.set([137,80,78,71,13,10,26,10]);const view=new DataView(header.buffer);view.setUint32(16,this.width);view.setUint32(20,this.height);snapshots.push(ctx);callback(new Blob([header]));}});
  return canvas;
 }};
 const graph={nodes:[{id:'own',type:'entity',is_self:true,label:'Self',kind:'person',degree:1,memory_count:1},
@@ -114,42 +113,4 @@ test('aborted asynchronous Pixi initialization destroys the app before canvas/li
  const host=Object.assign(new EventTarget(),{clientWidth:1000,clientHeight:700,append(){appended++;}});
  const abort=new AbortController(),pending=createMemoryMapRenderer(host,{},abort.signal);const app=environment.apps.at(-1);abort.abort();release();
  await assert.rejects(pending,{name:'AbortError'});assert.equal(app.destroyed,true);assert.equal(appended,0);delete environment.initGate;
-});
-
-test('real-context failure retries Canvas once, preserves graph controls, and reopens without probing WebGL',async()=>{
- const start=environment.apps.length;
- environment.initialize=app=>{if(app.options.preference.includes('webgl')){app.renderer=null;throw new Error('driver failure after support probe');}};
- const host=Object.assign(new EventTarget(),{clientWidth:1000,clientHeight:700,style:{removeProperty(){}},append(){},getBoundingClientRect:()=>({left:0,top:0}),setPointerCapture(){}});
- const selections=[];
- const callbacks={onSelect:id=>selections.push(id),onCount(){},onTooltip(){},onExport(){},onHint(){}};
- const api=await createMemoryMapRenderer(host,callbacks);
- try {
-  assert.equal(environment.apps.length,start+2);
-  assert.deepEqual(environment.apps[start].options.preference,['webgl','canvas']);
-  assert.equal(environment.apps[start].stage.destroyed,true);
-  const fallback=environment.apps[start+1];
-  assert.deepEqual(fallback.options.preference,['canvas']);
-  api.setGraph(graph);api.select('own',true);api.zoom(1.2);api.setPresentation({theme:'light',displayName:'Name'});
-  const layer=fallback.stage.children[0];
-  assert.equal(layer.children.length,3);
-  const position=layer.children[1].position;
-  const x=layer.x+position.x*layer.scale.x,y=layer.y+position.y*layer.scale.y;
-  for(const type of ['pointerdown','pointerup'])host.dispatchEvent(Object.assign(new Event(type),{button:0,pointerId:1,clientX:x,clientY:y}));
-  assert.deepEqual(selections,['own']);
-  const before=layer.scale.x;api.zoom(1.1);assert.ok(layer.scale.x>before);
-  const from=layer.x;
-  for(const [type,x,y] of [['pointerdown',0,690],['pointermove',20,680],['pointerup',20,680]])host.dispatchEvent(Object.assign(new Event(type),{button:0,pointerId:1,clientX:x,clientY:y}));
-  assert.equal(layer.x,from+20);
-  const beforePinch=layer.scale.x;
-  for(const [type,id,x] of [['pointerdown',1,10],['pointerdown',2,50],['pointermove',2,90],['pointerup',2,90],['pointerup',1,10]])host.dispatchEvent(Object.assign(new Event(type),{button:0,pointerId:id,pointerType:'touch',clientX:x,clientY:690}));
-  assert.ok(layer.scale.x>beforePinch,'touch pinch uses the same camera in Canvas');
- } finally {api.destroy();}
- const reopened=await createMemoryMapRenderer(host,callbacks);
- assert.deepEqual(environment.apps.at(-1).options.preference,['canvas']);reopened.destroy();
- // A failing Canvas is surfaced, never retried in a loop.
- environment.initialize=()=>{throw new Error('2D unavailable');};
- const before=environment.apps.length;
- await assert.rejects(createMemoryMapRenderer(host,callbacks),/2D unavailable/);
- assert.equal(environment.apps.length,before+1);assert.equal(environment.apps.at(-1).destroyed,true);
- delete environment.initialize;
 });

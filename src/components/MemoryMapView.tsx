@@ -18,6 +18,7 @@ import {
 import type { GraphNode, GraphEdge } from '../types/mroya';
 import {tr} from '../i18n';
 import { defaults } from './memory-map/forceDefaults.js';
+import { reportMapFailure } from './memory-map/initialization.js';
 import { renderGraph } from './memory-map/mapModel';
 import { presentationGraph } from './memory-map/graph.js';
 import { mapNodeLabel } from './memory-map/palette.js';
@@ -52,7 +53,7 @@ const localizeMapHint=(value:string)=>{
   return value;
 };
 
-/** One Pixi scene (WebGL or Canvas 2D); only typed props/actions cross this boundary. */
+/** One Pixi scene for offline Studio and live Mroya; only typed props/actions cross this boundary. */
 export function MemoryMapView({
   nodes,
   edges,
@@ -145,10 +146,11 @@ export function MemoryMapView({
         }
         renderer.current = value;
         setReady(true);
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        if (!cancelled && !initialization.signal.aborted) {
+          const kind = reportMapFailure(error, loadingModule);
           setRenderError(
-            tr(loadingModule?'renderFailedLoad':'renderFailed',{ns:'memory'})
+            tr(kind==='chunk-load'?'renderFailedLoad':kind==='webgl-unavailable'?'webglUnavailable':'renderFailed',{ns:'memory'})
           );
         }
       }

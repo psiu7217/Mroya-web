@@ -112,3 +112,14 @@ test('chunk loading errors and renderer/WebGL initialization errors have distinc
   const view=mount({nodes:[node('n')]},behavior);view.flush();await settle(view,()=>JSON.stringify(view.tree).includes(expected));assert.ok(!JSON.stringify(view.tree).includes(absent));view.unmount();
  }
 });
+
+test('empty payload and API failure keep their own states even if renderer initialization also fails',async()=>{
+ for(const error of [null,'Synthetic API failure']){
+  const view=mount({nodes:[],error},{initError:Error('synthetic render failure')});
+  await view.start();await pause();view.flush();
+  const tree=JSON.stringify(view.tree);
+  assert.ok(!tree.includes('WebGL'));
+  if(error)assert.ok(tree.includes(error));else assert.ok(tree.includes('Your map will grow'));
+  view.unmount();
+ }
+});

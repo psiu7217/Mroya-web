@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../types/mroya';
 import {tr} from '../i18n';
-import { createMemoryMapRenderer, defaults } from './memory-map/renderer.js';
+import { defaults } from './memory-map/forceDefaults.js';
 import { renderGraph } from './memory-map/mapModel';
 import { presentationGraph } from './memory-map/graph.js';
 import { mapNodeLabel } from './memory-map/palette.js';
@@ -52,7 +52,7 @@ const localizeMapHint=(value:string)=>{
   return value;
 };
 
-/** One Pixi scene for offline Studio and live Mroya; only typed props/actions cross this boundary. */
+/** One Pixi scene (WebGL or Canvas 2D); only typed props/actions cross this boundary. */
 export function MemoryMapView({
   nodes,
   edges,
@@ -195,14 +195,13 @@ export function MemoryMapView({
   const stateMessage = loading
     ? tr('connecting',{ns:'memory'})
     : (error && !nodes.length ? error : null) ||
-      renderError ||
       (!nodes.length
         ? tr('mapEmpty',{ns:'memory'})
-        : !ready
+        : renderError || (!ready
         ? tr('preparing',{ns:'memory'})
         : !display.nodes.length
         ? tr('noNodesHideSelf',{ns:'memory'})
-        : null);
+        : null));
 
   const matches = query.trim()
     ? display.nodes

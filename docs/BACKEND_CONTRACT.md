@@ -1,5 +1,8 @@
 # Backend contract for Mroya Web
 
+Stage 2 dry-run integration: [AI Memory Review](MEMORY-REVIEW-DRY-RUN.md) documents
+the separate pending Backend API, release dependency and absence of memory access.
+
 Mroya API is authoritative for identity, user data and business logic. This inventory was checked against Django routes/views, chat and memory services, and Google OAuth application code installed at `503f99c98c`. The canonical methods, payloads, DTOs, limits and errors are in [API.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md); OAuth setup and flow are in [GOOGLE-OAUTH.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/GOOGLE-OAUTH.md). Read those references before adding a feature. Markdown alone does not establish API availability: verify current code and capabilities.
 
 ## Published routes

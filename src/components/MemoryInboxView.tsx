@@ -36,6 +36,7 @@ import type {
 } from '../types/inboxPipeline';
 import {computePipelineStats} from '../utils/inboxPipeline';
 import {InitialFilterQueuePanel} from './InitialFilterQueuePanel';
+import {MemoryReviewPanel} from './MemoryReviewPanel';
 import {tr} from '../i18n';
 
 export interface MemoryInboxViewProps {
@@ -578,6 +579,7 @@ export const MemoryInboxView: React.FC<MemoryInboxViewProps> = ({
       {activeMainTab === 'history' && (
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
           {queue&&<InitialFilterQueuePanel queue={queue}/>}
+          {queue?.review&&<MemoryReviewPanel review={queue.review}/>}
           {design&&<>
           {/* SECTION 1: Общий прогресс обработки & статистика */}
           <section className="p-4 sm:p-6 border-b border-[var(--mroya-divider)] bg-[var(--mroya-surface)] shrink-0 space-y-4">

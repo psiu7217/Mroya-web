@@ -62,7 +62,7 @@ globalThis.document={createElement:()=>{
  const ctx={texts:[],background:null,createRadialGradient:()=>({stops:[],addColorStop(offset,color){this.stops.push([offset,color]);}}),
   fillRect(){this.background=this.fillStyle;},fillText(text){this.texts.push({text,color:this.fillStyle});},
   beginPath(){},moveTo(){},lineTo(){},stroke(){},arc(){},fill(){}};
- const canvas={width:0,height:0,getContext:()=>ctx,toBlob(callback){const header=new Uint8Array(24);header.set([137,80,78,71,13,10,26,10]);const view=new DataView(header.buffer);view.setUint32(16,this.width);view.setUint32(20,this.height);snapshots.push(ctx);callback(new Blob([header]));}};
+ const canvas=Object.assign(new EventTarget(),{remove(){},width:0,height:0,getContext:()=>ctx,toBlob(callback){const header=new Uint8Array(24);header.set([137,80,78,71,13,10,26,10]);const view=new DataView(header.buffer);view.setUint32(16,this.width);view.setUint32(20,this.height);snapshots.push(ctx);callback(new Blob([header]));}});
  return canvas;
 }};
 const graph={nodes:[{id:'own',type:'entity',is_self:true,label:'Self',kind:'person',degree:1,memory_count:1},

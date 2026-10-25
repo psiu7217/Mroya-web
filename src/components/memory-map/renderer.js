@@ -4,6 +4,7 @@ import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY
 import { localIds, nodeRadius, pngDimensions, presentationGraph } from "./graph.js";
 import { mapPalettes, mapNodeLabel, colorHex, paletteForTheme } from "./palette.js";
 import { defaults } from "./forceDefaults.js";
+import { initializeMapApplication } from "./initialization.js";
 export { defaults };
 /**
  * Instance-local renderer. React owns all controls/details; no transport or global DOM IDs.
@@ -26,10 +27,7 @@ const state = { graph: null, displayGraph: null, hideSelf: false, nodeById: new 
 let disposed = false, cameraFrame = null, showcase = false;
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 const app = new Application();
-try {
-  await app.init({width:Math.max(1,host.clientWidth),height:Math.max(1,host.clientHeight),preference:["webgl"],antialias:true,
-    backgroundAlpha:0,resolution:Math.min(window.devicePixelRatio||1,2),autoDensity:true});
-} catch (error) { if (app.renderer) app.destroy(true,{children:true}); throw error; }
+await initializeMapApplication(app, host, signal);
 // Pixi init is asynchronous: never attach a scene to a host that has unmounted.
 if (signal?.aborted) { app.destroy(true,{children:true}); signal.throwIfAborted(); }
 state.app=app; host.append(app.canvas);

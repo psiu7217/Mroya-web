@@ -41,10 +41,10 @@ import {
 } from '../types/mroya';
 import { AiTasksDrawer } from './AiTasksDrawer';
 import { AiTaskCompletionToast } from './AiTaskCompletionToast';
-import { INITIAL_AI_TASKS } from '../data/aiTasksData';
-import type { AiTask } from '../types/aiTasks';
+import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
+  aiTasks?: AiTasksPresentation;
   account: AccountPresentation;
   live?: boolean;
   intro?: React.ReactNode;
@@ -76,7 +76,7 @@ export interface ChatWorkspaceProps {
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
+  aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -111,58 +111,14 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [localThinking, setLocalThinking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Background AI Tasks state & demonstration interaction
-  const [tasks, setTasks] = useState<AiTask[]>(() => INITIAL_AI_TASKS);
+  const tasks = aiTasks?.tasks ?? [];
   const [isAiTasksOpen, setIsAiTasksOpen] = useState(false);
-  const [completedToastTask, setCompletedToastTask] = useState<AiTask | null>(null);
-
-  const activeTasksCount = tasks.filter((t) =>
-    ['running', 'queued', 'needs_clarification'].includes(t.status)
-  ).length;
-  const hasRunningTasks = tasks.some((t) => t.status === 'running');
-
-  const handleUpdateTask = (updatedTask: AiTask) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
-    );
-  };
-
-  const handleSimulateComplete = () => {
-    const runningTask = tasks.find((t) => t.status === 'running');
-    const targetTask = runningTask || tasks.find((t) => t.status === 'queued') || tasks[0];
-    if (targetTask) {
-      const completed: AiTask = {
-        ...targetTask,
-        status: 'completed',
-        completedAt: 'Только что',
-        progressPercent: 100,
-        currentStep: 'Синхронизация завершена.',
-        resultSummary:
-          targetTask.target === 'calendar'
-            ? 'Встреча «Созвон с Кириллом» успешно добавлена в Google Календарь на четверг 15:30.'
-            : targetTask.target === 'memory'
-            ? 'Ключевые договоренности сохранены в долговременную память.'
-            : 'Заметка успешно сохранена и отформатирована.',
-        resultLink: {
-          label:
-            targetTask.target === 'calendar'
-              ? 'Открыть в Календаре'
-              : targetTask.target === 'memory'
-              ? 'Открыть в Памяти'
-              : 'Открыть в Заметках',
-          targetSection: targetTask.target,
-        },
-        updatedAt: 'Только что',
-      };
-      setTasks((prev) => prev.map((t) => (t.id === targetTask.id ? completed : t)));
-      setCompletedToastTask(completed);
-    }
-  };
-
-  const handleResetTasks = () => {
-    setTasks(INITIAL_AI_TASKS);
-    setCompletedToastTask(null);
-  };
+  const completedToastTask = aiTasks?.completedTask;
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+  const openTasks = () => { setIsAiTasksOpen(true); aiTasks?.onOpen(); };
+  const closeTasks = () => { setIsAiTasksOpen(false); aiTasks?.onClose(); };
+  const activeTasksCount = tasks.filter(t => ['running','queued','needs_clarification'].includes(t.status)).length;
+  const hasRunningTasks = tasks.some(t => t.status === 'running');
 
   const submission = useRef(false), draftRevision = useRef(0);
   const previousChat = useRef(conversation?.id ?? null);
@@ -489,7 +445,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {/* Mobile AI Tasks Trigger Button */}
           <button
             type="button"
-            onClick={() => setIsAiTasksOpen(true)}
+            onClick={openTasks}
             aria-label="Фоновые задачи AI"
             title={`Фоновые задачи AI (${activeTasksCount} активных)`}
             className="relative lg:hidden w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
@@ -594,7 +550,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     type="button"
                     onClick={() => {
                       setMobileUserMenuOpen(false);
-                      setIsAiTasksOpen(true);
+                      openTasks();
                     }}
                     className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                   >
@@ -689,7 +645,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {/* Background AI Tasks Trigger Button */}
             <button
               type="button"
-              onClick={() => setIsAiTasksOpen(true)}
+              onClick={openTasks}
               title={`Фоновые задачи AI (${activeTasksCount} активных)`}
               aria-label="Фоновые задачи AI"
               className="h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
@@ -754,7 +710,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     type="button"
                     onClick={() => {
                       setHeaderMenuOpen(false);
-                      setIsAiTasksOpen(true);
+                      openTasks();
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
                   >
@@ -1287,22 +1243,27 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         <AiTaskCompletionToast
           task={completedToastTask}
           onOpenDetails={() => {
-            setIsAiTasksOpen(true);
-            setCompletedToastTask(null);
+            setHighlightTaskId(completedToastTask.id);
+            openTasks();
+            aiTasks?.onDetails(completedToastTask.id);
+            aiTasks?.onDismiss();
           }}
-          onDismiss={() => setCompletedToastTask(null)}
+          onDismiss={() => aiTasks?.onDismiss()}
         />
       )}
 
       {/* Background AI Tasks Drawer */}
       <AiTasksDrawer
         isOpen={isAiTasksOpen}
-        onClose={() => setIsAiTasksOpen(false)}
+        onClose={closeTasks}
         tasks={tasks}
-        onUpdateTask={handleUpdateTask}
-        onSimulateComplete={handleSimulateComplete}
-        onResetTasks={handleResetTasks}
-        highlightTaskId={completedToastTask?.id}
+        loading={aiTasks?.loading}
+        error={aiTasks?.error}
+        onRefresh={aiTasks?.onRefresh}
+        hasMore={aiTasks?.hasMore}
+        onMore={aiTasks?.onMore}
+        onDetails={aiTasks?.onDetails}
+        highlightTaskId={highlightTaskId}
       />
     </div>
   );

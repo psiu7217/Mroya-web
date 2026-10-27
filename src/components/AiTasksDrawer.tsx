@@ -8,12 +8,8 @@ import {
   AlertCircle,
   HelpCircle,
   Ban,
-  RotateCcw,
   Copy,
   Check,
-  Send,
-  Play,
-  ChevronRight,
 } from 'lucide-react';
 import type { AiTask, AiTaskStatus } from '../types/aiTasks';
 
@@ -21,9 +17,8 @@ export interface AiTasksDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   tasks: AiTask[];
-  onUpdateTask: (updatedTask: AiTask) => void;
-  onSimulateComplete: () => void;
-  onResetTasks?: () => void;
+  loading?: boolean; error?: string | null; hasMore?: boolean;
+  onRefresh?: () => void; onMore?: () => void; onDetails?: (id: string) => void;
   highlightTaskId?: string | null;
 }
 
@@ -33,14 +28,11 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
   isOpen,
   onClose,
   tasks,
-  onUpdateTask,
-  onSimulateComplete,
+  loading, error, hasMore, onRefresh, onMore, onDetails,
   highlightTaskId,
 }) => {
   const [activeTab, setActiveTab] = useState<CompactTab>('active');
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
-  const [customReplyTaskId, setCustomReplyTaskId] = useState<string | null>(null);
-  const [customReplyText, setCustomReplyText] = useState('');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -52,6 +44,11 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    const task = tasks.find(t => t.id === highlightTaskId);
+    if (task) setActiveTab(task.status === 'completed' ? 'completed' : ['failed','cancelled'].includes(task.status) ? 'issues' : 'active');
+  }, [highlightTaskId, isOpen]);
+
   if (!isOpen) return null;
 
   // Filter tasks: NO 'all' tab per user requirement.
@@ -62,7 +59,7 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
       case 'completed':
         return task.status === 'completed';
       case 'issues':
-        return ['error', 'cancelled'].includes(task.status);
+        return ['failed', 'cancelled'].includes(task.status);
       default:
         return true;
     }
@@ -81,31 +78,7 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
     ['running', 'queued', 'needs_clarification'].includes(t.status)
   ).length;
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const issuesCount = tasks.filter((t) => ['error', 'cancelled'].includes(t.status)).length;
-
-  const handleAnswerClarification = (task: AiTask, answer: string) => {
-    onUpdateTask({
-      ...task,
-      status: 'running',
-      clarificationAnswer: answer,
-      progressPercent: 35,
-      currentStep: `Выбран вариант «${answer}». Продолжение обработки...`,
-      updatedAt: 'Только что',
-    });
-    setCustomReplyTaskId(null);
-    setCustomReplyText('');
-  };
-
-  const handleRetryTask = (task: AiTask) => {
-    onUpdateTask({
-      ...task,
-      status: 'running',
-      progressPercent: 20,
-      currentStep: 'Повторный запуск...',
-      errorMessage: undefined,
-      updatedAt: 'Только что',
-    });
-  };
+  const issuesCount = tasks.filter((t) => ['failed', 'cancelled'].includes(t.status)).length;
 
   const handleCopyLogs = (task: AiTask) => {
     const errorPayload = `[AI Task Error Report]
@@ -157,7 +130,7 @@ ID: ${task.id}
             <span>Завершена</span>
           </span>
         );
-      case 'error':
+      case 'failed':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400">
             <AlertCircle className="w-3 h-3" />
@@ -212,15 +185,6 @@ ID: ${task.id}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={onSimulateComplete}
-                title="Смоделировать завершение задачи"
-                className="px-2 py-0.5 rounded text-[11px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer inline-flex items-center gap-1"
-              >
-                <Play className="w-2.5 h-2.5 text-emerald-600" />
-                <span className="hidden sm:inline">Тест</span>
-              </button>
-              <button
-                type="button"
                 onClick={onClose}
                 aria-label="Закрыть"
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
@@ -270,14 +234,16 @@ ID: ${task.id}
 
         {/* Task Cards List (Minimal, compact, uncluttered) */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 min-h-0">
-          {sortedTasks.length === 0 ? (
+          {error && <p role="alert" className="text-xs text-rose-600">{error} <button onClick={onRefresh}>Обновить</button></p>}
+          {loading && tasks.length === 0 && <p role="status" className="text-xs">Загрузка задач…</p>}
+          {sortedTasks.length === 0 && !loading && !error ? (
             <div className="py-12 text-center text-[12px] text-[var(--mroya-text-muted)]">
               Нет задач в этой категории
             </div>
           ) : (
             sortedTasks.map((task) => {
               const isClarifying = task.status === 'needs_clarification';
-              const isError = task.status === 'error';
+              const isError = task.status === 'failed';
               const isRunning = task.status === 'running';
               const isHighlighted = highlightTaskId === task.id;
 
@@ -304,85 +270,12 @@ ID: ${task.id}
                   <p className="font-semibold text-[var(--mroya-text)] leading-snug">
                     {task.title}
                   </p>
+                  <p className="text-[11px] text-[var(--mroya-text-muted)]">{{memory:'Memory',calendar:'Calendar',notes:'Notes'}[task.target]} · {task.id}</p>
+                  <button type="button" onClick={() => onDetails?.(task.id)} className="text-[11px] text-[var(--mroya-primary)]">Обновить детали</button>
+                  <p className="text-[11px] text-[var(--mroya-text-muted)]">Создана: {task.createdAt}</p>
 
-                  {/* Running state progress */}
-                  {isRunning && (
-                    <div className="space-y-1.5 pt-0.5">
-                      <div className="flex items-center justify-between text-[11px] text-[var(--mroya-text-muted)]">
-                        <span className="truncate">{task.currentStep || 'Обработка...'}</span>
-                        <span className="tabular-nums font-semibold shrink-0 ml-1">
-                          {task.progressPercent ?? 50}%
-                        </span>
-                      </div>
-                      <div className="w-full h-1 rounded-full bg-[var(--mroya-surface-muted)] overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full transition-all duration-300"
-                          style={{ width: `${task.progressPercent ?? 50}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Needs clarification: pinned & highlighted with quick buttons */}
-                  {isClarifying && (
-                    <div className="pt-1 space-y-2 border-t border-amber-500/20">
-                      <p className="text-[12px] text-[var(--mroya-text)] font-medium">
-                        {task.clarificationQuestion}
-                      </p>
-
-                      {task.clarificationOptions && task.clarificationOptions.length > 0 && (
-                        <div className="flex flex-col gap-1.5 pt-0.5">
-                          {task.clarificationOptions.map((opt) => (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => handleAnswerClarification(task, opt)}
-                              className="w-full py-1.5 px-2.5 rounded-lg text-left text-[11.5px] font-semibold bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] border border-amber-500/30 flex items-center justify-between transition-colors cursor-pointer"
-                            >
-                              <span>{opt}</span>
-                              <ChevronRight className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Custom answer inline input */}
-                      {customReplyTaskId === task.id ? (
-                        <div className="flex items-center gap-1.5 pt-1">
-                          <input
-                            type="text"
-                            value={customReplyText}
-                            onChange={(e) => setCustomReplyText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && customReplyText.trim()) {
-                                handleAnswerClarification(task, customReplyText.trim());
-                              }
-                            }}
-                            placeholder="Напишите ответ..."
-                            className="flex-1 px-2.5 py-1 rounded-md text-[11.5px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] focus:outline-none"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            disabled={!customReplyText.trim()}
-                            onClick={() => handleAnswerClarification(task, customReplyText.trim())}
-                            className="px-2 py-1 rounded-md bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[11px] font-semibold disabled:opacity-40 cursor-pointer"
-                          >
-                            <Send className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setCustomReplyTaskId(task.id)}
-                          className="text-[11px] text-[var(--mroya-primary)] hover:underline font-medium cursor-pointer"
-                        >
-                          Другой вариант...
-                        </button>
-                      )}
-                    </div>
-                  )}
-
+                  {isRunning && <p className="text-[12px] text-[var(--mroya-text-muted)]">Выполняется</p>}
+                  {isClarifying && <p className="text-[12px] text-[var(--mroya-text-muted)]">Требует уточнения. Ответ через панель пока недоступен.</p>}
                   {/* Completed result */}
                   {task.status === 'completed' && task.resultSummary && (
                     <p className="text-[12px] text-[var(--mroya-text-muted)] leading-snug">
@@ -417,16 +310,6 @@ ID: ${task.id}
                           )}
                         </button>
 
-                        {task.canRetry && (
-                          <button
-                            type="button"
-                            onClick={() => handleRetryTask(task)}
-                            className="px-2.5 py-1 rounded-md bg-[var(--mroya-surface-active)] hover:bg-[var(--mroya-surface-muted)] text-[var(--mroya-text)] text-[11.5px] font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <RotateCcw className="w-3 h-3 text-[var(--mroya-brand-honey)]" />
-                            <span>Повторить</span>
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}
@@ -434,6 +317,7 @@ ID: ${task.id}
               );
             })
           )}
+          {hasMore && <button type="button" disabled={loading} onClick={onMore} className="w-full py-2 text-xs text-[var(--mroya-primary)]">Загрузить ещё</button>}
         </div>
 
       </div>

@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 const vite = await createServer({ mode: 'design', server: { middlewareMode: true }, appType: 'custom' });
 after(() => vite.close());
 
-const { INITIAL_AI_TASKS } = await vite.ssrLoadModule('/src/data/aiTasksData.ts');
+const { INITIAL_AI_TASKS } = await vite.ssrLoadModule('/src/demo/aiTasksData.ts');
 const { AiTasksDrawer } = await vite.ssrLoadModule('/src/components/AiTasksDrawer.tsx');
 const { AiTaskCompletionToast } = await vite.ssrLoadModule('/src/components/AiTaskCompletionToast.tsx');
 
@@ -16,7 +16,7 @@ test('INITIAL_AI_TASKS covers all 6 required background task statuses', () => {
   assert.ok(statuses.has('queued'), 'Should have queued task');
   assert.ok(statuses.has('running'), 'Should have running task');
   assert.ok(statuses.has('completed'), 'Should have completed task');
-  assert.ok(statuses.has('error'), 'Should have error task');
+  assert.ok(statuses.has('failed'), 'Should have error task');
   assert.ok(statuses.has('needs_clarification'), 'Should have needs_clarification task');
   assert.ok(statuses.has('cancelled'), 'Should have cancelled task');
   assert.equal(statuses.size, 6);
@@ -35,8 +35,6 @@ test('AiTasksDrawer renders compact UI without "Все" tab and pins clarificati
       isOpen: true,
       onClose: () => {},
       tasks: INITIAL_AI_TASKS,
-      onUpdateTask: () => {},
-      onSimulateComplete: () => {},
     })
   );
 
@@ -48,8 +46,7 @@ test('AiTasksDrawer renders compact UI without "Все" tab and pins clarificati
 
   // Highlighted clarification item pinned at top
   assert.match(html, /Требует уточнения/);
-  assert.match(html, /11:00 – 12:00/);
-  assert.match(html, /16:30 – 17:30/);
+  assert.doesNotMatch(html, /Тест|Повторить|Продолжение обработки|\d+%/);
 
   // Active running/queued tasks
   assert.match(html, /Выполняется/);
@@ -62,8 +59,6 @@ test('AiTasksDrawer returns null when closed', () => {
       isOpen: false,
       onClose: () => {},
       tasks: INITIAL_AI_TASKS,
-      onUpdateTask: () => {},
-      onSimulateComplete: () => {},
     })
   );
   assert.equal(html, '');

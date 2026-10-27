@@ -1,3 +1,4 @@
+import {readAiTask,readAiTasksPage} from './aiTasks.ts';
 import {readInitialResults} from './initialResults.ts';
 import type {InitialDecision} from '../types/initialResults.ts';
 import {readInitialQueue,readInitialQueueReceipt} from './initialQueue.ts';
@@ -38,6 +39,15 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async agentTasks(offset=0,signal?:AbortSignal){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid tasks offset');
+    return readAiTasksPage(await this.json('agent-tasks/?limit=50&offset='+offset,undefined,signal),offset);
+  }
+  async agentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/',undefined,signal);
+    return readAiTask(data.task,id);
+  }
   async initialFilterResults(decision:InitialDecision='APPROVE',offset=0,signal?:AbortSignal){
     if(!['APPROVE','REJECT'].includes(decision)||!Number.isSafeInteger(offset)||offset<0)throw new ApiError(400,'invalid_request','Invalid results page');
     return readInitialResults(await this.json(`memory-intelligence/initial-filter-results/?decision=${decision}&limit=50&offset=${offset}`,undefined,signal),decision,offset);

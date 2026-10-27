@@ -77,7 +77,7 @@ function TaskConfirmationRow({task,beginReview,approveTask,revokeTask,refreshTas
     return()=>{active=false;clearInterval(timer);};
   },[task.id,task.status,task.confirmDeadlineAt,task.serverClockOffsetMs,frozen,refreshTask]);
 
-  const reconcile=()=>refreshTask?.(task.id).catch(()=>{setNotice('taskConfirmError');});
+  const reconcile=()=>refreshTask?.(task.id).catch(()=>{setNotice('taskConfirmError');return undefined;});
   const apply=async(action:'approve'|'revoke')=>{
     if(busy||frozen||task.status!=='pending_confirmation'||!task.confirmDeadlineAt)return;
     setBusy(action);setNotice(null);

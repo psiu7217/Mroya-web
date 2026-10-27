@@ -99,7 +99,9 @@ function TaskConfirmationRow({task,beginReview,approveTask,revokeTask,refreshTas
       setEditing(true); // Remains visible while the canonical original is cancelled.
     }catch(error){
       setNotice(error instanceof ApiError&&error.code==='confirm_window_closed'?'taskWindowClosed':'taskConfirmUnavailable');
-      await reconcile();setFrozen(false);
+      const current=await reconcile();
+      if(current?.status==='cancelled'){setEditing(true);setNotice(null);}
+      else setFrozen(false);
     }finally{setBusy(null);}
   };
 

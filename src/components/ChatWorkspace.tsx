@@ -39,6 +39,10 @@ import {
   SubscriptionPlan,
   ThemeMode,
 } from '../types/mroya';
+import { AiTasksDrawer } from './AiTasksDrawer';
+import { AiTaskCompletionToast } from './AiTaskCompletionToast';
+import { INITIAL_AI_TASKS } from '../data/aiTasksData';
+import type { AiTask } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
   account: AccountPresentation;
@@ -106,6 +110,60 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [localThinking, setLocalThinking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Background AI Tasks state & demonstration interaction
+  const [tasks, setTasks] = useState<AiTask[]>(() => INITIAL_AI_TASKS);
+  const [isAiTasksOpen, setIsAiTasksOpen] = useState(false);
+  const [completedToastTask, setCompletedToastTask] = useState<AiTask | null>(null);
+
+  const activeTasksCount = tasks.filter((t) =>
+    ['running', 'queued', 'needs_clarification'].includes(t.status)
+  ).length;
+  const hasRunningTasks = tasks.some((t) => t.status === 'running');
+
+  const handleUpdateTask = (updatedTask: AiTask) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+    );
+  };
+
+  const handleSimulateComplete = () => {
+    const runningTask = tasks.find((t) => t.status === 'running');
+    const targetTask = runningTask || tasks.find((t) => t.status === 'queued') || tasks[0];
+    if (targetTask) {
+      const completed: AiTask = {
+        ...targetTask,
+        status: 'completed',
+        completedAt: 'Только что',
+        progressPercent: 100,
+        currentStep: 'Синхронизация завершена.',
+        resultSummary:
+          targetTask.target === 'calendar'
+            ? 'Встреча «Созвон с Кириллом» успешно добавлена в Google Календарь на четверг 15:30.'
+            : targetTask.target === 'memory'
+            ? 'Ключевые договоренности сохранены в долговременную память.'
+            : 'Заметка успешно сохранена и отформатирована.',
+        resultLink: {
+          label:
+            targetTask.target === 'calendar'
+              ? 'Открыть в Календаре'
+              : targetTask.target === 'memory'
+              ? 'Открыть в Памяти'
+              : 'Открыть в Заметках',
+          targetSection: targetTask.target,
+        },
+        updatedAt: 'Только что',
+      };
+      setTasks((prev) => prev.map((t) => (t.id === targetTask.id ? completed : t)));
+      setCompletedToastTask(completed);
+    }
+  };
+
+  const handleResetTasks = () => {
+    setTasks(INITIAL_AI_TASKS);
+    setCompletedToastTask(null);
+  };
+
   const submission = useRef(false), draftRevision = useRef(0);
   const previousChat = useRef(conversation?.id ?? null);
 
@@ -428,6 +486,29 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Mobile AI Tasks Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setIsAiTasksOpen(true)}
+            aria-label="Фоновые задачи AI"
+            title={`Фоновые задачи AI (${activeTasksCount} активных)`}
+            className="relative lg:hidden w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
+          >
+            {hasRunningTasks ? (
+              <span className="relative flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500" />
+              </span>
+            ) : (
+              <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
+            )}
+            {activeTasksCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                {activeTasksCount}
+              </span>
+            )}
+          </button>
+
           {/* Mobile Right: User avatar with dropdown containing all menu options */}
           <div className="relative lg:hidden" ref={mobileUserMenuRef}>
             <button
@@ -512,6 +593,23 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      setMobileUserMenuOpen(false);
+                      setIsAiTasksOpen(true);
+                    }}
+                    className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
+                      <span>Задачи AI</span>
+                    </span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-text)]">
+                      {activeTasksCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
                       onToggleTheme();
                     }}
                     className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
@@ -588,6 +686,30 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               )}
             </button>
 
+            {/* Background AI Tasks Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setIsAiTasksOpen(true)}
+              title={`Фоновые задачи AI (${activeTasksCount} активных)`}
+              aria-label="Фоновые задачи AI"
+              className="h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
+            >
+              {hasRunningTasks ? (
+                <span className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500" />
+                </span>
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
+              )}
+              <span>Задачи AI</span>
+              {activeTasksCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10.5px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                  {activeTasksCount}
+                </span>
+              )}
+            </button>
+
             {/* Toggle Contextual Memory Panel */}
             <button
               type="button"
@@ -616,7 +738,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <MoreHorizontal className="w-4 h-4" />
               </button>
               {headerMenuOpen && (
-                <div className="absolute right-0 mt-1.5 w-48 py-1 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-40">
+                <div className="absolute right-0 mt-1.5 w-52 py-1 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-40">
                   <button
                     type="button"
                     onClick={() => {
@@ -627,6 +749,17 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   >
                     <Plus className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
                     <span>{tr('startNewChat',{ns:'chat'})}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      setIsAiTasksOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
+                    <span>Фоновые задачи AI ({activeTasksCount})</span>
                   </button>
                   <button
                     type="button"
@@ -1148,6 +1281,29 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           </form>
         </div>
       </div>
+
+      {/* Floating notification when a background AI task finishes */}
+      {completedToastTask && (
+        <AiTaskCompletionToast
+          task={completedToastTask}
+          onOpenDetails={() => {
+            setIsAiTasksOpen(true);
+            setCompletedToastTask(null);
+          }}
+          onDismiss={() => setCompletedToastTask(null)}
+        />
+      )}
+
+      {/* Background AI Tasks Drawer */}
+      <AiTasksDrawer
+        isOpen={isAiTasksOpen}
+        onClose={() => setIsAiTasksOpen(false)}
+        tasks={tasks}
+        onUpdateTask={handleUpdateTask}
+        onSimulateComplete={handleSimulateComplete}
+        onResetTasks={handleResetTasks}
+        highlightTaskId={completedToastTask?.id}
+      />
     </div>
   );
 };

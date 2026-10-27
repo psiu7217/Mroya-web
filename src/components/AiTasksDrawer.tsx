@@ -20,6 +20,24 @@ export interface AiTasksDrawerProps {
   loading?: boolean; error?: string | null; hasMore?: boolean;
   onRefresh?: () => void; onMore?: () => void; onDetails?: (id: string) => void;
   highlightTaskId?: string | null;
+  executingTaskId?: string | null; onExecute?: (id: string) => void;
+}
+
+const localDate = (value:string) => {
+  const date=new Date(value);
+  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined,{dateStyle:'short',timeStyle:'medium'}).format(date) : value;
+};
+function TaskTiming({task}:{task:AiTask}){
+  const [now,setNow]=useState(Date.now);
+  useEffect(()=>{
+    if(task.status!=='running'||!task.startedAt)return;
+    setNow(Date.now());const timer=setInterval(()=>setNow(Date.now()),1000);
+    return ()=>clearInterval(timer);
+  },[task.status,task.startedAt]);
+  if(!task.startedAt)return null;
+  const ms=task.durationMs??(task.finishedAt?Date.parse(task.finishedAt):now)-Date.parse(task.startedAt);
+  const seconds=new Intl.NumberFormat('ru-RU',{minimumFractionDigits:1,maximumFractionDigits:1}).format(Math.max(0,ms)/1000);
+  return <p className="text-[11px] text-[var(--mroya-text-muted)]">{task.status==='running'?`Прошло ${seconds} сек.`:task.status==='completed'?`Выполнено за ${seconds} сек.`:`Время выполнения: ${seconds} сек.`}</p>;
 }
 
 export type CompactTab = 'active' | 'completed' | 'issues';
@@ -29,7 +47,7 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
   onClose,
   tasks,
   loading, error, hasMore, onRefresh, onMore, onDetails,
-  highlightTaskId,
+  highlightTaskId, executingTaskId, onExecute,
 }) => {
   const [activeTab, setActiveTab] = useState<CompactTab>('active');
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
@@ -87,7 +105,7 @@ ID: ${task.id}
 Статус: ${task.status}
 Ошибка: ${task.errorMessage || 'Неизвестная ошибка'}
 Запрос пользователя: ${task.userPrompt}
-Время: ${task.updatedAt || task.createdAt}`;
+Время: ${localDate(task.updatedAt || task.createdAt)}`;
 
     if (navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(errorPayload).catch(() => {});
@@ -262,7 +280,7 @@ ID: ${task.id}
                   <div className="flex items-center justify-between gap-2">
                     {renderStatusBadge(task.status)}
                     <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
-                      {task.updatedAt || task.createdAt}
+                      {localDate(task.updatedAt || task.createdAt)}
                     </span>
                   </div>
 
@@ -272,12 +290,19 @@ ID: ${task.id}
                   </p>
                   <p className="text-[11px] text-[var(--mroya-text-muted)]">{{memory:'Memory',calendar:'Calendar',notes:'Notes'}[task.target]} · {task.id}</p>
                   <button type="button" onClick={() => onDetails?.(task.id)} className="text-[11px] text-[var(--mroya-primary)]">Обновить детали</button>
-                  <p className="text-[11px] text-[var(--mroya-text-muted)]">Создана: {task.createdAt}</p>
+                  <p className="text-[11px] text-[var(--mroya-text-muted)]">Создана: {localDate(task.createdAt)}</p>
 
+                  <TaskTiming task={task} />
+                  {task.status==='queued' && onExecute && <button type="button"
+                    onClick={()=>onExecute(task.id)}
+                    disabled={!!executingTaskId||tasks.some(t=>t.status==='running')}
+                    className="px-2.5 py-1 rounded-md bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] text-[11.5px] font-semibold disabled:opacity-40 cursor-pointer">
+                    {executingTaskId===task.id?'Запуск…':'Выполнить'}
+                  </button>}
                   {isRunning && <p className="text-[12px] text-[var(--mroya-text-muted)]">Выполняется</p>}
-                  {isClarifying && <p className="text-[12px] text-[var(--mroya-text-muted)]">Требует уточнения. Ответ через панель пока недоступен.</p>}
+                  {isClarifying && <p className="text-[12px] text-[var(--mroya-text-muted)]">{task.errorMessage==='execution_outcome_unknown'?'Результат операции не подтверждён. Не запускайте её повторно.':'Требует уточнения. Ответ через панель пока недоступен.'}{task.errorMessage && ` (${task.errorMessage})`}</p>}
                   {/* Completed result */}
-                  {task.status === 'completed' && task.resultSummary && (
+                  {task.resultSummary && (
                     <p className="text-[12px] text-[var(--mroya-text-muted)] leading-snug">
                       {task.resultSummary}
                     </p>

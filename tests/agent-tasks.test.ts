@@ -36,3 +36,28 @@ test('pagination retains server IDs and stopped account cannot deliver a late re
  const pending=late.refreshTasks();late.stop();resolve({tasks:[task],nextOffset:null});await pending;
  assert.deepEqual(late.snapshot().agentTasks,[]);assert.equal(late.snapshot().completedTask,null);
 });
+
+test('manual execution uses CSRF once, blocks duplicate clicks and waits for backend statuses/timing',async()=>{
+ const calls:{url:string;init:RequestInit}[]=[];
+ const completed={...dto,status:'completed',started_at:'2026-10-27T12:00:00Z',finished_at:'2026-10-27T12:00:08.400Z',duration_ms:8400,result:'Confirmed'};
+ const api=new MroyaApi((async(url,init={})=>{calls.push({url:String(url),init});return new Response(JSON.stringify(String(url).endsWith('csrf/')?{csrf_token:'synthetic'}:{task:completed}),{headers:{'Content-Type':'application/json'}});}) as typeof fetch);
+ assert.equal((await api.executeAgentTask(id)).durationMs,8400);
+ assert.equal(calls.length,2);assert.ok(calls[1].url.endsWith('/'+id+'/execute/'));
+ assert.equal(calls[1].init.method,'POST');assert.equal(calls[1].init.body,'{}');
+ assert.equal((calls[1].init.headers as Record<string,string>)['X-CSRFToken'],'synthetic');
+ let posts=0,release!:(row:AiTask)=>void,row={...task};
+ const c=new LiveWorkspaceController({agentTasks:async()=>({tasks:[row],nextOffset:null}),
+ executeAgentTask:()=>{posts++;return new Promise(r=>{release=r;});}} as unknown as WorkspaceSource,()=>{});
+ try{
+  await c.refreshTasks();const pending=c.executeTask(id);await c.executeTask(id);
+  assert.equal(posts,1);assert.equal(c.snapshot().executingTaskId,id);
+  assert.equal(c.snapshot().agentTasks[0].status,'queued'); // Never optimistic running.
+  await new Promise(r=>setTimeout(r,0));
+  row={...task,status:'running',startedAt:completed.started_at,updatedAt:'2026-10-27T12:00:01Z'};
+  await c.refreshTasks();assert.equal(c.snapshot().agentTasks[0].status,'running');
+  const finished={...row,status:'completed' as const,updatedAt:completed.finished_at,finishedAt:completed.finished_at,durationMs:8400};
+  release(finished);await pending;
+  assert.equal(c.snapshot().agentTasks[0].status,'completed');assert.equal(c.snapshot().agentTasks[0].durationMs,8400);
+  assert.equal(c.snapshot().executingTaskId,null);assert.equal(posts,1);
+ }finally{c.stop();}
+});

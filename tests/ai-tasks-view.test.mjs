@@ -80,3 +80,10 @@ test('AiTaskCompletionToast renders notification banner with action button', () 
   assert.match(html, /Посмотреть результат/);
   assert.match(html, new RegExp(completedTask.title));
 });
+
+test('queued canonical task shows Execute and local dates, and locks during a pending execution',()=>{
+ const task={id:'00000000-0000-4000-8000-000000000001',target:'memory',title:'Save synthetic fact',userPrompt:'Save synthetic fact',status:'queued',createdAt:'2026-10-27T12:00:00Z',updatedAt:'2026-10-27T12:00:00Z'};
+ const render=(executingTaskId=null)=>renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose:()=>{},tasks:[task],onExecute:()=>{},executingTaskId}));
+ assert.match(render(),/Выполнить/);assert.doesNotMatch(render(),/2026-10-27T12:00:00Z|\d+%/);
+ assert.match(render(task.id),/disabled=""/);assert.match(render(task.id),/Запуск…/);
+});

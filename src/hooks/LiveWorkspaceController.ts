@@ -9,13 +9,13 @@ function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
  return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
 export interface LiveState {
- agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
+ executingTaskId:string|null;agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
  conversations:ConversationSummary[];activeConversationId:string|null;conversationBusy:boolean;operationUncertain:boolean;
  history:HistoryResponse;memories:MemoriesResponse;map:MemoryMapResponse;
 }
 export class LiveWorkspaceController {
- private state:LiveState={agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
+ private state:LiveState={executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
  private taskAbort=new AbortController();private taskGeneration=0;private taskPending=false;
  private tasksOpen=false;private taskTimer:ReturnType<typeof setTimeout>|null=null;
  private taskStatuses=new Map<string,AiTask['status']>();private taskPages=1;
@@ -24,10 +24,13 @@ export class LiveWorkspaceController {
  private scheduleTasks(){
   if(this.taskTimer)clearTimeout(this.taskTimer);
   this.taskTimer=null;
-  if(!this.taskAbort.signal.aborted&&(this.tasksOpen||this.state.agentTasks.some(t=>['queued','running','needs_clarification'].includes(t.status))))
-   this.taskTimer=setTimeout(this.taskWake,10000);
+  if(!this.taskAbort.signal.aborted&&(this.state.executingTaskId||this.tasksOpen||this.state.agentTasks.some(t=>['queued','running','needs_clarification'].includes(t.status))))
+   this.taskTimer=setTimeout(this.taskWake,this.state.executingTaskId?1000:10000);
  }
  private acceptTasks(tasks:AiTask[],next=this.state.tasksNext){
+  // A list request started before a POST response must not regress its newer DTO.
+  tasks=tasks.map(task=>{const current=this.state.agentTasks.find(t=>t.id===task.id);
+   return current&&Date.parse(current.updatedAt)>Date.parse(task.updatedAt)?current:task;});
   let completedTask=this.state.completedTask;
   for(const task of tasks){
    const previous=this.taskStatuses.get(task.id);
@@ -66,6 +69,25 @@ export class LiveWorkspaceController {
    if(generation===this.taskGeneration){this.taskPending=false;this.set({tasksLoading:false});
     if(this.taskRefreshAgain){this.taskRefreshAgain=false;void this.refreshTasks();}else this.scheduleTasks();
    }
+  }
+ }
+ async executeTask(id:string){
+  if(!this.source.executeAgentTask||this.taskAbort.signal.aborted||this.state.executingTaskId
+   ||this.state.agentTasks.some(t=>t.status==='running')||this.state.agentTasks.find(t=>t.id===id)?.status!=='queued')return;
+  const generation=this.taskGeneration;
+  this.set({executingTaskId:id,tasksError:null});
+  void this.refreshTasks();
+  try{
+   const task=await this.source.executeAgentTask(id,this.taskAbort.signal);
+   if(generation!==this.taskGeneration)return;
+   this.acceptTasks(this.state.agentTasks.map(t=>t.id===id?task:t));
+  }catch(error){
+   if(generation!==this.taskGeneration)return;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
+   this.set({tasksError:'Не удалось получить подтверждение запуска. Проверяем состояние задачи; повторный запуск не отправляется.'});
+   await this.taskDetails(id);
+  }finally{
+   if(generation===this.taskGeneration){this.set({executingTaskId:null});void this.refreshTasks();}
   }
  }
  moreTasks=async()=>{if(this.taskPending||this.state.tasksNext===null)return;this.taskPages++;await this.refreshTasks();};
@@ -153,7 +175,7 @@ export class LiveWorkspaceController {
   if(this.taskTimer)clearTimeout(this.taskTimer);this.taskTimer=null;this.taskStatuses.clear();this.taskPages=1;
   if(typeof window!=='undefined')window.removeEventListener('focus',this.taskWake);
   if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.taskWake);
-  this.set({agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
+  this.set({executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
   this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  private get multi(){return !!this.source.conversations;}
  private resetChat(id:string|null){

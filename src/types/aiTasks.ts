@@ -23,6 +23,9 @@ export interface AiTask {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
   progressPercent?: number; // 0..100 for running tasks
   currentStep?: string; // Human-readable sub-step
   queuePosition?: number; // 1, 2, ...
@@ -40,6 +43,7 @@ export interface AiTasksPage { tasks: AiTask[]; nextOffset: number | null }
 export interface AiTasksPresentation {
   tasks: AiTask[]; loading: boolean; error: string | null; hasMore: boolean;
   completedTask: AiTask | null;
+  executingTaskId?: string | null; onExecute?: (id: string) => void;
   onOpen: () => void; onClose: () => void; onRefresh: () => void;
   onMore: () => void; onDetails: (id: string) => void; onDismiss: () => void;
 }

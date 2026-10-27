@@ -80,6 +80,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  });
  const model:WorkspaceModel={
   aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
+   executingTaskId:state.executingTaskId,onExecute:id=>void controller.executeTask(id),
    completedTask:state.completedTask,onOpen:()=>controller.openTasks(),onClose:()=>controller.closeTasks(),
    onRefresh:()=>void controller.refreshTasks(),onMore:()=>void controller.moreTasks(),
    onDetails:id=>void controller.taskDetails(id),onDismiss:()=>controller.dismissTask()},

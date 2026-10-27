@@ -101,3 +101,37 @@ test('trace checkpoint is a chronology barrier even within the same provider tur
  await c.load();await c.send('Question');
  assert.deepEqual(c.snapshot().history.messages.at(-1)!.timeline?.map(e=>e.sequence),[1,2,3]);c.stop();
 });
+
+test('enqueue started -> finished -> done succeeds for Memory/Calendar; local stream errors reconcile the original turn without resend',async()=>{
+ for(const kind of ['memory','calendar'] as const)for(const broken of [false,true]){
+  let sent=0,turnReads=0,taskReads=0,registered=false;
+  const receipt='Добавлена в очередь задача: '+kind;
+  const history={...empty,messages:canonical.map(m=>m.role==='assistant'?{...m,content:receipt}:m)};
+  const activity={call_id:'t1-c1',tool_name:'enqueue_agent_task',turn_number:1,kind:'tool',title:'Run tool',
+   phase:'started',status:'running',input:null,output:null,duration_ms:null,truncated:false};
+  const events:ChatStreamEvent[]=[
+   {event:'tool_activity',data:{sequence:1,activity}},
+   {event:'tool_activity',data:{sequence:2,activity:{...activity,phase:'finished',status:'success',
+    title:'Task registered (not executed)',duration_ms:3}}},
+   {event:'delta',data:{text:receipt}},done,
+  ] as ChatStreamEvent[];
+  if(broken)events[1]={event:'tool_activity',data:{sequence:2,activity:{...activity,tool_name:'unrecognized_projection'}}} as ChatStreamEvent;
+  const c=new LiveWorkspaceController(source({
+   history:async()=>registered?history:empty,
+   agentTasks:async()=>{taskReads++;return {tasks:registered?[{id,target:kind,title:kind,userPrompt:kind,status:'queued',createdAt:'2026-10-27T12:00:00Z',updatedAt:'2026-10-27T12:00:00Z'}]:[],nextOffset:null};},
+   turn:async turnId=>{assert.equal(turnId,id);turnReads++;return {turn_status:'completed',summary:'',events:[],assistant_content:receipt};},
+   send:async(_text,_submission,emit,options)=>{
+    sent++;options?.onTurn?.(id);registered=true;
+    await readChatStream(new Response(events.map(e=>frame(e.event,e.data)).join('')).body!,emit);
+   },
+  }),()=>assert.fail('Unexpected session expiry'),()=>id);
+  try{
+   await c.load();await c.send('Question');
+   assert.equal(sent,1);assert.equal(turnReads,broken?1:0);
+   assert.equal(c.snapshot().error,null);assert.equal(c.snapshot().uncertain,false);assert.equal(c.snapshot().busy,false);
+   const reply=c.snapshot().history.messages.at(-1)!;
+   assert.equal(reply.status,'completed');assert.equal(reply.content,receipt);assert.equal(reply.report_context,undefined);
+   assert.ok(taskReads>0);await c.refreshTasks();assert.equal(c.snapshot().agentTasks[0].status,'queued');
+  }finally{c.stop();}
+ }
+});

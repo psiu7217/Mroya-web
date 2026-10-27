@@ -364,11 +364,15 @@ export class LiveWorkspaceController {
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));
    this.set({uncertain,error:uncertain?'The reply was interrupted. Check server status before sending another message.':this.state.error});
+   if(uncertain&&this.turnId)await this.reconcileTurn();
    if(!uncertain){try{const history=await this.readHistory();if(epoch===this.epoch)this.set({history:this.historyWithReasoning(history)});}catch(e){if(epoch===this.epoch)this.failure(e);}}
   }finally{if(epoch===this.epoch){this.set({busy:false});void this.refreshTasks();}}
  }
  async recover(){
   if(this.sendInProgress||this.state.busy||this.state.conversationBusy)return;
+  await this.reconcileTurn();
+ }
+ private async reconcileTurn(){
   const epoch=this.epoch;
   try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='failed'){
     const context=readReportContext(turn.report_context);
@@ -388,6 +392,12 @@ export class LiveWorkspaceController {
      messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context}];
     }
     this.set({history:{...this.state.history,messages}});
+   }if(turn.turn_status==='completed'){
+    // The authenticated ChatTurn wins over a local stream/parser failure.
+    // Clear the transient failed status before historyWithReasoning reconciles it.
+    this.set({error:null,history:{...this.state.history,messages:this.state.history.messages.map(message=>
+     message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined}:message)}});
+    void this.refreshTasks();
    }if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
    await this.load();
    if(epoch===this.epoch&&this.state.uncertain)this.set({error:'The submission could not be confirmed. Review server history and reload the page before starting a new message; nothing is automatically resent.'});

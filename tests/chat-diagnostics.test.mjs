@@ -144,12 +144,12 @@ test('failed live messages render the existing diagnostics controls',()=>{
   const admin=markup({live:true,diagnostics:s.c,isAdmin:false});assert.match(admin,/Copy Error For Admin Diagnostics/);
  }finally{s.c.stop();}
 });
-test('only existing UI states are used, invalid context disables actions, and callback payload is the failed message',async()=>{
+test('only existing UI states are used, local failures hide backend report actions, and callbacks use the failed message',async()=>{
  const pending=deferred(),s=setup({reportChatIssue:()=>pending.promise});
  try{
   const write=s.c.onReport(message);const sending=markup({live:true,diagnostics:s.c});assert.match(sending,/Sending report…/);assert.doesNotMatch(sending,/Report sent/);
   pending.resolve({});await write;assert.match(markup({live:true,diagnostics:s.c}),/Report sent/);
-  const invalid=markup({live:true});assert.match(invalid,/disabled="" aria-label="Report issue to backend"/);assert.match(invalid,/Copy Error For Admin Diagnostics/);assert.doesNotMatch(invalid,/Report sent|Diagnostics copied!/);
+  const invalid=markup({live:true});assert.doesNotMatch(invalid,/Report issue to backend|Copy Error For Admin Diagnostics|Report sent|Diagnostics copied!/);
   const code=fs.readFileSync('src/components/ChatWorkspace.tsx','utf8');
   assert.doesNotMatch(code,/errorDiagnostics|timestamp_iso|navigator.userAgent|setReportingMessageId|setReportedMessageIds|setCopiedDiagnosticsId/);
   assert.match(code,/handleReportIssue\(msg\)/);assert.match(code,/handleCopyAdminDiagnostics\(msg\)/);

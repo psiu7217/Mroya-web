@@ -8,7 +8,7 @@ export interface ApiUser { id:number; username:string; email:string; first_name:
 export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode;show_model_reasoning:boolean;timezone:string;timezone_only_if_unset:boolean;language:AppLanguage;language_only_if_unset:boolean}>;
 export interface ReportContext {turn_id:string;request_trace_id:number;report_url:string}
 export interface IssueReportResponse {issue:{id:string;turn_id:string;request_trace_id:number;status:'new'|'investigating'|'resolved';created_at:string};created:boolean}
-export type LiveToolName = 'search_memory'|'fast_search_memory'|'prepare_memory_write'|'expand_memory_entities'|'write_statements'|'revise_memory_statements'|'forget_memory_statements'|'resolve_memory_write'|'echo'|'search_calendar_events'|'get_calendar_events'|'create_calendar_events'|'update_calendar_events'|'delete_calendar_events'|'create_note'|'get_note'|'update_note'|'delete_note'|'tool';
+export type LiveToolName = 'enqueue_agent_task'|'search_memory'|'fast_search_memory'|'prepare_memory_write'|'expand_memory_entities'|'write_statements'|'revise_memory_statements'|'forget_memory_statements'|'resolve_memory_write'|'echo'|'search_calendar_events'|'get_calendar_events'|'create_calendar_events'|'update_calendar_events'|'delete_calendar_events'|'create_note'|'get_note'|'update_note'|'delete_note'|'tool';
 export interface LiveFact {subject:string|null;predicate:string|null;value:string|number|boolean|null}
 export type LiveToolInput = {queries:{query:string|null}[]}
  | {entities:{label:string|null;direction:'outgoing'|'incoming'|'both'|null}[]}

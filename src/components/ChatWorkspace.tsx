@@ -848,7 +848,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                               </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2.5 pl-6.5">
-                              <button
+                              {(!live || actionState?.available) && <button
                                 type="button"
                                 onClick={() => handleReportIssue(msg)}
                                 disabled={!actionState?.available || reporting || reported}
@@ -875,9 +875,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                     <span>{tr('reportIssueLabel',{ns:'chat'})}</span>
                                   </>
                                 )}
-                              </button>
+                              </button>}
 
-                              {(live || isAdmin) && (
+                              {(live ? actionState?.available : isAdmin) && (
                                 <button
                                   type="button"
                                   onClick={() => handleCopyAdminDiagnostics(msg)}

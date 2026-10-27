@@ -36,4 +36,3 @@ test('pagination retains server IDs and stopped account cannot deliver a late re
  const pending=late.refreshTasks();late.stop();resolve({tasks:[task],nextOffset:null});await pending;
  assert.deepEqual(late.snapshot().agentTasks,[]);assert.equal(late.snapshot().completedTask,null);
 });
-

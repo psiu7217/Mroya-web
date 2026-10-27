@@ -5,18 +5,19 @@ import type {ChatTimelineEntry} from '../types/mroya.ts';
 import type {ConversationSummary,ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
 import {readReportContext} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
+import {tr} from '../i18n/index.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
 function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
  return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
 export interface LiveState {
- executingTaskId:string|null;agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
+ cancellingTaskId:string|null;executingTaskId:string|null;agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
  conversations:ConversationSummary[];activeConversationId:string|null;conversationBusy:boolean;operationUncertain:boolean;
  history:HistoryResponse;memories:MemoriesResponse;map:MemoryMapResponse;
 }
 export class LiveWorkspaceController {
- private state:LiveState={executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
+ private state:LiveState={cancellingTaskId:null,executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
  private taskAbort=new AbortController();private taskGeneration=0;private taskPending=false;
  private tasksOpen=false;private taskTimer:ReturnType<typeof setTimeout>|null=null;
  private taskStatuses=new Map<string,AiTask['status']>();private taskPages=1;
@@ -92,6 +93,31 @@ export class LiveWorkspaceController {
    await this.taskDetails(id);
   }finally{
    if(generation===this.taskGeneration){this.set({executingTaskId:null});void this.refreshTasks();}
+  }
+ }
+ async cancelTask(id:string){
+  const current=this.state.agentTasks.find(t=>t.id===id);
+  if(!this.source.cancelAgentTask||this.taskAbort.signal.aborted||this.state.cancellingTaskId
+   ||this.state.executingTaskId===id||!current?.canCancel||!['queued','needs_clarification'].includes(current.status))return;
+  const generation=this.taskGeneration;
+  this.set({cancellingTaskId:id,tasksError:null});
+  try{
+   const task=await this.source.cancelAgentTask(id,this.taskAbort.signal);
+   if(generation!==this.taskGeneration)return;
+   this.mergeTask(task);
+   if(task.status!=='cancelled')this.set({tasksError:tr('taskCancelUnavailable',{ns:'chat'})});
+  }catch(error){
+   if(generation!==this.taskGeneration)return;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
+   // A lost POST response may already have committed. Read once, never repeat POST.
+   try{
+    const task=await this.readTask(id);
+    if(generation===this.taskGeneration)this.set({tasksError:task.status==='cancelled'?null:tr('taskCancelUnavailable',{ns:'chat'})});
+   }catch{
+    if(generation===this.taskGeneration)this.set({tasksError:tr('taskCancelUnknown',{ns:'chat'})});
+   }
+  }finally{
+   if(generation===this.taskGeneration){this.set({cancellingTaskId:null});this.scheduleTasks();}
   }
  }
  moreTasks=async()=>{if(this.taskPending||this.state.tasksNext===null)return;this.taskPages++;await this.refreshTasks();};
@@ -236,7 +262,7 @@ export class LiveWorkspaceController {
   if(this.taskTimer)clearTimeout(this.taskTimer);this.taskTimer=null;this.taskStatuses.clear();this.taskPages=1;
   if(typeof window!=='undefined')window.removeEventListener('focus',this.taskWake);
   if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.taskWake);
-  this.set({executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
+  this.set({cancellingTaskId:null,executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
   this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  private get multi(){return !!this.source.conversations;}
  private resetChat(id:string|null){

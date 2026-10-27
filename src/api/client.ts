@@ -63,6 +63,11 @@ export class MroyaApi {
     const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/cancel/',{},signal,'POST');
     return readAiTask(data.task,id);
   }
+  async cancelAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/cancel/',{pending_only:false},signal,'POST');
+    return readAiTask(data.task,id);
+  }
   async agentTask(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
     const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/',undefined,signal);

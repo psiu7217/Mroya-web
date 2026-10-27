@@ -12,11 +12,13 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
     || !(v.confirm_deadline_at === undefined || v.confirm_deadline_at === null
       || typeof v.confirm_deadline_at === 'string' && Number.isFinite(Date.parse(v.confirm_deadline_at as string)))
     || !(v.server_time === undefined || typeof v.server_time === 'string' && Number.isFinite(Date.parse(v.server_time)))
+    || !(v.can_cancel === undefined || typeof v.can_cancel === 'boolean')
     || !(v.duration_ms == null || Number.isSafeInteger(v.duration_ms) && (v.duration_ms as number) >= 0)
     || !(v.result === null || typeof v.result === 'string') || !(v.error_code === null || typeof v.error_code === 'string'))
     throw new ApiError(502,'invalid_response','Invalid AI task');
   return {id:v.id as string, title:v.description as string, userPrompt:v.description as string,
     target:v.type as AiTask['target'], status:v.status as AiTask['status'],
+    canCancel:v.can_cancel === true,
     createdAt:v.created_at as string, updatedAt:v.updated_at as string,
     serverClockOffsetMs:typeof v.server_time === 'string' ? Date.parse(v.server_time)-Date.now() : undefined,
     confirmDeadlineAt:typeof v.confirm_deadline_at === 'string' ? v.confirm_deadline_at : undefined,

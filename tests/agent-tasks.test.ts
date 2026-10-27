@@ -186,3 +186,63 @@ test('late approval authentication failures cannot expire a replacement account 
  reject(new ApiError(401,'authentication_required','Old session'));
  await assert.rejects(request);assert.equal(expired,0);
 });
+
+test('panel cancellation reads server permission and sends CSRF; chat keeps pending-only intent',async()=>{
+ assert.equal(readAiTask({...dto,can_cancel:true}).canCancel,true);
+ assert.equal(readAiTask(dto).canCancel,false);
+ assert.throws(()=>readAiTask({...dto,can_cancel:'true'}));
+ const calls:{url:string;init:RequestInit}[]=[];
+ const api=new MroyaApi((async(url,init={})=>{
+  calls.push({url:String(url),init});
+  return new Response(JSON.stringify(String(url).endsWith('csrf/')?{csrf_token:'cancel-csrf'}:
+   {task:{...dto,status:'cancelled',can_cancel:false}}),{headers:{'Content-Type':'application/json'}});
+ }) as typeof fetch);
+ assert.equal((await api.cancelAgentTask(id)).status,'cancelled');
+ await api.revokePendingAgentTask(id);
+ assert.equal(calls[1].init.body,'{"pending_only":false}');
+ assert.equal(calls[2].init.body,'{}');
+ for(const call of calls.slice(1)){
+  assert.ok(call.url.endsWith('/'+id+'/cancel/'));
+  assert.equal(call.init.method,'POST');assert.equal(call.init.credentials,'same-origin');
+  assert.equal(new Headers(call.init.headers).get('X-CSRFToken'),'cancel-csrf');
+ }
+});
+
+test('panel cancellation waits for server, blocks duplicates and updates drawer/history despite stale list',async()=>{
+ const queued={...task,canCancel:true};
+ const cancelled:AiTask={...queued,status:'cancelled',canCancel:false,updatedAt:'2026-10-27T12:00:01Z'};
+ let posts=0,release!:(task:AiTask)=>void;
+ const source={capabilities:async()=>({chat:true,memory_read:false}),
+  history:async()=>({conversation_id:conv,next_before:null,messages:[messageA,{...messageB,tasks:[queued]}]}),
+  agentTasks:async()=>({tasks:[queued],nextOffset:null}),
+  cancelAgentTask:()=>{posts++;return new Promise<AiTask>(r=>{release=r;});},
+ } as unknown as WorkspaceSource;
+ const c=new LiveWorkspaceController(source,()=>assert.fail('Unexpected expiry'));
+ try{
+  await c.load();await c.refreshTasks();const pending=c.cancelTask(id);await c.cancelTask(id);
+  assert.equal(posts,1);assert.equal(c.snapshot().cancellingTaskId,id);
+  assert.equal(c.snapshot().agentTasks[0].status,'queued');
+  release(cancelled);await pending;
+  assert.equal(c.snapshot().agentTasks[0].status,'cancelled');
+  assert.equal(c.snapshot().history.messages[1].tasks?.[0].status,'cancelled');
+  await c.refreshTasks();assert.equal(c.snapshot().agentTasks[0].status,'cancelled');
+  assert.equal(c.snapshot().cancellingTaskId,null);assert.equal(c.snapshot().tasksError,null);
+ }finally{c.stop();}
+});
+
+test('cancel conflicts and lost responses reconcile canonical state without repeating the command',async()=>{
+ for(const status of ['running','cancelled'] as const){
+  let posts=0,gets=0;
+  const current:AiTask={...task,status,canCancel:false,updatedAt:'2026-10-27T12:00:01Z'};
+  const c=new LiveWorkspaceController({agentTasks:async()=>({tasks:[{...task,canCancel:true}],nextOffset:null}),
+   cancelAgentTask:async()=>{posts++;throw status==='running'?new ApiError(409,'cancel_not_allowed','Conflict'):Error('Lost response');},
+   agentTask:async()=>{gets++;return current;},
+  } as unknown as WorkspaceSource,()=>assert.fail('Unexpected expiry'));
+  try{
+   await c.refreshTasks();await c.cancelTask(id);
+   assert.equal(posts,1);assert.equal(gets,1);assert.equal(c.snapshot().agentTasks[0].status,status);
+   assert.equal(c.snapshot().tasksError===null,status==='cancelled');
+   await c.cancelTask(id);assert.equal(posts,1);
+  }finally{c.stop();}
+ }
+});

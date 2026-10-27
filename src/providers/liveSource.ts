@@ -10,6 +10,7 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     beginAgentTaskReview:(id,signal)=>api.beginAgentTaskReview(id,signal),
     approveAgentTask:(id,signal)=>api.approveAgentTask(id,signal),
     revokePendingAgentTask:(id,signal)=>api.revokePendingAgentTask(id,signal),
+    cancelAgentTask:(id,signal)=>api.cancelAgentTask(id,signal),
     initialFilterResults:(decision,offset,signal)=>api.initialFilterResults(decision,offset,signal),
     initialFilterQueue:signal=>api.initialFilterQueue(signal),
     enqueueInitialFilter:(id,signal)=>api.enqueueInitialFilter(id,signal),

@@ -453,3 +453,15 @@ Frontend integration follows the owner-provided contract dated 2026-10-24. This 
 The processed counter includes approved + rejected + terminal errors; a separate error counter explains this. Poll every 5 seconds only while processing_enabled && !is_complete. Complete means pending=processing=0, even with errors. Stop on request failure (manual Retry), disabled processing, tab close or logout/account change. Opening History reloads persisted results; confirmed enqueue refreshes results and resumes polling when appropriate. Pagination follows next_offset and preserves Backend order; Web does not load other stages or write memory. Offset pages can shift while processing adds results; Refresh/reopening reloads the selected page, and Previous returns toward the first page.
 
 Live acceptance requires the matching Backend endpoint deployment. Verify enqueue A/B, counters increasing, both paginated decision lists, terminal errors, disabled processing, and persistence after reload. Tests use synthetic transport only, with no AI requests.
+
+
+## Manual AgentTask execution
+
+POST agent-tasks/{uuid}/execute/ accepts {} using session + CSRF, executes the
+owner's selected queued task synchronously, and returns HTTP 200 {task:<DTO>}.
+404 means foreign/missing; 409 task_not_queued or owner_task_running prevents a
+second execution. Never automatically replay this POST, including after a timeout
+or CSRF rejection. Use existing list/detail GETs to reconcile while it runs.
+DTOs add started_at, finished_at (ISO/null) and duration_ms (integer/null), backed
+by the existing AgentTask model dates. The sole user Chat remains reads + enqueue;
+manual domain execution is a separate internal service with no worker/scheduler.

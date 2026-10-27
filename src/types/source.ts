@@ -4,6 +4,7 @@ export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUs
 export interface WorkspaceSource {
   agentTasks?:MroyaApi['agentTasks'];
   agentTask?:MroyaApi['agentTask'];
+  executeAgentTask?:MroyaApi['executeAgentTask'];
   initialFilterResults?:MroyaApi['initialFilterResults'];
   initialFilterQueue?:MroyaApi['initialFilterQueue'];
   enqueueInitialFilter?:MroyaApi['enqueueInitialFilter'];

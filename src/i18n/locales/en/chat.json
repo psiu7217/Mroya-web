@@ -134,5 +134,8 @@
   "taskStateBlocked": "The task no longer awaits confirmation — showing the current status.",
   "taskConfirmUnavailable": "The action could not be confirmed — showing the current server status.",
   "taskConfirmError": "Could not fetch the current task status.",
-  "taskEditAbandon": "Discard edit"
+  "taskEditAbandon": "Discard edit",
+  "taskCancelling": "Cancelling…",
+  "taskCancelUnavailable": "The task cannot be cancelled — showing the current server status.",
+  "taskCancelUnknown": "Cancellation is unconfirmed. Refresh the task status; no repeat request was sent."
 }

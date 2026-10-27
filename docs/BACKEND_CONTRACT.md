@@ -1,5 +1,14 @@
 # Backend contract for Mroya Web
 
+Task-panel cancellation requires the companion Backend cancellation release.
+Task DTOs carry optional boolean `can_cancel` (missing means unavailable). The
+panel sends session/CSRF POST `agent-tasks/{uuid}/cancel/` with `{"pending_only":false}` for queued or
+eligible needs_clarification tasks; cancelled remains in history/Issues. A lost
+response or conflict triggers a canonical GET, never an automatic repeated POST.
+Chat's existing window Cancel/Edit keeps `{}` and its unchanged deadline checks.
+Older Backend versions omit permission so panel Cancel remains hidden; do not infer permission from model
+text or client-side error-code lists.
+
 Mroya API is authoritative for identity, user data and business logic. This inventory was checked against Django routes/views, chat and memory services, and Google OAuth application code installed at `503f99c98c`. The canonical methods, payloads, DTOs, limits and errors are in [API.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md); OAuth setup and flow are in [GOOGLE-OAUTH.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/GOOGLE-OAUTH.md). Read those references before adding a feature. Markdown alone does not establish API availability: verify current code and capabilities.
 
 ## Published routes

@@ -8,6 +8,7 @@ export interface WorkspaceSource {
   beginAgentTaskReview?:MroyaApi['beginAgentTaskReview'];
   approveAgentTask?:MroyaApi['approveAgentTask'];
   revokePendingAgentTask?:MroyaApi['revokePendingAgentTask'];
+  cancelAgentTask?:MroyaApi['cancelAgentTask'];
   initialFilterResults?:MroyaApi['initialFilterResults'];
   initialFilterQueue?:MroyaApi['initialFilterQueue'];
   enqueueInitialFilter?:MroyaApi['enqueueInitialFilter'];

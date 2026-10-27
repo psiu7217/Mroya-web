@@ -42,6 +42,8 @@ export interface AiTask {
   clarificationAnswer?: string; // User's submitted reply
   errorMessage?: string; // Cause of error
   canRetry?: boolean;
+  /** Server-owned cancellation permission; missing on older API versions. */
+  canCancel?: boolean;
 }
 
 export interface AiTasksPage { tasks: AiTask[]; nextOffset: number | null }
@@ -49,6 +51,7 @@ export interface AiTasksPresentation {
   tasks: AiTask[]; loading: boolean; error: string | null; hasMore: boolean;
   completedTask: AiTask | null;
   executingTaskId?: string | null; onExecute?: (id: string) => void;
+  cancellingTaskId?: string | null; onCancel?: (id: string) => void;
   /** Chat confirmation card bindings; canonical server reads always win. */
   beginReview?: (id: string) => Promise<AiTask>;
   approveTask?: (id: string) => Promise<AiTask>;

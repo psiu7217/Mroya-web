@@ -12,6 +12,7 @@ import {
   Check,
 } from 'lucide-react';
 import type { AiTask, AiTaskStatus } from '../types/aiTasks';
+import {tr} from '../i18n/index.ts';
 
 export interface AiTasksDrawerProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export interface AiTasksDrawerProps {
   onRefresh?: () => void; onMore?: () => void; onDetails?: (id: string) => void;
   highlightTaskId?: string | null;
   executingTaskId?: string | null; onExecute?: (id: string) => void;
+  cancellingTaskId?: string | null; onCancel?: (id: string) => void;
 }
 
 const localDate = (value:string) => {
@@ -47,7 +49,7 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
   onClose,
   tasks,
   loading, error, hasMore, onRefresh, onMore, onDetails,
-  highlightTaskId, executingTaskId, onExecute,
+  highlightTaskId, executingTaskId, onExecute, cancellingTaskId, onCancel,
 }) => {
   const [activeTab, setActiveTab] = useState<CompactTab>('active');
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
@@ -304,10 +306,17 @@ ID: ${task.id}
                   <TaskTiming task={task} />
                   {task.status==='queued' && onExecute && <button type="button"
                     onClick={()=>onExecute(task.id)}
-                    disabled={!!executingTaskId||tasks.some(t=>t.status==='running')}
+                    disabled={!!executingTaskId||!!cancellingTaskId||tasks.some(t=>t.status==='running')}
                     className="px-2.5 py-1 rounded-md bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] text-[11.5px] font-semibold disabled:opacity-40 cursor-pointer">
                     {executingTaskId===task.id?'Запуск…':'Выполнить'}
                   </button>}
+                  {['queued','needs_clarification'].includes(task.status)&&task.canCancel===true&&onCancel&&(
+                    <button type="button" onClick={()=>onCancel(task.id)}
+                      disabled={!!cancellingTaskId||executingTaskId===task.id}
+                      className="px-2.5 py-1 rounded-md text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-active)] text-[11.5px] font-semibold disabled:opacity-40 cursor-pointer">
+                      {tr(cancellingTaskId===task.id?'taskCancelling':'taskConfirmCancel',{ns:'chat'})}
+                    </button>
+                  )}
                   {isRunning && <p className="text-[12px] text-[var(--mroya-text-muted)]">Выполняется</p>}
                   {isClarifying && <p className="text-[12px] text-[var(--mroya-text-muted)]">{task.errorMessage==='execution_outcome_unknown'?'Результат операции не подтверждён. Не запускайте её повторно.':'Требует уточнения. Ответ через панель пока недоступен.'}{task.errorMessage && ` (${task.errorMessage})`}</p>}
                   {/* Completed result */}

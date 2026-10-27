@@ -1280,6 +1280,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         onDetails={aiTasks?.onDetails}
         executingTaskId={aiTasks?.executingTaskId}
         onExecute={aiTasks?.onExecute}
+        cancellingTaskId={aiTasks?.cancellingTaskId}
+        onCancel={aiTasks?.onCancel}
         highlightTaskId={highlightTaskId}
       />
     </div>

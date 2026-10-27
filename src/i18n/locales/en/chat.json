@@ -133,5 +133,6 @@
   "taskWindowClosed": "The confirmation window has closed — showing the current server status.",
   "taskStateBlocked": "The task no longer awaits confirmation — showing the current status.",
   "taskConfirmUnavailable": "The action could not be confirmed — showing the current server status.",
-  "taskConfirmError": "Could not fetch the current task status."
+  "taskConfirmError": "Could not fetch the current task status.",
+  "taskEditAbandon": "Discard edit"
 }

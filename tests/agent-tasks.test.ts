@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {MroyaApi} from '../src/api/client.ts';
 import {LiveWorkspaceController} from '../src/hooks/LiveWorkspaceController.ts';
 import {readConversationHistory} from '../src/api/conversations.ts';
-import {readTasksPayload} from '../src/api/aiTasks.ts';
+import {readTasksPayload,readAiTask,taskTimeRemaining,newerTask} from '../src/api/aiTasks.ts';
 import {ApiError} from '../src/api/errors.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 import type {AiTask} from '../src/types/aiTasks.ts';
@@ -125,3 +125,64 @@ test('cards reconcile through the controller: approve merges rows, late revocati
  try{await plain.refreshTasks();await assert.rejects(()=>plain.approvePendingTask(id));}finally{plain.stop();}
 });
 
+
+
+test('delivery acknowledgement is explicit, CSRF-protected and never a polling side effect',async()=>{
+ const calls:string[]=[];
+ const api=new MroyaApi((async(url,init)=>{
+  calls.push(String(url));
+  if(String(url).endsWith('csrf/'))return new Response(JSON.stringify({csrf_token:'csrf-review'}),{headers:{'Content-Type':'application/json'}});
+  assert.equal(init?.method,'POST');assert.equal(init?.body,'{}');
+  assert.equal(new Headers(init?.headers).get('X-CSRFToken'),'csrf-review');
+  return new Response(JSON.stringify({task:{...pendingDto,server_time:'2026-10-27T12:00:00Z'}}),{headers:{'Content-Type':'application/json'}});
+ }) as typeof fetch);
+ await api.beginAgentTaskReview(id);
+ assert.ok(calls.at(-1)?.endsWith('/agent-tasks/'+id+'/review/'));
+ assert.throws(()=>readTasksPayload([pendingDto,pendingDto]));
+});
+
+test('server clock correction and monotone statuses handle clock skew and stale reads',()=>{
+ const received=Date.now();
+ const row=readAiTask({...pendingDto,server_time:new Date(received+3600000).toISOString(),confirm_deadline_at:new Date(received+3615000).toISOString()});
+ const left=taskTimeRemaining(row);
+ assert.ok(left!==null&&left>14000&&left<=15000);
+ const pending={...task,status:'pending_confirmation' as const};
+ const queued={...task,status:'queued' as const};
+ assert.equal(newerTask(queued,pending).status,'queued');
+ assert.equal(newerTask({...pending,confirmDeadlineAt:'2026-10-27T12:00:15Z'},pending).confirmDeadlineAt,'2026-10-27T12:00:15Z');
+ assert.equal(newerTask({...task,status:'completed'},queued).status,'completed');
+});
+
+test('canonical actions update the drawer and every bound history card without stale-response regression',async()=>{
+ let acknowledgements=0;
+ const pending:AiTask={...task,status:'pending_confirmation'};
+ const queued:AiTask={...pending,status:'queued',confirmDeadlineAt:'2026-10-27T12:00:15Z'};
+ const source={
+  capabilities:async()=>({chat:true,memory_read:false}),
+  history:async()=>({conversation_id:conv,next_before:null,messages:[messageA,{...messageB,tasks:[pending]}]}),
+  agentTasks:async()=>({tasks:[pending],nextOffset:null}),
+  agentTask:async()=>pending,
+  beginAgentTaskReview:async()=>{acknowledgements++;return {...pending,confirmDeadlineAt:queued.confirmDeadlineAt};},
+  approveAgentTask:async()=>queued,
+ } as unknown as WorkspaceSource;
+ const c=new LiveWorkspaceController(source,()=>assert.fail('Unexpected expiry'));
+ try{
+  await c.load();await c.refreshTasks();assert.equal(acknowledgements,0);
+  await c.beginPendingReview(id);assert.equal(acknowledgements,1);
+  assert.equal(c.snapshot().history.messages[1].tasks?.[0].confirmDeadlineAt,queued.confirmDeadlineAt);
+  await c.approvePendingTask(id);
+  assert.equal(c.snapshot().history.messages[1].tasks?.[0].status,'queued');
+  await c.refreshTasks();await c.load();
+  assert.equal(c.snapshot().agentTasks[0].status,'queued');
+  assert.equal(c.snapshot().history.messages[1].tasks?.[0].status,'queued');
+ }finally{c.stop();}
+});
+
+
+test('late approval authentication failures cannot expire a replacement account session',async()=>{
+ let reject!:(error:unknown)=>void,expired=0;
+ const controller=new LiveWorkspaceController({approveAgentTask:()=>new Promise((_,fail)=>{reject=fail;})} as unknown as WorkspaceSource,()=>{expired++;});
+ const request=controller.approvePendingTask(id);controller.stop();
+ reject(new ApiError(401,'authentication_required','Old session'));
+ await assert.rejects(request);assert.equal(expired,0);
+});

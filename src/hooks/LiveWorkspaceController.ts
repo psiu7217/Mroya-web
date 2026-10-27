@@ -1,5 +1,5 @@
 import type {AiTask} from '../types/aiTasks';
-import {readTasksPayload} from '../api/aiTasks.ts';
+import {readTasksPayload,newerTask} from '../api/aiTasks.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {ChatTimelineEntry} from '../types/mroya.ts';
 import type {ConversationSummary,ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
@@ -31,14 +31,17 @@ export class LiveWorkspaceController {
  private acceptTasks(tasks:AiTask[],next=this.state.tasksNext){
   // A list request started before a POST response must not regress its newer DTO.
   tasks=tasks.map(task=>{const current=this.state.agentTasks.find(t=>t.id===task.id);
-   return current&&Date.parse(current.updatedAt)>Date.parse(task.updatedAt)?current:task;});
+   return newerTask(current,task);});
   let completedTask=this.state.completedTask;
   for(const task of tasks){
    const previous=this.taskStatuses.get(task.id);
    if(previous&&previous!=='completed'&&task.status==='completed')completedTask=task;
    this.taskStatuses.set(task.id,task.status);
   }
-  this.set({agentTasks:tasks,tasksNext:next,completedTask});
+  const canonical=new Map(tasks.map(task=>[task.id,task]));
+  const history={...this.state.history,messages:this.state.history.messages.map(message=>message.tasks?.length?
+   {...message,tasks:message.tasks.map(task=>newerTask(task,canonical.get(task.id)??task))}:message)};
+  this.set({agentTasks:tasks,tasksNext:next,completedTask,history});
  }
  async refreshTasks(){
   if(!this.source.agentTasks||this.taskAbort.signal.aborted)return;
@@ -55,9 +58,9 @@ export class LiveWorkspaceController {
    // Loaded active tasks can move beyond the loaded page window as new tasks arrive.
    // Read those canonical IDs so polling never loses an unfinished task.
    const ids=new Set(tasks.map(t=>t.id));
-   for(const task of this.state.agentTasks){
+   for(const task of [...this.state.agentTasks,...this.state.history.messages.flatMap(message=>message.tasks??[])]){
     if(!ids.has(task.id)&&['pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
-     tasks.push(await this.source.agentTask(task.id,this.taskAbort.signal));
+     tasks.push(await this.source.agentTask(task.id,this.taskAbort.signal));ids.add(task.id);
      if(generation!==this.taskGeneration)return;
     }
    }
@@ -104,15 +107,34 @@ export class LiveWorkspaceController {
  }
  private mergeTask(task:AiTask){
   // Chat cards and drawer rows reconcile against the same canonical row.
-  if(this.state.agentTasks.some(t=>t.id===task.id))this.acceptTasks(this.state.agentTasks.map(t=>t.id===task.id?task:t));
+  const tasks=this.state.agentTasks.some(t=>t.id===task.id)?this.state.agentTasks.map(t=>t.id===task.id?task:t):[task,...this.state.agentTasks];
+  this.acceptTasks(tasks);this.scheduleTasks();
+ }
+ /** Called by a rendered card, never by model execution or background polling. */
+ beginPendingReview=async(id:string)=>{
+  if(!this.source.beginAgentTaskReview)throw new ApiError(400,'invalid_request','Review acknowledgement unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.beginAgentTaskReview(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
  }
  /** Canonical GET used by Chat confirmation cards; the response is the authority. */
  readTask=async(id:string)=>{
   if(!this.source.agentTask)throw new ApiError(400,'invalid_request','Task reads unavailable');
   const generation=this.taskGeneration;
-  const task=await this.source.agentTask(id,this.taskAbort.signal);
-  if(generation===this.taskGeneration)this.mergeTask(task);
-  return task;
+  try{
+   const task=await this.source.agentTask(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
  }
  approvePendingTask=async(id:string)=>{
   if(!this.source.approveAgentTask)throw new ApiError(400,'invalid_request','Task confirmation unavailable');
@@ -122,7 +144,7 @@ export class LiveWorkspaceController {
    if(generation===this.taskGeneration)this.mergeTask(task);
    return task;
   }catch(error){
-   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
    throw error;
   }
  }
@@ -134,7 +156,7 @@ export class LiveWorkspaceController {
    if(generation===this.taskGeneration)this.mergeTask(task);
    return task;
   }catch(error){
-   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
    throw error;
   }
  }
@@ -149,6 +171,8 @@ export class LiveWorkspaceController {
  private sendInProgress=false;
  private unconfirmedCreate=false;
  private historyWithReasoning(history:HistoryResponse):HistoryResponse{
+  history={...history,messages:history.messages.map(message=>message.tasks?.length?{...message,
+   tasks:message.tasks.map(task=>newerTask(this.state.agentTasks.find(current=>current.id===task.id),task))}:message)};
   const pending=this.state.history.messages.find(message=>message.id===this.replyId);
   // Bind only an unambiguous new, adjacent canonical user/assistant pair; never by list position alone.
   if((pending?.reasoning||pending?.timeline?.length)&&pending?.status==='completed'&&history.conversation_id===this.state.history.conversation_id){

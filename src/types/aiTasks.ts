@@ -25,6 +25,8 @@ export interface AiTask {
   updatedAt: string;
   /** Server UTC deadline of the confirmation window; absent for legacy rows. */
   confirmDeadlineAt?: string;
+  /** Transport clock correction only; never authority for task state. */
+  serverClockOffsetMs?: number;
   completedAt?: string;
   startedAt?: string;
   finishedAt?: string;
@@ -48,6 +50,7 @@ export interface AiTasksPresentation {
   completedTask: AiTask | null;
   executingTaskId?: string | null; onExecute?: (id: string) => void;
   /** Chat confirmation card bindings; canonical server reads always win. */
+  beginReview?: (id: string) => Promise<AiTask>;
   approveTask?: (id: string) => Promise<AiTask>;
   revokeTask?: (id: string) => Promise<AiTask>;
   refreshTask?: (id: string) => Promise<AiTask>;

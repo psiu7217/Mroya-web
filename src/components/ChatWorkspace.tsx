@@ -1010,6 +1010,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       {live && msg.tasks && msg.tasks.length > 0 && (
                         <AiTaskConfirmationCard
                           tasks={msg.tasks}
+                          beginReview={aiTasks?.beginReview}
                           approveTask={aiTasks?.approveTask}
                           revokeTask={aiTasks?.revokeTask}
                           refreshTask={aiTasks?.refreshTask}

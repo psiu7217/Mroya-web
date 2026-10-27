@@ -465,3 +465,20 @@ or CSRF rejection. Use existing list/detail GETs to reconcile while it runs.
 DTOs add started_at, finished_at (ISO/null) and duration_ms (integer/null), backed
 by the existing AgentTask model dates. The sole user Chat remains reads + enqueue;
 manual domain execution is a separate internal service with no worker/scheduler.
+
+
+## AgentTask confirmation (paired API PR #80 / Web PR #57)
+
+Each new structured task receipt is pending_confirmation and initially has a null
+confirm_deadline_at. A rendered Chat card sends POST agent-tasks/{id}/review/ with
+{} using the existing session/CSRF client. Only that delivery ACK starts its
+immutable 15-second UTC deadline; model time, polling and history reads do not.
+The task's server_time corrects the display clock. At expiry the server's effective
+state is queued even with all tabs closed; actual execution remains manual.
+
+POST approve/ queues; POST cancel/ revokes pending work before expiry without AI.
+Edit waits for canonical cancelled, then sends description + comment as a new Chat
+message only on explicit submit. Cancelling input never revives the original.
+409 responses include canonical task state and are followed by a GET. The drawer
+and every bound Chat receipt share the controller's canonical rows; stale reads
+must not regress a confirmed/terminal state. Legacy tasks keep previous behavior.

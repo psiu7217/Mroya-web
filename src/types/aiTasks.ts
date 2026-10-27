@@ -1,4 +1,5 @@
 export type AiTaskStatus =
+  | 'pending_confirmation' // Server-anchored 15s window; canonical deadline below.
   | 'queued'
   | 'running'
   | 'completed'
@@ -22,6 +23,8 @@ export interface AiTask {
   userPrompt: string;
   createdAt: string;
   updatedAt: string;
+  /** Server UTC deadline of the confirmation window; absent for legacy rows. */
+  confirmDeadlineAt?: string;
   completedAt?: string;
   startedAt?: string;
   finishedAt?: string;
@@ -44,6 +47,10 @@ export interface AiTasksPresentation {
   tasks: AiTask[]; loading: boolean; error: string | null; hasMore: boolean;
   completedTask: AiTask | null;
   executingTaskId?: string | null; onExecute?: (id: string) => void;
+  /** Chat confirmation card bindings; canonical server reads always win. */
+  approveTask?: (id: string) => Promise<AiTask>;
+  revokeTask?: (id: string) => Promise<AiTask>;
+  refreshTask?: (id: string) => Promise<AiTask>;
   onOpen: () => void; onClose: () => void; onRefresh: () => void;
   onMore: () => void; onDetails: (id: string) => void; onDismiss: () => void;
 }

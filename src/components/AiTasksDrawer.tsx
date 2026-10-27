@@ -73,7 +73,7 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
   const filteredTasks = tasks.filter((task) => {
     switch (activeTab) {
       case 'active':
-        return ['running', 'queued', 'needs_clarification'].includes(task.status);
+        return ['pending_confirmation', 'running', 'queued', 'needs_clarification'].includes(task.status);
       case 'completed':
         return task.status === 'completed';
       case 'issues':
@@ -85,6 +85,8 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
 
   // Sort tasks: items requiring clarification MUST be pinned to the top and highlighted
   const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (a.status === 'pending_confirmation' && b.status !== 'pending_confirmation') return -1;
+    if (b.status === 'pending_confirmation' && a.status !== 'pending_confirmation') return 1;
     if (a.status === 'needs_clarification' && b.status !== 'needs_clarification') return -1;
     if (b.status === 'needs_clarification' && a.status !== 'needs_clarification') return 1;
     if (a.status === 'running' && b.status !== 'running') return -1;
@@ -93,7 +95,7 @@ export const AiTasksDrawer: React.FC<AiTasksDrawerProps> = ({
   });
 
   const activeCount = tasks.filter((t) =>
-    ['running', 'queued', 'needs_clarification'].includes(t.status)
+    ['pending_confirmation', 'running', 'queued', 'needs_clarification'].includes(t.status)
   ).length;
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
   const issuesCount = tasks.filter((t) => ['failed', 'cancelled'].includes(t.status)).length;
@@ -127,6 +129,13 @@ ID: ${task.id}
 
   const renderStatusBadge = (status: AiTaskStatus) => {
     switch (status) {
+      case 'pending_confirmation':
+        return (
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+            <Clock className="w-3 h-3" />
+            <span>Ожидает подтверждения</span>
+          </span>
+        );
       case 'queued':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">

@@ -1,4 +1,5 @@
 import type {AiTask} from '../types/aiTasks';
+import {readTasksPayload} from '../api/aiTasks.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {ChatTimelineEntry} from '../types/mroya.ts';
 import type {ConversationSummary,ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
@@ -24,7 +25,7 @@ export class LiveWorkspaceController {
  private scheduleTasks(){
   if(this.taskTimer)clearTimeout(this.taskTimer);
   this.taskTimer=null;
-  if(!this.taskAbort.signal.aborted&&(this.state.executingTaskId||this.tasksOpen||this.state.agentTasks.some(t=>['queued','running','needs_clarification'].includes(t.status))))
+  if(!this.taskAbort.signal.aborted&&(this.state.executingTaskId||this.tasksOpen||this.state.agentTasks.some(t=>['pending_confirmation','queued','running','needs_clarification'].includes(t.status))))
    this.taskTimer=setTimeout(this.taskWake,this.state.executingTaskId?1000:10000);
  }
  private acceptTasks(tasks:AiTask[],next=this.state.tasksNext){
@@ -55,7 +56,7 @@ export class LiveWorkspaceController {
    // Read those canonical IDs so polling never loses an unfinished task.
    const ids=new Set(tasks.map(t=>t.id));
    for(const task of this.state.agentTasks){
-    if(!ids.has(task.id)&&['queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
+    if(!ids.has(task.id)&&['pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
      tasks.push(await this.source.agentTask(task.id,this.taskAbort.signal));
      if(generation!==this.taskGeneration)return;
     }
@@ -100,6 +101,42 @@ export class LiveWorkspaceController {
   try{const task=await this.source.agentTask(id,this.taskAbort.signal);if(generation===this.taskGeneration){
    this.acceptTasks(this.state.agentTasks.map(t=>t.id===id?task:t));this.scheduleTasks();
   }}catch(error){if(generation===this.taskGeneration){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();}else this.set({tasksError:error instanceof Error?error.message:'Не удалось загрузить задачу'});}}
+ }
+ private mergeTask(task:AiTask){
+  // Chat cards and drawer rows reconcile against the same canonical row.
+  if(this.state.agentTasks.some(t=>t.id===task.id))this.acceptTasks(this.state.agentTasks.map(t=>t.id===task.id?task:t));
+ }
+ /** Canonical GET used by Chat confirmation cards; the response is the authority. */
+ readTask=async(id:string)=>{
+  if(!this.source.agentTask)throw new ApiError(400,'invalid_request','Task reads unavailable');
+  const generation=this.taskGeneration;
+  const task=await this.source.agentTask(id,this.taskAbort.signal);
+  if(generation===this.taskGeneration)this.mergeTask(task);
+  return task;
+ }
+ approvePendingTask=async(id:string)=>{
+  if(!this.source.approveAgentTask)throw new ApiError(400,'invalid_request','Task confirmation unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.approveAgentTask(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
+ }
+ revokePendingTask=async(id:string)=>{
+  if(!this.source.revokePendingAgentTask)throw new ApiError(400,'invalid_request','Task revocation unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.revokePendingAgentTask(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
  }
  private listeners=new Set<()=>void>();
  private abort=new AbortController();private epoch=0;private turnId:string|null=null;private replyId:string|null=null;
@@ -326,7 +363,7 @@ export class LiveWorkspaceController {
   const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;this.replyId='reply:'+id;this.sentContent=content.trim();this.sentHistoryIds=new Set(this.state.history.messages.map(message=>message.id));
   const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
-  let answer='',reasoning='',failedActivity=false,completed=false;
+  let answer='',reasoning='',failedActivity=false,completed=false,replyTasks:AiTask[]=[];
   let timeline:ChatTimelineEntry[]=[];let previousEvent='';const toolLifecycle=new ToolActivityLifecycle();
   try {
    onReady?.();
@@ -371,8 +408,13 @@ export class LiveWorkspaceController {
     }
     if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
     if(event.event==='done')toolLifecycle.complete();
-    if(event.event==='done'||event.event==='replay'){completed=true;void this.refreshTasks();}
-    if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{})}]}});
+    if(event.event==='done'||event.event==='replay'){
+     completed=true;
+     // Structured receipts ride the terminal frame; the card renders them verbatim.
+     replyTasks=readTasksPayload(event.data.tasks);
+     void this.refreshTasks();
+    }
+    if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{}),...(replyTasks.length?{tasks:replyTasks}:{})}]}});
    },{signal:this.abort.signal,onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
      if(this.turnId&&this.turnId!==turnId)throw new ApiError(502,'invalid_stream','Chat turn changed during streaming');
      this.turnId=turnId;
@@ -415,10 +457,11 @@ export class LiveWorkspaceController {
     }
     this.set({history:{...this.state.history,messages}});
    }if(turn.turn_status==='completed'){
+    const confirmedTasks=readTasksPayload(turn.tasks);
     // The authenticated ChatTurn wins over a local stream/parser failure.
     // Clear the transient failed status before historyWithReasoning reconciles it.
     this.set({error:null,history:{...this.state.history,messages:this.state.history.messages.map(message=>
-     message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined}:message)}});
+     message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined,...(confirmedTasks.length?{tasks:confirmedTasks}:{})}:message)}});
     void this.refreshTasks();
    }if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
    await this.load();

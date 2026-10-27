@@ -91,6 +91,8 @@ export type ChatTimelineEntry = ToolTimelineEntry | ReasoningTimelineEntry;
 export interface ChatMessage {
   timeline?:ChatTimelineEntry[];
   report_context?:import('./api').ReportContext;
+  /** Task receipts bound to the assistant source turn (live + history). */
+  tasks?: import('./aiTasks').AiTask[];
   signInPrompt?: boolean;
   status?: string;
   reasoning?: string | string[];

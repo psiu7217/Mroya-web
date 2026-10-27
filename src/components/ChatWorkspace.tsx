@@ -41,6 +41,7 @@ import {
 } from '../types/mroya';
 import { AiTasksDrawer } from './AiTasksDrawer';
 import { AiTaskCompletionToast } from './AiTaskCompletionToast';
+import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
@@ -117,7 +118,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const openTasks = () => { setIsAiTasksOpen(true); aiTasks?.onOpen(); };
   const closeTasks = () => { setIsAiTasksOpen(false); aiTasks?.onClose(); };
-  const activeTasksCount = tasks.filter(t => ['running','queued','needs_clarification'].includes(t.status)).length;
+  const activeTasksCount = tasks.filter(t => ['pending_confirmation','running','queued','needs_clarification'].includes(t.status)).length;
   const hasRunningTasks = tasks.some(t => t.status === 'running');
 
   const submission = useRef(false), draftRevision = useRef(0);
@@ -1004,6 +1005,19 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           </div>
                         )}
                       </div>
+
+                      {/* Prepared task receipts bound to this answer (canonical server data only). */}
+                      {live && msg.tasks && msg.tasks.length > 0 && (
+                        <AiTaskConfirmationCard
+                          tasks={msg.tasks}
+                          approveTask={aiTasks?.approveTask}
+                          revokeTask={aiTasks?.revokeTask}
+                          refreshTask={aiTasks?.refreshTask}
+                          onEditSubmit={(description, comment) =>
+                            onSendMessage(tr('taskEditMessageTemplate',{ns:'chat',description,comment}))
+                          }
+                        />
+                      )}
 
                       {/* Assistant message footer: Copy icon · Time */}
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">

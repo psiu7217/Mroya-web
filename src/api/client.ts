@@ -1,4 +1,4 @@
-import {readAiTask,readAiTasksPage} from './aiTasks.ts';
+import {readAiTask,readAiTasksPage,readTasksPayload} from './aiTasks.ts';
 import {readInitialResults} from './initialResults.ts';
 import type {InitialDecision} from '../types/initialResults.ts';
 import {readInitialQueue,readInitialQueueReceipt} from './initialQueue.ts';
@@ -46,6 +46,16 @@ export class MroyaApi {
   async executeAgentTask(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
     const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/execute/',{},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async approveAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/approve/',{},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async revokePendingAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/cancel/',{},signal,'POST');
     return readAiTask(data.task,id);
   }
   async agentTask(id:string,signal?:AbortSignal){
@@ -286,7 +296,7 @@ export class MroyaApi {
   sendConversation(id:string,content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={}):Promise<void>{
     return this.send(content,submissionId,onEvent,options,'chat/conversations/'+conversationId(id)+'/send/');
   }
-  history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal);}
+  history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json<HistoryResponse>('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal).then(data=>({...data,messages:data.messages.map(m=>{const tasks=readTasksPayload(m.tasks);return tasks.length?{...m,tasks}:{...m};})}));}
   memories(options:{state?:'active'|'history'|'all';q?:string;offset?:number;limit?:number}={},signal?:AbortSignal):Promise<MemoriesResponse>{const query=new URLSearchParams(Object.entries(options).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]));return this.json('memories/'+(query.size?'?'+query:''),undefined,signal);}
   map(signal?:AbortSignal):Promise<MemoryMapResponse>{return this.json('memories/map/',undefined,signal);}
   capabilities(signal?:AbortSignal):Promise<Capabilities>{return this.json('capabilities/',undefined,signal);}

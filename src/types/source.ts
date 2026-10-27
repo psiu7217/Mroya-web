@@ -2,6 +2,8 @@ import type {MroyaApi} from '../api/client';
 import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
+  agentTasks?:MroyaApi['agentTasks'];
+  agentTask?:MroyaApi['agentTask'];
   initialFilterResults?:MroyaApi['initialFilterResults'];
   initialFilterQueue?:MroyaApi['initialFilterQueue'];
   enqueueInitialFilter?:MroyaApi['enqueueInitialFilter'];

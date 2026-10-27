@@ -33,7 +33,7 @@ export const AiTaskCompletionToast: React.FC<AiTaskCompletionToastProps> = ({
           {task.title}
         </p>
         <p className="text-[11.5px] text-[var(--mroya-text-muted)] line-clamp-2 mt-0.5 leading-snug">
-          {task.resultSummary || 'Результат готов и применен.'}
+          {task.resultSummary || 'Статус задачи: завершена.'}
         </p>
 
         <div className="flex items-center gap-2 mt-2">

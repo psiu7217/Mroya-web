@@ -2,7 +2,7 @@ export type AiTaskStatus =
   | 'queued'
   | 'running'
   | 'completed'
-  | 'error'
+  | 'failed'
   | 'needs_clarification'
   | 'cancelled';
 
@@ -34,4 +34,12 @@ export interface AiTask {
   clarificationAnswer?: string; // User's submitted reply
   errorMessage?: string; // Cause of error
   canRetry?: boolean;
+}
+
+export interface AiTasksPage { tasks: AiTask[]; nextOffset: number | null }
+export interface AiTasksPresentation {
+  tasks: AiTask[]; loading: boolean; error: string | null; hasMore: boolean;
+  completedTask: AiTask | null;
+  onOpen: () => void; onClose: () => void; onRefresh: () => void;
+  onMore: () => void; onDetails: (id: string) => void; onDismiss: () => void;
 }

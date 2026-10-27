@@ -56,7 +56,7 @@ export const INITIAL_AI_TASKS: AiTask[] = [
     id: 'task-cal-error',
     title: 'Перенос синхронизации с ментором',
     target: 'calendar',
-    status: 'error',
+    status: 'failed',
     userPrompt: 'Сдвинь синхронизацию с ментором на 19:00 сегодня',
     createdAt: '13:50',
     updatedAt: '13:52',

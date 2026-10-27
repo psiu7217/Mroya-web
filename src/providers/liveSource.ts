@@ -4,6 +4,8 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     kind:'live',
+    agentTasks:(offset,signal)=>api.agentTasks(offset,signal),
+    agentTask:(id,signal)=>api.agentTask(id,signal),
     initialFilterResults:(decision,offset,signal)=>api.initialFilterResults(decision,offset,signal),
     initialFilterQueue:signal=>api.initialFilterQueue(signal),
     enqueueInitialFilter:(id,signal)=>api.enqueueInitialFilter(id,signal),

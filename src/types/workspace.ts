@@ -67,6 +67,7 @@ export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
+    aiTasks?:import('./aiTasks').AiTasksPresentation;
     pipelineSamples?:import('./inboxPipeline').PipelineEventItem[];
     initialQueue?:import('./initialQueue').InitialQueuePresentation;
     onInitialQueueVisible?:(visible:boolean)=>void;

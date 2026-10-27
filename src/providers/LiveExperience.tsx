@@ -79,6 +79,10 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
+   completedTask:state.completedTask,onOpen:()=>controller.openTasks(),onClose:()=>controller.closeTasks(),
+   onRefresh:()=>void controller.refreshTasks(),onMore:()=>void controller.moreTasks(),
+   onDetails:id=>void controller.taskDetails(id),onDismiss:()=>controller.dismissTask()},
   initialQueue:initialQueue.presentation,onInitialQueueVisible:setQueueVisible,
   intelligence:intelligence.settings,eventAnalysis:intelligence.event,memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
   notifications:notifications.presentation,

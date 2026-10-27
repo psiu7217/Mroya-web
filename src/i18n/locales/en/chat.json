@@ -129,7 +129,7 @@
   "taskEditPlaceholder": "What should change? For example, clarify the date or wording…",
   "taskEditSubmit": "Send correction",
   "taskEditSending": "Sending…",
-  "taskEditMessageTemplate": "Please revise the previous task: \"{{description}}\". Correction: {{comment}}",
+  "taskEditMessageTemplate": "The previous task \"{{description}}\" has already been cancelled and will not run. User clarification: {{comment}}. Create one new standalone task using the original request and the clarification. Describe only the final action and current facts. Do not mention the previous task, its cancellation, or any correction; do not save facts the user rejected.",
   "taskWindowClosed": "The confirmation window has closed — showing the current server status.",
   "taskStateBlocked": "The task no longer awaits confirmation — showing the current status.",
   "taskConfirmUnavailable": "The action could not be confirmed — showing the current server status.",

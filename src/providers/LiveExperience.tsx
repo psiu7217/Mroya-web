@@ -1,3 +1,4 @@
+import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
 import {useLiveNotes} from '../hooks/useLiveNotes';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
@@ -40,9 +41,10 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
+ const analysis=useCalendarAnalysis(source,user.id,google?.id??null,section==='connections'&&settingsTab==='connections',onExpired);
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{analysis.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -72,6 +74,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  calendarAnalysis:analysis.presentation,
   aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
    executingTaskId:state.executingTaskId,onExecute:id=>void controller.executeTask(id),
    cancellingTaskId:state.cancellingTaskId,onCancel:id=>void controller.cancelTask(id),

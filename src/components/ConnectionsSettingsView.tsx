@@ -1,3 +1,4 @@
+import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
 import {timezoneChoices} from '../utils/timezones';
 import type { AccountPresentation, NotificationPresentation, NotificationPreview, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
 import type {AppLanguage} from '../types/api';
@@ -60,6 +61,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
+  calendarAnalysis?:import('../types/calendarAnalysis').CalendarAnalysisPresentation;
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
   live?: boolean;
@@ -89,7 +91,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  live=false,connectionSamples,timezoneSettings,notifications,notificationPreview,
+  calendarAnalysis,live=false,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -687,6 +689,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 {tr('disconnect',{ns:'connections'})}
                               </button>
                             </div>
+                            <CalendarAnalysisPanel analysis={calendarAnalysis}/>
                           </div>
                         )}
                         </div>

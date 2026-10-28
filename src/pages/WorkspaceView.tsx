@@ -210,6 +210,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            calendarAnalysis={model.calendarAnalysis}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
             timezoneSettings={runtime?.timezoneSettings}

@@ -62,6 +62,7 @@ export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
+    calendarAnalysis?:import('./calendarAnalysis').CalendarAnalysisPresentation;
     aiTasks?:import('./aiTasks').AiTasksPresentation;
     memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;
     notificationPreview?:NotificationPreview;

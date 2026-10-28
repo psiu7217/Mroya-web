@@ -318,7 +318,7 @@ ID: ${task.id}
                   <p className="text-[11px] text-[var(--mroya-text-muted)]">Создана: {localDate(task.createdAt)}</p>
 
                   <TaskTiming task={task} />
-                  {task.status==='queued' && onExecute && <button type="button"
+                  {task.status==='queued' && !task.confirmDeadlineAt && onExecute && <button type="button"
                     onClick={()=>onExecute(task.id)}
                     disabled={!!executingTaskId||!!cancellingTaskId||tasks.some(t=>t.status==='running')}
                     className="px-2.5 py-1 rounded-md bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] text-[11.5px] font-semibold disabled:opacity-40 cursor-pointer">

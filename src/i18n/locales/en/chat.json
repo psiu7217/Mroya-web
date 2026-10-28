@@ -165,5 +165,18 @@
   "taskExecuteLegacy": "Execute",
   "taskMore": "Show more",
   "taskDecisionChanged": "The task changed. Check its current status.",
-  "taskViewResult": "View result"
+  "taskViewResult": "View result",
+  "taskAnswer": "Answer",
+  "taskCorrect": "Correct",
+  "taskSkip": "Skip",
+  "taskExplain": "Add context",
+  "taskAnswerLabel": "Your answer",
+  "taskSendAnswer": "Send",
+  "taskAnswerProcessing": "Mroya is studying your answer",
+  "taskClarifyDescription": "Mroya needs a clarification before saving.",
+  "taskFactsDescription": "Mroya suggests saving these details to memory.",
+  "taskClarifyEvent": "What should Mroya know about “{{event}}” before saving it to memory?",
+  "taskGroupAnswer": "Your answer needed",
+  "taskGroupSuggestions": "Suggestions",
+  "taskGroupWorking": "Mroya is working"
 }

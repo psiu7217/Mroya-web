@@ -50,10 +50,10 @@ test('calendar study and memory save share the drawer without technical identifi
   const markup=renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose:()=>{},
    onDecision:async()=>true,tasks:[{...task,status:'awaiting_review',taskKind,reviewVersion:1,
     reviewActions:['accept','reject','comment'],confirmDeadlineAt:undefined,
-    eventDate:'2026-11-14',facts:taskKind==='memory_proposal'?['Natasha · Birthday · 14 November']:[]}]}));
+    eventTitle:'Birthday',eventDate:'2026-11-14',facts:taskKind==='memory_proposal'?['Natasha: Birthday 14 November']:[]}]}));
   assert.match(markup,new RegExp('>'+button+'</button>'));
-  assert.match(markup,/>Reject<\/button>/);assert.match(markup,/>Comment<\/button>/);
+  assert.match(markup,/>Skip<\/button>/);assert.match(markup,new RegExp('>'+(taskKind==='calendar_review'?'Add context':'Correct')+'</button>'));
   assert.doesNotMatch(markup,new RegExp(task.id));assert.doesNotMatch(markup,/role="timer"|initial.filter|APPROVE|pipeline/);
-  if(taskKind==='memory_proposal')assert.match(markup,/Natasha · Birthday · 14 November/);
+  if(taskKind==='memory_proposal')assert.match(markup,/Natasha: Birthday 14 November/);
  }
 });

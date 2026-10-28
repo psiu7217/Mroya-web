@@ -25,10 +25,19 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
       ||!(v.event_date===null||typeof v.event_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v.event_date)&&Number.isFinite(Date.parse(v.event_date)))
       ||!(v.result_code===null||['no_new_information','analysis_complete','memory_saved'].includes(v.result_code as string))))
     throw new ApiError(502,'invalid_response','Invalid task review');
-  return {id:v.id as string, title:v.description as string, userPrompt:v.description as string,
+  const product=kind!=='chat'&&v.event_title!==undefined;
+  if(product&&(!(v.event_title===null||typeof v.event_title==='string')
+    ||!Array.isArray(v.questions)||v.questions.some(q=>typeof q!=='string')
+    ||typeof v.needs_clarification!=='boolean'||!(v.review_phase===null||v.review_phase==='answer_processing')))
+    throw new ApiError(502,'invalid_response','Invalid task presentation');
+  const title=kind==='chat'?v.description as string:product&&v.event_title?v.event_title as string:'Calendar';
+  return {id:v.id as string, title, userPrompt:title,
+    eventTitle:product?v.event_title as string||undefined:undefined,
+    questions:product?v.questions as string[]:[],needsClarification:product?v.needs_clarification as boolean:false,
+    reviewPhase:product?v.review_phase as AiTask['reviewPhase']||undefined:undefined,
     taskKind:kind as AiTask['taskKind'],reviewVersion:v.version as number|undefined,
     reviewActions:v.actions as AiTask['reviewActions'],eventDate:v.event_date as string||undefined,
-    facts:v.facts as string[]|undefined,resultCode:v.result_code as AiTask['resultCode'],
+    facts:product?v.facts as AiTask['facts']:[],resultCode:v.result_code as AiTask['resultCode'],
     target:v.type as AiTask['target'], status:v.status as AiTask['status'],
     canCancel:v.can_cancel === true,
     createdAt:v.created_at as string, updatedAt:v.updated_at as string,

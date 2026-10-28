@@ -7,11 +7,11 @@ import {ApiError} from '../src/api/errors.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 import type {AiTask} from '../src/types/aiTasks.ts';
 const id='00000000-0000-4000-8000-000000000001';
-const dto={id,type:'calendar',description:'Birthday',status:'awaiting_review',created_at:'2026-10-28T12:00:00Z',updated_at:'2026-10-28T12:00:00Z',result:null,error_code:null,task_kind:'calendar_review',version:1,actions:['accept','reject','comment'],event_date:'2026-11-14',facts:[],result_code:null};
+const dto={id,type:'calendar',description:'Birthday',event_title:'Birthday',questions:[],needs_clarification:false,review_phase:null,status:'awaiting_review',created_at:'2026-10-28T12:00:00Z',updated_at:'2026-10-28T12:00:00Z',result:null,error_code:null,task_kind:'calendar_review',version:1,actions:['accept','reject','comment'],event_date:'2026-11-14',facts:[],result_code:null};
 
 test('review DTO has no Chat timer; malformed dates/actions cannot break the drawer',()=>{
  const row=readAiTask(dto);assert.equal(row.confirmDeadlineAt,undefined);assert.equal(row.reviewVersion,1);
- for(const patch of [{event_date:'bad'},{actions:['execute']},{version:true},{task_kind:'chat'}])assert.throws(()=>readAiTask({...dto,...patch}));
+ for(const patch of [{event_date:'bad'},{actions:['execute']},{version:true},{task_kind:'chat'},{questions:'bad'},{facts:[{}]},{needs_clarification:1}])assert.throws(()=>readAiTask({...dto,...patch}));
  const newer={...row,status:'queued' as const,updatedAt:'2026-10-28T12:00:01Z'};
  assert.equal(newerTask(newer,row).status,'queued');
  assert.equal(newerTask({...row,status:'failed',reviewActions:[]},row).status,'awaiting_review');

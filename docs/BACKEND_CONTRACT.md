@@ -1,5 +1,18 @@
 # Backend contract for Mroya Web
 
+Calendar first-stage controls require the companion Backend calendar-analysis
+release and migration `intelligence.0011`. Inside the Google Calendar card,
+`GET calendar/google/connections/{id}/analysis/` lists selected calendars;
+`GET calendar/google/calendars/{id}/analysis/events/?limit=50&offset=0` lazily
+loads event rows. Session/CSRF POST to `analysis/stop/` or `analysis/retry/`
+uses the current `{version}`; retry optionally carries `job_id` for one row.
+Canonical permissions and counts come from the server. A conflict or lost
+response triggers GET, never an automatic repeated POST. Stop may remain
+`stopping` while a request already sent settles. The closed-by-default list
+shows human statuses only; initial classifications remain in settings, while
+approved events retain the existing AI Tasks review flow. Full contract:
+[Calendar analysis controls](https://github.com/psiu7217/Mroya-api/blob/main/docs/CALENDAR-ANALYSIS-CONTROLS.md).
+
 Task-panel cancellation requires the companion Backend cancellation release.
 Task DTOs carry optional boolean `can_cancel` (missing means unavailable). The
 panel sends session/CSRF POST `agent-tasks/{uuid}/cancel/` with `{"pending_only":false}` for queued or

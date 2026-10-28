@@ -2,6 +2,9 @@ import type {MroyaApi} from '../api/client';
 import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
+  calendarAnalyses?:MroyaApi['calendarAnalyses'];
+  calendarAnalysisEvents?:MroyaApi['calendarAnalysisEvents'];
+  controlCalendarAnalysis?:MroyaApi['controlCalendarAnalysis'];
   agentTasks?:MroyaApi['agentTasks'];
   agentTask?:MroyaApi['agentTask'];
   executeAgentTask?:MroyaApi['executeAgentTask'];

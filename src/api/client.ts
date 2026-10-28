@@ -1,3 +1,4 @@
+import {readCalendarAnalyses,readCalendarAnalysis,readAnalysisEvents} from './calendarAnalysis.ts';
 import {readAiTask,readAiTasksPage,readTasksPayload} from './aiTasks.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
@@ -32,6 +33,22 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async calendarAnalyses(connectionId:string,signal?:AbortSignal){
+    calendarUuid(connectionId);
+    return readCalendarAnalyses(await this.json('calendar/google/connections/'+connectionId+'/analysis/',undefined,signal));
+  }
+  async calendarAnalysisEvents(id:string,offset=0,signal?:AbortSignal){
+    calendarUuid(id);if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid analysis page');
+    return readAnalysisEvents(await this.json('calendar/google/calendars/'+id+'/analysis/events/?limit=50&offset='+offset,undefined,signal),id,offset);
+  }
+  async controlCalendarAnalysis(id:string,action:'stop'|'retry',version:number,jobId?:string,signal?:AbortSignal){
+    calendarUuid(id);if(!['stop','retry'].includes(action)||!Number.isSafeInteger(version)||version<1||action==='stop'&&jobId!==undefined)
+      throw new ApiError(400,'invalid_request','Invalid analysis action');
+    if(jobId!==undefined)calendarUuid(jobId);
+    const result=await this.json<{calendar:unknown}>('calendar/google/calendars/'+id+'/analysis/'+action+'/',
+      {version,...(jobId?{job_id:jobId}:{})},signal,'POST');
+    return readCalendarAnalysis(result.calendar,id);
+  }
   async agentTasks(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid tasks offset');
     return readAiTasksPage(await this.json('ai-tasks/?limit=50&offset='+offset,undefined,signal),offset);

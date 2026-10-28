@@ -1,5 +1,19 @@
 # Backend contract for Mroya Web
 
+The AI Tasks product presentation requires the companion Backend DTO update:
+Intelligence tasks have event_title, questions, needs_clarification and
+review_phase (answer_processing/null). facts remains a string array with human
+labels/literals and self/negation/validity in the owner's saved language. description is the event title;
+rationale/reasons and opaque references are never display content. The reader
+discards legacy facts without the new presentation fields and ignores legacy descriptions for non-Chat rows.
+Save remains authorized exclusively by actions=accept and existing server checks.
+Answer/Correct/Study with context use the same versioned comment endpoint; no
+ChatTurn or presentation AI request is introduced. Questions are displayed as
+received, regardless of UI language or script. Backend owns generated text language
+using saved User.language; the frontend never detects/translates/replaces questions.
+Existing stored questions are not rewritten or reanalyzed for translation. See the canonical
+[Calendar AI tasks contract](https://github.com/psiu7217/Mroya-api/blob/main/docs/CALENDAR-AI-TASKS.md).
+
 Calendar first-stage controls require the companion Backend calendar-analysis
 release and migration `intelligence.0011`. Inside the Google Calendar card,
 `GET calendar/google/connections/{id}/analysis/` lists selected calendars;

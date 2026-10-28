@@ -17,6 +17,10 @@ export interface AiTaskResultLink {
 }
 
 export interface AiTask {
+  eventTitle?: string;
+  questions?: string[];
+  needsClarification?: boolean;
+  reviewPhase?: 'answer_processing';
   taskKind?: 'chat'|'calendar_review'|'memory_proposal';
   reviewVersion?: number;
   reviewActions?: ('accept'|'reject'|'comment')[];
@@ -52,6 +56,7 @@ export interface AiTask {
   /** Server-owned cancellation permission; missing on older API versions. */
   canCancel?: boolean;
 }
+
 
 export interface AiTasksPage { tasks: AiTask[]; nextOffset: number | null }
 export interface AiTasksPresentation {

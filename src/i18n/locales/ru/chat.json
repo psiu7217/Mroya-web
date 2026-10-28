@@ -165,5 +165,17 @@
   "taskExecuteLegacy": "Выполнить",
   "taskMore": "Показать ещё",
   "taskDecisionChanged": "Состояние задачи изменилось. Проверьте её текущий статус.",
-  "taskViewResult": "Посмотреть результат"
+  "taskViewResult": "Посмотреть результат",
+  "taskAnswer": "Ответить",
+  "taskCorrect": "Исправить",
+  "taskSkip": "Пропустить",
+  "taskExplain": "Добавить пояснение",
+  "taskAnswerLabel": "Ваш ответ",
+  "taskSendAnswer": "Отправить",
+  "taskAnswerProcessing": "Mroya изучает ваш ответ",
+  "taskClarifyDescription": "Mroya хочет уточнить информацию перед сохранением.",
+  "taskFactsDescription": "Mroya предлагает сохранить эти сведения в память.",
+  "taskGroupAnswer": "Нужен ваш ответ",
+  "taskGroupSuggestions": "Предложения",
+  "taskGroupWorking": "Mroya работает"
 }

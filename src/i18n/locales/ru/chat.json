@@ -175,7 +175,6 @@
   "taskAnswerProcessing": "Mroya изучает ваш ответ",
   "taskClarifyDescription": "Mroya хочет уточнить информацию перед сохранением.",
   "taskFactsDescription": "Mroya предлагает сохранить эти сведения в память.",
-  "taskClarifyEvent": "Что нужно уточнить о событии «{{event}}» перед сохранением в память?",
   "taskGroupAnswer": "Нужен ваш ответ",
   "taskGroupSuggestions": "Предложения",
   "taskGroupWorking": "Mroya работает"

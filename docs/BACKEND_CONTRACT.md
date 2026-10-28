@@ -8,7 +8,10 @@ rationale/reasons and opaque references are never display content. The reader
 discards legacy facts without the new presentation fields and ignores legacy descriptions for non-Chat rows.
 Save remains authorized exclusively by actions=accept and existing server checks.
 Answer/Correct/Study with context use the same versioned comment endpoint; no
-ChatTurn or presentation AI request is introduced. See the canonical
+ChatTurn or presentation AI request is introduced. Questions are displayed as
+received, regardless of UI language or script. Backend owns generated text language
+using saved User.language; the frontend never detects/translates/replaces questions.
+Existing stored questions are not rewritten or reanalyzed for translation. See the canonical
 [Calendar AI tasks contract](https://github.com/psiu7217/Mroya-api/blob/main/docs/CALENDAR-AI-TASKS.md).
 
 Calendar first-stage controls require the companion Backend calendar-analysis

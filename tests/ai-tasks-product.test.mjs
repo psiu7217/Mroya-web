@@ -14,21 +14,24 @@ const dto={id,type:'memory',task_kind:'memory_proposal',description:'Memory sear
  questions:['Who is Volodya and does he correspond to an existing memory entity?'],needs_clarification:true,review_phase:null,result_code:null};
 const markup=tasks=>renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose(){},tasks,onDecision:async()=>true,onCancel(){}}));
 
-test('existing technical proposal becomes a localized question; active groups preserve statuses and actions',()=>{
+test('Backend questions are displayed unchanged in either UI language; active groups preserve statuses and actions',()=>{
  setAppLanguage('ru');const question=readAiTask(dto);
  const fact=readAiTask({...dto,id:'00000000-0000-4000-8000-000000000002',needs_clarification:false,questions:[],actions:['accept','reject','comment'],
    facts:['Вы: любит мороженое']});
  const running={...question,id:'run',status:'running',reviewActions:[],reviewPhase:'answer_processing'};
  const cancelled={...question,id:'chat',taskKind:'chat',status:'queued',canCancel:true,title:'Обычная задача'};
  const rows=[running,fact,cancelled,question],before=JSON.stringify(rows),html=markup(rows);
- assert.equal(JSON.stringify(rows),before);assert.doesNotMatch(html,/Memory searches|existing memory entity|__self__|rationale|00000000/);
- assert.match(html,/Что нужно уточнить о событии/);assert.match(html,/>Ответить<\/button>/);assert.match(html,/>Пропустить<\/button>/);
+ assert.equal(JSON.stringify(rows),before);assert.doesNotMatch(html,/Memory searches|__self__|rationale|00000000/);
+ assert.match(html,/Who is Volodya and does he correspond to an existing memory entity\?/);
+ assert.match(html,/>Ответить<\/button>/);assert.match(html,/>Пропустить<\/button>/);
  assert.match(html,/Вы: любит мороженое/);assert.match(html,/>Сохранить<\/button>/);assert.match(html,/>Исправить<\/button>/);
  assert.match(html,/Mroya изучает ваш ответ/);assert.match(html,/>Отмена<\/button>/);assert.doesNotMatch(html,/<textarea/);
  assert.ok(html.indexOf('Нужен ваш ответ (1)')<html.indexOf('Предложения (1)'));
  assert.ok(html.indexOf('Предложения (1)')<html.indexOf('Mroya работает (2)'));
  const short=markup([{...question,questions:['Кто такой Володя?']}]);assert.match(short,/Кто такой Володя\?/);
- setAppLanguage('en');assert.match(markup([{...question,questions:['Кто такой Володя?']}]),/What should Mroya know/);
+ setAppLanguage('en');assert.match(markup([{...question,questions:['Кто такой Володя?']}]),/Кто такой Володя\?/);
+ const long='Who is Volodya? '.repeat(25);
+ assert.ok(markup([{...question,questions:[long]}]).includes(long));
 });
 
 function all(node){return !node||typeof node!=='object'?[]:[node,...[node.props?.children].flat(Infinity).flatMap(all)];}

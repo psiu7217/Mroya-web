@@ -15,7 +15,7 @@ test('task API uses session client and validates pages and canonical detail',asy
  const api=new MroyaApi((async(url,init)=>{calls.push(String(url));assert.equal(init?.credentials,'same-origin');return new Response(JSON.stringify(String(url).includes(id)?{task:dto}:{tasks:[dto],next_offset:null}),{headers:{'Content-Type':'application/json'}});}) as typeof fetch);
  assert.equal((await api.agentTasks()).tasks[0].status,'queued');
  assert.equal((await api.agentTask(id)).id,id);
- assert.deepEqual(calls,['/api/v1/agent-tasks/?limit=50&offset=0','/api/v1/agent-tasks/'+id+'/']);
+ assert.deepEqual(calls,['/api/v1/ai-tasks/?limit=50&offset=0','/api/v1/ai-tasks/'+id+'/']);
  await assert.rejects(()=>api.agentTasks(-1));await assert.rejects(()=>api.agentTask('other'));
 });
 test('restores tasks, emits toast only on observed completion, refreshes details and retains rows on error',async()=>{

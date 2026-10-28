@@ -9,28 +9,13 @@ export interface WorkspaceSource {
   approveAgentTask?:MroyaApi['approveAgentTask'];
   revokePendingAgentTask?:MroyaApi['revokePendingAgentTask'];
   cancelAgentTask?:MroyaApi['cancelAgentTask'];
-  initialFilterResults?:MroyaApi['initialFilterResults'];
-  initialFilterQueue?:MroyaApi['initialFilterQueue'];
-  enqueueInitialFilter?:MroyaApi['enqueueInitialFilter'];
-  intelligencePreferences?:MroyaApi['intelligencePreferences'];
-  saveIntelligencePreferences?:MroyaApi['saveIntelligencePreferences'];
-  intelligenceSources?:MroyaApi['intelligenceSources'];
-  saveIntelligenceSource?:MroyaApi['saveIntelligenceSource'];
-  eventAnalysis?:MroyaApi['eventAnalysis'];
+  decideAiTask?:MroyaApi['decideAiTask'];
   notes?:MroyaApi['notes'];
   note?:MroyaApi['note'];
   notificationSettings?:MroyaApi['notificationSettings'];
   saveNotificationSettings?:MroyaApi['saveNotificationSettings'];
   testNotification?:MroyaApi['testNotification'];
   notification?:MroyaApi['notification'];
-  intelligenceSettings?:MroyaApi['intelligenceSettings'];
-  intelligenceScans?:MroyaApi['intelligenceScans'];
-  scanIntelligence?:MroyaApi['scanIntelligence'];
-  intelligenceStatus?:MroyaApi['intelligenceStatus'];
-  inboxProposals?:MroyaApi['inboxProposals'];
-  inboxProposal?:MroyaApi['inboxProposal'];
-  inboxHistory?:MroyaApi['inboxHistory'];
-  inboxDecision?:MroyaApi['inboxDecision'];
   // Existing PATCH preferences transport: atomic initialization or an explicit manual choice.
   timezone?:{
     initializeIfUnset:(timezone:string,signal?:AbortSignal)=>Promise<ApiUser>;

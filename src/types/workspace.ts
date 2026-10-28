@@ -37,7 +37,6 @@ export interface NotificationPresentation {
 }
 export interface WorkspaceRuntime {
     notifications?:NotificationPresentation;
-    memoryInboxAvailable?:boolean;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
@@ -59,25 +58,14 @@ export interface ConnectionSamples {
     calendars:{id:string;name:string;desc:string;available:boolean;read_only:boolean;exportable:boolean}[];
     scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
 }
-export interface DesignIntelligencePreviews {
-    EventAnalysis:React.ComponentType<{event:CalendarEvent;onOpenMemory:(id:string)=>void}>;
-    Sources:React.ComponentType; Autonomy:React.ComponentType;
-}
 export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
     aiTasks?:import('./aiTasks').AiTasksPresentation;
-    pipelineSamples?:import('./inboxPipeline').PipelineEventItem[];
-    initialQueue?:import('./initialQueue').InitialQueuePresentation;
-    onInitialQueueVisible?:(visible:boolean)=>void;
-    intelligence?:import('./intelligenceApi').IntelligencePresentation;
-    eventAnalysis?:import('./intelligenceApi').EventAnalysisPresentation;
     memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;
-    designIntelligence?:DesignIntelligencePreviews;
     notificationPreview?:NotificationPreview;
     notifications?:NotificationPresentation;
-    memoryInbox?:import('./memoryInbox').MemoryInboxPresentation;
     connectionSamples?:ConnectionSamples;
     onChangeTimezone?:(value:string)=>void;
     onSaveNickname?:(value:string)=>void;

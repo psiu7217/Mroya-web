@@ -1,8 +1,6 @@
 import {MemoryLinks} from './MemoryLinks';
-import {canonicalEventId} from '../utils/eventAnalysis';
 import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
 import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
-import {EventAnalysisPreview} from './IntelligencePreviews';
 import type {CalendarPresentation} from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -14,13 +12,11 @@ import {
   Check,
   X,
   Menu,
-  PanelLeftOpen,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   Grid2x2,
   CalendarDays,
-  ZoomOut,
   ZoomIn,
   Bell,
   RefreshCw,
@@ -30,17 +26,8 @@ import {
   Trash2,
   Eye,
   AlertTriangle,
-  AlertCircle,
   Lock,
-  ShieldCheck,
   Sparkles,
-  Brain,
-  ExternalLink,
-  User,
-  Building2,
-  MapPin,
-  CheckCircle2,
-  HelpCircle,
 } from 'lucide-react';
 import { GoogleSyncState, CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
 import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
@@ -50,9 +37,7 @@ import {tr} from '../i18n';
 import {formatDate,monthName,weekdayName} from '../i18n/format';
 
 interface CalendarViewProps {
-  eventAnalysis?:import('../types/intelligenceApi').EventAnalysisPresentation;
   memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
-  designEventAnalysis?:import('../types/workspace').DesignIntelligencePreviews['EventAnalysis'];
   readOnly?:boolean;
   live?:boolean;
   calendar?:CalendarPresentation;
@@ -82,9 +67,9 @@ interface CalendarViewProps {
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
-  eventAnalysis,memoryLinksNavigation,
+  memoryLinksNavigation,
   readOnly=false,live=false,calendar,googleCalendarAvailable=false,googleCalendarNotice,
-  samples,designEventAnalysis:DesignEventAnalysis,
+  samples,
   events,
   memories,
   reminders,
@@ -125,9 +110,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Viewing, Editing, and Deleting event state
   const [viewingSelection, setViewingEvent] = useState<CalendarEvent | null>(null);
   const viewingEvent=live?events.find(event=>event.id===viewingSelection?.id)??viewingSelection:viewingSelection;
-  const analysisEventId=canonicalEventId(viewingEvent);
-  const selectAnalysis=eventAnalysis?.onSelect;
-  useEffect(()=>{selectAnalysis?.(analysisEventId);return()=>selectAnalysis?.(null);},[analysisEventId,selectAnalysis]);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<CalendarEvent | null>(null);
 
@@ -2176,8 +2158,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   </div>
                 </div>
               )}
-
-              {live||!DesignEventAnalysis?<EventAnalysisPreview analysis={eventAnalysis?(eventAnalysis.eventId===analysisEventId?eventAnalysis:{...eventAnalysis,data:null,error:null,loading:!!analysisEventId}):undefined}/>:<DesignEventAnalysis event={viewingEvent} onOpenMemory={onOpenMemory}/>}
 
             </div>
 

@@ -41,6 +41,19 @@ test('drawer cancellation uses backend permission and cancelled rows leave Activ
  assert.match(drawer({...task,status:'queued',canCancel:true},{cancellingTaskId:task.id}),/disabled=""[^>]*>Cancelling/);
  for(const status of ['running','completed'])assert.doesNotMatch(drawer({...task,status,canCancel:true}),/>Cancel<\/button>/);
  const cancelled=drawer({...task,status:'cancelled',canCancel:false});
- assert.match(cancelled,/Активные \(0\)/);assert.match(cancelled,/Ошибки \(1\)/);
+ assert.match(cancelled,/Active \(0\)/);assert.match(cancelled,/Issues \(1\)/);
  assert.doesNotMatch(cancelled,/Synthetic prepared intent/);
+});
+
+test('calendar study and memory save share the drawer without technical identifiers or Chat timer',()=>{
+ for(const [taskKind,button] of [['calendar_review','Study'],['memory_proposal','Save']]){
+  const markup=renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose:()=>{},
+   onDecision:async()=>true,tasks:[{...task,status:'awaiting_review',taskKind,reviewVersion:1,
+    reviewActions:['accept','reject','comment'],confirmDeadlineAt:undefined,
+    eventDate:'2026-11-14',facts:taskKind==='memory_proposal'?['Natasha · Birthday · 14 November']:[]}]}));
+  assert.match(markup,new RegExp('>'+button+'</button>'));
+  assert.match(markup,/>Reject<\/button>/);assert.match(markup,/>Comment<\/button>/);
+  assert.doesNotMatch(markup,new RegExp(task.id));assert.doesNotMatch(markup,/role="timer"|initial.filter|APPROVE|pipeline/);
+  if(taskKind==='memory_proposal')assert.match(markup,/Natasha · Birthday · 14 November/);
+ }
 });

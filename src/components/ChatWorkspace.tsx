@@ -39,7 +39,6 @@ import {
   SubscriptionPlan,
   ThemeMode,
 } from '../types/mroya';
-import { AiTasksDrawer } from './AiTasksDrawer';
 import { AiTaskCompletionToast } from './AiTaskCompletionToast';
 import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
@@ -113,12 +112,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [submitting, setSubmitting] = useState(false);
 
   const tasks = aiTasks?.tasks ?? [];
-  const [isAiTasksOpen, setIsAiTasksOpen] = useState(false);
   const completedToastTask = aiTasks?.completedTask;
-  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
-  const openTasks = () => { setIsAiTasksOpen(true); aiTasks?.onOpen(); };
-  const closeTasks = () => { setIsAiTasksOpen(false); aiTasks?.onClose(); };
-  const activeTasksCount = tasks.filter(t => ['pending_confirmation','running','queued','needs_clarification'].includes(t.status)).length;
+  const openTasks = () => aiTasks?.onOpen();
+  const activeTasksCount = tasks.filter(t => ['awaiting_review','pending_confirmation','running','queued','needs_clarification'].includes(t.status)).length;
   const hasRunningTasks = tasks.some(t => t.status === 'running');
 
   const submission = useRef(false), draftRevision = useRef(0);
@@ -1258,8 +1254,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         <AiTaskCompletionToast
           task={completedToastTask}
           onOpenDetails={() => {
-            setHighlightTaskId(completedToastTask.id);
-            openTasks();
+            aiTasks?.onOpen(completedToastTask.id);
             aiTasks?.onDetails(completedToastTask.id);
             aiTasks?.onDismiss();
           }}
@@ -1267,23 +1262,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         />
       )}
 
-      {/* Background AI Tasks Drawer */}
-      <AiTasksDrawer
-        isOpen={isAiTasksOpen}
-        onClose={closeTasks}
-        tasks={tasks}
-        loading={aiTasks?.loading}
-        error={aiTasks?.error}
-        onRefresh={aiTasks?.onRefresh}
-        hasMore={aiTasks?.hasMore}
-        onMore={aiTasks?.onMore}
-        onDetails={aiTasks?.onDetails}
-        executingTaskId={aiTasks?.executingTaskId}
-        onExecute={aiTasks?.onExecute}
-        cancellingTaskId={aiTasks?.cancellingTaskId}
-        onCancel={aiTasks?.onCancel}
-        highlightTaskId={highlightTaskId}
-      />
+
     </div>
   );
 };

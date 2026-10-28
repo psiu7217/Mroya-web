@@ -408,61 +408,29 @@ Keep raw Markdown and temporary checklist overrides separate. Do not send checks
 back or persist them until a separately approved write contract exists.
 
 
-## Calendar and Notes Intelligence integration
+## Calendar proposals in AI tasks
 
-See [the integration contract and limits](INTELLIGENCE-INTEGRATION.md) for the
-reviewed settings/sources PATCH contracts, operator status and owner-scoped
-GET `memory-intelligence/calendar-events/{event_id}/status/` (Backend PR #42).
-Sync is not AI consent. No auto_write, automatic Accept or new object reader is
-introduced. Missing event API is Unavailable; the existing calendar remains usable.
+Requires the paired Calendar AI Tasks API release and intelligence.0010 migration.
+GET ai-tasks/?limit=50&offset=0 returns the unified, owner-scoped list; GET
+ai-tasks/{uuid}/ returns its canonical task. Chat mutation URLs are unchanged.
 
-## Manual Intelligence scanning
+Intelligence rows add task_kind (calendar_review / memory_proposal), version,
+actions (accept / reject / comment), event_date, facts and result_code.
+awaiting_review waits indefinitely, with no Chat delivery ACK or countdown.
+POST ai-tasks/{uuid}/decision/ uses session/CSRF and structured action, version,
+request_id UUID and optional comment (required for comment, 1..2000 characters).
+A 409 reconciles through canonical GET without replaying the decision.
 
-Backend scans API: session/CSRF `GET/POST /api/v1/memory-intelligence/scans/`.
-See [live integration and bounded polling](MEMORY-INBOX-SCANNING.md) and Backend
-`docs/MEMORY-INTELLIGENCE-SCANNING.md`. Requires the additive intelligence.0004/0005
-migrations and the updated existing worker. No production fake progress fallback.
+Successful Google import registers initial-filter-v1 once per selected calendar.
+Approved candidates appear automatically through existing task polling. Study or
+Study with comment authorizes Deep directly; Save separately authorizes the frozen
+Memory plan. Comment on a Memory proposal prepares a new version without saving.
+Completed Memory results require a confirmed canonical receipt. Rejected or
+unavailable/changed-source tasks cannot authorize a new write.
 
-
-## Parked initial-filter queue (Backend PR #50)
-
-Reviewed API main `824bcb6a71a244a008d12d3671be890699580f5d`; PR #50 is merged,
-which does not prove deployment. Session + existing CSRF transport:
-
-- GET `memory-intelligence/sources/?limit=50&offset=0` supplies owned calendar IDs,
-  names and existing analysis permission. Missing permission is never enabled here.
-- POST `memory-intelligence/initial-filter-queue/` body `{calendar_id: UUID}`;
-  HTTP 200 `{added,already_queued,queue_total}`. Backend deduplicates repeated
-  requests; Frontend also prevents concurrent double submission. No auto retry.
-- GET the same queue path returns `{queue_total,calendars:[{calendar_id,pending}]}`.
-  Counters are read on opening History and after confirmed POST; they persist on
-  Backend and are not stored locally. A failed/unknown POST never claims success;
-  Refresh reads counters without repeating the mutation.
-- 409 `source_unavailable`: show the existing analysis settings entry. 401 expires
-  session, 403 does not imply consent or success; 404/405/501 are unavailable.
-
-This only registers parked jobs. It does not scan, call AI, run stage two, accept
-proposals or write Memory. Existing automatic processing is independent. Counts
-are registered-queue snapshots, not live mirrors of later calendar edits/deletions.
-The new Studio attention layout is retained, but its demo actions/fixtures remain
-Design-only. Real attention/technical pipeline stages are not integrated by this
-queue change, and Production does not fabricate those results. Design scenarios
-are injected from src/demo, never imported by the shared component.
-
-Manual check after approved release: History -> calendar A -> add; B -> add;
-reload and reopen History; re-add A and verify added=0 and unchanged total.
-Verify a disabled source leads to settings without automatically granting consent.
-
-## Initial Filter Results (pending Backend implementation)
-
-Frontend integration follows the owner-provided contract dated 2026-10-24. This route is **not confirmed implemented, merged or deployed**; a missing endpoint produces an explicit unavailable state, never demo data.
-
-`GET memory-intelligence/initial-filter-results/?decision=APPROVE|REJECT&limit=50&offset=0` uses the existing session client. `decision` is optional on Backend (all completed decisions when omitted); Web always requests one result tab. Response: `summary: {total,pending,processing,approved,rejected,errors}`, `is_complete`, `processing_enabled`, `results`, `next_offset` (null at end). Summary is global regardless of page/filter; total equals the sum of all five status counts. Each result contains `event_id`, `title`, `calendar_name`, `date` (YYYY-MM-DD), `decision`, `probability` (0..1), `model`, `processed_at`. APPROVE requires probability >=0.80; REJECT <0.80. Errors are terminal jobs, never REJECT results.
-
-The processed counter includes approved + rejected + terminal errors; a separate error counter explains this. Poll every 5 seconds only while processing_enabled && !is_complete. Complete means pending=processing=0, even with errors. Stop on request failure (manual Retry), disabled processing, tab close or logout/account change. Opening History reloads persisted results; confirmed enqueue refreshes results and resumes polling when appropriate. Pagination follows next_offset and preserves Backend order; Web does not load other stages or write memory. Offset pages can shift while processing adds results; Refresh/reopening reloads the selected page, and Previous returns toward the first page.
-
-Live acceptance requires the matching Backend endpoint deployment. Verify enqueue A/B, counters increasing, both paginated decision lists, terminal errors, disabled processing, and persistence after reload. Tests use synthetic transport only, with no AI requests.
-
+The former memory-intelligence settings, scans, initial queue/results and proposal
+routes are removed. Their separate production UI/controllers/clients are retired.
+Main Memory/Map and Calendar Sync remain; diagnostics stay on Backend.
 
 ## Manual AgentTask execution
 

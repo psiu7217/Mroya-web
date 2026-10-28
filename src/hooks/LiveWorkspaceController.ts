@@ -11,13 +11,13 @@ function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
  return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
 export interface LiveState {
- cancellingTaskId:string|null;executingTaskId:string|null;agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
+ decidingTaskId:string|null;cancellingTaskId:string|null;executingTaskId:string|null;agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
  conversations:ConversationSummary[];activeConversationId:string|null;conversationBusy:boolean;operationUncertain:boolean;
  history:HistoryResponse;memories:MemoriesResponse;map:MemoryMapResponse;
 }
 export class LiveWorkspaceController {
- private state:LiveState={cancellingTaskId:null,executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
+ private state:LiveState={decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
  private taskAbort=new AbortController();private taskGeneration=0;private taskPending=false;
  private tasksOpen=false;private taskTimer:ReturnType<typeof setTimeout>|null=null;
  private taskStatuses=new Map<string,AiTask['status']>();private taskPages=1;
@@ -26,7 +26,7 @@ export class LiveWorkspaceController {
  private scheduleTasks(){
   if(this.taskTimer)clearTimeout(this.taskTimer);
   this.taskTimer=null;
-  if(!this.taskAbort.signal.aborted&&(this.state.executingTaskId||this.tasksOpen||this.state.agentTasks.some(t=>['pending_confirmation','queued','running','needs_clarification'].includes(t.status))))
+  if(!this.taskAbort.signal.aborted&&this.source.agentTasks)
    this.taskTimer=setTimeout(this.taskWake,this.state.executingTaskId?1000:10000);
  }
  private acceptTasks(tasks:AiTask[],next=this.state.tasksNext){
@@ -36,7 +36,7 @@ export class LiveWorkspaceController {
   let completedTask=this.state.completedTask;
   for(const task of tasks){
    const previous=this.taskStatuses.get(task.id);
-   if(previous&&previous!=='completed'&&task.status==='completed')completedTask=task;
+   if(previous&&previous!=='completed'&&task.status==='completed'){completedTask=task;if(task.target==='memory')void this.refreshMemory();}
    this.taskStatuses.set(task.id,task.status);
   }
   const canonical=new Map(tasks.map(task=>[task.id,task]));
@@ -60,7 +60,7 @@ export class LiveWorkspaceController {
    // Read those canonical IDs so polling never loses an unfinished task.
    const ids=new Set(tasks.map(t=>t.id));
    for(const task of [...this.state.agentTasks,...this.state.history.messages.flatMap(message=>message.tasks??[])]){
-    if(!ids.has(task.id)&&['pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
+    if(!ids.has(task.id)&&['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
      tasks.push(await this.source.agentTask(task.id,this.taskAbort.signal));ids.add(task.id);
      if(generation!==this.taskGeneration)return;
     }
@@ -94,6 +94,22 @@ export class LiveWorkspaceController {
   }finally{
    if(generation===this.taskGeneration){this.set({executingTaskId:null});void this.refreshTasks();}
   }
+ }
+ async decideTask(id:string,action:'accept'|'reject'|'comment',comment?:string):Promise<boolean>{
+  const task=this.state.agentTasks.find(row=>row.id===id);
+  if(!this.source.decideAiTask||this.taskAbort.signal.aborted||this.state.decidingTaskId||!task?.reviewVersion||!task.reviewActions?.includes(action))return false;
+  const generation=this.taskGeneration;this.set({decidingTaskId:id,tasksError:null});
+  try{
+   const result=await this.source.decideAiTask(id,action,task.reviewVersion,comment,this.taskAbort.signal);
+   if(generation!==this.taskGeneration)return false;
+   this.mergeTask(result);return true;
+  }catch(error){
+   if(generation!==this.taskGeneration)return false;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return false;}
+   try{await this.readTask(id);}catch{/* Keep last confirmed state; never replay a decision. */}
+   if(generation===this.taskGeneration)this.set({tasksError:tr('taskDecisionChanged',{ns:'chat'})});
+   return false;
+  }finally{if(generation===this.taskGeneration){this.set({decidingTaskId:null});this.scheduleTasks();}}
  }
  async cancelTask(id:string){
   const current=this.state.agentTasks.find(t=>t.id===id);
@@ -262,7 +278,7 @@ export class LiveWorkspaceController {
   if(this.taskTimer)clearTimeout(this.taskTimer);this.taskTimer=null;this.taskStatuses.clear();this.taskPages=1;
   if(typeof window!=='undefined')window.removeEventListener('focus',this.taskWake);
   if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.taskWake);
-  this.set({cancellingTaskId:null,executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
+  this.set({decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
   this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  private get multi(){return !!this.source.conversations;}
  private resetChat(id:string|null){

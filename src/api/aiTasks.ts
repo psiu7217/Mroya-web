@@ -5,7 +5,7 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
   const v = value as Record<string, unknown> | null;
   if (!v || typeof v !== 'object' || !isTurnUuid(v.id) || (expectedId && v.id !== expectedId)
     || !['memory','calendar','notes'].includes(v.type as string)
-    || !['pending_confirmation','queued','running','completed','failed','needs_clarification','cancelled'].includes(v.status as string)
+    || !['awaiting_review','pending_confirmation','queued','running','completed','failed','needs_clarification','cancelled'].includes(v.status as string)
     || typeof v.description !== 'string' || !v.description
     || !['created_at','updated_at'].every(k => typeof v[k] === 'string' && Number.isFinite(Date.parse(v[k] as string)))
     || !['started_at','finished_at'].every(k => v[k] == null || typeof v[k] === 'string' && Number.isFinite(Date.parse(v[k] as string)))
@@ -16,7 +16,19 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
     || !(v.duration_ms == null || Number.isSafeInteger(v.duration_ms) && (v.duration_ms as number) >= 0)
     || !(v.result === null || typeof v.result === 'string') || !(v.error_code === null || typeof v.error_code === 'string'))
     throw new ApiError(502,'invalid_response','Invalid AI task');
+  const kind=v.task_kind??'chat';
+  if(!['chat','calendar_review','memory_proposal'].includes(kind as string)
+    ||kind==='chat'&&v.status==='awaiting_review'
+    ||kind!=='chat'&&(!Number.isSafeInteger(v.version)||(v.version as number)<1
+      ||!Array.isArray(v.actions)||v.actions.some(a=>!['accept','reject','comment'].includes(a))
+      ||!Array.isArray(v.facts)||v.facts.some(f=>typeof f!=='string')
+      ||!(v.event_date===null||typeof v.event_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v.event_date)&&Number.isFinite(Date.parse(v.event_date)))
+      ||!(v.result_code===null||['no_new_information','analysis_complete','memory_saved'].includes(v.result_code as string))))
+    throw new ApiError(502,'invalid_response','Invalid task review');
   return {id:v.id as string, title:v.description as string, userPrompt:v.description as string,
+    taskKind:kind as AiTask['taskKind'],reviewVersion:v.version as number|undefined,
+    reviewActions:v.actions as AiTask['reviewActions'],eventDate:v.event_date as string||undefined,
+    facts:v.facts as string[]|undefined,resultCode:v.result_code as AiTask['resultCode'],
     target:v.type as AiTask['target'], status:v.status as AiTask['status'],
     canCancel:v.can_cancel === true,
     createdAt:v.created_at as string, updatedAt:v.updated_at as string,
@@ -47,7 +59,9 @@ export function readAiTasksPage(value: unknown, offset: number): AiTasksPage {
 export function newerTask(current:AiTask|undefined,incoming:AiTask):AiTask {
   if(!current)return incoming;
   const previous=Date.parse(current.updatedAt),next=Date.parse(incoming.updatedAt);
-  const rank=(s:AiTask['status'])=>s==='pending_confirmation'?0:s==='queued'?1:s==='running'?2:3;
+  if(incoming.taskKind&&incoming.taskKind!=='chat')
+    return previous>next||(current.reviewVersion??0)>(incoming.reviewVersion??0)?current:incoming;
+  const rank=(s:AiTask['status'])=>['awaiting_review','pending_confirmation'].includes(s)?0:s==='queued'?1:s==='running'?2:3;
   return previous>next||previous===next&&(rank(current.status)>rank(incoming.status)
     ||current.confirmDeadlineAt!==undefined&&incoming.confirmDeadlineAt===undefined)?current:incoming;
 }

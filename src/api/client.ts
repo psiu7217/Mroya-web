@@ -1,13 +1,6 @@
 import {readAiTask,readAiTasksPage,readTasksPayload} from './aiTasks.ts';
-import {readInitialResults} from './initialResults.ts';
-import type {InitialDecision} from '../types/initialResults.ts';
-import {readInitialQueue,readInitialQueueReceipt} from './initialQueue.ts';
-import {readScanning} from './intelligence.ts';
-import {readIntelligencePreferences,readIntelligenceSources,readIntelligenceSource,readEventAnalysis} from './intelligence.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
-import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
-import {readIntelligenceSettings,readIntelligenceRuntime,readIntelligenceProposal,readProposalPage,readProposalHistory,validateDecision} from './intelligence.ts';
 import type {GoogleConfiguration} from '../types/calendarApi.ts';
 import {calendarUuid,readCalendarEvent,readCalendarPage,readCalendarOperation,readGoogleConnection,readGoogleConnections,googleAuthorizationUrl} from './calendar.ts';
 import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
@@ -41,7 +34,7 @@ export function validTelegramLink(value:string):boolean {
 export class MroyaApi {
   async agentTasks(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid tasks offset');
-    return readAiTasksPage(await this.json('agent-tasks/?limit=50&offset='+offset,undefined,signal),offset);
+    return readAiTasksPage(await this.json('ai-tasks/?limit=50&offset='+offset,undefined,signal),offset);
   }
   async executeAgentTask(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
@@ -70,28 +63,17 @@ export class MroyaApi {
   }
   async agentTask(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
-    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/',undefined,signal);
+    const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/',undefined,signal);
     return readAiTask(data.task,id);
   }
-  async initialFilterResults(decision:InitialDecision='APPROVE',offset=0,signal?:AbortSignal){
-    if(!['APPROVE','REJECT'].includes(decision)||!Number.isSafeInteger(offset)||offset<0)throw new ApiError(400,'invalid_request','Invalid results page');
-    return readInitialResults(await this.json(`memory-intelligence/initial-filter-results/?decision=${decision}&limit=50&offset=${offset}`,undefined,signal),decision,offset);
+  async decideAiTask(id:string,action:'accept'|'reject'|'comment',version:number,comment?:string,signal?:AbortSignal){
+    if(!isTurnUuid(id)||!['accept','reject','comment'].includes(action)||!Number.isSafeInteger(version)||version<1
+      ||action==='comment'&&(typeof comment!=='string'||!comment.trim()||comment.length>2000))
+      throw new ApiError(400,'invalid_request','Invalid task decision');
+    const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/decision/',
+      {action,version,request_id:crypto.randomUUID(),...(action==='comment'?{comment}: {})},signal,'POST');
+    return readAiTask(data.task,id);
   }
-  async initialFilterQueue(signal?:AbortSignal){return readInitialQueue(await this.json('memory-intelligence/initial-filter-queue/',undefined,signal));}
-  async enqueueInitialFilter(calendarId:string,signal?:AbortSignal){
-    if(!isTurnUuid(calendarId))throw new ApiError(400,'invalid_initial_queue_request','Invalid calendar UUID');
-    return readInitialQueueReceipt(await this.json('memory-intelligence/initial-filter-queue/',{calendar_id:calendarId},signal,'POST',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Queue registration was not confirmed');}));
-  }
-
-  async intelligencePreferences(signal?:AbortSignal){return readIntelligencePreferences(await this.json('memory-intelligence/settings/',undefined,signal));}
-  async saveIntelligencePreferences(autonomy:'review_all'|'auto_link',signal?:AbortSignal){
-    if(!['review_all','auto_link'].includes(autonomy))throw new ApiError(400,'invalid_autonomy','Unsupported autonomy');
-    return readIntelligencePreferences(await this.json('memory-intelligence/settings/',{autonomy},signal,'PATCH'));
-  }
-  async intelligenceSources(offset=0,signal?:AbortSignal){if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new Error('Invalid offset');return readIntelligenceSources(await this.json('memory-intelligence/sources/?limit=50&offset='+offset,undefined,signal),offset);}
-  async saveIntelligenceSource(id:string,enabled:boolean,signal?:AbortSignal){if(!isTurnUuid(id)||typeof enabled!=='boolean')throw new Error('Invalid source');return readIntelligenceSource(await this.json('memory-intelligence/sources/calendar/'+id+'/',{enabled},signal,'PATCH'),id);}
-  async eventAnalysis(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid event UUID');return readEventAnalysis(await this.json('memory-intelligence/calendar-events/'+id+'/status/',undefined,signal),id);}
-
   async notes(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid Notes offset');
     return readNotesPage(await this.json('notes/?limit=20&offset='+offset,undefined,signal),offset);
@@ -116,20 +98,6 @@ export class MroyaApi {
     if(!notificationUuid(id))throw new Error('Invalid notification UUID');
     return readNotification(await this.json('me/notifications/'+id+'/',undefined,signal),id);
   }
-  async intelligenceSettings(signal?:AbortSignal){return readIntelligenceSettings(await this.json('memory-intelligence/settings/',undefined,signal));}
-  async intelligenceScans(offset=0,signal?:AbortSignal){if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw Error('Invalid offset');return readScanning(await this.json('memory-intelligence/scans/?limit=50&offset='+offset,undefined,signal),offset);}
-  async scanIntelligence(calendar_ids:string[],signal?:AbortSignal){if(!calendar_ids.length||calendar_ids.length>50||calendar_ids.some(id=>!isTurnUuid(id))||new Set(calendar_ids).size!==calendar_ids.length)throw Error('Invalid calendars');return readScanning(await this.json('memory-intelligence/scans/',{calendar_ids},signal));}
-  async intelligenceStatus(signal?:AbortSignal){return readIntelligenceRuntime(await this.json('memory-intelligence/status/',undefined,signal));}
-  async inboxProposals(offset=0,signal?:AbortSignal){return readProposalPage(await this.json('memory-intelligence/proposals/?limit=50&offset='+offset,undefined,signal),offset);}
-  async inboxProposal(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');const v=await this.json<{proposal:unknown}>('memory-intelligence/proposals/'+id+'/',undefined,signal);return readIntelligenceProposal(v.proposal,id);}
-  async inboxHistory(id:string,offset=0,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');return readProposalHistory(await this.json('memory-intelligence/proposals/'+id+'/history/?limit=50&offset='+offset,undefined,signal),offset);}
-  async inboxDecision(id:string,action:ProposalDecision,body:DecisionBody,signal?:AbortSignal){
-    validateDecision(id,action,body);
-    const v=await this.json<{proposal:unknown;replayed:unknown}>('memory-intelligence/proposals/'+id+'/'+action+'/',body,signal);
-    if(typeof v.replayed!=='boolean')throw new ApiError(502,'invalid_response','Invalid decision confirmation.');
-    return {proposal:readIntelligenceProposal(v.proposal,id),replayed:v.replayed};
-  }
-
   async calendarEvents(start:string,end:string,offset=0,signal?:AbortSignal){
     return readCalendarPage(await this.json('calendar/events/?'+new URLSearchParams({start_date:start,end_date:end,limit:'100',offset:String(offset)}),undefined,signal));
   }

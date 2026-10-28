@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {detectBrowserLanguage,readInitialLanguage,LANGUAGE_STORAGE_KEY} from '../src/i18n/language.ts';
 import {appI18n,setAppLanguage,translationResources} from '../src/i18n/index.ts';
-import {inboxStatusLabel,runtimeNotice} from '../src/hooks/inboxAdapters.ts';
 
 test('browser language follows ordered supported preferences and regional tags',()=>{
  assert.equal(detectBrowserLanguage({languages:['fr-CA','ru-RU','en-US']}),'ru');
@@ -37,17 +36,6 @@ test('i18next uses safe English fallback and Russian plural forms',async()=>{
  setAppLanguage('en');
 });
 
-test('Memory Inbox hook adapters update status and runtime copy immediately when locale changes',async()=>{
- setAppLanguage('en');
- const capabilities={stage:'',inbox:true,deep_analysis:false,memory_apply:false,auto_link:false,auto_write:false} as never;
- const runtime={worker_enabled:false,deep_enabled:false,apply_enabled:false} as never;
- assert.equal(inboxStatusLabel('pending'),'Awaiting decision');
- assert.match(runtimeNotice(capabilities,runtime),/Background processing is disabled/);
- await appI18n.changeLanguage('ru');
- assert.equal(inboxStatusLabel('pending'),'Ожидает решения');
- assert.match(runtimeNotice(capabilities,runtime),/Фоновая обработка выключена/);
- setAppLanguage('en');
-});
 
 test('English and Russian dictionaries cover the same keys and contain no blank translations',()=>{
  const en=translationResources.en as Record<string,Record<string,string>>;

@@ -1,4 +1,5 @@
-import React from 'react';
+import React,{useState} from 'react';
+import {AiTasksDrawer} from '../components/AiTasksDrawer';
 import {WorkspaceSurface} from '../components/WorkspaceSurface';
 import { Sparkles, Check, X } from 'lucide-react';
 import type { WorkspaceModel } from '../types/workspace';
@@ -13,10 +14,13 @@ import { MemoryMapView } from '../components/MemoryMapView';
 import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
 import { NotesView } from '../components/NotesView';
-import { MemoryInboxView } from '../components/MemoryInboxView';
 import {tr} from '../i18n';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
+ const [tasksOpen,setTasksOpen]=useState(false),[taskHighlight,setTaskHighlight]=useState<string|null>(null);
+ const openTasks=(id?:string)=>{setTaskHighlight(id??null);setTasksOpen(true);model.aiTasks?.onOpen();model.onSidebarCloseMobile();};
+ const closeTasks=()=>{setTasksOpen(false);model.aiTasks?.onClose();};
+ const tasksPresentation=model.aiTasks?{...model.aiTasks,onOpen:openTasks,onClose:closeTasks}:undefined;
  const feedback=model.feedback??runtime;
  const {account, activeSection:requestedSection, isSidebarCollapsed, mobileMenuOpen, theme, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation, focusedMemory, relatedMemoriesForActiveChat, upcomingRelatedEvent, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onChatWorkspaceOpenMobileMenu, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onCalendarViewOpenMobileMenu, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onRemindersViewOpenMobileMenu, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryViewOpenMobileMenu, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onMemoryMapViewOpenMobileMenu, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onConnectionsSettingsViewOpenMobileMenu, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose}=model;
  const notesAvailable=model.notesAvailable===true;
@@ -30,7 +34,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         live={!!runtime}
         onLogout={runtime?.onLogout}
         activeSection={activeSection}
-        onSelectSection={onSidebarSelectSection}
+        onSelectSection={next=>next==='ai-tasks'?openTasks():onSidebarSelectSection(next)}
         conversations={conversations}
         activeConversationId={activeConversationId}
         onSelectConversation={onSidebarSelectConversation}
@@ -51,7 +55,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
         notesAvailable={notesAvailable}
         notesCount={notesAvailable?(model.notes ?? []).length:0}
-        memoryInboxCount={runtime?undefined:4}
+        aiTasksCount={model.aiTasks?.tasks.filter(t=>['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(t.status)).length}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 
@@ -73,7 +77,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'chat' && (
           <>
             <ChatWorkspace
-              aiTasks={model.aiTasks}
+              aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
               pending={runtime?.pending??feedback?.loading}
@@ -117,9 +121,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'calendar' && (
           <CalendarView
-            eventAnalysis={model.eventAnalysis}
             memoryLinksNavigation={model.memoryLinksNavigation}
-            designEventAnalysis={runtime?undefined:model.designIntelligence?.EventAnalysis}
             samples={model.calendarSamples}
             readOnly={!!runtime&&!runtime.calendarAvailable}
             live={!!runtime}
@@ -170,11 +172,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
 
-        {activeSection==='memory'&&runtime&&!runtime.memoryInboxAvailable&&model.memoryInbox?.error&&<p role="alert" className="px-4 py-2 text-sm border-b border-[var(--mroya-divider)]">{tr('loadFailed',{ns:'workspace'})}<button type="button" className="ml-3 underline" onClick={model.memoryInbox.onRefresh}>{tr('retryInbox',{ns:'workspace'})}</button></p>}
         {activeSection === 'memory' && (
           <MemoryView
-            key={model.memoryInbox?.scopeKey??'saved-memory'}
-            inbox={!runtime||runtime.memoryInboxAvailable===true?model.memoryInbox:undefined}
+            key="saved-memory"
             readOnly={!!runtime}
             memories={memories}
             selectedMemoryId={selectedMemoryViewId}
@@ -187,25 +187,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onMemoryViewExpandSidebar}
             onOpenMobileMenu={onMemoryViewOpenMobileMenu}
-          />
-        )}
-
-        {activeSection === 'memory-inbox' && (
-          <MemoryInboxView
-            key={model.initialQueue?.scopeKey??'design-inbox'}
-            design={!runtime}
-            initialEvents={runtime?undefined:model.pipelineSamples}
-            queue={model.initialQueue}
-            onHistoryVisible={model.onInitialQueueVisible}
-            isSidebarCollapsed={isSidebarCollapsed}
-            onExpandSidebar={onMemoryViewExpandSidebar}
-            onOpenMobileMenu={onMemoryViewOpenMobileMenu}
-            onNavigateToMemory={(id) => {
-              if (id) {
-                onMemoryViewSelectMemory(id);
-              }
-              onSidebarSelectSection('memory');
-            }}
           />
         )}
 
@@ -229,10 +210,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
-            intelligence={model.intelligence}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
-            designIntelligence={runtime?undefined:model.designIntelligence}
             timezoneSettings={runtime?.timezoneSettings}
             onChangeTimezone={runtime?.timezoneSettings?.onChange??model.onChangeTimezone}
             connectionSamples={runtime?undefined:model.connectionSamples}
@@ -389,5 +368,11 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         events={events}
         preselectedEventId={reminderPreselectedEventId}
       />
+      <AiTasksDrawer isOpen={tasksOpen} onClose={closeTasks} tasks={model.aiTasks?.tasks??[]}
+       loading={model.aiTasks?.loading} error={model.aiTasks?.error} hasMore={model.aiTasks?.hasMore}
+       onRefresh={model.aiTasks?.onRefresh} onMore={model.aiTasks?.onMore} highlightTaskId={taskHighlight}
+       executingTaskId={model.aiTasks?.executingTaskId} onExecute={model.aiTasks?.onExecute}
+       cancellingTaskId={model.aiTasks?.cancellingTaskId} onCancel={model.aiTasks?.onCancel}
+       decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision}/>
     </WorkspaceSurface>);
 }

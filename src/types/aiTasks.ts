@@ -1,4 +1,5 @@
 export type AiTaskStatus =
+  | 'awaiting_review'
   | 'pending_confirmation' // Server-anchored 15s window; canonical deadline below.
   | 'queued'
   | 'running'
@@ -16,6 +17,12 @@ export interface AiTaskResultLink {
 }
 
 export interface AiTask {
+  taskKind?: 'chat'|'calendar_review'|'memory_proposal';
+  reviewVersion?: number;
+  reviewActions?: ('accept'|'reject'|'comment')[];
+  eventDate?: string;
+  facts?: string[];
+  resultCode?: 'no_new_information'|'analysis_complete'|'memory_saved';
   id: string;
   title: string;
   target: AiTaskTarget;
@@ -52,11 +59,13 @@ export interface AiTasksPresentation {
   completedTask: AiTask | null;
   executingTaskId?: string | null; onExecute?: (id: string) => void;
   cancellingTaskId?: string | null; onCancel?: (id: string) => void;
+  decidingTaskId?: string|null;
+  onDecision?: (id:string,action:'accept'|'reject'|'comment',comment?:string)=>Promise<boolean>;
   /** Chat confirmation card bindings; canonical server reads always win. */
   beginReview?: (id: string) => Promise<AiTask>;
   approveTask?: (id: string) => Promise<AiTask>;
   revokeTask?: (id: string) => Promise<AiTask>;
   refreshTask?: (id: string) => Promise<AiTask>;
-  onOpen: () => void; onClose: () => void; onRefresh: () => void;
+  onOpen: (id?:string) => void; onClose: () => void; onRefresh: () => void;
   onMore: () => void; onDetails: (id: string) => void; onDismiss: () => void;
 }

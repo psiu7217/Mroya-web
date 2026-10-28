@@ -1,9 +1,6 @@
-import {useInitialFilterQueue} from '../hooks/useInitialFilterQueue';
-import {useIntelligence} from '../hooks/useIntelligence';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
 import {useLiveNotes} from '../hooks/useLiveNotes';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
-import {useLiveMemoryInbox} from '../hooks/useLiveMemoryInbox';
 import {useUserTimezone} from '../hooks/useUserTimezone';
 import {useLiveCalendar} from '../hooks/useLiveCalendar';
 import {googleSyncPresentation} from '../hooks/calendarAdapters';
@@ -36,20 +33,16 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null);
  const [selectedMemory,setSelectedMemory]=useState<string|null>(null),[selectedNode,setSelectedNode]=useState<string|null>(null);
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
- const [queueVisible,setQueueVisible]=useState(false);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
- const initialQueue=useInitialFilterQueue(source,user.id,section==='memory-inbox'&&queueVisible,onExpired,()=>{setSection('connections');setSettingsTab('connections');layout.closeMobile();});
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
  const notifications=useNotificationSettings(source,user.id,telegram,onExpired);
  const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
- const inbox=useLiveMemoryInbox(source,user.id,section==='memory',onExpired,()=>void controller.refreshMemory());
- const intelligence=useIntelligence(source,user.id,section==='connections',onExpired,id=>{setSection('memory');layout.closeMobile();void inbox.controller.focus(id);});
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{initialQueue.controller.stop();intelligence.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();inbox.controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -82,16 +75,15 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
    executingTaskId:state.executingTaskId,onExecute:id=>void controller.executeTask(id),
    cancellingTaskId:state.cancellingTaskId,onCancel:id=>void controller.cancelTask(id),
+   decidingTaskId:state.decidingTaskId,onDecision:(id,action,comment)=>controller.decideTask(id,action,comment),
    beginReview:controller.beginPendingReview,approveTask:controller.approvePendingTask,revokeTask:controller.revokePendingTask,
    refreshTask:controller.readTask,
    completedTask:state.completedTask,onOpen:()=>controller.openTasks(),onClose:()=>controller.closeTasks(),
    onRefresh:()=>void controller.refreshTasks(),onMore:()=>void controller.moreTasks(),
    onDetails:id=>void controller.taskDetails(id),onDismiss:()=>controller.dismissTask()},
-  initialQueue:initialQueue.presentation,onInitialQueueVisible:setQueueVisible,
-  intelligence:intelligence.settings,eventAnalysis:intelligence.event,memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
+  memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
   notifications:notifications.presentation,
-  memoryInbox:inbox.presentation,
-  runtime:{notifications:notifications.presentation,memoryInboxAvailable:inbox.state.available,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
+  runtime:{notifications:notifications.presentation,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,

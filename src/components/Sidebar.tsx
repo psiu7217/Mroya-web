@@ -61,7 +61,7 @@ export interface SidebarProps {
   pendingRemindersCount: number;
   notesCount?: number;
   notesAvailable?: boolean;
-  memoryInboxCount?: number;
+  aiTasksCount?: number;
   onOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
 }
 
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingRemindersCount,
   notesCount = 0,
   notesAvailable = false,
-  memoryInboxCount,
+  aiTasksCount,
   onOpenSettingsTab,
 }) => {
   const [mobileViewport, setMobileViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
@@ -242,10 +242,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       meta: String(memoriesCount),
     },
     {
-      id: 'memory-inbox',
-      label: tr('navMemoryInbox',{ns:'sidebar'}),
+      id: 'ai-tasks',
+      label: tr('taskPanelTitle',{ns:'chat'}),
       icon: Inbox,
-      meta: memoryInboxCount !== undefined && memoryInboxCount > 0 ? String(memoryInboxCount) : undefined,
+      meta: aiTasksCount !== undefined && aiTasksCount > 0 ? String(aiTasksCount) : undefined,
     },
     { id: 'memory-map', label: tr('navMemoryMap',{ns:'sidebar'}), icon: Share2 },
     { id: 'connections', label: tr('navConnections',{ns:'sidebar'}), icon: Link2 },

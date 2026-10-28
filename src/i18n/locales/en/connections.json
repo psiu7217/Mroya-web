@@ -386,5 +386,6 @@
   "initialFilterNoResults": "There are no results on this page yet.",
   "initialFilterProbability": "YES probability: {{probability}}%",
   "previous": "Previous",
-  "next": "Next"
+  "next": "Next",
+  "calendarStudyNotice": "After import, Mroya will study events and suggest useful facts in AI tasks. Nothing will be saved to your personal memory without your confirmation."
 }

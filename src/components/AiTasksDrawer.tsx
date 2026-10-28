@@ -275,6 +275,7 @@ ID: ${task.id}
               const isError = task.status === 'failed';
               const isRunning = task.status === 'running';
               const isHighlighted = highlightTaskId === task.id;
+              const canCancel = ['queued','needs_clarification'].includes(task.status)&&task.canCancel===true&&!!onCancel;
 
               return (
                 <div
@@ -287,12 +288,25 @@ ID: ${task.id}
                       : 'border-[var(--mroya-divider)] bg-[var(--mroya-surface)]'
                   } space-y-2 text-[13px] shadow-2xs`}
                 >
-                  {/* Top line: Status + Time */}
-                  <div className="flex items-center justify-between gap-2">
-                    {renderStatusBadge(task.status)}
-                    <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
-                      {localDate(task.updatedAt || task.createdAt)}
-                    </span>
+                  {/* Keep cancellation visible before the task details and result. */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      {renderStatusBadge(task.status)}
+                      {canCancel&&<span className="block text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
+                        {localDate(task.updatedAt || task.createdAt)}
+                      </span>}
+                    </div>
+                    {canCancel?(
+                      <button type="button" onClick={()=>onCancel?.(task.id)}
+                        disabled={!!cancellingTaskId||executingTaskId===task.id}
+                        className="shrink-0 min-h-9 px-3 py-1.5 rounded-lg border border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-300 hover:bg-rose-500/15 text-[12px] font-semibold disabled:opacity-40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50">
+                        {tr(cancellingTaskId===task.id?'taskCancelling':'taskConfirmCancel',{ns:'chat'})}
+                      </button>
+                    ):(
+                      <span className="text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
+                        {localDate(task.updatedAt || task.createdAt)}
+                      </span>
+                    )}
                   </div>
 
                   {/* Task title */}
@@ -310,13 +324,6 @@ ID: ${task.id}
                     className="px-2.5 py-1 rounded-md bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] text-[11.5px] font-semibold disabled:opacity-40 cursor-pointer">
                     {executingTaskId===task.id?'Запуск…':'Выполнить'}
                   </button>}
-                  {['queued','needs_clarification'].includes(task.status)&&task.canCancel===true&&onCancel&&(
-                    <button type="button" onClick={()=>onCancel(task.id)}
-                      disabled={!!cancellingTaskId||executingTaskId===task.id}
-                      className="px-2.5 py-1 rounded-md text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-active)] text-[11.5px] font-semibold disabled:opacity-40 cursor-pointer">
-                      {tr(cancellingTaskId===task.id?'taskCancelling':'taskConfirmCancel',{ns:'chat'})}
-                    </button>
-                  )}
                   {isRunning && <p className="text-[12px] text-[var(--mroya-text-muted)]">Выполняется</p>}
                   {isClarifying && <p className="text-[12px] text-[var(--mroya-text-muted)]">{task.errorMessage==='execution_outcome_unknown'?'Результат операции не подтверждён. Не запускайте её повторно.':'Требует уточнения. Ответ через панель пока недоступен.'}{task.errorMessage && ` (${task.errorMessage})`}</p>}
                   {/* Completed result */}

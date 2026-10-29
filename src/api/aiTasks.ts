@@ -20,7 +20,7 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
   if(!['chat','calendar_review','memory_proposal'].includes(kind as string)
     ||kind==='chat'&&v.status==='awaiting_review'
     ||kind!=='chat'&&(!Number.isSafeInteger(v.version)||(v.version as number)<1
-      ||!Array.isArray(v.actions)||v.actions.some(a=>!['accept','reject','comment'].includes(a))
+      ||!Array.isArray(v.actions)||v.actions.some(a=>!['accept','reject','comment','retry'].includes(a))
       ||!Array.isArray(v.facts)||v.facts.some(f=>typeof f!=='string')
       ||!(v.event_date===null||typeof v.event_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v.event_date)&&Number.isFinite(Date.parse(v.event_date)))
       ||!(v.result_code===null||['no_new_information','analysis_complete','memory_saved'].includes(v.result_code as string))))

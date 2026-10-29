@@ -1,7 +1,9 @@
+import type {InstallPresentation} from '../types/install';
 import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu,
+  Download,
   PanelLeftOpen,
   PanelRight,
   Paperclip,
@@ -44,6 +46,7 @@ import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
+  install?: InstallPresentation;
   aiTasks?: AiTasksPresentation;
   account: AccountPresentation;
   live?: boolean;
@@ -76,7 +79,7 @@ export interface ChatWorkspaceProps {
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
+  install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -439,6 +442,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {install?.showMobile && <button type="button" onClick={install.onInstall}
+            aria-label={tr('installApp',{ns:'common'})} title={tr('installApp',{ns:'common'})}
+            className="lg:hidden w-9 h-9 rounded-lg inline-flex items-center justify-center text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer">
+            <Download className="w-5 h-5"/>
+          </button>}
           {/* Mobile AI Tasks Trigger Button */}
           <button
             type="button"
@@ -512,6 +520,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </div>
                 </div>
 
+                {install && !install.installed && <button type="button" role="menuitem"
+                  onClick={() => { setMobileUserMenuOpen(false); install.onInstall(); }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer">
+                  <Download className="w-4 h-4 text-[var(--mroya-primary)]"/><span>{tr('installApp',{ns:'common'})}</span>
+                </button>}
                 {/* All Menu Options inside mobile dropdown */}
                 <div className="py-1">
                   <button
@@ -692,6 +705,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               </button>
               {headerMenuOpen && (
                 <div className="absolute right-0 mt-1.5 w-52 py-1 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-40">
+                  {install && !install.installed && <button type="button"
+                    onClick={() => { setHeaderMenuOpen(false); install.onInstall(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer">
+                    <Download className="w-3.5 h-3.5 text-[var(--mroya-primary)]"/><span>{tr('installApp',{ns:'common'})}</span>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => {

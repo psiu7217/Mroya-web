@@ -19,10 +19,11 @@ import type {AppLanguage} from '../i18n/language';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
 import type {WorkspaceSource} from '../types/source';
+import type {InstallPresentation} from '../types/install';
 import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
-export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
+export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
  const preferences=useUserPreferences(source,user,onExpired,language);
@@ -74,6 +75,7 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  install,
   calendarAnalysis:analysis.presentation,
   aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
    executingTaskId:state.executingTaskId,onExecute:id=>void controller.executeTask(id),

@@ -76,7 +76,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         <div className="flex flex-1 min-w-0 min-h-0">
         {activeSection === 'chat' && (
           <>
-            <ChatWorkspace
+            <ChatWorkspace install={model.install}
               aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}

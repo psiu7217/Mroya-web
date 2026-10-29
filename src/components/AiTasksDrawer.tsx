@@ -10,7 +10,7 @@ export interface AiTasksDrawerProps {
  onRefresh?:()=>void;onMore?:()=>void;onDetails?:(id:string)=>void;highlightTaskId?:string|null;
  executingTaskId?:string|null;onExecute?:(id:string)=>void;
  cancellingTaskId?:string|null;onCancel?:(id:string)=>void;
- decidingTaskId?:string|null;onDecision?:(id:string,action:'accept'|'reject'|'comment',comment?:string)=>Promise<boolean>;
+ decidingTaskId?:string|null;onDecision?:(id:string,action:'accept'|'reject'|'comment'|'retry',comment?:string)=>Promise<boolean>;
 }
 export type CompactTab='active'|'completed'|'issues';
 const active=(task:AiTask)=>['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status);
@@ -21,7 +21,7 @@ function badge(status:AiTaskStatus){
  return <span className={`inline-flex items-center gap-1 text-[11.5px] font-semibold ${status==='failed'?'text-rose-600':status==='completed'?'text-emerald-600':'text-[var(--mroya-primary)]'}`}><Icon className={`w-3.5 h-3.5 ${status==='running'?'animate-spin':''}`}/>{label(key)}</span>;
 }
 export function ReviewActions({task,busy,onDecision,editing,comment,onEdit,onComment}:{task:AiTask;busy:boolean;onDecision:NonNullable<AiTasksDrawerProps['onDecision']>;editing:boolean;comment:string;onEdit:(value:boolean)=>void;onComment:(value:string)=>void}){
- const act=async(action:'accept'|'reject'|'comment')=>{
+ const act=async(action:'accept'|'reject'|'comment'|'retry')=>{
   try{
    const accepted=await onDecision(task.id,action,action==='comment'?comment.trim():undefined);
    if(accepted){onComment('');onEdit(false);}
@@ -32,6 +32,7 @@ export function ReviewActions({task,busy,onDecision,editing,comment,onEdit,onCom
    {!task.needsClarification&&task.reviewActions?.includes('accept')&&<button type="button" disabled={busy} onClick={()=>void act('accept')} className="px-3 py-1.5 rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-xs font-semibold disabled:opacity-40">{label(task.taskKind==='calendar_review'?'taskStudy':'taskSave')}</button>}
    {task.reviewActions?.includes('comment')&&<button type="button" disabled={busy} onClick={()=>onEdit(!editing)} aria-expanded={editing} className="px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] text-xs text-[var(--mroya-primary)] disabled:opacity-40">{label(task.taskKind==='calendar_review'?'taskExplain':task.needsClarification?'taskAnswer':'taskCorrect')}</button>}
    {task.reviewActions?.includes('reject')&&<button type="button" disabled={busy} onClick={()=>void act('reject')} className="px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] text-xs disabled:opacity-40">{label('taskSkip')}</button>}
+   {task.status==='failed'&&task.reviewActions?.includes('retry')&&<button type="button" disabled={busy} onClick={()=>void act('retry')} className="px-3 py-1.5 rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-xs font-semibold disabled:opacity-40">{label('taskRetry')}</button>}
   </div>
   {editing&&<form onSubmit={event=>{event.preventDefault();void act('comment');}} className="space-y-2">
    <label className="block text-xs">{label(task.needsClarification?'taskAnswerLabel':'taskCommentLabel')}<textarea maxLength={2000} rows={3} disabled={busy} value={comment} onChange={event=>onComment(event.target.value)} className="mt-1 w-full p-2 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] text-[var(--mroya-text)]"/></label>

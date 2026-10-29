@@ -53,6 +53,6 @@ test('failed tasks show Retry only when the server explicitly allows it',()=>{
  const forbidden=readAiTask({...dto,id:'00000000-0000-4000-8000-000000000003',
    status:'failed',actions:[],facts:[],questions:[],needs_clarification:false});
  const html=markup([retry,forbidden]);
- assert.equal((html.match(/>Повторить<\\/button>/g)||[]).length,1);
+ assert.equal((html.match(/>Повторить<\/button>/g)||[]).length,1);
  assert.match(html,/Не удалось обработать задачу/);
 });

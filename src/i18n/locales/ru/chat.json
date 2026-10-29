@@ -172,6 +172,7 @@
   "taskExplain": "Добавить пояснение",
   "taskAnswerLabel": "Ваш ответ",
   "taskSendAnswer": "Отправить",
+  "taskRetry": "Повторить",
   "taskAnswerProcessing": "Mroya изучает ваш ответ",
   "taskClarifyDescription": "Mroya хочет уточнить информацию перед сохранением.",
   "taskFactsDescription": "Mroya предлагает сохранить эти сведения в память.",

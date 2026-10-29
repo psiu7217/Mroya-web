@@ -83,8 +83,8 @@ export class MroyaApi {
     const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/',undefined,signal);
     return readAiTask(data.task,id);
   }
-  async decideAiTask(id:string,action:'accept'|'reject'|'comment',version:number,comment?:string,signal?:AbortSignal){
-    if(!isTurnUuid(id)||!['accept','reject','comment'].includes(action)||!Number.isSafeInteger(version)||version<1
+  async decideAiTask(id:string,action:'accept'|'reject'|'comment'|'retry',version:number,comment?:string,signal?:AbortSignal){
+    if(!isTurnUuid(id)||!['accept','reject','comment','retry'].includes(action)||!Number.isSafeInteger(version)||version<1
       ||action==='comment'&&(typeof comment!=='string'||!comment.trim()||comment.length>2000))
       throw new ApiError(400,'invalid_request','Invalid task decision');
     const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/decision/',

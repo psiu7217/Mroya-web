@@ -23,7 +23,7 @@ export interface AiTask {
   reviewPhase?: 'answer_processing';
   taskKind?: 'chat'|'calendar_review'|'memory_proposal';
   reviewVersion?: number;
-  reviewActions?: ('accept'|'reject'|'comment')[];
+  reviewActions?: ('accept'|'reject'|'comment'|'retry')[];
   eventDate?: string;
   facts?: string[];
   resultCode?: 'no_new_information'|'analysis_complete'|'memory_saved';
@@ -65,7 +65,7 @@ export interface AiTasksPresentation {
   executingTaskId?: string | null; onExecute?: (id: string) => void;
   cancellingTaskId?: string | null; onCancel?: (id: string) => void;
   decidingTaskId?: string|null;
-  onDecision?: (id:string,action:'accept'|'reject'|'comment',comment?:string)=>Promise<boolean>;
+  onDecision?: (id:string,action:'accept'|'reject'|'comment'|'retry',comment?:string)=>Promise<boolean>;
   /** Chat confirmation card bindings; canonical server reads always win. */
   beginReview?: (id: string) => Promise<AiTask>;
   approveTask?: (id: string) => Promise<AiTask>;

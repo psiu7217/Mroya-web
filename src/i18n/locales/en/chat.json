@@ -172,6 +172,7 @@
   "taskExplain": "Add context",
   "taskAnswerLabel": "Your answer",
   "taskSendAnswer": "Send",
+  "taskRetry": "Retry",
   "taskAnswerProcessing": "Mroya is studying your answer",
   "taskClarifyDescription": "Mroya needs a clarification before saving.",
   "taskFactsDescription": "Mroya suggests saving these details to memory.",

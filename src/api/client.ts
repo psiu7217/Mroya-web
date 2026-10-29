@@ -33,6 +33,20 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async transcribeAudio(audio:Blob,signal?:AbortSignal):Promise<string>{
+    if(!audio.size||audio.size>12*1024*1024)throw new ApiError(413,'audio_too_large','Invalid audio size');
+    if(!this.token)await this.csrf(signal);
+    const mime=audio.type.split(';')[0];
+    const extension:Record<string,string>={'audio/mp4':'m4a','video/mp4':'mp4','audio/webm':'webm','audio/ogg':'ogg','audio/wav':'wav'};
+    const body=new FormData();body.append('file',audio,'recording.'+(extension[mime]??'audio'));
+    const response=await this.fetcher('/api/v1/chat/transcriptions/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','X-CSRFToken':this.token},body});
+    await this.check(response);
+    if(response.status!==200||!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected transcription JSON');
+    const data=await response.json();
+    if(!data||typeof data.text!=='string'||!data.text.trim()||data.text.length>16000)throw new ApiError(502,'invalid_response','Invalid transcription');
+    return data.text.trim();
+  }
   async calendarAnalyses(connectionId:string,signal?:AbortSignal){
     calendarUuid(connectionId);
     return readCalendarAnalyses(await this.json('calendar/google/connections/'+connectionId+'/analysis/',undefined,signal));

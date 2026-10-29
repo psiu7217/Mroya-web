@@ -179,11 +179,11 @@
   "taskGroupAnswer": "Your answer needed",
   "taskGroupSuggestions": "Suggestions",
   "taskGroupWorking": "Mroya is working",
-  "taskDuplicatePerson": "Memory contains possible matching people. The event needs another identity check.",
-  "taskFactConflict": "The proposal conflicts with saved information. Another review is needed.",
+  "taskDuplicatePerson": "The proposal was not saved: the previous check stopped it because of possible matches in memory.",
+  "taskFactConflict": "The proposal was not saved: the previous check stopped it because of a possible conflict.",
   "taskMemoryChanged": "Memory has changed. Review is needed before saving.",
   "taskSourceUnavailable": "The source event has changed or is no longer available.",
   "taskAnalysisFailed": "Analysis could not finish.",
   "taskSaveFailed": "Saving could not be confirmed. Retry will check the previous operation first.",
-  "taskRetryReviewHint": "Retry analyzes the event again. You will review the new proposal before saving."
+  "taskRetryReviewHint": "Retry returns the proposal for review. Check the facts and press Save to add them to memory."
 }

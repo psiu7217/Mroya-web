@@ -16,10 +16,10 @@ for(const status of ['failed','cancelled'])test(`${status} exposes an explicit R
  assert.equal(render({...base,status,reviewActions:[]},false,callback).filter(n=>n.type==='button').length,0);
  assert.equal(render({...base,status},true,callback).find(n=>n.type==='button').props.disabled,true);
 });
-test('friendly reasons distinguish duplicate identities, factual conflicts and unrecognized errors in both languages',()=>{
- setAppLanguage('ru');assert.match(taskFailureLabel({...base,errorMessage:'new_entity_candidate_found'}),/похожие люди/);
- assert.match(taskFailureLabel({...base,errorMessage:'confirmed_memory_conflict'}),/противоречит/);
+test('historical guard failures describe an unconfirmed save without asserting a real duplicate or conflict',()=>{
+ setAppLanguage('ru');assert.match(taskFailureLabel({...base,errorMessage:'new_entity_candidate_found'}),/предыдущая проверка.*совпадений/);
+ assert.match(taskFailureLabel({...base,errorMessage:'confirmed_memory_conflict'}),/возможного противоречия/);
  const internal='sensitive-unexpected-error';assert.doesNotMatch(taskFailureLabel({...base,errorMessage:internal}),new RegExp(internal));
- setAppLanguage('en');assert.match(taskFailureLabel({...base,errorMessage:'new_entity_candidate_found'}),/matching people/);
+ setAppLanguage('en');assert.match(taskFailureLabel({...base,errorMessage:'new_entity_candidate_found'}),/previous check.*possible matches/);
  assert.match(taskFailureLabel({...base,errorMessage:'source_unavailable'}),/no longer available/);
 });

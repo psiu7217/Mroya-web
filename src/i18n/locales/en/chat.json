@@ -178,5 +178,12 @@
   "taskFactsDescription": "Mroya suggests saving these details to memory.",
   "taskGroupAnswer": "Your answer needed",
   "taskGroupSuggestions": "Suggestions",
-  "taskGroupWorking": "Mroya is working"
+  "taskGroupWorking": "Mroya is working",
+  "taskDuplicatePerson": "Memory contains possible matching people. The event needs another identity check.",
+  "taskFactConflict": "The proposal conflicts with saved information. Another review is needed.",
+  "taskMemoryChanged": "Memory has changed. Review is needed before saving.",
+  "taskSourceUnavailable": "The source event has changed or is no longer available.",
+  "taskAnalysisFailed": "Analysis could not finish.",
+  "taskSaveFailed": "Saving could not be confirmed. Retry will check the previous operation first.",
+  "taskRetryReviewHint": "Retry analyzes the event again. You will review the new proposal before saving."
 }

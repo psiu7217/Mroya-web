@@ -15,6 +15,10 @@ export interface AiTasksDrawerProps {
 export type CompactTab='active'|'completed'|'issues';
 const active=(task:AiTask)=>['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status);
 const label=(key:string,options={})=>tr(key,{ns:'chat',...options});
+export function taskFailureLabel(task:AiTask){
+ const key:Record<string,string>={new_entity_candidate_found:'taskDuplicatePerson',confirmed_memory_conflict:'taskFactConflict',memory_context_changed:'taskMemoryChanged',source_unavailable:'taskSourceUnavailable',analysis_unavailable:'taskAnalysisFailed',memory_apply_unavailable:'taskSaveFailed'};
+ return label(key[task.errorMessage??'']??'taskFriendlyFailure');
+}
 function badge(status:AiTaskStatus){
  const key={awaiting_review:'taskReviewWaiting',pending_confirmation:'taskStatusPending',queued:'taskStatusQueued',running:'taskStatusRunning',completed:'taskStatusCompleted',failed:'taskStatusFailed',needs_clarification:'taskStatusClarification',cancelled:'taskStatusCancelled'}[status];
  const Icon=status==='running'?Loader2:status==='completed'?CheckCircle2:status==='failed'?AlertCircle:status==='cancelled'?Ban:status==='needs_clarification'?HelpCircle:Clock;
@@ -32,7 +36,7 @@ export function ReviewActions({task,busy,onDecision,editing,comment,onEdit,onCom
    {!task.needsClarification&&task.reviewActions?.includes('accept')&&<button type="button" disabled={busy} onClick={()=>void act('accept')} className="px-3 py-1.5 rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-xs font-semibold disabled:opacity-40">{label(task.taskKind==='calendar_review'?'taskStudy':'taskSave')}</button>}
    {task.reviewActions?.includes('comment')&&<button type="button" disabled={busy} onClick={()=>onEdit(!editing)} aria-expanded={editing} className="px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] text-xs text-[var(--mroya-primary)] disabled:opacity-40">{label(task.taskKind==='calendar_review'?'taskExplain':task.needsClarification?'taskAnswer':'taskCorrect')}</button>}
    {task.reviewActions?.includes('reject')&&<button type="button" disabled={busy} onClick={()=>void act('reject')} className="px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] text-xs disabled:opacity-40">{label('taskSkip')}</button>}
-   {task.status==='failed'&&task.reviewActions?.includes('retry')&&<button type="button" disabled={busy} onClick={()=>void act('retry')} className="px-3 py-1.5 rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-xs font-semibold disabled:opacity-40">{label('taskRetry')}</button>}
+   {['failed','cancelled'].includes(task.status)&&task.reviewActions?.includes('retry')&&<button type="button" disabled={busy} onClick={()=>void act('retry')} className="px-3 py-1.5 rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-xs font-semibold disabled:opacity-40">{label('taskRetry')}</button>}
   </div>
   {editing&&<form onSubmit={event=>{event.preventDefault();void act('comment');}} className="space-y-2">
    <label className="block text-xs">{label(task.needsClarification?'taskAnswerLabel':'taskCommentLabel')}<textarea maxLength={2000} rows={3} disabled={busy} value={comment} onChange={event=>onComment(event.target.value)} className="mt-1 w-full p-2 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] text-[var(--mroya-text)]"/></label>
@@ -77,7 +81,8 @@ export const AiTasksDrawer:React.FC<AiTasksDrawerProps>=({isOpen,onClose,tasks,l
       </>}
       {task.facts?.length?<ul className="space-y-1.5 pl-4 list-disc">{task.facts.map((fact,index)=><li key={index} className="text-xs leading-relaxed break-words">{fact}</li>)}</ul>:null}
       {task.reviewPhase==='answer_processing'&&<p role="status" className="text-xs text-[var(--mroya-primary)]">{label('taskAnswerProcessing')}</p>}
-      {task.status==='failed'?<p className="text-xs text-rose-600">{label('taskFriendlyFailure')}</p>:result?<p className="text-xs text-[var(--mroya-text-muted)] leading-snug">{result.replace(/\s*\[[^\]]+\]\s*$/,'')}</p>:task.status==='needs_clarification'?<p className="text-xs text-[var(--mroya-text-muted)]">{label('taskFriendlyClarification')}</p>:null}
+      {task.status==='failed'?<p className="text-xs text-rose-600">{taskFailureLabel(task)}</p>:result?<p className="text-xs text-[var(--mroya-text-muted)] leading-snug">{result.replace(/\s*\[[^\]]+\]\s*$/,'')}</p>:task.status==='needs_clarification'?<p className="text-xs text-[var(--mroya-text-muted)]">{label('taskFriendlyClarification')}</p>:null}
+      {task.status==='failed'&&task.reviewActions?.includes('retry')&&['new_entity_candidate_found','confirmed_memory_conflict'].includes(task.errorMessage??'')&&<p className="text-xs text-[var(--mroya-text-muted)]">{label('taskRetryReviewHint')}</p>}
       {(task.reviewActions?.length||drafts[task.id]?.editing)&&onDecision?<ReviewActions task={task} busy={!!decidingTaskId} onDecision={onDecision} editing={drafts[task.id]?.editing??false} comment={drafts[task.id]?.comment??''} onEdit={editing=>updateDraft(task.id,{editing})} onComment={comment=>updateDraft(task.id,{comment})}/>:null}
       {task.status==='queued'&&!task.confirmDeadlineAt&&(!task.taskKind||task.taskKind==='chat')&&onExecute&&<button type="button" onClick={()=>onExecute(task.id)} disabled={!!executingTaskId||!!cancellingTaskId||tasks.some(t=>t.status==='running')} className="px-3 py-1.5 rounded-lg bg-[var(--mroya-surface-active)] text-xs disabled:opacity-40">{label('taskExecuteLegacy')}</button>}
      </article>;

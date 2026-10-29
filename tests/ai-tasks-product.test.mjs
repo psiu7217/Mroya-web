@@ -45,3 +45,14 @@ test('inline answer retains draft on failure and clears only after confirmed com
  assert.deepEqual(calls[0],[task.id,'comment','Володя — мой друг']);
  accepted=true;await submit();assert.equal(comment,'');assert.equal(editing,false);assert.equal(calls.length,2);
 });
+
+
+test('failed tasks show Retry only when the server explicitly allows it',()=>{
+ setAppLanguage('ru');
+ const retry=readAiTask({...dto,status:'failed',actions:['retry'],facts:[],questions:[],needs_clarification:false});
+ const forbidden=readAiTask({...dto,id:'00000000-0000-4000-8000-000000000003',
+   status:'failed',actions:[],facts:[],questions:[],needs_clarification:false});
+ const html=markup([retry,forbidden]);
+ assert.equal((html.match(/>Повторить<\\/button>/g)||[]).length,1);
+ assert.match(html,/Не удалось обработать задачу/);
+});

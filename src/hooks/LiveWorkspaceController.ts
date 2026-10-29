@@ -95,7 +95,7 @@ export class LiveWorkspaceController {
    if(generation===this.taskGeneration){this.set({executingTaskId:null});void this.refreshTasks();}
   }
  }
- async decideTask(id:string,action:'accept'|'reject'|'comment',comment?:string):Promise<boolean>{
+ async decideTask(id:string,action:'accept'|'reject'|'comment'|'retry',comment?:string):Promise<boolean>{
   const task=this.state.agentTasks.find(row=>row.id===id);
   if(!this.source.decideAiTask||this.taskAbort.signal.aborted||this.state.decidingTaskId||!task?.reviewVersion||!task.reviewActions?.includes(action))return false;
   const generation=this.taskGeneration;this.set({decidingTaskId:id,tasksError:null});

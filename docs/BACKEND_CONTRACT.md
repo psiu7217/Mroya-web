@@ -1,3 +1,10 @@
+Historical Memory save conflicts (`new_entity_candidate_found` /
+`confirmed_memory_conflict`) with a server-authorized Retry now reopen the same
+proposal for explicit Save through the shared Memory writer. They do not trigger
+Deep Analysis. The companion API release owns this behavior; UI translations must
+not assert that a real duplicate or contradiction has been established. Analysis
+failures still retry analysis. Save remains manual without a background deadline.
+
 # Backend contract for Mroya Web
 
 The AI Tasks product presentation requires the companion Backend DTO update:

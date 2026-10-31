@@ -14,7 +14,7 @@ const kinds:Record<string,string>={
  search_memory:'memory_search',fast_search_memory:'memory_search',prepare_memory_write:'persistence_check',expand_memory_entities:'memory_search',
  write_statements:'memory_write',revise_memory_statements:'memory_write',forget_memory_statements:'memory_write',resolve_memory_write:'no_write',
  create_note:'note_write',get_note:'note_read',update_note:'note_write',delete_note:'note_write',
- enqueue_agent_task:'tool',echo:'tool',tool:'tool',search_calendar_events:'calendar_search',get_calendar_events:'calendar_search',
+ enqueue_agent_task:'tool',echo:'tool',submit_memory_changes:'tool',tool:'tool',search_calendar_events:'calendar_search',get_calendar_events:'calendar_search',
  create_calendar_events:'calendar_write',update_calendar_events:'calendar_write',delete_calendar_events:'calendar_write',
 };
 const reasons=['already_present','unsupported_mutation','not_durable','insufficient_context','inappropriate_to_store','other'];

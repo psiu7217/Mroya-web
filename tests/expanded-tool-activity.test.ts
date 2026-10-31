@@ -44,6 +44,25 @@ test('Fast Search accepts started/finished projections and completes the SSE str
  await assert.rejects(parse([event(1,started),done]),ApiError);
 });
 
+test('Submit Memory Changes streams as a tool-kind activity and completes through done',async()=>{
+ const base={tool_name:'submit_memory_changes',kind:'tool',title:'Running action',input:null};
+ const started=start(base),finished=finish({...base,title:'Action completed',output:null});
+ for(const [index,activity] of [started,finished].entries())
+  assert.deepEqual(readToolActivity({sequence:index+1,activity}).activity,activity);
+ // not_executed keeps the generic contract; confirmation is never declared here.
+ readToolActivity({sequence:1,activity:finish({...base,title:'Action not executed',status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})});
+ const stream=[{event:'trace',data:{turn_status:'running'}} as ChatStreamEvent,reasoning(1),
+  event(2,started),event(3,finished),reasoning(4,'After changes'),answer,done];
+ assert.deepEqual(await parse(stream),stream);
+ // Web lifecycle: a finished/not_executed arrives only for a call that never started.
+ await parse([event(1,finish({...base,title:'Action not executed',status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})),answer,done]);
+ // Strict allowlist: no memory-write kind, no invented input/output shapes.
+ assert.throws(()=>readToolActivity({sequence:1,activity:start({...base,input:{changes:[]}})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:1,activity:start({...base,kind:'memory_write'})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:2,activity:finish({...base,output:{changes:0}})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:2,activity:finish({...base,output:{error_code:'not_executed'}})}),ApiError);
+});
+
 test('strict legacy/expanded forms and phase invariants; no mixed schemas or secret/unknown fields',()=>{
  const good=[start(),finish(),finish({status:'failure',output:{error_code:'tool_execution_failed'}}),
  finish({status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})];
@@ -73,7 +92,7 @@ test('all documented allowlisted tool input/output schemas, nullable safe projec
  ['revise_memory_statements','memory_write',{facts:[]},{revised_count:2,results:[{action:'revised'}],search_ready:null}],
  ['forget_memory_statements','memory_write',null,{forgotten_count:9,results:[{action:'forgotten'}],search_ready:true}],
  ['resolve_memory_write','no_write',{reason:'already_present',missing_dimension:null},{decision_resolved:true,new_facts_added:false}],
- ['search_calendar_events','calendar_search',null,null],['echo','tool',null,null],['tool','tool',null,null],
+ ['search_calendar_events','calendar_search',null,null],['echo','tool',null,null],['tool','tool',null,null],['submit_memory_changes','tool',null,null],
  ] as const;
  for(const [tool_name,kind,input,output] of cases){
   readToolActivity({sequence:1,activity:start({tool_name,kind,input})});

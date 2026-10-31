@@ -89,7 +89,7 @@ Submit an ordinary same-origin POST form to auth/google/start/; do not fetch-fol
 
 Available in the original contract: chat, memory_read, memory_mutations_via_chat. google_oauth is configuration-dependent. Backend Calendar PR #28 additionally advertises calendar_rest, connections_rest and local_recurrence; enable these only from actual runtime capabilities, since older servers still return false. memory_mutations_rest, reminders and sse_token_streaming remain unsupported. Missing/unknown flags mean unsupported. See the Calendar section below.
 
-Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, attachment/voice upload, chat cancellation endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
+Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, general attachment upload or chat cancellation endpoints. Voice dictation is separately introduced by the companion Speech-to-Text Backend PR described below. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
 
 Design Mode remains a separate offline build with fictional data/accounts. Production cannot be switched into Design Mode through query strings, storage or a user control. Preserve all visual screens and responsive layout; live unavailable features remain explicitly unavailable. See [AI Studio workflow](AI_STUDIO_WORKFLOW.md) and [guest/live behavior](GUEST_CHAT.md).
 
@@ -493,3 +493,16 @@ message only on explicit submit. Cancelling input never revives the original.
 409 responses include canonical task state and are followed by a GET. The drawer
 and every bound Chat receipt share the controller's canonical rows; stale reads
 must not regress a confirmed/terminal state. Legacy tasks keep previous behavior.
+
+
+## Voice dictation (companion Backend PR, deployment pending)
+
+`POST chat/transcriptions/` uses the existing authenticated session and CSRF,
+with multipart/form-data containing one `file` part. Success: `{text:string}`.
+The Backend uses Groq whisper-large-v3-turbo with automatic language detection;
+no translation. Limits: 120 seconds, 12 MiB, six requests/minute and 30/hour per
+user. WebM, audio-only MP4/M4A, OGG, WAV, FLAC and MP3 are verified server-side.
+Missing configuration returns 503; no anonymous transcription is enabled.
+This only inserts editable text into the composer. It creates no ChatTurn,
+Agent/Deep Analysis/Memory operation and never submits automatically.
+See [implementation and mobile acceptance](SPEECH-TO-TEXT.md).

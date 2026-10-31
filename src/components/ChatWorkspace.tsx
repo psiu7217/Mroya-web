@@ -1,3 +1,5 @@
+import {appendDictation} from '../utils/dictation';
+import type {SpeechPresentation} from '../types/speech';
 import type {InstallPresentation} from '../types/install';
 import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
@@ -46,6 +48,7 @@ import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
+  speech?: SpeechPresentation;
   install?: InstallPresentation;
   aiTasks?: AiTasksPresentation;
   account: AccountPresentation;
@@ -79,7 +82,7 @@ export interface ChatWorkspaceProps {
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
+  speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -107,9 +110,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [liveTranscript, setLiveTranscript] = useState('');
+  const isRecording = speech?.phase === 'recording';
+  const voiceBusy = !!speech && speech.phase !== 'idle';
+  const recordingSeconds = speech?.seconds ?? 0;
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [localThinking, setLocalThinking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -136,7 +139,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   }, [conversation?.id]);
 
   const submitMessage = async (content: string, attachmentName?: string) => {
-    if (pending || submission.current) return;
+    if (pending || voiceBusy || submission.current) return;
     submission.current = true;
     const revision = draftRevision.current;
     setSubmitting(true); setLocalThinking(true);
@@ -164,8 +167,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const timerIntervalRef = useRef<any>(null);
   const copyTimeoutRef = useRef<any>(null);
 
   const handleCopyMessage = (id: string, text: string) => {
@@ -194,7 +195,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
   const handleCopyAdminDiagnostics = (message:ChatMessage) => diagnostics?.onCopy(message);
 
-  const sampleVoicePhrases = samples?.voicePhrases ?? [];
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -202,117 +202,23 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const startRecording = () => {
-    if (onUnavailable) {onUnavailable();return;}
-    setIsRecording(true);
-    setRecordingSeconds(0);
-    setLiveTranscript('');
-
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-    timerIntervalRef.current = setInterval(() => {
-      setRecordingSeconds((prev) => prev + 1);
-    }, 1000);
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'ru-RU,en-US';
-
-        recognition.onresult = (event: any) => {
-          if (recognitionRef.current !== recognition) return;
-          let current = '';
-          for (let i = 0; i < event.results.length; i++) {
-            current += event.results[i][0].transcript;
-          }
-          if (current.trim()) {
-            setLiveTranscript(current);
-          }
-        };
-
-        recognition.onerror = () => {
-          // Keep graceful simulated transcription if permission blocked
-        };
-
-        recognition.start();
-        recognitionRef.current = recognition;
-      } catch (err) {
-        console.warn('SpeechRecognition init error:', err);
-      }
-    }
+    if (speech) { speech.onStart(); return; }
+    if (onSignIn) { onSignIn(); return; }
+    onUnavailable?.();
   };
-
-  const stopRecordingInternal = (): string => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-      recognitionRef.current = null;
-    }
-    setIsRecording(false);
-
-    const finalPhrase =
-      liveTranscript.trim() ||
-      sampleVoicePhrases[Math.floor(Math.random() * sampleVoicePhrases.length)];
-    setLiveTranscript('');
-    setRecordingSeconds(0);
-    return finalPhrase;
-  };
-
-  const handleStopAndInsertText = () => {
-    const text = stopRecordingInternal();
-    if (text) {
-      draftRevision.current++;
-      setInput((prev) => (prev ? `${prev} ${text}` : text));
-      textareaRef.current?.focus();
-    }
-  };
-
-  const handleStopAndSend = () => {
-    const text = stopRecordingInternal();
-    if (text.trim()) {
-      void submitMessage(text.trim());
-    }
-  };
-
-  const handleCancelRecording = () => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-    if (recognitionRef.current) {
-      const recognition = recognitionRef.current;
-      recognitionRef.current = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      try {
-        recognition.stop();
-      } catch (e) {}
-    }
-    setIsRecording(false);
-    setLiveTranscript('');
-    setRecordingSeconds(0);
-  };
+  const handleCancelRecording = () => speech?.onCancel();
+  const handleStopAndInsertText = () => speech?.onStop();
 
   useEffect(() => {
-    return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
-      }
-    };
+    if (!speech?.text) return;
+    draftRevision.current++;
+    setInput(previous => appendDictation(previous, speech.text!));
+    speech.onInserted();
+    textareaRef.current?.focus();
+  }, [speech?.text, speech?.onInserted]);
+
+  useEffect(() => () => {
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -347,7 +253,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = input.trim();
-    if (pending || (!trimmed && !attachedFile)) return;
+    if (pending || voiceBusy || (!trimmed && !attachedFile)) return;
     void submitMessage(
       trimmed || `Shared attachment: ${attachedFile}`,
       attachedFile || undefined
@@ -1149,9 +1055,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             </div>
 
             {isRecording ? (
-              /* Active Voice Recording State: Waveform animation + timer + Stop & Send actions */
+              /* Active Voice Recording State: Waveform animation + timer + Stop and Cancel actions */
               <div className="p-2.5 sm:p-3 bg-[var(--mroya-surface-active)]/50 rounded-b-[12px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]">
-                {/* Left: Recording indicator, timer, waveform, live speech preview */}
+                {/* Left: Recording indicator, timer and waveform */}
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="relative flex h-3 w-3">
@@ -1172,17 +1078,13 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-pulse h-3.5"></span>
                   </div>
 
-                  {/* Live speech preview */}
+                  {/* Recording hint */}
                   <div className="text-[12px] text-[var(--mroya-text)] truncate min-w-0">
-                    {liveTranscript ? (
-                      <span className="italic font-medium">&ldquo;{liveTranscript}&rdquo;</span>
-                    ) : (
-                      <span className="text-[var(--mroya-text-muted)]">{tr('recordingPreview',{ns:'chat'})}</span>
-                    )}
+                    <span className="text-[var(--mroya-text-muted)]">{tr('voiceRecording',{ns:'chat'})}</span>
                   </div>
                 </div>
 
-                {/* Right: Actions (Cancel, Stop -> Insert text, Send -> Auto-send) */}
+                {/* Right: Cancel or stop and transcribe */}
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                   <button
                     type="button"
@@ -1204,18 +1106,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <Square className="w-3.5 h-3.5 text-[var(--mroya-primary)] fill-current" />
                     <span>{tr('stop',{ns:'chat'})}</span>
                   </button>
-
-                  {/* Button: Отправить запись (голос в текст + авто-отправка) */}
-                  <button
-                    type="button"
-                    onClick={handleStopAndSend}
-                    title={tr('transcribeSend',{ns:'chat'})}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12px] font-semibold transition-colors cursor-pointer shadow-xs whitespace-nowrap"
-                  >
-                    <ArrowUp className="w-3.5 h-3.5 stroke-[2.4]" />
-                    <span>{tr('send',{ns:'chat'})}</span>
-                  </button>
                 </div>
+              </div>
+            ) : voiceBusy ? (
+              <div role="status" className="flex items-center justify-between px-3 pb-3 text-[13px] text-[var(--mroya-text-muted)]">
+                <span className="animate-pulse">{tr(speech?.phase==='requesting'?'voiceRequesting':'voiceTranscribing',{ns:'chat'})}</span>
+                <button type="button" onClick={handleCancelRecording} className="p-2 rounded-lg hover:bg-[var(--mroya-surface-muted)]" aria-label={tr('cancelRecording',{ns:'chat'})}><X className="w-4 h-4" /></button>
               </div>
             ) : (
               /* Normal toolbar: Attach, Voice Mic, Recalling memory hint, Send */
@@ -1240,6 +1136,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={startRecording}
+                    disabled={pending || submitting || (!speech && !onSignIn && !onUnavailable)}
                     title={tr('recordVoiceHelp',{ns:'chat'})}
                     aria-label={tr('recordVoice',{ns:'chat'})}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
@@ -1255,7 +1152,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                 <button
                   type="submit"
-                  disabled={pending || submitting || (!input.trim() && !attachedFile)}
+                  disabled={pending || submitting || voiceBusy || (!input.trim() && !attachedFile)}
                   aria-label={tr('sendMessage',{ns:'chat'})}
                   className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >
@@ -1263,6 +1160,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 </button>
               </div>
             )}
+            {speech?.error && <div role="alert" className="px-3 pb-3 text-[13px] text-[var(--mroya-text)]">
+              {tr(voiceErrorKey(speech.error),{ns:'chat'})}
+              <button type="button" onClick={startRecording} className="ml-2 underline text-[var(--mroya-primary)]">{tr('voiceRetry',{ns:'chat'})}</button>
+            </div>}
           </form>
         </div>
       </div>
@@ -1284,3 +1185,16 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     </div>
   );
 };
+
+function voiceErrorKey(code:string):string {
+  if(code==='unsupported')return 'voiceUnsupported';
+  if(code==='permission')return 'voicePermission';
+  if(code==='speech_rate_limited'||code==='speech_provider_busy')return 'voiceRateLimited';
+  if(code==='speech_timeout')return 'voiceTimeout';
+  if(code==='speech_empty')return 'voiceEmpty';
+  if(code==='audio_too_large'||code==='audio_too_long'||code==='request_too_large')return 'voiceLimit';
+  if(code==='speech_not_configured'||code==='http_error')return 'voiceUnavailable';
+  if(code==='authentication_required')return 'voiceSignIn';
+  if(code==='csrf_failed')return 'voiceCsrf';
+  return 'voiceError';
+}

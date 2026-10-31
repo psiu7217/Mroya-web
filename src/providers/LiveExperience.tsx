@@ -1,4 +1,5 @@
 import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
+import {useSpeechInput} from '../hooks/useSpeechInput';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
 import {useLiveNotes} from '../hooks/useLiveNotes';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
@@ -33,6 +34,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
 
  const layout=useWorkspaceLayout({theme:preferences.theme,onThemeChange:preferences.setTheme});
  const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null);
+ const speech=useSpeechInput(source,user.id,section+':'+(state.activeConversationId??''),onExpired);
  const [selectedMemory,setSelectedMemory]=useState<string|null>(null),[selectedNode,setSelectedNode]=useState<string|null>(null);
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
@@ -75,6 +77,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  speech,
   install,
   calendarAnalysis:analysis.presentation,
   aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,

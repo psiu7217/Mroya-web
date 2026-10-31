@@ -223,7 +223,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
       </header>
 
       {/* Sub-navigation bar */}
-      <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex items-center gap-1.5 overflow-x-auto">
+      <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -1090,7 +1090,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   <h2 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
                     {account.displayName}
                   </h2>
-                  <p className="text-[13px] text-[var(--mroya-text-muted)] truncate">
+                  <p className="text-[13px] text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere] lg:truncate">
                     {account.email}{account.description ? ` · ${account.description}` : ''}
                   </p>
                 </div>

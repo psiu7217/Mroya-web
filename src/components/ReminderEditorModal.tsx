@@ -241,7 +241,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150">
-      <div className="w-full max-w-lg rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-lg max-h-[calc(100dvh-1.5rem)] rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[var(--mroya-divider)]">
           <div className="flex items-center gap-2.5">

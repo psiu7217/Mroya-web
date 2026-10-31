@@ -444,7 +444,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Primary Header */}
-      <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20">
+      <header className={`${designPreview ? 'h-auto min-h-[58px] py-2 flex-wrap' : 'h-[58px]'} px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20`}>
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
@@ -478,7 +478,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
         </div>
 
         {/* Design Mode State Toggle & Meta */}
-        {designPreview && <div className="flex items-center gap-2">
+        {designPreview && <div className="w-full sm:w-auto flex justify-end items-center gap-2">
           {/* Subtle switcher for previewing Screen 1 vs Screen 3 in Design Mode */}
           <div className="flex items-center bg-[var(--mroya-surface-muted)] p-0.5 rounded-lg border border-[var(--mroya-divider)] text-[12px]">
             <button
@@ -614,7 +614,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 {runtime && <p id="notes-search-scope" className="text-[12px] text-[var(--mroya-text-muted)]">{tr('searchScope',{ns:'notes'})}</p>}
                 {/* Categories Tabs (Zero-Pill discipline) */}
                 {categories.length > 1 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                  <div className="flex flex-wrap items-center gap-1.5 pb-1 md:pb-0">
                     {categories.map((cat) => (
                       <button
                         key={cat}
@@ -626,7 +626,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                             : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                         }`}
                       >
-                        {cat}
+                        {cat === 'All' ? tr('allCategories',{ns:'notes'}) : cat}
                       </button>
                     ))}
                   </div>

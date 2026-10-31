@@ -451,8 +451,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           <button
             type="button"
             onClick={openTasks}
-            aria-label="Фоновые задачи AI"
-            title={`Фоновые задачи AI (${activeTasksCount} активных)`}
+            aria-label={tr('taskPanelTitle',{ns:'chat'})}
+            title={`${tr('taskPanelTitle',{ns:'chat'})} (${activeTasksCount})`}
             className="relative lg:hidden w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
           >
             {hasRunningTasks ? (
@@ -656,8 +656,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <button
               type="button"
               onClick={openTasks}
-              title={`Фоновые задачи AI (${activeTasksCount} активных)`}
-              aria-label="Фоновые задачи AI"
+              title={`${tr('taskPanelTitle',{ns:'chat'})} (${activeTasksCount})`}
+              aria-label={tr('taskPanelTitle',{ns:'chat'})}
               className="h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
             >
               {hasRunningTasks ? (
@@ -668,7 +668,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               ) : (
                 <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
               )}
-              <span>Задачи AI</span>
+              <span>{tr('taskPanelTitle',{ns:'chat'})}</span>
               {activeTasksCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10.5px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300">
                   {activeTasksCount}
@@ -730,7 +730,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
-                    <span>Фоновые задачи AI ({activeTasksCount})</span>
+                    <span>{tr('taskPanelTitle',{ns:'chat'})} ({activeTasksCount})</span>
                   </button>
                   <button
                     type="button"

@@ -737,9 +737,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               onCloseMobile();
                             }}
                             disabled={conversationLocked}
+                            title={conv.title}
                             className="flex-1 min-w-0 text-left px-2.5 py-2 text-[13px] leading-[18px] cursor-pointer focus:outline-none"
                           >
-                            <span className="truncate block">{conv.title}</span>
+                            <span className="line-clamp-2 break-words lg:line-clamp-none lg:truncate block">{conv.title}</span>
                           </button>
 
                           {/* Subtle three-dot menu trigger */}
@@ -903,7 +904,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   {tr('deleteTitle',{ns:'sidebar'})}
                 </h3>
-                <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
+                <p className="max-w-[300px] text-[12px] text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere]">
                   {deletingConversation.title}
                 </p>
               </div>

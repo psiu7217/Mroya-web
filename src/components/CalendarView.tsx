@@ -34,7 +34,7 @@ import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} fro
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { doesEventOccurOnDate, localizedRecurrence } from '../utils/recurrenceUtils';
 import {tr} from '../i18n';
-import {formatDate,monthName,weekdayName} from '../i18n/format';
+import {formatDate,formatTime,monthName,weekdayName} from '../i18n/format';
 
 interface CalendarViewProps {
   memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
@@ -497,6 +497,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const currentMonthData = getMonthCalendarData(currentYear, currentMonthIndex);
   const dayEvents = getEventsForDay(currentYear, currentMonthIndex, selectedDay);
   const formatCivilDate=(year:number,monthIndex:number,day:number,options:Intl.DateTimeFormatOptions)=>formatDate(new Date(Date.UTC(year,monthIndex,day,12)),options,'UTC');
+  const formatCivilEventDate=(value:string)=>{const [year,month,day]=value.split('-').map(Number);return Number.isInteger(year)&&Number.isInteger(month)&&Number.isInteger(day)?formatCivilDate(year,month-1,day,{weekday:'short',month:'short',day:'numeric',year:'numeric'}):value;};
+  const formatCivilEventTime=(value:string)=>{if(isAllDay(value))return tr('allDay',{ns:'calendar'});const [hour,minute]=value.split(':').map(Number);return Number.isInteger(hour)&&Number.isInteger(minute)?formatTime(new Date(Date.UTC(2000,0,1,hour,minute)),{},'UTC'):value;};
   const formattedDayTitle = formatCivilDate(currentYear,currentMonthIndex,selectedDay,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
   const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
@@ -681,7 +683,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* QUICK MONTH & YEAR PICKER POPOVER / SHEET (iOS Style) */}
       {isMonthPickerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-[2px]">
-          <div className="w-full max-w-sm rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-4 sm:p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-sm max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-4 sm:p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-[var(--mroya-divider)]">
               <div>
@@ -727,7 +729,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {/* 12 Months Grid */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--mroya-text-muted)]">
-                Select Month ({currentYear})
+                {tr('selectMonth',{ns:'calendar',year:currentYear})}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {monthNames.map((name, idx) => {
@@ -1843,9 +1845,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
-          <div className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="new-event-title" className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+              <h2 id="new-event-title" className="text-[16px] font-semibold text-[var(--mroya-text)]">
                 {tr('newCommitmentModal',{ns:'calendar'})}
               </h2>
               <button
@@ -1912,13 +1914,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   {tr('category',{ns:'calendar'})}
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
+                <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+                  {(['meeting', 'deadline', 'reminder'] as const).map((cat, index) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setNewCategory(cat)}
-                      className={`py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer ${
+                      className={`min-w-0 py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer max-sm:flex max-sm:min-h-9 max-sm:items-center max-sm:justify-center max-sm:px-1 max-sm:text-center max-sm:leading-tight max-sm:whitespace-normal max-sm:break-words ${index === 2 ? 'max-sm:col-span-2' : ''} ${
                         newCategory === cat
                           ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)] text-[var(--mroya-primary)] font-semibold'
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
@@ -2047,7 +2049,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           onClick={() => setViewingEvent(null)}
         >
           <div
-            className="w-full max-w-lg rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
+            className="w-full max-w-lg max-h-[calc(100dvh-2rem)] rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -2075,15 +2077,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             <div className="space-y-3 divide-y divide-[var(--mroya-divider)]/60 text-[13px]">
               {/* Date and Time */}
-              <div className="pt-2 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[var(--mroya-text)] font-medium">
+              <div className="pt-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-[var(--mroya-text)] font-medium min-w-0">
                   <Clock className="w-4 h-4 text-[var(--mroya-primary)] shrink-0" />
                   <span>
-                    {viewingEvent.date} · {viewingEvent.time}
+                    {formatCivilEventDate(viewingEvent.date)} · {formatCivilEventTime(viewingEvent.time)}
                   </span>
                 </div>
                 <span className="text-[var(--mroya-text-muted)] text-[12px]">
-                  Duration: {viewingEvent.duration}
+                  {tr('durationLabel',{ns:'calendar',duration:viewingEvent.duration})}
                 </span>
               </div>
 
@@ -2209,7 +2211,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           onClick={() => setEditingEvent(null)}
         >
           <div
-            className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
+            className="w-full max-w-md max-h-[calc(100dvh-2rem)] rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -2283,13 +2285,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   {tr('category',{ns:'calendar'})}
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
+                <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+                  {(['meeting', 'deadline', 'reminder'] as const).map((cat, index) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setEditCategory(cat)}
-                      className={`py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer ${
+                      className={`min-w-0 py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer max-sm:flex max-sm:min-h-9 max-sm:items-center max-sm:justify-center max-sm:px-1 max-sm:text-center max-sm:leading-tight max-sm:whitespace-normal max-sm:break-words ${index === 2 ? 'max-sm:col-span-2' : ''} ${
                         editCategory === cat
                           ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)] text-[var(--mroya-primary)] font-semibold'
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
@@ -2385,7 +2387,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   {tr((deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series')?'deleteSeriesPrompt':'deleteCommitmentPrompt',{ns:'calendar'})}
                 </h3>
-                <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
+                <p className="max-w-[300px] text-[12px] text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere]">
                   {deletingEvent.title}
                 </p>
               </div>

@@ -139,7 +139,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Saved memories */}
       <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-2"><button type="button" onClick={onOpenMobileMenu} className="md:hidden p-2"><Menu className="w-4 h-4" /></button><h1 className="font-semibold">{tr("savedMemories",{ns:"memory"})}</h1></div>
+        <div className="flex items-center gap-2"><button type="button" onClick={onOpenMobileMenu} aria-label={tr('openNavigation',{ns:'common'})} className="lg:hidden p-2"><Menu className="w-4 h-4" /></button><h1 className="font-semibold">{tr("savedMemories",{ns:"memory"})}</h1></div>
         <button type="button" disabled={readOnly} onClick={()=>setIsAddModalOpen(true)} className="px-3 py-1.5 rounded-full bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40">{tr("addMemory",{ns:"memory"})}</button>
       </header>
 
@@ -170,7 +170,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             </div>
 
             {/* Interactive Category Filter Buttons */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
+            <div className="flex flex-wrap items-center gap-1 pb-1 md:pb-0">
               {CATEGORIES.map((cat) => {
                 const active = activeCategory === cat;
                 return (
@@ -395,10 +395,10 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
       {/* Add Memory Modal (preserved) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
-          <div className="w-full max-w-md rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="add-memory-title" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
+          <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+              <h2 id="add-memory-title" className="text-[16px] font-semibold text-[var(--mroya-text)]">
                 {tr('tellMroyaToRemember',{ns:'memory'})}
               </h2>
               <button

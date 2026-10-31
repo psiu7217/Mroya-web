@@ -36,6 +36,7 @@
   "queryNoResults": "По запросу «{{query}}» заметки не найдены.",
   "resetFilters": "Сбросить фильтры",
   "read": "Читать",
+  "allCategories": "Все",
   "allNotes": "Все заметки ({{count}})",
   "emptyState": "Пустое состояние",
   "loadingNote": "Загружаем заметку…",

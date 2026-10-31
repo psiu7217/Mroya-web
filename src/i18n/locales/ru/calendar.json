@@ -33,6 +33,8 @@
   "retryCalendar": "Повторить или проверить календарь",
   "year": "Год",
   "month": "Месяц",
+  "selectMonth": "Выберите месяц ({{year}})",
+  "durationLabel": "Длительность: {{duration}}",
   "event": "Событие",
   "annualCalendar": "Календарь на год",
   "today": "Сегодня",

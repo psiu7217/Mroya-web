@@ -14,7 +14,8 @@ export interface AiTasksDrawerProps {
  decidingTaskId?:string|null;onDecision?:(id:string,action:'accept'|'reject'|'comment'|'retry',comment?:string)=>Promise<boolean>;
 }
 export type CompactTab='active'|'completed'|'issues';
-const active=(task:AiTask)=>['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status);
+const active=(task:AiTask)=>!needsTaskReview(task)&&['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status);
+const issue=(task:AiTask)=>needsTaskReview(task)||['failed','cancelled'].includes(task.status);
 const label=(key:string,options={})=>tr(key,{ns:'chat',...options});
 export function taskFailureLabel(task:AiTask){
  const key:Record<string,string>={new_entity_candidate_found:'taskDuplicatePerson',confirmed_memory_conflict:'taskFactConflict',memory_context_changed:'taskMemoryChanged',source_unavailable:'taskSourceUnavailable',analysis_unavailable:'taskAnalysisFailed',memory_apply_unavailable:'taskSaveFailed'};
@@ -52,10 +53,10 @@ export const AiTasksDrawer:React.FC<AiTasksDrawerProps>=({isOpen,onClose,tasks,l
  const [drafts,setDrafts]=useState<Record<string,{editing:boolean;comment:string}>>({});
  const updateDraft=(id:string,patch:Partial<{editing:boolean;comment:string}>)=>setDrafts(old=>({...old,[id]:{...(old[id]??{editing:false,comment:''}),...patch}}));
  useEffect(()=>{if(!isOpen)return;const key=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[isOpen,onClose]);
- useEffect(()=>{const task=tasks.find(t=>t.id===highlightTaskId);if(task)setTab(task.status==='completed'?'completed':['failed','cancelled'].includes(task.status)?'issues':'active');},[highlightTaskId,isOpen]);
+ useEffect(()=>{const task=tasks.find(t=>t.id===highlightTaskId);if(task)setTab(task.status==='completed'?'completed':issue(task)?'issues':'active');},[highlightTaskId,isOpen]);
  if(!isOpen)return null;
- const counts={active:tasks.filter(active).length,completed:tasks.filter(t=>t.status==='completed').length,issues:tasks.filter(t=>['failed','cancelled'].includes(t.status)).length};
- const rows=tasks.filter(t=>tab==='active'?active(t):tab==='completed'?t.status==='completed':['failed','cancelled'].includes(t.status));
+ const counts={active:tasks.filter(active).length,completed:tasks.filter(t=>t.status==='completed').length,issues:tasks.filter(issue).length};
+ const rows=tasks.filter(t=>tab==='active'?active(t):tab==='completed'?t.status==='completed':issue(t));
  return <div role="dialog" aria-modal="true" aria-label={label('taskPanelTitle')} className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-[1px]">
   <div className="fixed inset-0" onClick={onClose} aria-hidden="true"/>
   <div className="relative z-10 w-full sm:max-w-[420px] h-full bg-[var(--mroya-surface)] border-l border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] flex flex-col min-h-0">
@@ -85,6 +86,7 @@ export const AiTasksDrawer:React.FC<AiTasksDrawerProps>=({isOpen,onClose,tasks,l
       {task.facts?.length?<ul className="space-y-1.5 pl-4 list-disc">{task.facts.map((fact,index)=><li key={index} className="text-xs leading-relaxed break-words">{fact}</li>)}</ul>:null}
       {task.reviewPhase==='answer_processing'&&<p role="status" className="text-xs text-[var(--mroya-primary)]">{label('taskAnswerProcessing')}</p>}
       {task.status==='failed'?<p className="text-xs text-rose-600">{taskFailureLabel(task)}</p>:result?<p className="text-xs text-[var(--mroya-text-muted)] leading-snug">{result.replace(/\s*\[[^\]]+\]\s*$/,'')}</p>:task.status==='needs_clarification'?<p className="text-xs text-[var(--mroya-text-muted)]">{label('taskFriendlyClarification')}</p>:null}
+      {task.status==='needs_clarification'&&(!task.taskKind||task.taskKind==='chat')&&!needsTaskReview(task)&&<p className="text-xs text-[var(--mroya-text-muted)]">{label('taskClarificationUnavailable')}</p>}
       {task.status==='failed'&&task.reviewActions?.includes('retry')&&['new_entity_candidate_found','confirmed_memory_conflict'].includes(task.errorMessage??'')&&<p className="text-xs text-[var(--mroya-text-muted)]">{label('taskRetryReviewHint')}</p>}
       {(task.reviewActions?.length||drafts[task.id]?.editing)&&onDecision?<ReviewActions task={task} busy={!!decidingTaskId} onDecision={onDecision} editing={drafts[task.id]?.editing??false} comment={drafts[task.id]?.comment??''} onEdit={editing=>updateDraft(task.id,{editing})} onComment={comment=>updateDraft(task.id,{comment})}/>:null}
       {onReport&&(!task.taskKind||task.taskKind==='chat')&&['failed','needs_clarification'].includes(task.status)&&<div>{reports[task.id]==='sent'?<p role="status" className="text-xs">{label('taskReportSent')}</p>:<><button type="button" disabled={reports[task.id]==='sending'} onClick={()=>void report(task.id)} className="px-3 py-1.5 rounded-lg border border-[var(--mroya-divider)] text-xs disabled:opacity-40">{label('taskReportProblem')}</button>{reports[task.id]==='error'&&<p role="alert" className="text-xs text-rose-600">{label('taskReportError')}</p>}</>}</div>}

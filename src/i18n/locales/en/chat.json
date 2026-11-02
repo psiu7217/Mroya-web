@@ -171,6 +171,7 @@
   "taskMore": "Show more",
   "taskDecisionChanged": "The task changed. Check its current status.",
   "taskViewResult": "View result",
+  "taskClarificationUnavailable": "Replies to this task’s clarification are not yet supported. Describe the remaining request in a new message.",
   "taskAnswer": "Answer",
   "taskCorrect": "Correct",
   "taskSkip": "Skip",

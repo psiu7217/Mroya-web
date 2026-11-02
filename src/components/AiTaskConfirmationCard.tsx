@@ -8,6 +8,7 @@ import type {AiTask,AiTaskStatus} from '../types/aiTasks';
 export interface AiTaskConfirmationCardProps {
   /** Task receipts bound to this assistant answer; the first pending status wins. */
   tasks:AiTask[];
+  compact?:boolean;
   beginReview?:(id:string)=>Promise<AiTask>;
   approveTask?:(id:string)=>Promise<AiTask>;
   revokeTask?:(id:string)=>Promise<AiTask>;
@@ -31,8 +32,8 @@ function statusKeys(status:AiTaskStatus):{label:string;tone:string;icon:React.Re
 }
 
 /** One per-task row inside the answer card; owns countdown + canonical reconciliation. */
-function TaskConfirmationRow({task,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit}:{
-  task: AiTask;
+function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit}:{
+  task: AiTask; compact?:boolean;
 } & Pick<AiTaskConfirmationCardProps,'beginReview'|'approveTask'|'revokeTask'|'refreshTask'|'onEditSubmit'>){
   const [remaining,setRemaining]=useState<number|null>(()=>taskTimeRemaining(task));
   const [frozen,setFrozen]=useState(false);
@@ -116,7 +117,7 @@ function TaskConfirmationRow({task,beginReview,approveTask,revokeTask,refreshTas
     finally{setSending(false);}
   };
 
-  return <TaskConfirmationView task={task} remaining={remaining} frozen={frozen} busy={busy}
+  return <TaskConfirmationView compact={compact} task={task} remaining={remaining} frozen={frozen} busy={busy}
     editing={editing} comment={comment} sending={sending} notice={notice}
     canApprove={!!approveTask} canRevoke={!!revokeTask} onComment={setComment}
     onSubmit={()=>void submitEdit()} onEdit={()=>void startEdit()}
@@ -125,15 +126,16 @@ function TaskConfirmationRow({task,beginReview,approveTask,revokeTask,refreshTas
 }
 
 /** Pure view keeps the editor visible after the original canonical task is cancelled. */
-export function TaskConfirmationView({task,remaining=null,frozen=false,busy=null,editing=false,
+export function TaskConfirmationView({task,compact=false,remaining=null,frozen=false,busy=null,editing=false,
   comment='',sending=false,notice=null,canApprove=false,canRevoke=false,
   onComment,onSubmit,onEdit,onApprove,onRevoke,onDiscard}:{
-  task:AiTask;remaining?:number|null;frozen?:boolean;busy?:'approve'|'revoke'|null;
+  task:AiTask;compact?:boolean;remaining?:number|null;frozen?:boolean;busy?:'approve'|'revoke'|null;
   editing?:boolean;comment?:string;sending?:boolean;notice?:string|null;
   canApprove?:boolean;canRevoke?:boolean;onComment?:(value:string)=>void;
   onSubmit?:()=>void;onEdit?:()=>void;onApprove?:()=>void;onRevoke?:()=>void;onDiscard?:()=>void;
 }){
   const frozenTimer=frozen&&remaining!==null;
+  if(compact&&task.status!=='pending_confirmation'&&!editing)return null;
   if(task.status!=='pending_confirmation'&&!editing){
     const{label,tone,icon}=statusKeys(task.status);
     return (
@@ -219,13 +221,13 @@ export function TaskConfirmationView({task,remaining=null,frozen=false,busy=null
 }
 
 export const AiTaskConfirmationCard:React.FC<AiTaskConfirmationCardProps>=({
-  tasks,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit,
+  tasks,compact,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit,
 })=>{
   if(!tasks.length)return null;
   return (
     <div className="space-y-2" role="group" aria-label={tr('taskCardGroup',{ns:'chat'})}>
       {tasks.map(task=>(
-        <TaskConfirmationRow key={task.id} task={task} beginReview={beginReview} approveTask={approveTask} revokeTask={revokeTask} refreshTask={refreshTask} onEditSubmit={onEditSubmit} />
+        <TaskConfirmationRow key={task.id} task={task} compact={compact} beginReview={beginReview} approveTask={approveTask} revokeTask={revokeTask} refreshTask={refreshTask} onEditSubmit={onEditSubmit} />
       ))}
     </div>
   );

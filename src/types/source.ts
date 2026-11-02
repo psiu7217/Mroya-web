@@ -8,6 +8,7 @@ export interface WorkspaceSource {
   controlCalendarAnalysis?:MroyaApi['controlCalendarAnalysis'];
   agentTasks?:MroyaApi['agentTasks'];
   agentTask?:MroyaApi['agentTask'];
+  reportAgentTask?:MroyaApi['reportAgentTask'];
   executeAgentTask?:MroyaApi['executeAgentTask'];
   beginAgentTaskReview?:MroyaApi['beginAgentTaskReview'];
   approveAgentTask?:MroyaApi['approveAgentTask'];

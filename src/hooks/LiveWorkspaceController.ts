@@ -18,6 +18,10 @@ export interface LiveState {
 }
 export class LiveWorkspaceController {
  private state:LiveState={decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
+ reportTask=async(id:string)=>{
+  if(!this.source.reportAgentTask||this.taskAbort.signal.aborted)throw new Error('Report unavailable');
+  await this.source.reportAgentTask(id,this.taskAbort.signal);
+ };
  private taskAbort=new AbortController();private taskGeneration=0;private taskPending=false;
  private tasksOpen=false;private taskTimer:ReturnType<typeof setTimeout>|null=null;
  private taskStatuses=new Map<string,AiTask['status']>();private taskPages=1;

@@ -57,3 +57,16 @@ test('calendar study and memory save share the drawer without technical identifi
   if(taskKind==='memory_proposal')assert.match(markup,/Natasha: Birthday 14 November/);
  }
 });
+
+
+test('compact chat retains the pending controls and editor but hides settled tasks',()=>{
+ assert.equal((html({compact:true,remaining:10000}).match(/<button/g)||[]).length,3);
+ for(const status of ['queued','running','completed','failed','needs_clarification','cancelled'])
+  assert.equal(html({compact:true,task:{...task,status}}),'');
+ assert.match(html({compact:true,task:{...task,status:'cancelled'},editing:true}),/<textarea/);
+});
+test('incomplete chat task offers a report without an unsafe retry',()=>{
+ const markup=renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose(){},onReport:async()=>{},
+  tasks:[{...task,taskKind:'chat',status:'needs_clarification',errorMessage:'execution_incomplete'}]}));
+ assert.match(markup,/Review required/);assert.match(markup,/Report a problem/);assert.doesNotMatch(markup,/>Retry<|execution_incomplete/);
+});

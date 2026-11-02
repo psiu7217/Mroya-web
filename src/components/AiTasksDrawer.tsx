@@ -3,7 +3,7 @@ import {Sparkles,X,Clock,Loader2,CheckCircle2,AlertCircle,HelpCircle,Ban} from '
 import type {AiTask,AiTaskStatus} from '../types/aiTasks';
 import {tr} from '../i18n/index.ts';
 import {currentLocale} from '../i18n/format';
-import {taskGroup,reviewQuestions} from '../hooks/aiTaskPresentation';
+import {taskGroup,reviewQuestions,needsTaskReview} from '../hooks/aiTaskPresentation';
 
 export interface AiTasksDrawerProps {
  onReport?:(id:string)=>Promise<void>;
@@ -23,7 +23,7 @@ export function taskFailureLabel(task:AiTask){
 function badge(status:AiTaskStatus,task:AiTask){
  const key={awaiting_review:'taskReviewWaiting',pending_confirmation:'taskStatusPending',queued:'taskStatusQueued',running:'taskStatusRunning',completed:'taskStatusCompleted',failed:'taskStatusFailed',needs_clarification:'taskStatusClarification',cancelled:'taskStatusCancelled'}[status];
  const Icon=status==='running'?Loader2:status==='completed'?CheckCircle2:status==='failed'?AlertCircle:status==='cancelled'?Ban:status==='needs_clarification'?HelpCircle:Clock;
- return <span className={`inline-flex items-center gap-1 text-[11.5px] font-semibold ${status==='failed'?'text-rose-600':status==='completed'?'text-emerald-600':'text-[var(--mroya-primary)]'}`}><Icon className={`w-3.5 h-3.5 ${status==='running'?'animate-spin':''}`}/>{label(status==='needs_clarification'&&task.taskKind==='chat'&&task.errorMessage&&task.errorMessage!=='clarification_required'?'taskStatusReview':key)}</span>;
+ return <span className={`inline-flex items-center gap-1 text-[11.5px] font-semibold ${status==='failed'?'text-rose-600':status==='completed'?'text-emerald-600':'text-[var(--mroya-primary)]'}`}><Icon className={`w-3.5 h-3.5 ${status==='running'?'animate-spin':''}`}/>{label(needsTaskReview(task)?'taskStatusReview':key)}</span>;
 }
 export function ReviewActions({task,busy,onDecision,editing,comment,onEdit,onComment}:{task:AiTask;busy:boolean;onDecision:NonNullable<AiTasksDrawerProps['onDecision']>;editing:boolean;comment:string;onEdit:(value:boolean)=>void;onComment:(value:string)=>void}){
  const act=async(action:'accept'|'reject'|'comment'|'retry')=>{
@@ -67,8 +67,8 @@ export const AiTasksDrawer:React.FC<AiTasksDrawerProps>=({isOpen,onClose,tasks,l
     {error&&<p role="alert" className="text-xs text-rose-600">{label('taskPanelError')} <button type="button" onClick={onRefresh} className="underline">{tr('refresh',{ns:'common'})}</button></p>}
     {loading&&tasks.length===0&&<p role="status" className="text-xs">{tr('loading',{ns:'common'})}</p>}
     {!rows.length&&!loading&&<p className="py-12 text-center text-xs text-[var(--mroya-text-muted)]">{label('taskEmpty')}</p>}
-    {(tab==='active'?(['answer','suggestions','working'] as const).map(group=>({group,items:rows.filter(task=>taskGroup(task)===group)})):[{group:null,items:rows}]).filter(section=>section.items.length).map(section=><section key={section.group??tab} className="space-y-2.5">
-     {section.group&&<h3 className="pt-2 text-xs font-semibold text-[var(--mroya-text-muted)]">{label({answer:'taskGroupAnswer',suggestions:'taskGroupSuggestions',working:'taskGroupWorking'}[section.group])} ({section.items.length})</h3>}
+    {(tab==='active'?(['review','answer','suggestions','working'] as const).map(group=>({group,items:rows.filter(task=>taskGroup(task)===group)})):[{group:null,items:rows}]).filter(section=>section.items.length).map(section=><section key={section.group??tab} className="space-y-2.5">
+     {section.group&&<h3 className="pt-2 text-xs font-semibold text-[var(--mroya-text-muted)]">{label({review:'taskGroupReview',answer:'taskGroupAnswer',suggestions:'taskGroupSuggestions',working:'taskGroupWorking'}[section.group])} ({section.items.length})</h3>}
     {section.items.map(task=>{
      const canCancel=['queued','needs_clarification'].includes(task.status)&&task.canCancel===true&&!!onCancel;
      const result=task.resultCode?label({no_new_information:'taskNoInformation',analysis_complete:'taskAnalysisComplete',memory_saved:'taskMemorySaved'}[task.resultCode]):task.resultSummary;

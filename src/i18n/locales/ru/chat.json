@@ -116,6 +116,7 @@
   "taskStatusRunning": "Выполняется",
   "taskStatusCompleted": "Завершена",
   "taskStatusFailed": "Не выполнена",
+  "taskGroupReview": "Требуется проверка",
   "taskStatusReview": "Требуется проверка",
   "taskReportProblem": "Сообщить о проблеме",
   "taskReportSent": "Сообщение отправлено",

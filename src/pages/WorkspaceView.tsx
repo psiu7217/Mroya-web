@@ -76,7 +76,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         <div className="flex flex-1 min-w-0 min-h-0">
         {activeSection === 'chat' && (
           <>
-            <ChatWorkspace install={model.install}
+            <ChatWorkspace showModelReasoning={runtime?.showModelReasoning} install={model.install}
               speech={model.speech}
               aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
@@ -375,6 +375,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
        onRefresh={model.aiTasks?.onRefresh} onMore={model.aiTasks?.onMore} highlightTaskId={taskHighlight}
        executingTaskId={model.aiTasks?.executingTaskId} onExecute={model.aiTasks?.onExecute}
        cancellingTaskId={model.aiTasks?.cancellingTaskId} onCancel={model.aiTasks?.onCancel}
-       decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision}/>
+       decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision} onReport={model.aiTasks?.onReport}/>
     </WorkspaceSurface>);
 }

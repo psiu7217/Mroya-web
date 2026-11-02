@@ -64,6 +64,7 @@ export interface AiTasksPresentation {
   completedTask: AiTask | null;
   executingTaskId?: string | null; onExecute?: (id: string) => void;
   cancellingTaskId?: string | null; onCancel?: (id: string) => void;
+  onReport?: (id:string)=>Promise<void>;
   decidingTaskId?: string|null;
   onDecision?: (id:string,action:'accept'|'reject'|'comment'|'retry',comment?:string)=>Promise<boolean>;
   /** Chat confirmation card bindings; canonical server reads always win. */

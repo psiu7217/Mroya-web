@@ -7,6 +7,7 @@ const vite=await createServer({server:{middlewareMode:true},appType:'custom'});
 after(()=>vite.close());
 const {TaskConfirmationView}=await vite.ssrLoadModule('/src/components/AiTaskConfirmationCard.tsx');
 const {AiTasksDrawer}=await vite.ssrLoadModule('/src/components/AiTasksDrawer.tsx');
+const {needsTaskReview}=await vite.ssrLoadModule('/src/hooks/aiTaskPresentation.ts');
 const task={id:'00000000-0000-4000-8000-000000000001',target:'memory',title:'Synthetic prepared intent',
  userPrompt:'Synthetic',status:'pending_confirmation',createdAt:'2026-10-27T12:00:00Z',updatedAt:'2026-10-27T12:00:00Z',confirmDeadlineAt:'2026-10-27T12:00:15Z'};
 const html=props=>renderToStaticMarkup(React.createElement(TaskConfirmationView,{task,canApprove:true,canRevoke:true,...props}));
@@ -56,4 +57,22 @@ test('calendar study and memory save share the drawer without technical identifi
   assert.doesNotMatch(markup,new RegExp(task.id));assert.doesNotMatch(markup,/role="timer"|initial.filter|APPROVE|pipeline/);
   if(taskKind==='memory_proposal')assert.match(markup,/Natasha: Birthday 14 November/);
  }
+});
+
+
+test('compact chat retains the pending controls and editor but hides settled tasks',()=>{
+ assert.equal((html({compact:true,remaining:10000}).match(/<button/g)||[]).length,3);
+ for(const status of ['queued','running','completed','failed','needs_clarification','cancelled'])
+  assert.equal(html({compact:true,task:{...task,status}}),'');
+ assert.match(html({compact:true,task:{...task,status:'cancelled'},editing:true}),/<textarea/);
+});
+test('incomplete chat task offers a report without an unsafe retry',()=>{
+ const markup=renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose(){},onReport:async()=>{},
+  tasks:[{...task,taskKind:'chat',status:'needs_clarification',errorMessage:'execution_incomplete'}]}));
+ assert.match(markup,/Active \(0\)/);assert.match(markup,/Issues \(1\)/);assert.doesNotMatch(markup,/>Retry<|execution_incomplete/);
+ for(const errorMessage of ['execution_incomplete','partial_execution','mutation_receipt_invalid','final_disposition_invalid','other_technical_error'])
+  assert.equal(needsTaskReview({...task,taskKind:'chat',status:'needs_clarification',errorMessage}),true);
+ assert.equal(needsTaskReview({...task,taskKind:'chat',status:'needs_clarification',errorMessage:'clarification_required'}),false);
+ const clarification=renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose(){},tasks:[{...task,taskKind:'chat',status:'needs_clarification',errorMessage:'clarification_required'}]}));
+ assert.match(clarification,/Active \(1\)/);assert.match(clarification,/Replies to this task/);assert.doesNotMatch(clarification,/>Answer<\/button>/);
 });

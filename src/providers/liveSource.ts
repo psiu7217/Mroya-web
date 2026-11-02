@@ -10,6 +10,7 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     controlCalendarAnalysis:(id,action,version,jobId,signal)=>api.controlCalendarAnalysis(id,action,version,jobId,signal),
     agentTasks:(offset,signal)=>api.agentTasks(offset,signal),
     agentTask:(id,signal)=>api.agentTask(id,signal),
+    reportAgentTask:(id,signal)=>api.reportAgentTask(id,signal),
     executeAgentTask:(id,signal)=>api.executeAgentTask(id,signal),
     beginAgentTaskReview:(id,signal)=>api.beginAgentTaskReview(id,signal),
     approveAgentTask:(id,signal)=>api.approveAgentTask(id,signal),

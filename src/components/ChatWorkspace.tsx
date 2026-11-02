@@ -48,6 +48,7 @@ import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
+  showModelReasoning?: boolean;
   speech?: SpeechPresentation;
   install?: InstallPresentation;
   aiTasks?: AiTasksPresentation;
@@ -82,7 +83,7 @@ export interface ChatWorkspaceProps {
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
+  showModelReasoning=false, speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -739,7 +740,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {msg.timeline?.some(entry=>entry.kind==='tool') ? (
+                      {showModelReasoning && (msg.timeline?.some(entry=>entry.kind==='tool') ? (
                         <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'}/>
                       ) : msg.reasoning && (
                         <ModelReasoningBlock
@@ -747,7 +748,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           isStreaming={msg.status === 'streaming'}
                           defaultExpanded={true}
                         />
-                      )}
+                      ))}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
@@ -930,6 +931,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       {live && msg.tasks && msg.tasks.length > 0 && (
                         <AiTaskConfirmationCard
                           tasks={msg.tasks}
+                          compact={!showModelReasoning}
                           beginReview={aiTasks?.beginReview}
                           approveTask={aiTasks?.approveTask}
                           revokeTask={aiTasks?.revokeTask}
@@ -1169,7 +1171,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       </div>
 
       {/* Floating notification when a background AI task finishes */}
-      {completedToastTask && (
+      {showModelReasoning && completedToastTask && (
         <AiTaskCompletionToast
           task={completedToastTask}
           onOpenDetails={() => {

@@ -124,6 +124,7 @@
   "taskStatusClarification": "Требует уточнения",
   "taskStatusCancelled": "Отменена",
   "taskConfirmTitle": "Подготовлена задача",
+  "taskConfirmExplicitHint": "Проверьте задачу и подтвердите или отмените её. Без подтверждения задача не выполнится.",
   "taskConfirmHint": "Проверьте запись и подтвердите. Без подтверждения задача автоматически уйдёт в очередь.",
   "taskConfirmLeft": "{{seconds}} сек",
   "taskConfirmSend": "Отправить",

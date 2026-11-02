@@ -76,3 +76,9 @@ test('incomplete chat task offers a report without an unsafe retry',()=>{
  const clarification=renderToStaticMarkup(React.createElement(AiTasksDrawer,{isOpen:true,onClose(){},tasks:[{...task,taskKind:'chat',status:'needs_clarification',errorMessage:'clarification_required'}]}));
  assert.match(clarification,/Active \(1\)/);assert.match(clarification,/Replies to this task/);assert.doesNotMatch(clarification,/>Answer<\/button>/);
 });
+
+test('explicit confirmation remains enabled without a countdown or automatic execution claim',()=>{
+ const explicit=html({task:{...task,confirmationMode:'explicit',confirmDeadlineAt:undefined}});
+ assert.doesNotMatch(explicit,/disabled=""|role="timer"|queued automatically/);
+ assert.match(explicit,/will not run without your confirmation/);
+});

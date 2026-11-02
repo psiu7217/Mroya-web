@@ -124,6 +124,7 @@
   "taskStatusClarification": "Needs clarification",
   "taskStatusCancelled": "Cancelled",
   "taskConfirmTitle": "Task prepared",
+  "taskConfirmExplicitHint": "Review and confirm or cancel. This task will not run without your confirmation.",
   "taskConfirmHint": "Review the record and confirm. Without confirmation the task is queued automatically.",
   "taskConfirmLeft": "{{seconds}}s",
   "taskConfirmSend": "Send",

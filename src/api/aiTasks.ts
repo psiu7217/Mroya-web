@@ -11,6 +11,7 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
     || !['started_at','finished_at'].every(k => v[k] == null || typeof v[k] === 'string' && Number.isFinite(Date.parse(v[k] as string)))
     || !(v.confirm_deadline_at === undefined || v.confirm_deadline_at === null
       || typeof v.confirm_deadline_at === 'string' && Number.isFinite(Date.parse(v.confirm_deadline_at as string)))
+    || !(v.confirmation_mode === undefined || v.confirmation_mode === 'timed' || v.confirmation_mode === 'explicit')
     || !(v.server_time === undefined || typeof v.server_time === 'string' && Number.isFinite(Date.parse(v.server_time)))
     || !(v.can_cancel === undefined || typeof v.can_cancel === 'boolean')
     || !(v.duration_ms == null || Number.isSafeInteger(v.duration_ms) && (v.duration_ms as number) >= 0)
@@ -42,6 +43,7 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
     canCancel:v.can_cancel === true,
     createdAt:v.created_at as string, updatedAt:v.updated_at as string,
     serverClockOffsetMs:typeof v.server_time === 'string' ? Date.parse(v.server_time)-Date.now() : undefined,
+    confirmationMode:v.confirmation_mode as AiTask['confirmationMode'],
     confirmDeadlineAt:typeof v.confirm_deadline_at === 'string' ? v.confirm_deadline_at : undefined,
     startedAt:v.started_at as string || undefined, finishedAt:v.finished_at as string || undefined,
     durationMs:typeof v.duration_ms === 'number' ? v.duration_ms : undefined,

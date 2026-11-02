@@ -36,6 +36,7 @@ export interface AiTask {
   updatedAt: string;
   /** Server UTC deadline of the confirmation window; absent for legacy rows. */
   confirmDeadlineAt?: string;
+  confirmationMode?: 'timed'|'explicit';
   /** Transport clock correction only; never authority for task state. */
   serverClockOffsetMs?: number;
   completedAt?: string;

@@ -51,7 +51,7 @@ function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,re
     const sync=async()=>{
       const current=taskRef.current;
       try{
-        if(current.status==='pending_confirmation'&&!current.confirmDeadlineAt&&beginReview)
+        if(current.status==='pending_confirmation'&&current.confirmationMode!=='explicit'&&!current.confirmDeadlineAt&&beginReview)
           await beginReview(current.id);
         else if(['pending_confirmation','queued','running'].includes(current.status))
           await refreshTask?.(current.id);
@@ -80,7 +80,7 @@ function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,re
 
   const reconcile=()=>refreshTask?.(task.id).catch(()=>{setNotice('taskConfirmError');return undefined;});
   const apply=async(action:'approve'|'revoke')=>{
-    if(busy||frozen||task.status!=='pending_confirmation'||!task.confirmDeadlineAt)return;
+    if(busy||frozen||task.status!=='pending_confirmation'||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit'))return;
     setBusy(action);setNotice(null);
     try{
       if(action==='approve')await approveTask?.(task.id);else await revokeTask?.(task.id);
@@ -92,7 +92,7 @@ function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,re
   };
 
   const startEdit=async()=>{
-    if(busy||task.status!=='pending_confirmation'||frozen||!task.confirmDeadlineAt||!revokeTask)return;
+    if(busy||task.status!=='pending_confirmation'||frozen||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!revokeTask)return;
     setFrozen(true);setBusy('revoke');setNotice(null);
     try{
       const next=await revokeTask(task.id);
@@ -170,7 +170,7 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
         )}
       </div>
       <p className="text-[13.5px] leading-snug font-medium text-[var(--mroya-text)] break-words">{task.title}</p>
-      <p className="text-[11.5px] leading-snug text-[var(--mroya-text-muted)]">{tr('taskConfirmHint',{ns:'chat'})}</p>
+      <p className="text-[11.5px] leading-snug text-[var(--mroya-text-muted)]">{tr(task.confirmationMode==='explicit'?'taskConfirmExplicitHint':'taskConfirmHint',{ns:'chat'})}</p>
       {notice&&<p className="text-[11.5px] leading-snug text-[var(--mroya-text-muted)]">{tr(notice,{ns:'chat'})}</p>}
       {editing?(
         <div className="space-y-2 pt-1 border-t border-amber-500/25">
@@ -195,20 +195,20 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
         </div>
       ):(
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onApprove} disabled={busy!==null||frozenTimer||!task.confirmDeadlineAt||!canApprove}
+          <button type="button" onClick={onApprove} disabled={busy!==null||frozenTimer||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!canApprove}
             aria-label={tr('taskConfirmSend',{ns:'chat'})}
             className="relative overflow-hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40 cursor-pointer">
             <span aria-hidden="true" className="absolute inset-y-0 left-0 bg-white/20 pointer-events-none transition-[width] duration-100" style={{width:`${Math.min(100,Math.max(0,100-(remaining??15000)/150))}%`}} />
             {busy==='approve'?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<CheckCircle2 className="w-3.5 h-3.5" />}
             {tr('taskConfirmSend',{ns:'chat'})}
           </button>
-          <button type="button" onClick={onEdit} disabled={busy!==null||!task.confirmDeadlineAt||!canRevoke}
+          <button type="button" onClick={onEdit} disabled={busy!==null||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!canRevoke}
             aria-label={tr('taskConfirmEdit',{ns:'chat'})}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] disabled:opacity-40 cursor-pointer">
             {busy==='revoke'&&frozen?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<Pencil className="w-3.5 h-3.5" />}
             {tr('taskConfirmEdit',{ns:'chat'})}
           </button>
-          <button type="button" onClick={onRevoke} disabled={busy!==null||frozenTimer||!task.confirmDeadlineAt||!canRevoke}
+          <button type="button" onClick={onRevoke} disabled={busy!==null||frozenTimer||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!canRevoke}
             aria-label={tr('taskConfirmCancel',{ns:'chat'})}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] disabled:opacity-40 cursor-pointer">
             {busy==='revoke'&&!frozen?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<X className="w-3.5 h-3.5" />}

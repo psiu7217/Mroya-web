@@ -246,3 +246,8 @@ test('cancel conflicts and lost responses reconcile canonical state without repe
   }finally{c.stop();}
  }
 });
+
+test('explicit task mode is preserved and unknown modes are rejected',()=>{
+ assert.equal(readAiTask({...dto,status:'pending_confirmation',confirmation_mode:'explicit'}).confirmationMode,'explicit');
+ assert.throws(()=>readAiTask({...dto,confirmation_mode:'automatic'}));
+});

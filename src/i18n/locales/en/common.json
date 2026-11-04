@@ -42,5 +42,7 @@
   "installIos": "Open the Share menu → Add to Home Screen → Add. If you do not see this option, open app.heymroya.com in Safari.",
   "installAndroid": "Open the browser menu ⋮ → Install app or Add to Home screen. If installation is unavailable, open app.heymroya.com in Chrome and try again.",
   "installDesktop": "Open this site in Chrome or Edge and choose Install Mroya from the browser menu or the install icon in the address bar.",
-  "installGotIt": "Got it"
+  "installGotIt": "Got it",
+  "updateAvailable": "A Mroya update is available",
+  "updateAction": "Update"
 }

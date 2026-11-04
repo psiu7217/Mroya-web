@@ -10,10 +10,13 @@ import {initialGuestLanguage,setAppLanguage,tr} from '../i18n/index';
 import {supportedLanguage} from '../i18n/language';
 import {usePwaInstall} from '../hooks/usePwaInstall';
 import {InstallDialog} from '../components/InstallDialog';
+import {UpdateNotice} from '../components/UpdateNotice';
+import {useFrontendUpdate} from '../hooks/useFrontendUpdate';
 import type {InstallPresentation} from '../types/install';
 export default function ProductionRoot(){
  const install=usePwaInstall();
- return <><ProductionSession install={install}/><InstallDialog install={install}/></>;
+ const updateAvailable=useFrontendUpdate();
+ return <><ProductionSession install={install}/><InstallDialog install={install}/>{updateAvailable&&<UpdateNotice onUpdate={()=>window.location.reload()}/>}</>;
 }
 function ProductionSession({install}:{install:InstallPresentation}){
  const source=useMemo(()=>createLiveSource(),[]);

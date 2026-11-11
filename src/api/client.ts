@@ -17,11 +17,13 @@ function checkedUser(value: unknown): ApiUser {
   if(typeof user.nickname!=='string' || Array.from(user.nickname).length>80 || Array.isArray(user.preferences) || !user.preferences || typeof user.preferences!=='object'
     || !['system','light','dark'].includes((user.preferences as Record<string,unknown>).theme as ThemeMode))
     throw new ApiError(502,'invalid_response','Invalid API preferences');
+  // Missing and unrecognized roles keep the session usable with the least privilege.
+  const role = user.role === undefined ? undefined : user.role === 'premium' || user.role === 'admin' ? user.role : 'free';
   const reasoning=(user.preferences as Record<string,unknown>).show_model_reasoning;
   if(reasoning!==undefined&&typeof reasoning!=='boolean')throw new ApiError(502,'invalid_response','Invalid reasoning preference');
   const language=(user.preferences as Record<string,unknown>).language;
   if(language!==undefined&&language!==''&&language!=='en'&&language!=='ru')throw new ApiError(502,'invalid_response','Invalid interface language preference');
-  return value as ApiUser;
+  return (role === undefined ? user : {...user, role}) as unknown as ApiUser;
 }
 // A link is a bearer credential. Never include its value in errors or persistence.
 export function validTelegramLink(value:string):boolean {

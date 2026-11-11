@@ -742,15 +742,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {showModelReasoning && (msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'}/>
-                      ) : msg.reasoning && (
+                      {msg.timeline?.some(entry=>entry.kind==='tool') ? (
+                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning}/>
+                      ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
                           isStreaming={msg.status === 'streaming'}
                           defaultExpanded={true}
                         />
-                      ))}
+                      )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${

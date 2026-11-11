@@ -39,6 +39,7 @@ export interface SidebarProps {
   onLogout?: () => void;
   live?: boolean;
   showDeveloperFeatures?: boolean;
+  showReminders?: boolean;
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   conversations: ConversationListItem[];
@@ -72,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   live = false,
   showDeveloperFeatures = true,
+  showReminders = true,
   activeSection,
   onSelectSection,
   conversations,
@@ -252,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'memory-map', label: tr('navMemoryMap',{ns:'sidebar'}), icon: Share2 },
     { id: 'connections', label: tr('navConnections',{ns:'sidebar'}), icon: Link2 },
   ];
-  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showDeveloperFeatures));
+  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders));
 
   const renderAccountPopover = (isNarrow: boolean) => (
     <div

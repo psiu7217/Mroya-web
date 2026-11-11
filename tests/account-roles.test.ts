@@ -34,7 +34,7 @@ test('unknown role is treated as free',()=>{
 });
 
 test('product feature policy grants developer features only to admin',()=>{
-  for(const feature of ['google_calendar','technical_diagnostics','experimental_features'] as const){
+  for(const feature of ['google_calendar','technical_diagnostics','experimental_features','reminders'] as const){
     for(const role of [undefined,'free','premium'] as const) assert.equal(hasFeature(role,feature),false);
     assert.equal(hasFeature('admin',feature),true);
   }

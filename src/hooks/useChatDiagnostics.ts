@@ -67,6 +67,7 @@ export class ChatDiagnosticsController {
  };
  onCopy=(message:ChatMessage):Promise<void>=>{
   const context=this.context(message);if(!this.active||this.source.kind!=='live'||!context)return Promise.resolve();
+  const traceId=context.request_trace_id;if(traceId===undefined)return Promise.resolve();
   const key=reportAttemptKey(context);if(this.forMessage(message).copying)return Promise.resolve();
   const version=this.generation,abort=new AbortController();this.requests.add(abort);this.set(key,{copying:true,copied:false});
   const current=()=>this.active&&version===this.generation&&!abort.signal.aborted;
@@ -87,8 +88,8 @@ export class ChatDiagnosticsController {
     }
     if(!current())throw new DOMException('Cancelled','AbortError');
     const lines=full?[]:text.split(/\r?\n/);
-    if(full?!matchesFullAttempt(text,context.turn_id,context.request_trace_id)
-     :!lines.includes('ChatTurn: '+context.turn_id)||!lines.includes('RequestTrace: '+context.request_trace_id))
+    if(full?!matchesFullAttempt(text,context.turn_id,traceId)
+     :!lines.includes('ChatTurn: '+context.turn_id)||!lines.includes('RequestTrace: '+traceId))
      throw new ApiError(409,'report_trace_mismatch','The failure attempt changed');
     return text;
    },current);

@@ -31,6 +31,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       <Sidebar
         account={account}
         showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
+        showReminders={runtime ? !!runtime.features?.reminders : true}
         conversationLocked={runtime?.conversationLocked}
         live={!!runtime}
         onLogout={runtime?.onLogout}
@@ -129,6 +130,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             live={!!runtime}
             calendar={model.calendar}
             showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
+            showReminders={runtime ? !!runtime.features?.reminders : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarNotice={model.googleCalendarNotice}
             events={events}

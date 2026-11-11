@@ -10,6 +10,19 @@ const context={turn_id:turn,request_trace_id:100,report_url:'/api/v1/chat/turns/
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
 const result=(created=true)=>({issue:{id:other,turn_id:turn,request_trace_id:100,status:'new',created_at:'2026-10-15T10:00:00Z'},created});
 function fetcher(fn:(url:string,init:RequestInit)=>Response|Promise<Response>):typeof fetch{return ((url,init={})=>Promise.resolve(fn(String(url),init))) as typeof fetch;}
+test('public reporting uses opaque attempt token and validates confirmation',async()=>{
+ const token='a'.repeat(64),publicContext={turn_id:turn,report_token:token,report_url:context.report_url};
+ assert.deepEqual(readReportContext(publicContext),publicContext);
+ assert.equal(readReportContext({...publicContext,report_token:'bad'}),undefined);
+ assert.equal(readReportContext({...publicContext,request_trace_id:100}),undefined);
+ const api=new MroyaApi(fetcher((url,init)=>{
+  if(url.endsWith('csrf/'))return json({csrf_token:'synthetic'});
+  assert.deepEqual(JSON.parse(init.body as string),{report_token:token});
+  return json({issue:{turn_id:turn,report_token:token,status:'new',created_at:'2026-10-15T10:00:00Z'},created:true},201);
+ }));
+ const response=await api.reportChatIssue(publicContext);
+ assert.equal(response.issue.report_token,token);
+});
 test('authoritative report context validation rejects absent, fabricated paths and unsafe trace IDs',()=>{
  assert.deepEqual(readReportContext(context),context);assert.notEqual(readReportContext(context),context);
  for(const value of [null,undefined,[],{}, {...context,turn_id:'bad'},...[-1,0,1.1,Number.MAX_SAFE_INTEGER+1,'100',true].map(request_trace_id=>({...context,request_trace_id})),...['https://app.heymroya.com'+context.report_url,'//foreign.test/report/','/admin/','/api/v1/chat/turns/'+other+'/report/',context.report_url+'?trace=100'].map(report_url=>({...context,report_url}))])assert.equal(readReportContext(value),undefined);

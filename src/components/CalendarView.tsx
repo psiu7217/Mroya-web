@@ -42,6 +42,7 @@ interface CalendarViewProps {
   live?:boolean;
   calendar?:CalendarPresentation;
   showGoogleCalendar?:boolean;
+  showReminders?:boolean;
   googleCalendarAvailable?:boolean;
   googleCalendarNotice?:string;
   samples?:{person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
@@ -69,7 +70,7 @@ interface CalendarViewProps {
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   memoryLinksNavigation,
-  readOnly=false,live=false,calendar,showGoogleCalendar=true,googleCalendarAvailable=false,googleCalendarNotice,
+  readOnly=false,live=false,calendar,showGoogleCalendar=true,showReminders=true,googleCalendarAvailable=false,googleCalendarNotice,
   samples,
   events,
   memories,
@@ -359,6 +360,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const renderSourceBadge = (ev: CalendarEvent) => {
     const isGoogle = ev.calendarSource === 'google_work' || ev.calendarSource === 'primary' || (ev.sourceName && ev.sourceName.includes('Google'));
     const isGoogleContacts = ev.calendarSource === 'google_birthdays' || (ev.sourceName && ev.sourceName.includes('Contacts'));
+    if (!showGoogleCalendar && (isGoogle || isGoogleContacts)) return <span className="text-[11px] text-[var(--mroya-text-muted)]">{tr('external',{ns:'calendar'})}</span>;
     const sourceLabel = ev.sourceName || (isGoogleContacts ? 'Google Contacts' : isGoogle ? 'Google Calendar' : 'Mroya');
 
     if (isGoogleContacts || ev.isReadOnly) {
@@ -386,6 +388,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const renderSyncStatusBadge = (ev: CalendarEvent) => {
+    if (!showGoogleCalendar) return null;
     if (ev.isReadOnly) {
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-1.5 py-0.5 rounded-[5px] border border-[var(--mroya-divider)] shrink-0">
@@ -1146,7 +1149,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               </div>
 
                               {/* Reminders section for event (Mobile) */}
-                              {(() => {
+                              {showReminders && (() => {
                                 const eventReminders = reminders.filter((r) => r.calendarEventId === ev.id);
                                 const isDoctor = ev.id === 'evt-oct13-doctor';
                                 return (
@@ -1582,7 +1585,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 </div>
 
                                 {/* Reminders section for event (Desktop) */}
-                                {(() => {
+                                {showReminders && (() => {
                                   const eventReminders = reminders.filter((r) => r.calendarEventId === ev.id);
                                   const isDoctor = ev.id === 'evt-oct13-doctor';
                                   return (
@@ -1971,7 +1974,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
 
               {/* Optional Reminder Setup */}
-              {(!live || showGoogleCalendar) && <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
+              {showReminders && <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -2120,7 +2123,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <div className="p-2.5 rounded-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-900 dark:text-purple-200 text-[12px] space-y-1">
                     <div className="flex items-center gap-1.5 font-semibold">
                       <Repeat className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>{tr('recurringSeriesDetail',{ns:'calendar',rule:viewingEvent.recurrence?localizedRecurrence(viewingEvent.recurrence):tr('googleProviderRule',{ns:'calendar'})})}</span>
+                      <span>{tr('recurringSeriesDetail',{ns:'calendar',rule:viewingEvent.recurrence?localizedRecurrence(viewingEvent.recurrence):showGoogleCalendar?tr('googleProviderRule',{ns:'calendar'}):tr('external',{ns:'calendar'})})}</span>
                     </div>
                     <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
                       {tr('seriesEditWarning',{ns:'calendar'})}
@@ -2155,7 +2158,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <div>
                       <span className="font-semibold">{tr('readOnlyExternalEvent',{ns:'calendar'})}</span>
                       <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
-                        {tr('externalReadOnlyDescription',{ns:'calendar',source:viewingEvent.sourceName||tr('googleContacts',{ns:'calendar'})})}
+                        {tr('externalReadOnlyDescription',{ns:'calendar',source:showGoogleCalendar?(viewingEvent.sourceName||tr('googleContacts',{ns:'calendar'})):tr('external',{ns:'calendar'})})}
                       </p>
                     </div>
                   </div>
@@ -2221,7 +2224,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {tr('editCommitment',{ns:'calendar'})}
                 </h2>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                  {editingEvent.sourceName || 'Mroya Calendar'}
+                  {showGoogleCalendar || editingEvent.calendarSource==='local' ? (editingEvent.sourceName || 'Mroya Calendar') : tr('external',{ns:'calendar'})}
                 </p>
               </div>
               <button

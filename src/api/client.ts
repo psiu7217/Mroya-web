@@ -224,15 +224,15 @@ export class MroyaApi {
     const snapshot=readReportContext(context);
     if(!snapshot)throw new ApiError(400,'invalid_report','Invalid failure attempt');
     let status=0;
-    const data=await this.json<unknown>('chat/turns/'+snapshot.turn_id+'/report/',{request_trace_id:snapshot.request_trace_id},signal,'POST',value=>{
+    const data=await this.json<unknown>('chat/turns/'+snapshot.turn_id+'/report/',snapshot.report_token?{report_token:snapshot.report_token}:{request_trace_id:snapshot.request_trace_id},signal,'POST',value=>{
       status=value;if(value!==200&&value!==201)throw new ApiError(502,'invalid_response','Invalid report status');
     });
     const v=data as Partial<IssueReportResponse>|null,issue=v?.issue;
-    if(!v||Array.isArray(v)||typeof v.created!=='boolean'||v.created!==(status===201)||!issue||!isTurnUuid(issue.id)
-      ||issue.turn_id!==snapshot.turn_id||issue.request_trace_id!==snapshot.request_trace_id
+    if(!v||Array.isArray(v)||typeof v.created!=='boolean'||v.created!==(status===201)||!issue
+      ||issue.turn_id!==snapshot.turn_id||(snapshot.report_token?issue.report_token!==snapshot.report_token:(!isTurnUuid(issue.id)||issue.request_trace_id!==snapshot.request_trace_id))
       ||!['new','investigating','resolved'].includes(issue.status)||typeof issue.created_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(issue.created_at)||!Number.isFinite(Date.parse(issue.created_at)))
       throw new ApiError(502,'invalid_response','Invalid report confirmation');
-    return {issue:{id:issue.id,turn_id:issue.turn_id,request_trace_id:issue.request_trace_id,status:issue.status,created_at:issue.created_at},created:v.created};
+    return {issue:{...issue},created:v.created};
   }
   getChatErrorReport(turnId:string,signal?:AbortSignal):Promise<string>{
     return this.readChatErrorReport(turnId,false,16*1024,signal);

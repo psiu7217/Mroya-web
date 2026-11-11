@@ -36,6 +36,7 @@ export interface NotificationPresentation {
     onSendTest:()=>Promise<void>; onRefresh:()=>Promise<void>; onRetry:()=>Promise<void>;
 }
 export interface WorkspaceRuntime {
+    features?: {googleCalendar:boolean;technicalDiagnostics:boolean;experimentalFeatures:boolean;reminders:boolean};
     notifications?:NotificationPresentation;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;

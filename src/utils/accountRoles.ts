@@ -8,3 +8,9 @@ export function hasAccountRole(role:AccountRole|undefined, minimum:AccountRole):
   const rank = role && Object.hasOwn(RANK, role) ? RANK[role] : RANK.free;
   return rank >= RANK[minimum];
 }
+
+export type ProductFeature = 'google_calendar'|'technical_diagnostics'|'experimental_features'|'reminders';
+const FEATURE_MINIMUM: Record<ProductFeature,AccountRole> = {google_calendar:'admin',technical_diagnostics:'admin',experimental_features:'admin',reminders:'admin'};
+export function hasFeature(role:AccountRole|undefined, feature:ProductFeature):boolean {
+  return hasAccountRole(role, FEATURE_MINIMUM[feature]);
+}

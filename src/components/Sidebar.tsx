@@ -38,6 +38,8 @@ export interface SidebarProps {
   onSignIn?: () => void;
   onLogout?: () => void;
   live?: boolean;
+  showDeveloperFeatures?: boolean;
+  showReminders?: boolean;
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   conversations: ConversationListItem[];
@@ -70,6 +72,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSignIn,
   onLogout,
   live = false,
+  showDeveloperFeatures = true,
+  showReminders = true,
   activeSection,
   onSelectSection,
   conversations,
@@ -250,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'memory-map', label: tr('navMemoryMap',{ns:'sidebar'}), icon: Share2 },
     { id: 'connections', label: tr('navConnections',{ns:'sidebar'}), icon: Link2 },
   ];
-  const visibleNavItems = navItems.filter(item => item.id !== 'notes' || notesAvailable);
+  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders));
 
   const renderAccountPopover = (isNarrow: boolean) => (
     <div
@@ -267,7 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onSignIn ? tr('signIn',{ns:'auth'}) : account.displayName}
         </div>
         <div className="text-[12px] text-[var(--mroya-text-muted)] truncate">
-          {account.email} · {plan === 'premium' ? tr('premium',{ns:'sidebar'}) : tr('free',{ns:'sidebar'})}
+          {account.email}{showDeveloperFeatures && <> · {plan === 'premium' ? tr('premium',{ns:'sidebar'}) : tr('free',{ns:'sidebar'})}</>}
         </div>
       </div>
 
@@ -286,7 +290,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>{tr('profile',{ns:'sidebar'})}</span>
         </button>
 
-        <button
+        {showDeveloperFeatures && <button
           type="button"
           role="menuitem"
           onClick={() => {
@@ -303,9 +307,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-[12px] text-[var(--mroya-text-muted)]">
             {plan === 'premium' ? tr('premium',{ns:'sidebar'}) : tr('free',{ns:'sidebar'})}
           </span>
-        </button>
+        </button>}
 
-        <button
+        {showDeveloperFeatures && <button
           type="button"
           role="menuitem"
           onClick={() => {
@@ -317,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Settings className="w-4 h-4 text-[var(--mroya-text-muted)]" />
           <span>{tr('settings',{ns:'sidebar'})}</span>
-        </button>
+        </button>}
 
         <button
           type="button"

@@ -3,8 +3,10 @@ export const isTurnUuid=(value:unknown):value is string=>typeof value==='string'
 export function readReportContext(value:unknown):ReportContext|undefined {
  if(!value||typeof value!=='object'||Array.isArray(value))return;
  const v=value as Record<string,unknown>;
- if(!isTurnUuid(v.turn_id)||typeof v.request_trace_id!=='number'||!Number.isSafeInteger(v.request_trace_id)||v.request_trace_id<=0
+ const validTrace=typeof v.request_trace_id==='number'&&Number.isSafeInteger(v.request_trace_id)&&v.request_trace_id>0;
+ const validToken=typeof v.report_token==='string'&&/^[a-f0-9]{64}$/.test(v.report_token);
+ if(!isTurnUuid(v.turn_id)||validTrace===validToken
   ||v.report_url!=='/api/v1/chat/turns/'+v.turn_id+'/report/')return;
- return {turn_id:v.turn_id,request_trace_id:v.request_trace_id,report_url:v.report_url};
+ return {turn_id:v.turn_id,...(validTrace?{request_trace_id:v.request_trace_id as number}:{report_token:v.report_token as string}),report_url:v.report_url};
 }
-export const reportAttemptKey=(context:ReportContext)=>context.turn_id+':'+context.request_trace_id;
+export const reportAttemptKey=(context:ReportContext)=>context.turn_id+':'+(context.report_token??context.request_trace_id);

@@ -3,7 +3,7 @@ import {readTasksPayload,newerTask} from '../api/aiTasks.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {ChatTimelineEntry} from '../types/mroya.ts';
 import type {ConversationSummary,ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
-import {readReportContext} from '../api/reportContext.ts';
+import {readReportContext,reportAttemptKey} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
 import {tr} from '../i18n/index.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
@@ -238,7 +238,7 @@ export class LiveWorkspaceController {
    if(context&&context.turn_id===this.turnId){
     const candidates=history.messages.filter(message=>{
      const candidate=readReportContext(message.report_context);
-     return message.role==='assistant'&&message.status==='failed'&&candidate?.turn_id===context.turn_id&&candidate.request_trace_id===context.request_trace_id;
+     return message.role==='assistant'&&message.status==='failed'&&candidate!==undefined&&reportAttemptKey(candidate)===reportAttemptKey(context);
     });
     if(candidates.length===1){
      const id=candidates[0].id;
@@ -258,7 +258,7 @@ export class LiveWorkspaceController {
   return {...history,messages:history.messages.map(message=>{
    const expected=this.failedAttemptsByMessage.get(message.id),actual=readReportContext(message.report_context);
    if(expected&&(message.role!=='assistant'||message.status!=='failed'||history.conversation_id!==this.state.history.conversation_id
-    ||actual?.turn_id!==expected.turn_id||actual.request_trace_id!==expected.request_trace_id)){
+    ||!actual||reportAttemptKey(actual)!==reportAttemptKey(expected))){
     this.failedAttemptsByMessage.delete(message.id);this.reasoningByMessage.delete(message.id);this.timelineByMessage.delete(message.id);
    }
    // Never accept reasoning/timeline supplied by history itself.
@@ -513,7 +513,7 @@ export class LiveWorkspaceController {
     let messages=this.state.history.messages.map(message=>{
      if(message.id!==this.replyId)return message;
      const previous=readReportContext(message.report_context);
-     const sameAttempt=!previous||(context?.turn_id===previous.turn_id&&context.request_trace_id===previous.request_trace_id);
+     const sameAttempt=!previous||(context!==undefined&&reportAttemptKey(context)===reportAttemptKey(previous));
      const hasActivity=!!message.reasoning||!!message.timeline?.length;
      // GET follows a reused turn's current trace. It cannot prove an unknown original trace.
      const confirmedContext=context?.turn_id===this.turnId&&(previous||!hasActivity)?context:undefined;

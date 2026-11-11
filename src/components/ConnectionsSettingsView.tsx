@@ -65,6 +65,8 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
   live?: boolean;
+  showGoogleCalendar?: boolean;
+  showDeveloperFeatures?: boolean;
   timezoneSettings?:TimezonePresentation;
   telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
@@ -91,7 +93,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  calendarAnalysis,live=false,connectionSamples,timezoneSettings,notifications,notificationPreview,
+  calendarAnalysis,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -191,7 +193,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     :!notifications.enabled?'disabled':!notifications.connected?'disconnected':!notifications.configured?'unavailable':notifications.deliveryReady?'ready':'notReady';
   const notificationStatus=notificationState==='saving'?tr('saving',{ns:'common'}):tr(({loading:'notificationLoading',sending:'notificationSending',unavailable:'notificationUnavailable',pending:'notificationQueued',processing:'notificationProcessing',retry:'notificationRetrying',sent:'notificationDelivered',failed:'notificationFailed',cancelled:'notificationCancelled',expired:'notificationExpired',disabled:'notificationDisabled',disconnected:'disconnected',ready:'botReady',notReady:'notificationNotReady'} as Record<string,string>)[notificationState]??'notificationUnavailable',{ns:'connections'});
   const notificationError=notifications?.error?tr('requestFailed',{ns:'common'}):notifications?.lastTestStatus==='failed'?tr('deliveryFailed',{ns:'connections'}):null;
-  const visibleConnections = live ? plannedConnections() : connections;
+  const visibleConnections = live ? plannedConnections().filter(c=>c.id==='telegram'||(c.id==='google-calendar'&&showGoogleCalendar)||showDeveloperFeatures&&c.id!=='google-calendar') : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
     label: string;
@@ -224,7 +226,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
       {/* Sub-navigation bar */}
       <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto">
-        {tabs.map((t) => (
+        {tabs.filter(t=>showDeveloperFeatures||!['plan','settings'].includes(t.id)).map((t) => (
           <button
             key={t.id}
             type="button"

@@ -79,6 +79,7 @@ export interface ChatWorkspaceProps {
   onOpenSettingsTab?: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
   diagnostics?:ChatDiagnostics;
   isAdmin?: boolean;
+  showDeveloperFeatures?: boolean;
   isThinking?: boolean;
 }
 
@@ -104,6 +105,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onOpenSettingsTab,
   diagnostics,
   isAdmin = true,
+  showDeveloperFeatures = true,
   isThinking = false,
 }) => {
   const starterSuggestions=[tr('starterRememberMe',{ns:'chat'}),tr('starterUpcoming',{ns:'chat'}),tr('starterRemember',{ns:'chat'})];
@@ -406,7 +408,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 </div>
 
                 {/* Plan Status & Upgrade */}
-                <div className="p-2 border-b border-[var(--mroya-divider)]">
+                {showDeveloperFeatures && <div className="p-2 border-b border-[var(--mroya-divider)]">
                   <div className="flex items-center justify-between px-2.5 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] text-[12px]">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
@@ -425,7 +427,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       {plan === 'premium' ? tr('manage',{ns:'chat'}) : tr('upgrade',{ns:'chat'})}
                     </button>
                   </div>
-                </div>
+                </div>}
 
                 {install && !install.installed && <button type="button" role="menuitem"
                   onClick={() => { setMobileUserMenuOpen(false); install.onInstall(); }}
@@ -505,7 +507,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       type="button"
                       onClick={() => {
                         setMobileUserMenuOpen(false);
-                        onOpenSettingsTab('settings');
+                        onOpenSettingsTab(showDeveloperFeatures ? 'settings' : 'connections');
                       }}
                       className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                     >
@@ -521,7 +523,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {/* Desktop Right Controls (hidden on mobile) */}
           <div className="hidden lg:flex items-center gap-2">
             {/* Subscription state indicator & demo switch */}
-            {plan === 'free' ? (
+            {showDeveloperFeatures && (plan === 'free' ? (
               <div className="flex items-center gap-1.5 text-[12px] text-[var(--mroya-text-muted)]">
                 <span>{live ? tr('account',{ns:'chat'}) : tr('free',{ns:'chat'})}</span>
                 <span aria-hidden="true">·</span>
@@ -542,7 +544,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                 <span>Mroya Premium</span>
               </button>
-            )}
+            ))}
 
             {/* Theme Switcher */}
             <button
@@ -740,15 +742,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {showModelReasoning && (msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'}/>
-                      ) : msg.reasoning && (
+                      {msg.timeline?.some(entry=>entry.kind==='tool') ? (
+                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning}/>
+                      ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
                           isStreaming={msg.status === 'streaming'}
                           defaultExpanded={true}
                         />
-                      ))}
+                      )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
@@ -799,7 +801,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 )}
                               </button>}
 
-                              {(live ? actionState?.available : isAdmin) && (
+                              {(isAdmin && (live ? actionState?.available : true)) && (
                                 <button
                                   type="button"
                                   onClick={() => handleCopyAdminDiagnostics(msg)}
@@ -835,7 +837,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           </div>
                         )}
 
-                        <AssistantMarkdown content={msg.content} />
+                        <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} />
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}

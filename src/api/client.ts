@@ -17,6 +17,9 @@ function checkedUser(value: unknown): ApiUser {
   if(typeof user.nickname!=='string' || Array.from(user.nickname).length>80 || Array.isArray(user.preferences) || !user.preferences || typeof user.preferences!=='object'
     || !['system','light','dark'].includes((user.preferences as Record<string,unknown>).theme as ThemeMode))
     throw new ApiError(502,'invalid_response','Invalid API preferences');
+  // Accept an absent role during staggered deployments; the UI treats it as free.
+  if(user.role!==undefined && !['free','premium','admin'].includes(user.role as string))
+    throw new ApiError(502,'invalid_response','Invalid account role');
   const reasoning=(user.preferences as Record<string,unknown>).show_model_reasoning;
   if(reasoning!==undefined&&typeof reasoning!=='boolean')throw new ApiError(502,'invalid_response','Invalid reasoning preference');
   const language=(user.preferences as Record<string,unknown>).language;

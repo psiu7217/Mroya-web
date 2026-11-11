@@ -64,6 +64,13 @@ test('malformed successful session cannot become an authenticated user',async()=
  await assert.rejects(createLiveSource(new MroyaApi(fakeFetch(()=>json({user:{username:'invalid'}})))).session(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
 });
 
+test('unknown roles do not break sessions or grant privileged access',async()=>{
+ for(const role of [undefined,'future-role',null,'admin']){
+  const api=new MroyaApi(fakeFetch(()=>json({user:{...user,role}})));
+  assert.equal((await api.me()).user.role,role===undefined?undefined:role==='admin'?'admin':'free');
+ }
+});
+
 test('an unset backend language is accepted and can be initialized conditionally',async()=>{
  const calls:{url:string;init:RequestInit}[]=[];
  const unset={...user,preferences:{theme:'system' as const,language:''}};

@@ -5,5 +5,6 @@ import type {AccountRole} from '../types/api';
 const RANK: Record<AccountRole,number> = {free:0,premium:1,admin:2};
 
 export function hasAccountRole(role:AccountRole|undefined, minimum:AccountRole):boolean {
-  return RANK[role ?? 'free'] >= RANK[minimum];
+  const rank = role && Object.hasOwn(RANK, role) ? RANK[role] : RANK.free;
+  return rank >= RANK[minimum];
 }

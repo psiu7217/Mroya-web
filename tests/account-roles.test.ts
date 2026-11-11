@@ -26,3 +26,9 @@ test('missing role is free (safe for staged backend/web deployments)',()=>{
   assert.equal(hasAccountRole(undefined,'premium'),false);
   assert.equal(hasAccountRole(undefined,'admin'),false);
 });
+
+test('unknown role is treated as free',()=>{
+  const unknown = 'future-role' as never;
+  assert.equal(hasAccountRole(unknown,'free'),true);
+  assert.equal(hasAccountRole(unknown,'admin'),false);
+});

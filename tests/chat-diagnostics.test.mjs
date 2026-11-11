@@ -143,10 +143,10 @@ const account={displayName:'Synthetic account',initials:'SA',email:'',descriptio
 const props={account,memoriesCount:0,conversation:{id:'synthetic',title:'Synthetic',group:'Today',updatedAt:'',relatedMemoryIds:[],messages:[message]},onSendMessage:noop,onCitationClick:noop,onActionClick:noop,addedActionIds:[],isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,isContextPanelOpen:false,onToggleContextPanel:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,onNewChat:noop};
 const markup=extra=>renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,...extra}));
 test('public chat retains useful tool progress without raw technical details',()=>{
- const progress={kind:'tool',id:'progress',sequence:1,toolKind:'memory_search',title:'Memory search completed',status:'success',output:{text:'INTERNAL_TECHNICAL_DETAIL',format:'text'}};
+ const progress={kind:'tool',id:'progress',sequence:1,toolKind:'memory_search',title:'Memory search completed',status:'success',output:{text:JSON.stringify({facts:[{subject:'Alex',predicate:'likes',value:'music'}],error_code:'INTERNAL_TECHNICAL_DETAIL'}),format:'json'}};
  const conversation={...props.conversation,messages:[{...message,status:'completed',timeline:[progress]}]};
  const html=markup({live:true,isAdmin:false,showModelReasoning:false,conversation});
- assert.match(html,/Memory search completed/);assert.doesNotMatch(html,/INTERNAL_TECHNICAL_DETAIL/);
+ assert.match(html,/Memory search completed/);assert.match(html,/Alex.*likes.*music/);assert.doesNotMatch(html,/INTERNAL_TECHNICAL_DETAIL/);
 });
 test('failed live messages render the existing diagnostics controls',()=>{
  const s=setup();

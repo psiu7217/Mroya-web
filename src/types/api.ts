@@ -4,7 +4,8 @@ export interface TelegramLinkResponse {url:string;expires_at:string}
 export interface TelegramDisconnectResponse {connected:false}
 export type ThemeMode = 'system'|'light'|'dark';
 export type AppLanguage='en'|'ru';
-export interface ApiUser { id:number; username:string; email:string; first_name:string; last_name:string; timezone:string; nickname:string; preferences:{theme:ThemeMode;show_model_reasoning?:boolean;language?:AppLanguage|''} }
+export type AccountRole='free'|'premium'|'admin';
+export interface ApiUser { id:number; username:string; role?:AccountRole; email:string; first_name:string; last_name:string; timezone:string; nickname:string; preferences:{theme:ThemeMode;show_model_reasoning?:boolean;language?:AppLanguage|''} }
 export type PreferencesPatch = Partial<Pick<ApiUser,'nickname'> & {theme:ThemeMode;show_model_reasoning:boolean;timezone:string;timezone_only_if_unset:boolean;language:AppLanguage;language_only_if_unset:boolean}>;
 export interface ReportContext {turn_id:string;request_trace_id:number;report_url:string}
 export interface IssueReportResponse {issue:{id:string;turn_id:string;request_trace_id:number;status:'new'|'investigating'|'resolved';created_at:string};created:boolean}

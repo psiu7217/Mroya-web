@@ -41,6 +41,7 @@ interface CalendarViewProps {
   readOnly?:boolean;
   live?:boolean;
   calendar?:CalendarPresentation;
+  showGoogleCalendar?:boolean;
   googleCalendarAvailable?:boolean;
   googleCalendarNotice?:string;
   samples?:{person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
@@ -68,7 +69,7 @@ interface CalendarViewProps {
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   memoryLinksNavigation,
-  readOnly=false,live=false,calendar,googleCalendarAvailable=false,googleCalendarNotice,
+  readOnly=false,live=false,calendar,showGoogleCalendar=true,googleCalendarAvailable=false,googleCalendarNotice,
   samples,
   events,
   memories,
@@ -1286,7 +1287,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 {/* iOS Style Google Calendar Settings Cell */}
-                <div className="p-3.5 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
+                {showGoogleCalendar && <div className="p-3.5 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-[var(--mroya-surface-muted)] flex items-center justify-center shrink-0">
                       <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
@@ -1307,13 +1308,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   >
                     {tr('tabsSettings',{ns:'connections'})}
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* DESKTOP CALENDAR VIEW (hidden on mobile, full workspace on desktop) */}
               <div className="hidden lg:block space-y-6">
                 {/* Google Calendar Connection Entry Point Banner */}
-                {showGoogleBanner && <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {showGoogleCalendar && showGoogleBanner && <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start sm:items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center shrink-0">
                       <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
@@ -1841,7 +1842,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {!isNewModalOpen&&!editingEvent&&!deletingEvent&&calendarStatus}
-      {googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
+      {showGoogleCalendar&&googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
@@ -1970,7 +1971,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
 
               {/* Optional Reminder Setup */}
-              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
+              {(!live || showGoogleCalendar) && <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -2016,7 +2017,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </p>
                   </div>
                 )}
-              </div>
+              </div>}
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button

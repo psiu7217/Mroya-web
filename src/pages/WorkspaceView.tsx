@@ -30,6 +30,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       {/* Left Navigation Sidebar */}
       <Sidebar
         account={account}
+        showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
         conversationLocked={runtime?.conversationLocked}
         live={!!runtime}
         onLogout={runtime?.onLogout}
@@ -76,7 +77,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         <div className="flex flex-1 min-w-0 min-h-0">
         {activeSection === 'chat' && (
           <>
-            <ChatWorkspace showModelReasoning={runtime?.showModelReasoning} install={model.install}
+            <ChatWorkspace isAdmin={runtime ? !!runtime.features?.technicalDiagnostics : true} showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true} showModelReasoning={runtime?.showModelReasoning} install={model.install}
               speech={model.speech}
               aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
@@ -127,6 +128,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             readOnly={!!runtime&&!runtime.calendarAvailable}
             live={!!runtime}
             calendar={model.calendar}
+            showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarNotice={model.googleCalendarNotice}
             events={events}
@@ -211,12 +213,14 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
             calendarAnalysis={model.calendarAnalysis}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
             timezoneSettings={runtime?.timezoneSettings}
             onChangeTimezone={runtime?.timezoneSettings?.onChange??model.onChangeTimezone}
             connectionSamples={runtime?undefined:model.connectionSamples}
+            showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarBusy={model.googleCalendarBusy}
             googleCalendarNotice={model.googleCalendarNotice}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {hasAccountRole} from '../src/utils/accountRoles.ts';
+import {hasAccountRole,hasFeature} from '../src/utils/accountRoles.ts';
 
 test('free accounts cannot access premium or admin-only features',()=>{
   assert.equal(hasAccountRole('free','free'),true);
@@ -31,4 +31,11 @@ test('unknown role is treated as free',()=>{
   const unknown = 'future-role' as never;
   assert.equal(hasAccountRole(unknown,'free'),true);
   assert.equal(hasAccountRole(unknown,'admin'),false);
+});
+
+test('product feature policy grants developer features only to admin',()=>{
+  for(const feature of ['google_calendar','technical_diagnostics','experimental_features'] as const){
+    for(const role of [undefined,'free','premium'] as const) assert.equal(hasFeature(role,feature),false);
+    assert.equal(hasFeature('admin',feature),true);
+  }
 });

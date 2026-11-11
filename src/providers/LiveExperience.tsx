@@ -1,3 +1,4 @@
+import {hasFeature} from '../utils/accountRoles';
 import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
 import {useSpeechInput} from '../hooks/useSpeechInput';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
@@ -25,6 +26,7 @@ import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
+ const features={googleCalendar:hasFeature(user.role,'google_calendar'),technicalDiagnostics:hasFeature(user.role,'technical_diagnostics'),experimentalFeatures:hasFeature(user.role,'experimental_features')};
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
  const preferences=useUserPreferences(source,user,onExpired,language);
@@ -40,7 +42,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
  const notifications=useNotificationSettings(source,user.id,telegram,onExpired);
- const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,features.googleCalendar&&state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
@@ -56,7 +58,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('unavailable');
  const select=(next:NavSection)=>{if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
- const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(tab);};
+ const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(!features.experimentalFeatures&&(tab==='settings'||tab==='plan')?'connections':tab);};
  const openMemory=(id:string)=>{
   select('memory');
   if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}
@@ -92,7 +94,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
    onDetails:id=>void controller.taskDetails(id),onDismiss:()=>controller.dismissTask()},
   memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
   notifications:notifications.presentation,
-  runtime:{notifications:notifications.presentation,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
+  runtime:{features,notifications:notifications.presentation,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
@@ -103,7 +105,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
    onUnavailable:unavailable,onLogout:logout,
    preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry},
    languageSave:{status:preferences.languageStatus,error:preferences.languageError,onRetry:preferences.retry},
-   showModelReasoning:preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
+   showModelReasoning:features.technicalDiagnostics&&preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,

@@ -141,7 +141,7 @@ test('failed live messages render the existing diagnostics controls',()=>{
   assert.match(html,/Reply failed/);
   assert.match(html,/Report issue/);
   assert.match(html,/Copy Error For Admin Diagnostics/);
-  const admin=markup({live:true,diagnostics:s.c,isAdmin:false});assert.match(admin,/Copy Error For Admin Diagnostics/);
+  const publicView=markup({live:true,diagnostics:s.c,isAdmin:false});assert.doesNotMatch(publicView,/Copy Error For Admin Diagnostics/);assert.match(publicView,/Report issue/);
  }finally{s.c.stop();}
 });
 test('only existing UI states are used, local failures hide backend report actions, and callbacks use the failed message',async()=>{

@@ -1,4 +1,5 @@
 import {hasFeature} from '../utils/accountRoles';
+import {useMemoryTransfer} from '../hooks/useMemoryTransfer';
 import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
 import {useSpeechInput} from '../hooks/useSpeechInput';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
@@ -28,6 +29,7 @@ import type {NavSection} from '../types/mroya';
 export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
  const features={googleCalendar:hasFeature(user.role,'google_calendar'),technicalDiagnostics:hasFeature(user.role,'technical_diagnostics'),experimentalFeatures:hasFeature(user.role,'experimental_features'),reminders:hasFeature(user.role,'reminders')};
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
+ const memoryTransfer=useMemoryTransfer(source,()=>void controller.refreshMemory(),user.role==='admin');
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
  const preferences=useUserPreferences(source,user,onExpired,language);
  React.useLayoutEffect(()=>{if(preferences.language!==language){setAppLanguage(preferences.language);setLanguage(preferences.language);}},[preferences.language,language]);
@@ -107,6 +109,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
    languageSave:{status:preferences.languageStatus,error:preferences.languageError,onRetry:preferences.retry},
    showModelReasoning:features.technicalDiagnostics&&preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
+  memoryTransfer:user.role==='admin'?memoryTransfer:undefined,
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
   language:preferences.language,onChangeLanguage:preferences.setLanguage,

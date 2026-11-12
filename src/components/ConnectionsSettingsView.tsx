@@ -1,4 +1,6 @@
 import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
+import {MemoryTransferSettings} from './MemoryTransferSettings';
+import type {MemoryTransferPresentation} from '../types/memoryTransfer';
 import {timezoneChoices} from '../utils/timezones';
 import type { AccountPresentation, NotificationPresentation, NotificationPreview, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
 import type {AppLanguage} from '../types/api';
@@ -62,6 +64,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   calendarAnalysis?:import('../types/calendarAnalysis').CalendarAnalysisPresentation;
+  memoryTransfer?:MemoryTransferPresentation;
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
   live?: boolean;
@@ -93,6 +96,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
+  memoryTransfer,
   calendarAnalysis,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
@@ -1097,6 +1101,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   </p>
                 </div>
               </div>
+
+              {memoryTransfer && <MemoryTransferSettings transfer={memoryTransfer} />}
 
               {/* Nickname section */}
               <div className="space-y-2">

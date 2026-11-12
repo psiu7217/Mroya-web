@@ -3,6 +3,7 @@ import type {ConversationSummary,ConversationPage,ReportContext,IssueReportRespo
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
   exportMemory?:MroyaApi['exportMemory'];
+  validateMemory?:MroyaApi['validateMemory'];
   transcribeAudio?:MroyaApi['transcribeAudio'];
   calendarAnalyses?:MroyaApi['calendarAnalyses'];
   calendarAnalysisEvents?:MroyaApi['calendarAnalysisEvents'];

@@ -4,6 +4,7 @@ import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
     exportMemory:(signal)=>api.exportMemory(signal),
+    validateMemory:(document,signal)=>api.validateMemory(document,signal),
     kind:'live',
     transcribeAudio:(audio,signal)=>api.transcribeAudio(audio,signal),
     calendarAnalyses:(id,signal)=>api.calendarAnalyses(id,signal),

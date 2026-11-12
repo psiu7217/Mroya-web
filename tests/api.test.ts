@@ -12,10 +12,20 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const uuid='00000000-0000-4000-8000-000000000001';
 function fakeFetch(fn:(url:string,init:RequestInit)=>Response|Promise<Response>):typeof fetch{return ((url,init={})=>Promise.resolve(fn(String(url),init))) as typeof fetch;}
 test('memory export uses the authenticated same-origin API and rejects malformed documents',async()=>{
- const document={format:'mroya-personal-memory',version:1,baseline:'signed',graph:{nodes:[],relationships:[]}};
+ const document={format:'mroya-personal-memory',version:2,baseline:'signed',memory:{objects:[],statements:[]}};
  const api=new MroyaApi(fakeFetch((url,init)=>{assert.equal(url,'/api/v1/me/memory/export/');assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');return json(document);}));
  assert.deepEqual(await createLiveSource(api).exportMemory?.(),document);
  await assert.rejects(new MroyaApi(fakeFetch(()=>json({format:'wrong'}))).exportMemory(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+});
+test('memory validation sends the original file bytes through the CSRF protected API',async()=>{
+ const original='{"format":"mroya-personal-memory", "version":2}';let writes=0;
+ const api=new MroyaApi(fakeFetch((url,init)=>{
+  if(url.endsWith('auth/csrf/'))return json({csrf_token:'test-csrf'});
+  assert.equal(url,'/api/v1/me/memory/validate/');assert.equal(init.body,original);
+  assert.equal((init.headers as Record<string,string>)['X-CSRFToken'],'test-csrf');writes++;
+  return json({valid:true,import_available:false});
+ }));
+ await api.validateMemory(original);assert.equal(writes,1);
 });
 function stream(bytes:Uint8Array[],type='text/event-stream') {return new Response(new ReadableStream({start(c){for(const b of bytes)c.enqueue(b);c.close();}}),{headers:{'Content-Type':type,'X-Chat-Turn-ID':uuid}});}
 const bytes=(text:string)=>new TextEncoder().encode(text);

@@ -37,9 +37,18 @@ export function validTelegramLink(value:string):boolean {
 export class MroyaApi {
   async exportMemory(signal?:AbortSignal):Promise<unknown>{
     const result=await this.json<unknown>('me/memory/export/',undefined,signal);
-    if(!result||typeof result!=='object'||(result as Record<string,unknown>).format!=='mroya-personal-memory'||(result as Record<string,unknown>).version!==1||typeof (result as Record<string,unknown>).baseline!=='string'||!(result as Record<string,unknown>).graph)
+    if(!result||typeof result!=='object'||(result as Record<string,unknown>).format!=='mroya-personal-memory'||(result as Record<string,unknown>).version!==2||typeof (result as Record<string,unknown>).baseline!=='string'||!(result as Record<string,unknown>).memory)
       throw new ApiError(502,'invalid_response','Invalid memory export');
     return result;
+  }
+  async validateMemory(documentText:string,signal?:AbortSignal):Promise<void>{
+    if(!this.token)await this.csrf(signal);
+    const response=await this.fetcher('/api/v1/me/memory/validate/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':this.token},body:documentText});
+    await this.check(response);
+    if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON');
+    const data=await response.json();
+    if(!data||data.valid!==true)throw new ApiError(502,'invalid_response','Invalid validation result');
   }
   async transcribeAudio(audio:Blob,signal?:AbortSignal):Promise<string>{
     if(!audio.size||audio.size>12*1024*1024)throw new ApiError(413,'audio_too_large','Invalid audio size');

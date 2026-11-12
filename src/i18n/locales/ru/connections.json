@@ -1,4 +1,11 @@
 {
+  "memoryTransferTitle": "Управление памятью",
+  "memoryExport": "Экспорт памяти",
+  "memoryImport": "Импорт памяти",
+  "memoryReplaceWarning": "Текущая память будет полностью заменена содержимым этого файла.",
+  "memoryReplaceConfirm": "Заменить память",
+  "memoryImportSuccess": "Память успешно импортирована.",
+  "memoryValidationFailed": "Не удалось проверить файл. Попробуйте ещё раз.",
   "nickname": "Обращение",
   "nicknamePlaceholder": "Введите обращение",
   "nicknameHelp": "Как Мроя будет обращаться к вам в личных беседах и приветствиях.",

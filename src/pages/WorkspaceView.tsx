@@ -215,6 +215,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            memoryTransfer={model.memoryTransfer}
             showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
             calendarAnalysis={model.calendarAnalysis}
             notifications={model.notifications}

@@ -1,4 +1,11 @@
 {
+  "memoryTransferTitle": "Memory management",
+  "memoryExport": "Export memory",
+  "memoryImport": "Import memory",
+  "memoryReplaceWarning": "Your current memory will be completely replaced by the contents of this file.",
+  "memoryReplaceConfirm": "Replace memory",
+  "memoryImportSuccess": "Memory imported successfully.",
+  "memoryValidationFailed": "The file could not be validated. Please try again.",
   "nickname": "Nickname",
   "nicknamePlaceholder": "Enter your nickname",
   "nicknameHelp": "How Mroya addresses you in personal conversations and greetings.",

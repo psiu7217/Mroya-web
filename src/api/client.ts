@@ -35,20 +35,44 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async memoryTransferStatus(signal?:AbortSignal):Promise<{searchPending:boolean;backupId:string|null;importAvailable:boolean}>{
+    const data=await this.json<{search_pending:unknown;backup_uuid:unknown;import_available:unknown}>('me/memory/status/',undefined,signal);
+    if(typeof data.search_pending!=='boolean'||typeof data.import_available!=='boolean'||(data.backup_uuid!==null&&!isTurnUuid(data.backup_uuid)))throw new ApiError(502,'invalid_response','Invalid memory transfer status');
+    return {searchPending:data.search_pending,backupId:data.backup_uuid as string|null,importAvailable:data.import_available};
+  }
   async exportMemory(signal?:AbortSignal):Promise<unknown>{
     const result=await this.json<unknown>('me/memory/export/',undefined,signal);
     if(!result||typeof result!=='object'||(result as Record<string,unknown>).format!=='mroya-personal-memory'||(result as Record<string,unknown>).version!==2||typeof (result as Record<string,unknown>).baseline!=='string'||!(result as Record<string,unknown>).memory)
       throw new ApiError(502,'invalid_response','Invalid memory export');
     return result;
   }
-  async validateMemory(documentText:string,signal?:AbortSignal):Promise<void>{
+  private async memoryDocumentPost(path:string,documentText:string,signal?:AbortSignal):Promise<unknown>{
     if(!this.token)await this.csrf(signal);
-    const response=await this.fetcher('/api/v1/me/memory/validate/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+    const response=await this.fetcher('/api/v1/me/memory/'+path+'/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
       headers:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':this.token},body:documentText});
     await this.check(response);
     if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON');
-    const data=await response.json();
-    if(!data||data.valid!==true)throw new ApiError(502,'invalid_response','Invalid validation result');
+    return response.json();
+  }
+  async validateMemory(documentText:string,signal?:AbortSignal):Promise<{importAvailable:boolean}>{
+    const data=await this.memoryDocumentPost('validate',documentText,signal) as Record<string,unknown>;
+    if(!data||data.valid!==true||typeof data.import_available!=='boolean')throw new ApiError(502,'invalid_response','Invalid validation result');
+    return {importAvailable:data.import_available};
+  }
+  async importMemory(documentText:string,signal?:AbortSignal):Promise<{searchReady:boolean;backupId:string}>{
+    const data=await this.memoryDocumentPost('import',documentText,signal) as Record<string,unknown>;
+    if(!data||data.canonical_saved!==true||typeof data.search_ready!=='boolean'||!isTurnUuid(data.backup_uuid))throw new ApiError(502,'invalid_response','Invalid import result');
+    return {searchReady:data.search_ready,backupId:data.backup_uuid as string};
+  }
+  async retryMemoryRebuild(signal?:AbortSignal):Promise<void>{
+    const data=await this.json<{search_ready:unknown}>('me/memory/rebuild/',{},signal,'POST');
+    if(data.search_ready!==true)throw new ApiError(502,'invalid_response','Invalid rebuild result');
+  }
+  async restoreMemory(backupId:string,signal?:AbortSignal):Promise<{searchReady:boolean}>{
+    if(!isTurnUuid(backupId))throw new ApiError(400,'invalid_request','Invalid backup UUID');
+    const data=await this.json<{restored:unknown;search_ready:unknown}>('me/memory/backups/'+backupId+'/restore/',{},signal,'POST');
+    if(data.restored!==true||typeof data.search_ready!=='boolean')throw new ApiError(502,'invalid_response','Invalid restoration result');
+    return {searchReady:data.search_ready};
   }
   async transcribeAudio(audio:Blob,signal?:AbortSignal):Promise<string>{
     if(!audio.size||audio.size>12*1024*1024)throw new ApiError(413,'audio_too_large','Invalid audio size');

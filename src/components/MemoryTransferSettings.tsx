@@ -26,7 +26,7 @@ export function MemoryTransferSettings({transfer}: {transfer: MemoryTransferPres
       <button type="button" disabled={busy} onClick={transfer.exportMemory} className="rounded-lg border border-[var(--mroya-divider)] px-4 py-2 disabled:opacity-40">{tr('memoryExport',{ns:'connections'})}</button>
       <label className="rounded-lg border border-[var(--mroya-divider)] px-4 py-2 cursor-pointer has-[:disabled]:opacity-40">
         {tr('memoryImport',{ns:'connections'})}
-        <input className="sr-only" type="file" accept="application/json,.json" disabled={busy} onChange={event=>void chooseFile(event)} />
+        <input className="sr-only" type="file" accept="application/json,.json" disabled={busy||transfer.searchPending} onChange={event=>void chooseFile(event)} />
       </label>
     </div>
     {!transfer.importAvailable && <p className="text-sm text-[var(--mroya-text-muted)]">{tr('memoryImportUnavailable',{ns:'connections'})}</p>}
@@ -39,6 +39,11 @@ export function MemoryTransferSettings({transfer}: {transfer: MemoryTransferPres
     </div>}
     {transfer.error && <p role="alert" className="text-sm text-[var(--mroya-error)]">{transfer.error}</p>}
     {validationFailed && <p role="alert" className="text-sm text-[var(--mroya-error)]">{tr('memoryValidationFailed',{ns:'connections'})}</p>}
-    {transfer.success && <p role="status" className="text-sm">{tr('memoryImportSuccess',{ns:'connections'})}</p>}
+    {transfer.success && <p role="status" className="text-sm">{tr(transfer.restored?'memoryRestoreSuccess':'memoryImportSuccess',{ns:'connections'})}</p>}
+    {transfer.searchPending && <div role="status" className="text-sm space-y-2">
+      <p>{tr('memorySearchPending',{ns:'connections'})}</p>
+      <button type="button" disabled={busy||!transfer.retryAvailable} onClick={transfer.retrySearch} className="underline disabled:opacity-40">{tr('memoryRetrySearch',{ns:'connections'})}</button>
+    </div>}
+    {transfer.canRestore && <button type="button" disabled={busy} onClick={transfer.restorePrevious} className="text-sm underline disabled:opacity-40">{tr('memoryRestore',{ns:'connections'})}</button>}
   </section>;
 }

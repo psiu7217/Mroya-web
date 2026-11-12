@@ -27,6 +27,20 @@ test('memory validation sends the original file bytes through the CSRF protected
  }));
  await api.validateMemory(original);assert.equal(writes,1);
 });
+test('memory import reports pending search and supports retry and restore without replay',async()=>{
+ let imports=0;const backup='00000000-0000-4000-8000-000000000002';
+ const api=new MroyaApi(fakeFetch((url,init)=>{
+  if(url.endsWith('auth/csrf/'))return json({csrf_token:'test-csrf'});
+  if(url.endsWith('memory/import/')){imports++;assert.equal(init.body,'{}');return json({canonical_saved:true,search_ready:false,backup_uuid:backup},202);}
+  if(url.endsWith('memory/rebuild/'))return json({search_ready:true});
+  if(url.endsWith(`/backups/${backup}/restore/`))return json({restored:true,search_ready:false},202);
+  throw new Error('Unexpected request');
+ }));
+ assert.deepEqual(await api.importMemory('{}'),{searchReady:false,backupId:backup});
+ await api.retryMemoryRebuild();
+ assert.deepEqual(await api.restoreMemory(backup),{searchReady:false});
+ assert.equal(imports,1);
+});
 function stream(bytes:Uint8Array[],type='text/event-stream') {return new Response(new ReadableStream({start(c){for(const b of bytes)c.enqueue(b);c.close();}}),{headers:{'Content-Type':type,'X-Chat-Turn-ID':uuid}});}
 const bytes=(text:string)=>new TextEncoder().encode(text);
 test('same-origin session POSTs use CSRF rotated after login and logout',async()=>{

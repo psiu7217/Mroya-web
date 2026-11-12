@@ -27,9 +27,9 @@ import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
- const memoryTransfer=useMemoryTransfer(source);
  const features={googleCalendar:hasFeature(user.role,'google_calendar'),technicalDiagnostics:hasFeature(user.role,'technical_diagnostics'),experimentalFeatures:hasFeature(user.role,'experimental_features'),reminders:hasFeature(user.role,'reminders')};
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
+ const memoryTransfer=useMemoryTransfer(source,()=>void controller.refreshMemory(),user.role==='admin');
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
  const preferences=useUserPreferences(source,user,onExpired,language);
  React.useLayoutEffect(()=>{if(preferences.language!==language){setAppLanguage(preferences.language);setLanguage(preferences.language);}},[preferences.language,language]);

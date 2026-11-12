@@ -7,6 +7,7 @@ export function memoryExportErrorKey(error: unknown): string {
   if (error.code === 'authentication_required' || error.status === 401) return 'memorySessionExpired';
   if (error.code === 'memory_busy') return 'memoryBusy';
   if (error.code === 'memory_export_failed') return 'memoryExportPreparationFailed';
+  if (error.code.startsWith('memory_export_')) return 'memoryExportPreparationFailed';
   if (error.code === 'personal_memory_not_found') return 'memoryNotFound';
   if (error.status >= 500) return 'memoryServerUnavailable';
   return 'memoryExportFailed';

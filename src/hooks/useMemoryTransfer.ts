@@ -3,6 +3,7 @@ import type {WorkspaceSource} from '../types/source';
 import type {MemoryTransferPresentation} from '../types/memoryTransfer';
 import {tr} from '../i18n';
 import {ApiError} from '../api/errors';
+import {memoryExportErrorKey} from './memoryExportError';
 
 function errorMessage(error:unknown,fallback:string):string {
   const map:Record<string,string>={memory_changed_since_export:'memoryChanged',memory_object_referenced:'memoryReferenced',memory_conflict:'memoryConflict',invalid_memory_document:'memoryInvalid',invalid_json:'memoryInvalid',request_too_large:'memoryFileTooLarge',memory_busy:'memoryBusy',memory_import_unavailable:'memoryImportUnavailable'};
@@ -37,7 +38,7 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
       link.href=url;link.download=`mroya-memory-${new Date().toISOString().slice(0,10)}.json`;
       document.body.append(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
-    }).catch(()=>setError(tr('memoryExportFailed',{ns:'connections'}))).finally(()=>setBusy(false));
+    }).catch(error=>setError(tr(memoryExportErrorKey(error),{ns:'connections'}))).finally(()=>setBusy(false));
   },[source,busy]);
   const validateFile=useCallback(async(file:File)=>{
     setError(null);

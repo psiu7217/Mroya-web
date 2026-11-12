@@ -2,6 +2,8 @@
   "memoryTransferTitle": "Управление памятью",
   "memoryExport": "Экспорт памяти",
   "memoryImport": "Импорт памяти",
+  "memoryImportUnavailable": "Импорт памяти пока недоступен.",
+  "memoryExportFailed": "Не удалось экспортировать память. Попробуйте ещё раз.",
   "memoryReplaceWarning": "Текущая память будет полностью заменена содержимым этого файла.",
   "memoryReplaceConfirm": "Заменить память",
   "memoryImportSuccess": "Память успешно импортирована.",

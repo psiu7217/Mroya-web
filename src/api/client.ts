@@ -35,6 +35,12 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async exportMemory(signal?:AbortSignal):Promise<unknown>{
+    const result=await this.json<unknown>('me/memory/export/',undefined,signal);
+    if(!result||typeof result!=='object'||(result as Record<string,unknown>).format!=='mroya-personal-memory'||(result as Record<string,unknown>).version!==1||typeof (result as Record<string,unknown>).baseline!=='string'||!(result as Record<string,unknown>).graph)
+      throw new ApiError(502,'invalid_response','Invalid memory export');
+    return result;
+  }
   async transcribeAudio(audio:Blob,signal?:AbortSignal):Promise<string>{
     if(!audio.size||audio.size>12*1024*1024)throw new ApiError(413,'audio_too_large','Invalid audio size');
     if(!this.token)await this.csrf(signal);

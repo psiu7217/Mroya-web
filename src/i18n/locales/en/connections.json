@@ -2,6 +2,8 @@
   "memoryTransferTitle": "Memory management",
   "memoryExport": "Export memory",
   "memoryImport": "Import memory",
+  "memoryImportUnavailable": "Memory import is not available yet.",
+  "memoryExportFailed": "Unable to export memory. Please try again.",
   "memoryReplaceWarning": "Your current memory will be completely replaced by the contents of this file.",
   "memoryReplaceConfirm": "Replace memory",
   "memoryImportSuccess": "Memory imported successfully.",

@@ -11,6 +11,12 @@ const user={id:3,username:'test',email:'',first_name:'Test',last_name:'',timezon
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 const uuid='00000000-0000-4000-8000-000000000001';
 function fakeFetch(fn:(url:string,init:RequestInit)=>Response|Promise<Response>):typeof fetch{return ((url,init={})=>Promise.resolve(fn(String(url),init))) as typeof fetch;}
+test('memory export uses the authenticated same-origin API and rejects malformed documents',async()=>{
+ const document={format:'mroya-personal-memory',version:1,baseline:'signed',graph:{nodes:[],relationships:[]}};
+ const api=new MroyaApi(fakeFetch((url,init)=>{assert.equal(url,'/api/v1/me/memory/export/');assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');return json(document);}));
+ assert.deepEqual(await createLiveSource(api).exportMemory?.(),document);
+ await assert.rejects(new MroyaApi(fakeFetch(()=>json({format:'wrong'}))).exportMemory(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+});
 function stream(bytes:Uint8Array[],type='text/event-stream') {return new Response(new ReadableStream({start(c){for(const b of bytes)c.enqueue(b);c.close();}}),{headers:{'Content-Type':type,'X-Chat-Turn-ID':uuid}});}
 const bytes=(text:string)=>new TextEncoder().encode(text);
 test('same-origin session POSTs use CSRF rotated after login and logout',async()=>{

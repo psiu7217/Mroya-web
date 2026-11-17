@@ -9,6 +9,7 @@ import {
   Minus,
   Scan,
   BookOpen,
+  FileText,
   MessageSquare,
   Crosshair,
   Download,
@@ -534,6 +535,18 @@ export function MemoryMapView({
               </div>
 
               {section(tr('currentFacts',{ns:'memory'}), facts)}
+              {!!active.linkedFiles?.length && (
+                <section className="map-detail-section">
+                  <h3>{tr('linkedFiles',{ns:'memory'})}</h3>
+                  {active.linkedFiles.map(file => (
+                    <div className="map-detail-row" key={file.id}>
+                      <a href={file.originalUrl} className="map-detail-link" target="_blank" rel="noopener noreferrer">
+                        <FileText size={14} aria-hidden="true"/>{file.name}
+                      </a>
+                    </div>
+                  ))}
+                </section>
+              )}
               {section(tr('connectionsFrom',{ns:'memory'}), outgoing)}
               {section(tr('connectedBy',{ns:'memory'}), incoming, true)}
 

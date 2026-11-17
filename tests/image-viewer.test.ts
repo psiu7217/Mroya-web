@@ -5,7 +5,7 @@ import {ApiError} from '../src/api/errors.ts';
 import {ImageViewerController} from '../src/hooks/ImageViewerController.ts';
 import type {ImageSharing} from '../src/hooks/ImageViewerController.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
-import {imageGenerationPhase} from '../src/utils/imageGeneration.ts';
+import {estimateImageGenerationProgress,imageGenerationPhase} from '../src/utils/imageGeneration.ts';
 import {documentImageId} from '../src/utils/documentImage.ts';
 import type {ToolTimelineEntry} from '../src/types/mroya.ts';
 
@@ -13,6 +13,15 @@ const id='10000000-0000-4000-8000-000000000001',path=`/api/v1/documents/${id}/or
 const png=Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,0]);
 const file=()=>new File([png],'mroya-test.png',{type:'image/png'});
 const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
+
+test('the elapsed-time estimate advances and leaves the final percent for tool success',()=>{
+ const progress=[0,5_000,20_000,45_000,180_000].map(estimateImageGenerationProgress);
+ assert.equal(progress[0],8);
+ for(let i=1;i<progress.length;i++)assert.ok(progress[i]>progress[i-1]);
+ assert.equal(progress.at(-1),94);
+ assert.equal(estimateImageGenerationProgress(600_000),94);
+});
+
 function setup(options:{source?:Partial<WorkspaceSource>;browser?:Partial<ImageSharing>}={}){
  const events:string[]=[],shared:File[]=[];let expired=0;
  const source={documentImage:async()=>{events.push('read');return file();},...options.source} as WorkspaceSource;

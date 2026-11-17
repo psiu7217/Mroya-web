@@ -11,12 +11,14 @@ const {ImageLightbox}=await vite.ssrLoadModule('/src/components/ImageLightbox.ts
 const {AssistantMarkdown}=await vite.ssrLoadModule('/src/components/AssistantMarkdown.tsx');
 const noop=()=>{},path='/api/v1/documents/10000000-0000-4000-8000-000000000001/original/';
 
-test('generation has an indeterminate circular progress indicator and no invented percentage',()=>{
+test('generation shows a wave and labels its percentage as an estimate until the image is ready',()=>{
  const html=renderToStaticMarkup(React.createElement(ImageGenerationCard,{phase:'generating'}));
- assert.match(html,/role="progressbar"/);assert.match(html,/mroya-image-generation-ring/);
- assert.match(html,/Creating your image/);assert.doesNotMatch(html,/aria-valuenow/);assert.doesNotMatch(html.replace(/<[^>]*>/g,''),/\d+%/);
+ assert.match(html,/role="progressbar"/);assert.match(html,/mroya-image-generation-wave/);
+ assert.match(html,/Creating your image/);assert.match(html,/aria-valuetext="About 8%"/);
+ assert.match(html,/>≈ 8%</);
  const complete=renderToStaticMarkup(React.createElement(ImageGenerationCard,{phase:'finishing'}));
- assert.doesNotMatch(complete,/role="progressbar"/);assert.match(complete,/Your image is ready/);
+ assert.match(complete,/data-phase="finishing"/);assert.match(complete,/Your image is ready/);
+ assert.match(complete,/aria-valuenow="100"/);assert.match(complete,/>100%</);
 });
 
 test('Chat image is an accessible button that opens the viewer',()=>{

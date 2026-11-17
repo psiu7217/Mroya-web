@@ -50,11 +50,12 @@ test('document keywords are optional for older servers and validated when presen
  assert.throws(()=>readDocument(record({keywords:['   ']})));
 });
 
-test('history retains excluded files and maps the authorized original link into the shared UI',()=>{
+test('history maps excluded files into chat cards with filename, type and authorized original link',()=>{
  const history=readConversationHistory({conversation_id:chat,next_before:null,messages:[{id,sequence:1,role:'user',content:'Translate',status:'completed',
   created_at:'2026-11-17T00:00:00Z',completed_at:null,attachments:[record()]}]},chat);
  const attachment=chatPresentation(chat,history.messages).messages[0].attachments?.[0];
- assert.equal(attachment?.originalUrl,record().original_url);assert.equal(attachment?.searchable,false);
+ const file=record();
+ assert.deepEqual(attachment,{id:file.id,filename:file.filename,mimeType:file.mime_type,originalUrl:file.original_url});
 });
 
 test('manual upload retry reuses its idempotency ID after an ambiguous response',async()=>{

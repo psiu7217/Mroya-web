@@ -8,6 +8,7 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     discardStagedUpload:(id,signal)=>api.discardStagedUpload(id,signal),
     documents:(options,signal)=>api.documents(options,signal),documentDetail:(id,signal)=>api.documentDetail(id,signal),
     documentCategories:signal=>api.documentCategories(signal),
+    deleteDocument:(id,signal)=>api.deleteDocument(id,signal),
     setDocumentCategorySearch:(id,enabled,version,signal)=>api.setDocumentCategorySearch(id,enabled,version,signal),
     createDocumentCategory:(name,parent,enabled,signal)=>api.createDocumentCategory(name,parent,enabled,signal),
     saveDocument:(id,changes,signal)=>api.saveDocument(id,changes,signal),retryDocument:(id,signal)=>api.retryDocument(id,signal),

@@ -1,6 +1,8 @@
 {
   "title": "Files",
   "subtitle": "Your originals, folders and Mroya’s analysis",
+  "moreDetails": "More details",
+  "openImage": "Open preview of {{name}}",
   "fileDetails": "File details",
   "close": "Close",
   "loading": "Loading…",

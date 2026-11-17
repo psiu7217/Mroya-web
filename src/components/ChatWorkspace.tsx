@@ -1,4 +1,5 @@
 import {AttachmentPreviews} from './AttachmentPreviews';
+import {MessageAttachments} from './MessageAttachments';
 import type {ChatAttachmentsPresentation} from '../types/chatAttachments';
 import {appendDictation} from '../utils/dictation';
 import type {SpeechPresentation} from '../types/speech';
@@ -21,7 +22,6 @@ import {
   Sun,
   Moon,
   MoreHorizontal,
-  FileText,
   X,
   Plus,
   User,
@@ -703,17 +703,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 if (msg.sender === 'user') {
                   return (
                     <div key={msg.id} className="flex flex-col items-end">
-                      <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
-                        <AssistantMarkdown content={msg.content} variant="user" />
-                        {msg.attachments?.length ? <ul className="mt-2 space-y-1">
-                          {msg.attachments.map(file=><li key={file.id} className="text-sm">
-                            <a href={file.originalUrl} target="_blank" rel="noopener noreferrer" className="underline break-all">{file.filename}</a>
-                            <span className="block text-xs text-[var(--mroya-text-muted)]">
-                              {file.category ? file.category+' · ' : ''}{['queued','processing'].includes(file.status)?tr('fileSavedPending',{ns:'chat'}):file.status==='failed'?tr('fileReadFailed',{ns:'chat'}):file.searchable?tr('fileSearchEnabled',{ns:'chat'}):tr('fileSearchDisabled',{ns:'chat'})}
-                            </span>
-                          </li>)}
-                        </ul>:null}
-                      </div>
+                      {!!msg.attachments?.length && <MessageAttachments files={msg.attachments} onImageOpen={onImageOpen}/>}
+                      {!!msg.content.trim() && (
+                        <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
+                          <AssistantMarkdown content={msg.content} variant="user" />
+                        </div>
+                      )}
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                         {msg.timestamp}
                       </span>

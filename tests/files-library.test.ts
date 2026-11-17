@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {FilesController} from '../src/hooks/FilesController.ts';
 import {MroyaApi} from '../src/api/client.ts';
 import {ApiError} from '../src/api/errors.ts';
+import {createLiveSource} from '../src/providers/liveSource.ts';
 import {readDocumentCategory,readDocumentCategories,readDocumentDetail,readDocumentPage,readDocumentDeletion} from '../src/api/documents.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
 import type {DocumentCategoryDto,DocumentDetail} from '../src/types/documents.ts';
@@ -92,12 +93,14 @@ test('manual upload retry reuses the same id after an ambiguous response',async(
  assert.deepEqual(ids,[id,id]);c.stop();
 });
 
-test('document deletion uses the authenticated CSRF transport and validates folder receipts',async()=>{
+test('the live workspace exposes document deletion through the authenticated CSRF transport',async()=>{
  const requests:{url:string;init?:RequestInit}[]=[];
  const api=new MroyaApi(async(url,init)=>{requests.push({url:String(url),init});
   return new Response(JSON.stringify(String(url).endsWith('auth/csrf/')?{csrf_token:'delete-csrf'}:{status:'deleted',deleted_category_ids:[folderId]}),{headers:{'Content-Type':'application/json'}});
  });
- assert.deepEqual(await api.deleteDocument(id),{status:'deleted',deleted_category_ids:[folderId]});
+ const live=createLiveSource(api);
+ assert.ok(live.deleteDocument);
+ assert.deepEqual(await live.deleteDocument(id),{status:'deleted',deleted_category_ids:[folderId]});
  const write=requests.find(request=>request.init?.method==='DELETE')!;
  assert.equal(write.url,`/api/v1/documents/${id}/`);assert.equal(write.init?.credentials,'same-origin');
  assert.equal((write.init?.headers as Record<string,string>)['X-CSRFToken'],'delete-csrf');

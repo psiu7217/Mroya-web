@@ -1,3 +1,5 @@
+import type {ChatMessageAttachment} from './chatAttachments';
+
 export type NavSection = 'chat' | 'files' | 'calendar' | 'reminders' | 'memory' | 'ai-tasks' | 'memory-map' | 'connections' | 'notes';
 
 export type SubscriptionPlan = 'free' | 'premium';
@@ -89,7 +91,7 @@ export interface ReasoningTimelineEntry {kind:'reasoning';id:string;sequence:num
 export type ChatTimelineEntry = ToolTimelineEntry | ReasoningTimelineEntry;
 
 export interface ChatMessage {
-  attachments?:{id:string;filename:string;originalUrl:string;searchable:boolean;category:string;status:string}[];
+  attachments?:ChatMessageAttachment[];
   timeline?:ChatTimelineEntry[];
   report_context?:import('./api').ReportContext;
   /** Task receipts bound to the assistant source turn (live + history). */

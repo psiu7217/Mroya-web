@@ -194,6 +194,12 @@ export interface CalendarEvent {
 
 export type GraphNodeCategory = 'person' | 'agreement' | 'event' | 'organization' | 'preference';
 
+export interface MemoryLinkedFile {
+  id: string;
+  name: string;
+  originalUrl: string;
+}
+
 export interface GraphNode {
   type?: 'entity'|'memory'; kind?: string; is_self?: boolean; degree?: number; memory_count?: number;
   subject?: string; statement_id?: string; predicate?: string; predicate_key?: string; polarity?: string;
@@ -210,6 +216,7 @@ export interface GraphNode {
   dateRecorded: string;
   source: string;
   linkedMemoryId?: string;
+  linkedFiles?: MemoryLinkedFile[];
 }
 
 export interface GraphEdge {

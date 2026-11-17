@@ -1,9 +1,9 @@
-import {readReportContext} from '../api/reportContext.ts';
+import {isTurnUuid,readReportContext} from '../api/reportContext.ts';
 import {formatTime} from '../i18n/format.ts';
 import {tr} from '../i18n/index.ts';
 import type {ApiUser,ApiMessage,CanonicalMemory,MemoryMapResponse} from '../types/api.ts';
 import type {AccountPresentation} from '../types/workspace.ts';
-import type {Conversation,MemoryItem,GraphNode,GraphEdge} from '../types/mroya.ts';
+import type {Conversation,MemoryItem,GraphNode,GraphEdge,MemoryLinkedFile} from '../types/mroya.ts';
 const text=(v:unknown):string=>v==null?'':typeof v==='string'?v:JSON.stringify(v);
 export function accountPresentation(user:ApiUser):AccountPresentation {
  const name=user.nickname.trim()||[user.first_name,user.last_name].filter(Boolean).join(' ').trim()||user.username;
@@ -17,6 +17,15 @@ export function memoryPresentation(m:CanonicalMemory,map:MemoryMapResponse):Memo
  const node=map.nodes.find(n=>n.type==='memory'&&n.statement_id===m.uuid);
  return {id:m.uuid,title:[subject,predicate].filter(Boolean).join(' · ')||tr('personalMemory',{ns:'memory'}),summary:value,details:[subject,predicate,value].filter(Boolean).join(' — '),category:'Personal memory',dateSaved:text(m.learned_at).slice(0,10),source:tr('canonicalMemory',{ns:'memory'}),entities:[subject,text(m.object_label)].filter(Boolean),relatedNodeId:node?.id??'',confidenceNote:text(m.state)};
 }
+function linkedFiles(value: unknown): MemoryLinkedFile[] {
+ if (!Array.isArray(value)) return [];
+ return value.slice(0, 20).flatMap(file => {
+  if (!file || typeof file !== 'object' || !isTurnUuid(file.id) || typeof file.name !== 'string') return [];
+  const originalUrl = `/api/v1/documents/${file.id}/original/`;
+  return file.original_url === originalUrl ? [{id: file.id, name: file.name, originalUrl}] : [];
+ });
+}
+
 export function graphPresentation(map:MemoryMapResponse):{nodes:GraphNode[];edges:GraphEdge[]} {
  const nodes=map.nodes.map((n):GraphNode=>({id:n.id,label:n.label,type:n.type,kind:n.kind,
   is_self:n.is_self,degree:n.degree,memory_count:n.memory_count,subject:n.subject,
@@ -24,7 +33,7 @@ export function graphPresentation(map:MemoryMapResponse):{nodes:GraphNode[];edge
   predicate:text(n.predicate),predicate_key:text(n.predicate_key),polarity:text(n.polarity),literal_type:n.literal_type,
   valid_from:typeof n.valid_from==='string'?n.valid_from:null,valid_to:typeof n.valid_to==='string'?n.valid_to:null,
   learned_at:typeof n.learned_at==='string'?n.learned_at:null,evidence_count:typeof n.evidence_count==='number'?n.evidence_count:undefined,
-  resolution_state:n.resolution_state,
+  resolution_state:n.resolution_state,linkedFiles:n.type==='entity'&&n.linked_files?linkedFiles(n.linked_files):undefined,
   subtitle:n.type==='memory'?text(n.predicate):n.kind??tr('entity',{ns:'memory'}),category:n.kind==='person'?'person':n.kind==='organization'?'organization':n.type==='memory'?'agreement':'preference',
   connectionsCount:n.degree??map.edges.filter(e=>e.source===n.id||e.target===n.id).length,summary:n.label,
   dateRecorded:text(n.learned_at).slice(0,10),source:'Canonical memory map',linkedMemoryId:n.type==='memory'?text(n.statement_id)||undefined:undefined}));

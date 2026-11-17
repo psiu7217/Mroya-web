@@ -28,3 +28,14 @@ test('offline graph shares renderer model; dangling edges never invent nodes',()
  assert.equal(graph.edges.length,0);assert.equal(graph.nodes.length,1);
  assert.deepEqual(renderGraph([],[]).nodes,[]);
 });
+
+test('linked originals stay on their Memory object and use its authenticated URL',()=>{
+ const id='360816b5-aef4-42d8-a20b-da978ebdb6d7';
+ const originalUrl=`/api/v1/documents/${id}/original/`;
+ const map:MemoryMapResponse={nodes:[{id:'entity:1',type:'entity',label:'Project',linked_files:[
+  {id,name:'brief.txt',original_url:originalUrl},
+  {id,name:'wrong.txt',original_url:'https://example.invalid/another-file'},
+ ]}],edges:[]};
+ const props=graphPresentation(map);
+ assert.deepEqual(renderGraph(props.nodes,props.edges).nodes[0].linkedFiles,[{id,name:'brief.txt',originalUrl}]);
+});

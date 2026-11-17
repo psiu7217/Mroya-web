@@ -5,6 +5,7 @@ import { Sparkles, Check, X } from 'lucide-react';
 import type { WorkspaceModel } from '../types/workspace';
 import { Sidebar } from '../components/Sidebar';
 import { ChatWorkspace } from '../components/ChatWorkspace';
+import { ImageLightbox } from '../components/ImageLightbox';
 import { MemoryContextPanel } from '../components/MemoryContextPanel';
 import { CalendarView } from '../components/CalendarView';
 import { RemindersView } from '../components/RemindersView';
@@ -82,6 +83,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           <>
             <ChatWorkspace isAdmin={runtime ? !!runtime.features?.technicalDiagnostics : true} showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true} showModelReasoning={runtime?.showModelReasoning} install={model.install}
               speech={model.speech}
+              onImageOpen={model.imageViewer?.onOpen}
               aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
@@ -389,5 +391,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
        executingTaskId={model.aiTasks?.executingTaskId} onExecute={model.aiTasks?.onExecute}
        cancellingTaskId={model.aiTasks?.cancellingTaskId} onCancel={model.aiTasks?.onCancel}
        decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision} onReport={model.aiTasks?.onReport}/>
+      <ImageLightbox viewer={model.imageViewer}/>
     </WorkspaceSurface>);
 }

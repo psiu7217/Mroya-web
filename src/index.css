@@ -151,6 +151,24 @@ select:focus-visible {
 .mroya-markdown th { font-weight: 650; background: var(--mroya-surface-muted); }
 .mroya-markdown hr { border: 0; border-top: 1px solid var(--mroya-divider); }
 .mroya-markdown-image { color: var(--mroya-text-muted); }
+
+.mroya-image-generation { background: var(--mroya-surface-muted); }
+.mroya-image-generation-colors {
+  background: radial-gradient(ellipse at 24% 30%, #f0c99a 0%, transparent 47%),
+              radial-gradient(ellipse at 78% 42%, #c6b5da 0%, transparent 44%),
+              radial-gradient(ellipse at 45% 78%, #d9b9a5 0%, transparent 46%);
+  filter: blur(24px); opacity: .72;
+  animation: mroya-image-emerge 8s ease-in-out infinite alternate;
+}
+.mroya-image-generation-ring { animation: mroya-image-spin 1.8s linear infinite; }
+@keyframes mroya-image-spin { to { transform: rotate(360deg); } }
+@keyframes mroya-image-emerge {
+  from { transform: translate(-5%, -3%) scale(.95) rotate(-10deg); }
+  to { transform: translate(5%, 3%) scale(1.1) rotate(12deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mroya-image-generation-ring,.mroya-image-generation-colors { animation: none; }
+}
 .mroya-markdown-user > * + * { margin-top: .6em; }
 .mroya-markdown-user :where(h1,h2,h3,h4,h5,h6) { margin-top: .8em; }
 .mroya-markdown-user > :first-child { margin-top: 0; }

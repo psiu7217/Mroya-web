@@ -27,6 +27,20 @@ test('library DTOs accept excluded files and all source pages but reject unsafe 
  assert.throws(()=>readDocumentPage({...page(),next_offset:49}));
 });
 
+test('generated files retain provenance and the generated collection uses the existing session client',async()=>{
+ assert.equal(readDocumentDetail(detail({source:'generated'}),id).source,'generated');
+ assert.equal(readDocumentDetail(detail(),id).source,undefined);
+ assert.throws(()=>readDocumentDetail({...detail(),source:'external'},id));
+ const urls:string[]=[];
+ const api=new MroyaApi(async url=>{urls.push(String(url));return new Response(JSON.stringify(page()),{headers:{'Content-Type':'application/json'}});});
+ await api.documents({category:'generated'});
+ assert.equal(new URL(urls[0],'https://app.heymroya.com').searchParams.get('category'),'generated');
+ const received:string[]=[];
+ const c=new FilesController(source({documents:async query=>{received.push(query?.category??'');return page();}}),()=>{});
+ await start(c);c.category('generated');await tick();
+ assert.equal(c.snapshot().category,'generated');assert.equal(received.at(-1),'generated');c.stop();
+});
+
 test('list filters, status polling and versioned corrections use the existing session and CSRF transport',async()=>{
  const received:{url:string;init?:RequestInit}[]=[];
  const api=new MroyaApi(async(url,init)=>{received.push({url:String(url),init});

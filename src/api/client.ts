@@ -67,12 +67,37 @@ export class MroyaApi {
   async documents(options:DocumentLibraryQuery={},signal?:AbortSignal){
     const {offset=0,category='',q='',order='newest'}=options;
     if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>200||!['newest','name'].includes(order)
-      ||category!==''&&category!=='uncategorized'&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
+      ||!['','uncategorized','generated'].includes(category)&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
     return readDocumentPage(await this.json('documents/?'+new URLSearchParams({offset:String(offset),category,q,order}),undefined,signal),offset);
   }
   async documentDetail(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
     return readDocumentDetail(await this.json('documents/'+id+'/',undefined,signal),id);
+  }
+  async documentImage(id:string,signal?:AbortSignal):Promise<File>{
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    const response=await this.fetcher('/api/v1/documents/'+id+'/original/',{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'image/png,image/jpeg,image/webp,image/gif'}});
+    await this.check(response);
+    const mime=response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()??'';
+    const extensions:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'};
+    const limit=25*1024*1024,length=response.headers.get('Content-Length');
+    if(!extensions[mime]||!response.body||length!==null&&(!Number.isSafeInteger(Number(length))||Number(length)<1||Number(length)>limit))
+      throw new ApiError(502,'invalid_image','Invalid image response');
+    const reader=response.body.getReader(),chunks:BlobPart[]=[];let size=0;
+    try{
+      while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
+        if(size>limit){await reader.cancel();throw new ApiError(502,'invalid_image','Image exceeds the size limit');}
+        chunks.push(new Uint8Array(value).buffer);
+      }
+    }finally{reader.releaseLock();}
+    const file=new File(chunks,'mroya-'+id+'.'+extensions[mime],{type:mime});
+    const header=new Uint8Array(await file.slice(0,12).arrayBuffer()),text=String.fromCharCode(...header);
+    const valid=mime==='image/png'?text.startsWith('\x89PNG\r\n\x1a\n'):
+      mime==='image/jpeg'?header[0]===255&&header[1]===216&&header[2]===255:
+      mime==='image/webp'?text.startsWith('RIFF')&&text.slice(8)==='WEBP':/^GIF8[79]a/.test(text);
+    if(!size||!valid)throw new ApiError(502,'invalid_image','Invalid image bytes');
+    return file;
   }
   async documentCategories(signal?:AbortSignal){return readDocumentCategories(await this.json('documents/categories/',undefined,signal));}
   async deleteDocument(id:string,signal?:AbortSignal){

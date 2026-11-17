@@ -28,6 +28,15 @@ test('empty/plain/malformed and long strings remain safe',()=>{
  assert.match(render('Plain русский text'),/<p>Plain русский text<\/p>/);
  for(const input of ['**unfinished [link]((', 'a'.repeat(16000), 'https://example.com/'+ 'x'.repeat(2000)]) assert.ok(render(input).length>0);
 });
+
+test('assistant images display only private document originals with an exact owner-scoped URL',()=>{
+ const path='/api/v1/documents/10000000-0000-4000-8000-000000000001/original/';
+ assert.match(render('![Generated cat]('+path+')'),/<img[^>]*src="\/api\/v1\/documents\//);
+ assert.match(render('![Generated cat]('+path+')'),/alt="Generated cat"/);
+ for(const url of ['https://foreign.test/image.png','https://app.heymroya.com'+path,'//evil.test'+path,path+'?external=1',path+'#fragment','/api/v1/documents/invalid/original/','data:image/png;base64,AAAA'])
+  assert.doesNotMatch(render('![Blocked]('+url+')'),/<img/);
+ assert.doesNotMatch(render('![User link]('+path+')','user'),/<img/);
+});
 test('HTML, scripts, handlers, iframe and JSX are never executable elements',()=>{
  for(const variant of ['assistant','user']) {
  const html=render('<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n<iframe src="https://evil.test"></iframe>\n\n<div onclick="alert(1)">hello</div>\n\n<CustomComponent />',variant);

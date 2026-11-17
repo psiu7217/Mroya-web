@@ -7,6 +7,28 @@ failures still retry analysis. Save remains manual without a background deadline
 
 # Backend contract for Mroya Web
 
+Image generation uses the companion API image-generation release and migrations
+`provider.0014` / `documents.0003`. Admin selects a separate OpenRouter image model.
+Chat calls the server-owned `generate_image` tool; Web never sends provider
+credentials or generation requests. File DTOs optionally include
+`source=uploaded|generated` (missing means a legacy upload).
+`documents/?category=generated` lists the owner's generated files. The collection
+includes files moved into another category. Generated originals use the existing
+authenticated `/api/v1/documents/{id}/original/` URL. Assistant Markdown displays
+images only at this exact relative path; remote/data URLs remain omitted.
+Live `generate_image` activities have kind `tool` and null input/output, keeping
+prompts and base64 out of SSE activity. Deploy API before Web.
+
+The Chat image card follows that activity's running/finished lifecycle and shows
+an indeterminate circular indicator; no percentage is inferred. Opening an image
+loads its existing authenticated original through the session client, with a
+25 MiB bound and raster MIME/signature checks. The viewer shares the actual File
+through the device share sheet. Without file sharing it copies a PNG when the
+clipboard permits, or offers download. Private original URLs are never presented
+as publicly shareable links. Bytes/object URLs are disposed on close, conversation
+change and logout. File preloading happens before the Share click, retaining the
+browser's required transient user activation.
+
 Memory-transfer version 2 accepts optional `object_merges` (`from` → `into` UUIDs)
 and a non-executable `editing_guide`. New exports include both fields; the client
 preserves the complete JSON when downloading or submitting it. Backend redirects

@@ -214,5 +214,10 @@
   "fileSearchEnabled": "Available in search",
   "fileSearchDisabled": "Excluded from general search",
   "fileSavedPending": "Saved · processing",
-  "fileReadFailed": "Saved · could not finish reading"
+  "fileReadFailed": "Saved · could not finish reading",
+  "attachmentsLabel": "Attached files",
+  "attachmentUploading": "Uploading {{name}}",
+  "attachmentUploadFailed": "Upload failed",
+  "attachmentRemove": "Remove attachment {{name}}",
+  "attachmentRetry": "Retry upload {{name}}"
 }

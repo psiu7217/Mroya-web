@@ -89,6 +89,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}
               documentsAvailable={model.documentsAvailable}
+              draftAttachments={model.chatAttachments}
               account={account}
               memoriesCount={runtime?.memoriesTotal??memories.length}
               conversation={activeConversation}

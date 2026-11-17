@@ -87,3 +87,12 @@ test('a missing capability prevents upload and preserves the draft for a deliber
  await controller.load();assert.equal(await controller.send('Translate',undefined,[new File(['abc'],'file.png')]),false);
  assert.equal(writes,0);controller.stop();
 });
+
+test('preuploaded attachments dispatch immediately and acknowledge the composer before the assistant finishes',async()=>{
+ let finish=()=>{},acknowledged=false,sent:string[]|undefined;
+ const controller=new LiveWorkspaceController(source({uploadDocument:async()=>{throw Error('No second upload');},document:async()=>{throw Error('No browser OCR polling');},send:async(_text,_id,emit,options)=>{
+  sent=options?.documentIds;options?.onTurn?.(chat);await new Promise<void>(resolve=>{finish=resolve;});emit({event:'done',data:{}});
+ }}),()=>{},()=>id);
+ await controller.load();const pending=controller.send('Read the guide',()=>{acknowledged=true;},[],[record({status:'staged'})]);
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(acknowledged,true);assert.deepEqual(sent,[id]);finish();await pending;controller.stop();
+});

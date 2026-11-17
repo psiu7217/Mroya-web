@@ -418,10 +418,10 @@ export class LiveWorkspaceController {
   }catch(error){if(epoch===this.epoch&&!signal.aborted)this.failure(error);}
  }
  async moreMemories(){if(this.state.loading||this.state.busy||this.state.memories.memories.length>=this.state.memories.total)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.source.memories({limit:25,offset:this.state.memories.memories.length},this.abort.signal);if(epoch===this.epoch)this.set({memories:{...page,memories:[...this.state.memories.memories,...page.memories].filter((m,i,a)=>a.findIndex(x=>x.uuid===m.uuid)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
- async send(content:string,onReady?:()=>void,files:File[]=[]):Promise<boolean>{
+ async send(content:string,onReady?:()=>void,files:File[]=[],preparedAttachments?:DocumentDto[]):Promise<boolean>{
   if(this.sendInProgress||this.state.busy||this.state.loading||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain)return false;
   if(this.state.capabilities?.chat!==true){this.set({error:'Chat is unavailable on this server.'});return false;}
-  if(files.length&&this.state.capabilities?.documents!==true){this.set({error:tr('filesUnavailable',{ns:'chat'})});return false;}
+  if((files.length||preparedAttachments?.length)&&this.state.capabilities?.documents!==true){this.set({error:tr('filesUnavailable',{ns:'chat'})});return false;}
   if(!content.trim()||content.length>16000){this.set({error:'Messages must contain 1–16000 characters.'});return false;}
   if(this.multi&&!this.state.activeConversationId&&this.unconfirmedCreate){this.set({error:'Select a chat or use New chat after checking server status. The previous creation was not confirmed; nothing is automatically resent.'});return false;}
   this.sendInProgress=true;
@@ -433,7 +433,7 @@ export class LiveWorkspaceController {
    }
    sendingEpoch=this.epoch;
    if(files.length)this.set({busy:true,error:null});
-   const attachments=files.length?await this.uploads.prepare(this.source,files,content,this.abort.signal):[];
+   const attachments=preparedAttachments??(files.length?await this.uploads.prepare(this.source,files,content,this.abort.signal):[]);
    if(sendingEpoch!==this.epoch||this.abort.signal.aborted)return false;
    return await this.sendActive(content,onReady,attachments);
   }catch(error){if(sendingEpoch===this.epoch&&!this.abort.signal.aborted)this.failure(error);return false;}

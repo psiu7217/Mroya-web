@@ -8,7 +8,7 @@ export function readDocument(value:unknown):DocumentDto {
  const row=value as Record<string,unknown>;
  if(!isTurnUuid(row.id)||typeof row.filename!=='string'||!row.filename||typeof row.title!=='string'
   ||typeof row.mime_type!=='string'||!Number.isSafeInteger(row.size_bytes)||(row.size_bytes as number)<1
-  ||!['queued','processing','ready','needs_attention','failed'].includes(row.status as string)
+  ||!['staged','queued','processing','ready','needs_attention','failed'].includes(row.status as string)
   ||typeof row.searchable!=='boolean'||typeof row.coverage!=='string'
   ||typeof row.created_at!=='string'||!Number.isFinite(Date.parse(row.created_at))
   ||row.original_url!==`/api/v1/documents/${row.id}/original/`)invalid();

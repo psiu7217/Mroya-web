@@ -48,6 +48,7 @@ import {
 import { AiTaskCompletionToast } from './AiTaskCompletionToast';
 import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
+import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 
 export interface ChatWorkspaceProps {
   draftAttachments?:ChatAttachmentsPresentation;
@@ -134,7 +135,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const tasks = aiTasks?.tasks ?? [];
   const completedToastTask = aiTasks?.completedTask;
   const openTasks = () => aiTasks?.onOpen();
-  const activeTasksCount = tasks.filter(t => ['awaiting_review','pending_confirmation','running','queued','needs_clarification'].includes(t.status)).length;
+  const activeTasksCount = tasks.filter(countsTowardTaskBadge).length;
   const hasRunningTasks = tasks.some(t => t.status === 'running');
 
   const submission = useRef(false), draftRevision = useRef(0);

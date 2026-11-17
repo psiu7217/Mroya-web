@@ -1,5 +1,6 @@
 export interface MemoryTransferPresentation {
   busy: boolean;
+  operation: 'export' | 'import' | 'retry' | 'restore' | null;
   error: string | null;
   success: boolean;
   restored: boolean;

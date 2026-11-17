@@ -16,7 +16,7 @@ const {MemoryTransferSettings}=await vite.ssrLoadModule('/src/components/MemoryT
 const {ApiError}=await vite.ssrLoadModule('/src/api/errors.ts');
 after(async()=>{delete globalThis[key];await vite.close();});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-const gate=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
+const gate=()=>{let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j;});return {promise,resolve,reject};};
 
 function mount(source){
   const slots=[];let cursor=0,effects=[],dirty=false,value;
@@ -59,10 +59,15 @@ test('successful validation permits one import and pending recovery keeps the fe
   assert.equal(view.value.canImportFile,true);
   view.value.importValidatedFile();view.value.importValidatedFile();view.flush();
   assert.equal(sent.length,1);assert.equal(view.value.canImportFile,false);
+  assert.equal(view.value.operation,'import');
+  assert.match(view.html(),/role="progressbar"/);assert.match(view.html(),/Importing memory/);
+  assert.match(view.html(),/aria-busy="true"/);assert.doesNotMatch(view.html(),/aria-valuenow/);
   assert.equal(view.value.importUnavailable,false);
   pending.resolve({searchReady:false,backupId:'11111111-1111-4111-8111-111111111111'});
   await tick();view.flush();
   assert.equal(view.value.searchPending,true);assert.equal(view.value.canRestore,true);
+  assert.equal(view.value.operation,null);assert.match(view.html(),/Update needs another attempt/);
+  assert.match(view.html(),/aria-busy="false"/);assert.doesNotMatch(view.html(),/aria-valuenow/);
   assert.equal(view.value.importAvailable,true);view.unmount();
 });
 
@@ -84,4 +89,29 @@ test('an explicit server feature restriction still displays the unavailable noti
   const view=mount({memoryTransferStatus:async()=>({importAvailable:false,searchPending:false,backupId:null})});
   await tick();view.flush();assert.equal(view.value.importUnavailable,true);
   assert.match(view.html(),/Memory import is not available yet/);view.unmount();
+});
+
+test('completed import shows full progress only after the server confirms readiness',async()=>{
+  const pending=gate();
+  const view=mount({memoryTransferStatus:async()=>({importAvailable:true,searchPending:false,backupId:null}),
+    validateMemory:async()=>({importAvailable:true}),importMemory:()=>pending.promise});
+  await tick();view.flush();await view.value.validateFile(new File(['{}'],'memory.json'));view.flush();
+  view.value.importValidatedFile();view.flush();assert.doesNotMatch(view.html(),/aria-valuenow/);
+  pending.resolve({searchReady:true,backupId:'11111111-1111-4111-8111-111111111111'});
+  await tick();view.flush();assert.equal(view.value.operation,null);
+  assert.match(view.html(),/aria-valuenow="100"/);assert.match(view.html(),/Memory imported successfully/);
+  view.unmount();
+});
+
+test('failed recovery stops its animation and returns to the waiting state',async()=>{
+  const pending=gate();
+  const view=mount({memoryTransferStatus:async()=>({importAvailable:true,searchPending:true,backupId:null}),
+    retryMemoryRebuild:()=>pending.promise});
+  await tick();view.flush();view.value.retrySearch();view.flush();
+  assert.equal(view.value.operation,'retry');assert.match(view.html(),/Updating links and search/);
+  assert.match(view.html(),/aria-busy="true"/);
+  pending.reject(new Error('synthetic failed recovery'));await tick();view.flush();
+  assert.equal(view.value.operation,null);assert.equal(view.value.busy,false);
+  assert.match(view.html(),/Update needs another attempt/);assert.match(view.html(),/aria-busy="false"/);
+  view.unmount();
 });

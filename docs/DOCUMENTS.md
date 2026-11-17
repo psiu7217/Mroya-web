@@ -47,16 +47,29 @@ API or storage operations. Logout discards state and cancels outstanding work.
 Offline Design has separate example files and never downloads originals or calls
 the API. Original uploads still use the existing idempotent multipart transport.
 
+File details include a confirmed permanent-delete action using the existing
+session/CSRF client. The companion API removes originals, extracted data, search
+indexes and attachment links, then prunes empty folders along that file's path.
+The library returns to the nearest surviving parent or All files. A lost DELETE
+response is reconciled by GET; the client never automatically repeats deletion.
+Late reads and logout cannot restore removed file state. Design Mode disables
+this operation and makes no delete requests.
+
+The informational `needs_attention` label is presented as "Processed with notes"
+with an explanation that approval is unnecessary. Optional detail review reasons
+identify unverified observations or incomplete extraction; this status alone does
+not exclude the file from search.
+
 Companion library API changes must be deployed before this interface. The old
 attachment and Chat contracts remain compatible.
 
-Companion API contract: [Mroya API document service](https://github.com/psiu7217/Mroya-api/blob/codex/document-library/docs/DOCUMENTS.md).
+Companion API contract: [Mroya API document service](https://github.com/psiu7217/Mroya-api/blob/main/docs/DOCUMENTS.md).
 `capabilities.documents===true` enables real selection in the shared chat
 composer. Missing/false keeps the existing unavailable behavior. Offline Design
 Mode keeps its sample attachment and makes no requests.
 
 `MroyaApi` owns multipart upload, session/CSRF and DTO/link validation.
-`DocumentUploads` owns account-local upload IDs and processing polls.
+`DocumentUploads` owns account-local upload IDs and waits only for upload bytes.
 `LiveWorkspaceController` owns the send lock, confirmed conversation, attachment
 IDs, account cancellation, canonical history and message acknowledgement.
 `ChatWorkspace` only selects File objects and renders typed attachment cards;
@@ -64,8 +77,8 @@ it performs no HTTP/storage operations. File contents are never encoded into
 Chat text, localStorage, URLs or telemetry by the frontend.
 
 The legacy send-time composer accepts at most eight files of 1 byte–25 MiB each.
-That fallback stores the whole batch before waiting up to sixty seconds for processing. Longer work is
-sent with its truthful pending state and continues in the backend. Failed
+That fallback sends the stored IDs without waiting for classification. Pending work
+continues in the backend. Failed
 analysis does not remove the original. The message keeps stable owner-authorized
 download links and displays the assigned category path and effective search
 flag. Pending work is not presented as a final search-policy decision.

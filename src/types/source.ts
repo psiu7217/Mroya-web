@@ -5,7 +5,7 @@ export interface WorkspaceSource {
   uploadStagedDocument?:MroyaApi['uploadStagedDocument'];discardStagedUpload?:MroyaApi['discardStagedUpload'];
   documents?:MroyaApi['documents'];documentDetail?:MroyaApi['documentDetail'];documentCategories?:MroyaApi['documentCategories'];
   setDocumentCategorySearch?:MroyaApi['setDocumentCategorySearch'];createDocumentCategory?:MroyaApi['createDocumentCategory'];
-  saveDocument?:MroyaApi['saveDocument'];retryDocument?:MroyaApi['retryDocument'];
+  saveDocument?:MroyaApi['saveDocument'];retryDocument?:MroyaApi['retryDocument'];deleteDocument?:MroyaApi['deleteDocument'];
   uploadDocument?:MroyaApi['uploadDocument'];
   document?:MroyaApi['document'];
   exportMemory?:MroyaApi['exportMemory'];

@@ -210,7 +210,7 @@
   "filesUnavailable": "File uploads are unavailable on this server.",
   "processAttachments": "Process the attached files.",
   "fileLimits": "Choose up to 8 files, each between 1 byte and 25 MiB.",
-  "filesProcessing": "Saving files and reading their contents…",
+  "filesProcessing": "Uploading files…",
   "fileSearchEnabled": "Available in search",
   "fileSearchDisabled": "Excluded from general search",
   "fileSavedPending": "Saved · processing",

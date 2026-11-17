@@ -210,7 +210,7 @@
   "filesUnavailable": "Загрузка файлов пока недоступна на этом сервере.",
   "processAttachments": "Обработай вложения.",
   "fileLimits": "Можно прикрепить до 8 файлов, каждый размером от 1 байта до 25 МиБ.",
-  "filesProcessing": "Сохраняю файлы и читаю содержимое…",
+  "filesProcessing": "Загружаю файлы…",
   "fileSearchEnabled": "Доступно в поиске",
   "fileSearchDisabled": "Исключено из общего поиска",
   "fileSavedPending": "Сохранено · обрабатывается",

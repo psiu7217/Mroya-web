@@ -278,7 +278,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
 
-        {activeSection === 'files' && <FilesView runtime={model.files} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar} onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}/> }
+        {activeSection === 'files' && <FilesView runtime={model.files} onImageOpen={model.imageViewer?.onOpen} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar} onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}/> }
 
         {activeSection === 'notes' && notesAvailable && (
           <NotesView

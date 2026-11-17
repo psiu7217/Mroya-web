@@ -1,16 +1,37 @@
-import React from 'react';
-import {Check,ImagePlus} from 'lucide-react';
+import React, {useEffect, useState} from 'react';
 import {tr} from '../i18n';
+import {estimateImageGenerationProgress} from '../utils/imageGeneration';
 
 export function ImageGenerationCard({phase}:{phase:'generating'|'finishing'}){
- return <div className="mroya-image-generation relative isolate flex aspect-[4/3] w-full max-w-[440px] items-center justify-center overflow-hidden rounded-2xl border border-[var(--mroya-divider)]" aria-busy={phase==='generating'}>
-  <div className="mroya-image-generation-colors absolute -inset-1/2 -z-10" aria-hidden="true"/>
-  <div className="relative flex max-w-[85%] flex-col items-center gap-4 rounded-2xl border border-white/30 bg-[var(--mroya-surface)]/80 px-6 py-5 text-center shadow-sm backdrop-blur-md">
-   {phase==='generating'?<div role="progressbar" aria-label={tr('imageGenerating',{ns:'chat'})} className="relative h-14 w-14">
-    <svg viewBox="0 0 48 48" className="mroya-image-generation-ring h-full w-full" aria-hidden="true"><circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="2.5" opacity=".15"/><circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="82 126" className="text-[var(--mroya-primary)]"/></svg>
-    <ImagePlus className="absolute left-4 top-4 h-6 w-6 text-[var(--mroya-primary)]" aria-hidden="true"/>
-   </div>:<Check className="h-10 w-10 text-[var(--mroya-primary)]" aria-hidden="true"/>}
-   <div role="status"><p className="text-sm font-medium">{tr(phase==='generating'?'imageGenerating':'imageFinishing',{ns:'chat'})}</p><p className="mt-1 text-xs text-[var(--mroya-text-muted)]">{tr('imageAutoSaved',{ns:'chat'})}</p></div>
-  </div>
- </div>;
+  const [estimated, setEstimated] = useState(() => estimateImageGenerationProgress(0));
+  const generating = phase === 'generating';
+  const progress = generating ? estimated : 100;
+  const label = tr(generating ? 'imageGenerating' : 'imageFinishing', {ns:'chat'});
+
+  useEffect(() => {
+    if (!generating) return;
+    const startedAt = performance.now();
+    setEstimated(estimateImageGenerationProgress(0));
+    const timer = window.setInterval(() => {
+      setEstimated(estimateImageGenerationProgress(performance.now() - startedAt));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [generating]);
+
+  return (
+    <div className="mroya-image-generation relative isolate flex aspect-[4/3] w-full max-w-[34rem] items-end overflow-hidden rounded-xl" data-phase={phase}>
+      <div className="mroya-image-generation-wave" aria-hidden="true" />
+      <div className="mroya-image-generation-footer relative w-full space-y-2 px-4 pb-4 pt-7">
+        <div className="flex items-baseline justify-between gap-3 text-sm font-medium">
+          <p role="status">{label}</p>
+          <span className="tabular-nums" aria-hidden="true">{generating ? '≈ ' : ''}{progress}%</span>
+        </div>
+        <div className="mroya-image-generation-track h-1 overflow-hidden rounded-full" role="progressbar"
+          aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}
+          aria-valuetext={generating ? tr('imageProgressEstimate', {ns:'chat', progress}) : '100%'}>
+          <div className="mroya-image-generation-fill h-full rounded-full" style={{width:`${progress}%`}} />
+        </div>
+      </div>
+    </div>
+  );
 }

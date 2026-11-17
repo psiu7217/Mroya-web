@@ -219,6 +219,7 @@
   "attachmentRemove": "Удалить вложение {{name}}",
   "attachmentRetry": "Повторить загрузку {{name}}",
   "imageGenerating": "Создаю изображение",
+  "imageProgressEstimate": "Примерно {{progress}}%",
   "imageFinishing": "Изображение готово",
   "imageAutoSaved": "Сохранится в «Сгенерированные Мроей»",
   "imageOpen": "Открыть изображение",

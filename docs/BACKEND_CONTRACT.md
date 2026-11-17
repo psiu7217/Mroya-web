@@ -7,6 +7,14 @@ failures still retry analysis. Save remains manual without a background deadline
 
 # Backend contract for Mroya Web
 
+Memory-transfer version 2 accepts optional `object_merges` (`from` → `into` UUIDs)
+and a non-executable `editing_guide`. New exports include both fields; the client
+preserves the complete JSON when downloading or submitting it. Backend redirects
+typed Memory references and transfers calendar/note links, with recoverable import
+and restoration. See the companion [memory transfer guide](https://github.com/psiu7217/Mroya-api/blob/main/docs/MEMORY-TRANSFER.md).
+Feature availability comes from the server and is separate from validation of the
+selected file. A rejected file must not display “Memory import is not available yet”.
+
 General file uploads are introduced by the companion Document service release.
 See [DOCUMENTS](DOCUMENTS.md) for its capability, owner-scoped multipart upload,
 chat attachment IDs, original links and category-search behavior. Existing

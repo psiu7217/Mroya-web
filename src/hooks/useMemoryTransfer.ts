@@ -14,18 +14,23 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [importAvailable,setImportAvailable]=useState(false);
+  const [availabilityKnown,setAvailabilityKnown]=useState(false);
+  const [fileValidated,setFileValidated]=useState(false);
   const [writesAvailable,setWritesAvailable]=useState(false);
   const [searchPending,setSearchPending]=useState(false);
   const [success,setSuccess]=useState(false);
   const [restored,setRestored]=useState(false);
   const [backupId,setBackupId]=useState<string|null>(null);
   const documentRef=useRef<string|null>(null);
+  const validationId=useRef(0);
   const inFlight=useRef(false);
   useEffect(()=>{
+    documentRef.current=null;validationId.current++;setFileValidated(false);
+    setAvailabilityKnown(false);setImportAvailable(false);
     if(!enabled||!source.memoryTransferStatus)return;
     const abort=new AbortController();
     void source.memoryTransferStatus(abort.signal).then(status=>{
-      if(!abort.signal.aborted){setSearchPending(status.searchPending);setBackupId(status.backupId);setImportAvailable(status.importAvailable);setWritesAvailable(status.importAvailable);}
+      if(!abort.signal.aborted){setSearchPending(status.searchPending);setBackupId(status.backupId);setImportAvailable(status.importAvailable);setAvailabilityKnown(true);setWritesAvailable(status.importAvailable);}
     }).catch(()=>{});
     return ()=>abort.abort();
   },[source,enabled]);
@@ -41,30 +46,33 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
     }).catch(error=>setError(tr(memoryExportErrorKey(error),{ns:'connections'}))).finally(()=>setBusy(false));
   },[source,busy]);
   const validateFile=useCallback(async(file:File)=>{
+    const current=++validationId.current;
     setError(null);
-    setSuccess(false);setRestored(false);setImportAvailable(false);documentRef.current=null;
+    setSuccess(false);setRestored(false);setFileValidated(false);documentRef.current=null;
     if(file.size>16*1024*1024){setError(tr('memoryFileTooLarge',{ns:'connections'}));return false;}
     if(!source.validateMemory){setError(tr('memoryValidationFailed',{ns:'connections'}));return false;}
     try {
       const text=await file.text();
       const result=await source.validateMemory(text);
-      documentRef.current=text;setImportAvailable(result.importAvailable);setWritesAvailable(result.importAvailable);
+      if(current!==validationId.current)return false;
+      documentRef.current=text;setFileValidated(true);setImportAvailable(result.importAvailable);setAvailabilityKnown(true);setWritesAvailable(result.importAvailable);
       return true;
     } catch(error) {
+      if(current!==validationId.current)return false;
       setError(error instanceof ApiError?errorMessage(error,'memoryValidationFailed'):tr('memoryValidationFailed',{ns:'connections'}));
       return false;
     }
   },[source]);
   const importValidatedFile=useCallback(()=>{
     const text=documentRef.current;
-    if(!importAvailable||!text||!source.importMemory||inFlight.current)return;
+    if(!importAvailable||!fileValidated||!text||!source.importMemory||inFlight.current)return;
     inFlight.current=true;setBusy(true);setError(null);setSuccess(false);setRestored(false);
-    documentRef.current=null;setImportAvailable(false);
+    documentRef.current=null;setFileValidated(false);
     void source.importMemory(text).then(result=>{
       setBackupId(result.backupId);setSearchPending(!result.searchReady);setSuccess(result.searchReady);onChanged();
     }).catch(error=>setError(errorMessage(error,'memoryImportFailed')))
       .finally(()=>{inFlight.current=false;setBusy(false);});
-  },[source,importAvailable,onChanged]);
+  },[source,importAvailable,fileValidated,onChanged]);
   const retrySearch=useCallback(()=>{
     if(!source.retryMemoryRebuild||inFlight.current)return;
     inFlight.current=true;setBusy(true);setError(null);
@@ -80,5 +88,5 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
     }).catch(error=>setError(errorMessage(error,'memoryRestoreFailed')))
       .finally(()=>{inFlight.current=false;setBusy(false);});
   },[source,backupId,onChanged]);
-  return {busy,error,success,restored,importAvailable,searchPending,retryAvailable:writesAvailable,canRestore:!!backupId&&writesAvailable,exportMemory,validateFile,importValidatedFile,retrySearch,restorePrevious};
+  return {busy,error,success,restored,importAvailable,importUnavailable:availabilityKnown&&!importAvailable,canImportFile:importAvailable&&fileValidated,searchPending,retryAvailable:writesAvailable,canRestore:!!backupId&&writesAvailable,exportMemory,validateFile,importValidatedFile,retrySearch,restorePrevious};
 }

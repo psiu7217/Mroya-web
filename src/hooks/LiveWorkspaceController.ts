@@ -7,6 +7,8 @@ import {readReportContext,reportAttemptKey} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
 import {tr} from '../i18n/index.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
+import {DocumentUploads} from './DocumentUploads.ts';
+import type {DocumentDto} from '../types/documents.ts';
 function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
  return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
@@ -17,6 +19,8 @@ export interface LiveState {
  history:HistoryResponse;memories:MemoriesResponse;map:MemoryMapResponse;
 }
 export class LiveWorkspaceController {
+ private uploads=new DocumentUploads();
+ private sentDocumentIds:string[]=[];
  private state:LiveState={decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
  reportTask=async(id:string)=>{
   if(!this.source.reportAgentTask||this.taskAbort.signal.aborted)throw new Error('Report unavailable');
@@ -226,7 +230,8 @@ export class LiveWorkspaceController {
     const user=history.messages[index-1];
     return message.role==='assistant'&&message.status==='completed'&&message.content===pending.content
      &&!this.sentHistoryIds.has(message.id)&&user?.role==='user'&&user.content===this.sentContent
-     &&!this.sentHistoryIds.has(user.id)&&message.sequence===user.sequence+1;
+     &&!this.sentHistoryIds.has(user.id)&&message.sequence===user.sequence+1
+     &&JSON.stringify(user.attachments?.map(file=>file.id)??[])===JSON.stringify(this.sentDocumentIds);
    });
    if(candidates.length===1){
     if(pending.reasoning)this.reasoningByMessage.set(candidates[0].id,pending.reasoning);
@@ -413,30 +418,39 @@ export class LiveWorkspaceController {
   }catch(error){if(epoch===this.epoch&&!signal.aborted)this.failure(error);}
  }
  async moreMemories(){if(this.state.loading||this.state.busy||this.state.memories.memories.length>=this.state.memories.total)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.source.memories({limit:25,offset:this.state.memories.memories.length},this.abort.signal);if(epoch===this.epoch)this.set({memories:{...page,memories:[...this.state.memories.memories,...page.memories].filter((m,i,a)=>a.findIndex(x=>x.uuid===m.uuid)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
- async send(content:string,onReady?:()=>void):Promise<boolean>{
+ async send(content:string,onReady?:()=>void,files:File[]=[]):Promise<boolean>{
   if(this.sendInProgress||this.state.busy||this.state.loading||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain)return false;
   if(this.state.capabilities?.chat!==true){this.set({error:'Chat is unavailable on this server.'});return false;}
+  if(files.length&&this.state.capabilities?.documents!==true){this.set({error:tr('filesUnavailable',{ns:'chat'})});return false;}
   if(!content.trim()||content.length>16000){this.set({error:'Messages must contain 1–16000 characters.'});return false;}
   if(this.multi&&!this.state.activeConversationId&&this.unconfirmedCreate){this.set({error:'Select a chat or use New chat after checking server status. The previous creation was not confirmed; nothing is automatically resent.'});return false;}
   this.sendInProgress=true;
+  let sendingEpoch=this.epoch;
   try{
    if(this.multi&&!this.state.activeConversationId){
     const epoch=this.epoch;
     if(!await this.manageConversation('create',undefined,undefined,true)||this.epoch!==epoch+1||this.abort.signal.aborted)return false;
    }
-   await this.sendActive(content,onReady);
-   return true;
-  }finally{this.sendInProgress=false;}
+   sendingEpoch=this.epoch;
+   if(files.length)this.set({busy:true,error:null});
+   const attachments=files.length?await this.uploads.prepare(this.source,files,content,this.abort.signal):[];
+   if(sendingEpoch!==this.epoch||this.abort.signal.aborted)return false;
+   return await this.sendActive(content,onReady,attachments);
+  }catch(error){if(sendingEpoch===this.epoch&&!this.abort.signal.aborted)this.failure(error);return false;}
+  finally{if(sendingEpoch===this.epoch)this.set({busy:false});this.sendInProgress=false;}
  }
  // The send lock spans CREATE and dispatch; only a confirmed conversation reaches here.
- private async sendActive(content:string,onReady?:()=>void){
+ private async sendActive(content:string,onReady?:()=>void,attachments:DocumentDto[]=[]){
   const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;this.replyId='reply:'+id;this.sentContent=content.trim();this.sentHistoryIds=new Set(this.state.history.messages.map(message=>message.id));
-  const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
+  this.sentDocumentIds=attachments.map(file=>file.id);
+  const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null,...(attachments.length?{attachments}:{})}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
   let answer='',reasoning='',failedActivity=false,completed=false,replyTasks:AiTask[]=[];
+  let accepted=false;
+  const acknowledge=()=>{if(!accepted){accepted=true;onReady?.();}};
   let timeline:ChatTimelineEntry[]=[];let previousEvent='';const toolLifecycle=new ToolActivityLifecycle();
   try {
-   onReady?.();
+   if(!attachments.length)acknowledge();
    const send=this.multi?this.source.sendConversation?.bind(this.source,this.state.activeConversationId!):this.source.send.bind(this.source);
    if(!send)throw new Error('Conversation send unavailable');
    await send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
@@ -479,28 +493,31 @@ export class LiveWorkspaceController {
     if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
     if(event.event==='done')toolLifecycle.complete();
     if(event.event==='done'||event.event==='replay'){
+     acknowledge();
      completed=true;
      // Structured receipts ride the terminal frame; the card renders them verbatim.
      replyTasks=readTasksPayload(event.data.tasks);
      void this.refreshTasks();
     }
     if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{}),...(replyTasks.length?{tasks:replyTasks}:{})}]}});
-   },{signal:this.abort.signal,onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
+   },{signal:this.abort.signal,...(attachments.length?{documentIds:attachments.map(file=>file.id)}:{}),onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
      if(this.turnId&&this.turnId!==turnId)throw new ApiError(502,'invalid_stream','Chat turn changed during streaming');
      this.turnId=turnId;
+     acknowledge();
     }}});
    if(epoch===this.epoch){await this.load();this.set({uncertain:false});}
   }catch(error){
-   if(epoch!==this.epoch)return;
+   if(epoch!==this.epoch)return false;
    // Keep received activity as static failed context; discard any unconfirmed answer delta.
    this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',content:failedActivity?message.content:'',timeline:message.timeline?settleFailedTimeline(message.timeline):undefined}:message)}});
-   this.failure(error);if(epoch!==this.epoch)return;
+   this.failure(error);if(epoch!==this.epoch)return false;
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));
    this.set({uncertain,error:uncertain?'The reply was interrupted. Check server status before sending another message.':this.state.error});
    if(uncertain&&this.turnId)await this.reconcileTurn();
    if(!uncertain){try{const history=await this.readHistory();if(epoch===this.epoch)this.set({history:this.historyWithReasoning(history)});}catch(e){if(epoch===this.epoch)this.failure(e);}}
   }finally{if(epoch===this.epoch){this.set({busy:false});void this.refreshTasks();}}
+  return accepted;
  }
  async recover(){
   if(this.sendInProgress||this.state.busy||this.state.conversationBusy)return;

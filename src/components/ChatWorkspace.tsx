@@ -48,6 +48,7 @@ import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
 import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
+  documentsAvailable?:boolean;
   showModelReasoning?: boolean;
   speech?: SpeechPresentation;
   install?: InstallPresentation;
@@ -61,7 +62,7 @@ export interface ChatWorkspaceProps {
   samples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
   memoriesCount: number;
   conversation: Conversation | null;
-  onSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
+  onSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
   onCitationClick: (memoryId: string) => void;
   onActionClick: (action: ChatAction) => void;
   addedActionIds: string[];
@@ -84,7 +85,7 @@ export interface ChatWorkspaceProps {
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  showModelReasoning=false, speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
+  showModelReasoning=false, speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples, documentsAvailable=false,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -110,7 +111,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 }) => {
   const starterSuggestions=[tr('starterRememberMe',{ns:'chat'}),tr('starterUpcoming',{ns:'chat'}),tr('starterRemember',{ns:'chat'})];
   const [input, setInput] = useState('');
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [sampleAttachment, setAttachedFile] = useState<string | null>(null);
+  const [selectedFiles,setSelectedFiles]=useState<File[]>([]);
+  const attachedFile=selectedFiles.length?selectedFiles.map(file=>file.name).join(', '):sampleAttachment;
+  const [fileError,setFileError]=useState<string|null>(null);
+  const fileInput=useRef<HTMLInputElement>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const isRecording = speech?.phase === 'recording';
@@ -136,7 +141,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     previousChat.current = id;
     if (!fromEmpty) {
       handleCancelRecording();
-      draftRevision.current++; setInput(''); setAttachedFile(null); setLocalThinking(false);
+      draftRevision.current++; setInput(''); setAttachedFile(null); setSelectedFiles([]); setFileError(null); setLocalThinking(false);
     }
     setCopiedMessageId(null); setHeaderMenuOpen(false); setMobileUserMenuOpen(false);
   }, [conversation?.id]);
@@ -147,9 +152,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     const revision = draftRevision.current;
     setSubmitting(true); setLocalThinking(true);
     try {
-      const accepted = await onSendMessage(content, attachmentName);
+      const accepted = await onSendMessage(content, attachmentName, selectedFiles.length?selectedFiles:undefined);
       if (accepted === false) { setLocalThinking(false); return; }
-      if (revision === draftRevision.current) { setInput(''); setAttachedFile(null); }
+      if (revision === draftRevision.current) { setInput(''); setAttachedFile(null); setSelectedFiles([]); setFileError(null); }
     } catch {
       setLocalThinking(false);
     } finally { submission.current = false; setSubmitting(false); }
@@ -256,9 +261,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = input.trim();
-    if (pending || voiceBusy || (!trimmed && !attachedFile)) return;
+    if (pending || voiceBusy || (!trimmed && !attachedFile && !selectedFiles.length)) return;
     void submitMessage(
-      trimmed || `Shared attachment: ${attachedFile}`,
+      trimmed || (selectedFiles.length?tr('processAttachments',{ns:'chat'}):`Shared attachment: ${attachedFile}`),
       attachedFile || undefined
     );
   };
@@ -283,6 +288,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const handleAttachSample = () => {
+    if(documentsAvailable){fileInput.current?.click();return;}
     if (!samples) {onUnavailable?.();return;}
     draftRevision.current++;
     if (attachedFile) {
@@ -686,6 +692,14 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <div key={msg.id} className="flex flex-col items-end">
                       <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
                         <AssistantMarkdown content={msg.content} variant="user" />
+                        {msg.attachments?.length ? <ul className="mt-2 space-y-1">
+                          {msg.attachments.map(file=><li key={file.id} className="text-sm">
+                            <a href={file.originalUrl} target="_blank" rel="noopener noreferrer" className="underline break-all">{file.filename}</a>
+                            <span className="block text-xs text-[var(--mroya-text-muted)]">
+                              {file.category ? file.category+' · ' : ''}{['queued','processing'].includes(file.status)?tr('fileSavedPending',{ns:'chat'}):file.status==='failed'?tr('fileReadFailed',{ns:'chat'}):file.searchable?tr('fileSearchEnabled',{ns:'chat'}):tr('fileSearchDisabled',{ns:'chat'})}
+                            </span>
+                          </li>)}
+                        </ul>:null}
                       </div>
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                         {msg.timestamp}
@@ -1025,14 +1039,25 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             className="rounded-[12px] bg-[var(--mroya-surface)] border-0 border-none outline-none ring-0 focus-within:border-none focus-within:outline-none focus-within:ring-0 shadow-[var(--mroya-shadow-subtle)] transition-all"
           >
             {/* Optional attached document preview */}
-            {attachedFile && (
+            <input type="file" multiple ref={fileInput} className="hidden" disabled={pending||submitting} aria-label={tr('attach',{ns:'chat'})}
+              onChange={event=>{
+                const files=Array.from(event.currentTarget.files??[]);event.currentTarget.value='';
+                if(files.length+selectedFiles.length>8||files.some(file=>file.size<1||file.size>25*1024*1024)){
+                  setFileError(tr('fileLimits',{ns:'chat'}));return;
+                }
+                draftRevision.current++;setFileError(null);setSelectedFiles(previous=>[...previous,...files]);
+              }}/>
+            {fileError?<p role="alert" className="px-3.5 pt-3 text-sm text-red-500">{fileError}</p>:null}
+            {submitting&&selectedFiles.length?<p role="status" className="px-3.5 pt-3 text-xs text-[var(--mroya-text-muted)]">{tr('filesProcessing',{ns:'chat'})}</p>:null}
+            {(attachedFile||selectedFiles.length>0) && (
               <div className="px-3.5 pt-3 pb-1 flex items-center gap-2">
                 <div className="inline-flex max-w-full items-center gap-2 px-2.5 py-1 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)]">
                   <FileText className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
                   <span className="font-medium truncate min-w-0">{attachedFile}</span>
                   <button
                     type="button"
-                    onClick={() => setAttachedFile(null)}
+                    onClick={() => {draftRevision.current++;setAttachedFile(null);setSelectedFiles([]);setFileError(null);}}
+                    disabled={pending||submitting}
                     aria-label={tr('removeAttachment',{ns:'chat'})}
                     className="text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                   >
@@ -1124,10 +1149,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handleAttachSample}
+                    disabled={pending||submitting||voiceBusy}
                     title={tr('attachNote',{ns:'chat'})}
                     aria-label={tr('attachNote',{ns:'chat'})}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors cursor-pointer ${
-                      attachedFile
+                      attachedFile||selectedFiles.length
                         ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]'
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
@@ -1156,7 +1182,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                 <button
                   type="submit"
-                  disabled={pending || submitting || voiceBusy || (!input.trim() && !attachedFile)}
+                  disabled={pending || submitting || voiceBusy || (!input.trim() && !attachedFile && !selectedFiles.length)}
                   aria-label={tr('sendMessage',{ns:'chat'})}
                   className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >

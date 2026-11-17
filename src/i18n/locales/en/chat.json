@@ -206,5 +206,13 @@
   "voiceUnavailable": "Voice recognition is temporarily unavailable. Please try later.",
   "voiceSignIn": "Sign in again to use voice input.",
   "voiceCsrf": "Your session needs refreshing. Try recording again.",
-  "voiceError": "Could not record or transcribe audio. Check your microphone and connection, then try again."
+  "voiceError": "Could not record or transcribe audio. Check your microphone and connection, then try again.",
+  "filesUnavailable": "File uploads are unavailable on this server.",
+  "processAttachments": "Process the attached files.",
+  "fileLimits": "Choose up to 8 files, each between 1 byte and 25 MiB.",
+  "filesProcessing": "Saving files and reading their contents…",
+  "fileSearchEnabled": "Available in search",
+  "fileSearchDisabled": "Excluded from general search",
+  "fileSavedPending": "Saved · processing",
+  "fileReadFailed": "Saved · could not finish reading"
 }

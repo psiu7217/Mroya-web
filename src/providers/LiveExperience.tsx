@@ -76,11 +76,12 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   diagnostics.stop();select('chat');void controller.selectConversation(id);
  };
  const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}setFocusedMemoryId(id);setContextOpen(true);};
- const sendMessage=(content:string)=>new Promise<boolean>(resolve=>{
+ const sendMessage=(content:string,_attachmentName?:string,files:File[]=[])=>new Promise<boolean>(resolve=>{
   // Acknowledge the composer after CREATE is confirmed and the pending message is queued.
-  void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
+  void controller.send(content,()=>resolve(true),files).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  documentsAvailable:state.capabilities?.documents===true,
   speech,
   install,
   calendarAnalysis:analysis.presentation,

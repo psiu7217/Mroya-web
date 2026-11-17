@@ -89,6 +89,7 @@ export interface ReasoningTimelineEntry {kind:'reasoning';id:string;sequence:num
 export type ChatTimelineEntry = ToolTimelineEntry | ReasoningTimelineEntry;
 
 export interface ChatMessage {
+  attachments?:{id:string;filename:string;originalUrl:string;searchable:boolean;category:string;status:string}[];
   timeline?:ChatTimelineEntry[];
   report_context?:import('./api').ReportContext;
   /** Task receipts bound to the assistant source turn (live + history). */

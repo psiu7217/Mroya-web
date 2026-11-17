@@ -121,7 +121,8 @@ export interface WorkspaceModel {
     relatedMemoriesForActiveChat: MemoryItem[];
     upcomingRelatedEvent: CalendarEvent | null;
     handleNewChat: () => void;
-    handleSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
+    handleSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
+    documentsAvailable?:boolean;
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     calendar?:CalendarPresentation;

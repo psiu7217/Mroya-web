@@ -3,6 +3,8 @@ import {ApiError} from '../api/errors.ts';
 import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
+    uploadDocument:(file,id,context,signal)=>api.uploadDocument(file,id,context,signal),
+    document:(id,signal)=>api.document(id,signal),
     exportMemory:(signal)=>api.exportMemory(signal),
     memoryTransferStatus:(signal)=>api.memoryTransferStatus(signal),
     validateMemory:(document,signal)=>api.validateMemory(document,signal),

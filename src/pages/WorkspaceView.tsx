@@ -16,6 +16,7 @@ import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
 import { NotesView } from '../components/NotesView';
 import {FilesView} from '../components/FilesView';
 import {tr} from '../i18n';
+import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
  const [tasksOpen,setTasksOpen]=useState(false),[taskHighlight,setTaskHighlight]=useState<string|null>(null);
@@ -58,7 +59,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
         notesAvailable={notesAvailable}
         notesCount={notesAvailable?(model.notes ?? []).length:0}
-        aiTasksCount={model.aiTasks?.tasks.filter(t=>['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(t.status)).length}
+        aiTasksCount={model.aiTasks?.tasks.filter(countsTowardTaskBadge).length}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 

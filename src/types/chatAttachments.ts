@@ -1,3 +1,10 @@
+export interface ChatMessageAttachment {
+ id: string;
+ filename: string;
+ originalUrl: string;
+ mimeType: string;
+}
+
 export interface ChatAttachmentItem {
  id:string;file:File;filename:string;previewUrl:string|null;progress:number|null;
  status:'uploading'|'ready'|'error';error:string|null;

@@ -28,6 +28,11 @@ sent until the server confirms the turn or completed replay. Failed pre-send
 uploads retain the composer selection and text. Category policy is entirely
 backend-owned; the category-settings UI is a later feature.
 
+Analysis depth is model-selected. A title, summary and search keywords can be
+the complete result; dates, selected facts and values are optional. The optional
+`keywords` DTO field is validated when present, while older responses remain
+compatible. The frontend does not classify documents or require numeric data.
+
 Deploy the companion API migration, shared private volume and worker before
 enabling the capability. Frontend deployment alone does not provide storage or
 OCR. Review the active ingress's upload-size limit separately; this change does

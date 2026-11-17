@@ -12,6 +12,8 @@ export function readDocument(value:unknown):DocumentDto {
   ||typeof row.searchable!=='boolean'||typeof row.coverage!=='string'
   ||typeof row.created_at!=='string'||!Number.isFinite(Date.parse(row.created_at))
   ||row.original_url!==`/api/v1/documents/${row.id}/original/`)invalid();
+ if(row.keywords!==undefined&&(!Array.isArray(row.keywords)||row.keywords.length>20
+  ||row.keywords.some(word=>typeof word!=='string'||!word.trim()||Array.from(word).length>120)))invalid();
  if(row.category!==null){
   if(!row.category||typeof row.category!=='object'||Array.isArray(row.category))invalid();
   const category=row.category as Record<string,unknown>;

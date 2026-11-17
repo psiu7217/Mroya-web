@@ -43,6 +43,13 @@ test('malformed original links and inconsistent category policy are rejected bef
  assert.equal(readDocument(record()).category?.path[0],'Screenshots');
 });
 
+test('document keywords are optional for older servers and validated when present',()=>{
+ assert.equal(readDocument(record()).keywords,undefined);
+ assert.deepEqual(readDocument(record({keywords:['сметы','бюджетирование']})).keywords,['сметы','бюджетирование']);
+ assert.throws(()=>readDocument({...record(),keywords:'all table values'}));
+ assert.throws(()=>readDocument(record({keywords:['   ']})));
+});
+
 test('history retains excluded files and maps the authorized original link into the shared UI',()=>{
  const history=readConversationHistory({conversation_id:chat,next_before:null,messages:[{id,sequence:1,role:'user',content:'Translate',status:'completed',
   created_at:'2026-11-17T00:00:00Z',completed_at:null,attachments:[record()]}]},chat);

@@ -1,5 +1,28 @@
 # File attachments
 
+## Composer previews and temporary upload
+
+On servers advertising `staged_document_uploads`, selection immediately starts
+an account-local temporary upload through the existing session/CSRF API client.
+XHR upload events provide actual per-file byte progress; completion is confirmed
+only after the server response. Each image has a local blob preview; every file
+has its own card, progress indicator, cancel button and explicit retry on error.
+The shared component emits actions and performs no HTTP. Blob previews are
+revoked on removal, confirmed send, chat change and logout.
+
+`ChatAttachmentsController` owns independent transfers and stable retry IDs.
+Cancelling one file aborts its transfer and issues the owner-scoped discard
+request; a late response cannot restore a cancelled preview. Failed/abandoned
+discard requests are covered by server expiry. Accepted attachments are detached
+from the composer without sending a discard request.
+
+Send can be pressed during transfer; dispatch waits for the selected bytes only.
+There is no browser recognition polling in this path. The existing Chat
+acknowledgement clears the composer before the assistant finishes reading files.
+Chat submission commits the temporary uploads to permanent storage and starts
+analysis with the submitted text. Older servers retain their previous send-time
+upload behavior; there is no speculative pre-upload without the capability.
+
 ## File library
 
 Files is the second primary navigation item, immediately after Chat. Its list
@@ -40,8 +63,8 @@ IDs, account cancellation, canonical history and message acknowledgement.
 it performs no HTTP/storage operations. File contents are never encoded into
 Chat text, localStorage, URLs or telemetry by the frontend.
 
-The composer accepts at most eight files of 1 byte–25 MiB each. The whole batch
-is stored before waiting up to sixty seconds for processing. Longer work is
+The legacy send-time composer accepts at most eight files of 1 byte–25 MiB each.
+That fallback stores the whole batch before waiting up to sixty seconds for processing. Longer work is
 sent with its truthful pending state and continues in the backend. Failed
 analysis does not remove the original. The message keeps stable owner-authorized
 download links and displays the assigned category path and effective search

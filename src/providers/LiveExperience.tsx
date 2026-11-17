@@ -1,3 +1,4 @@
+import {useChatAttachments} from '../hooks/useChatAttachments';
 import {hasFeature} from '../utils/accountRoles';
 import {useMemoryTransfer} from '../hooks/useMemoryTransfer';
 import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
@@ -46,6 +47,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
  const notifications=useNotificationSettings(source,user.id,telegram,onExpired);
  const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,features.googleCalendar&&state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const attachments=useChatAttachments(source,user.id,state.capabilities?.staged_document_uploads===true);
  const files=useFiles(source,user.id,state.capabilities?.documents===true,section==='files',onExpired);
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
@@ -53,7 +55,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const analysis=useCalendarAnalysis(source,user.id,google?.id??null,section==='connections'&&settingsTab==='connections',onExpired);
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{files.controller.stop();analysis.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{attachments.controller.stop();files.controller.stop();analysis.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -61,7 +63,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map));
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('unavailable');
- const select=(next:NavSection)=>{if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
+ const select=(next:NavSection)=>{if(next!=='chat')attachments.controller.clear();if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
  const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(!features.experimentalFeatures&&(tab==='settings'||tab==='plan')?'connections':tab);};
  const openMemory=(id:string)=>{
   select('memory');
@@ -78,11 +80,17 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   diagnostics.stop();select('chat');void controller.selectConversation(id);
  };
  const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}setFocusedMemoryId(id);setContextOpen(true);};
- const sendMessage=(content:string,_attachmentName?:string,files:File[]=[])=>new Promise<boolean>(resolve=>{
-  // Acknowledge the composer after CREATE is confirmed and the pending message is queued.
-  void controller.send(content,()=>resolve(true),files).then(resolve,()=>resolve(false));
- });
+ const sendMessage=async(content:string,_attachmentName?:string,selected:File[]=[])=>{
+  try{
+   const prepared=selected.length&&attachments.presentation?await attachments.controller.prepare(selected):undefined;
+   return await new Promise<boolean>(resolve=>{
+    const accepted=()=>{if(prepared)attachments.controller.accepted(selected);resolve(true);};
+    void controller.send(content,accepted,prepared?[]:selected,prepared).then(result=>{if(result&&prepared)attachments.controller.accepted(selected);resolve(result);},()=>resolve(false));
+   });
+  }catch{return false;}
+ };
  const model:WorkspaceModel={
+  chatAttachments:attachments.presentation,
   files:files.available?files.presentation:undefined,
   documentsAvailable:state.capabilities?.documents===true,
   speech,

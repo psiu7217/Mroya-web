@@ -3,6 +3,8 @@ import {ApiError} from '../api/errors.ts';
 import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
+    uploadStagedDocument:(file,id,progress,signal)=>api.uploadStagedDocument(file,id,progress,signal),
+    discardStagedUpload:(id,signal)=>api.discardStagedUpload(id,signal),
     documents:(options,signal)=>api.documents(options,signal),documentDetail:(id,signal)=>api.documentDetail(id,signal),
     documentCategories:signal=>api.documentCategories(signal),
     setDocumentCategorySearch:(id,enabled,version,signal)=>api.setDocumentCategorySearch(id,enabled,version,signal),

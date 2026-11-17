@@ -37,6 +37,33 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async uploadStagedDocument(file:File,uploadId:string,onProgress:(fraction:number|null)=>void,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024)throw new ApiError(400,'invalid_upload','Invalid upload');
+    if(!this.token)await this.csrf(signal);
+    signal?.throwIfAborted();
+    const form=new FormData();form.append('file',file);form.append('upload_id',uploadId);
+    const response=await new Promise<Response>((resolve,reject)=>{
+      const xhr=new XMLHttpRequest();
+      const cleanup=()=>signal?.removeEventListener('abort',abort);
+      const abort=()=>xhr.abort();
+      xhr.open('POST','/api/v1/documents/upload/?staged=1');xhr.withCredentials=true;xhr.timeout=180000;
+      xhr.setRequestHeader('Accept','application/json');xhr.setRequestHeader('X-CSRFToken',this.token);
+      xhr.upload.onprogress=event=>onProgress(event.lengthComputable?Math.min(0.98,event.loaded/event.total):null);
+      xhr.onload=()=>{cleanup();if(!xhr.status){reject(new ApiError(0,'network_error','Upload failed'));return;}
+        resolve(new Response(xhr.responseText,{status:xhr.status,headers:{'Content-Type':xhr.getResponseHeader('Content-Type')??''}}));};
+      xhr.onerror=xhr.ontimeout=()=>{cleanup();reject(new ApiError(0,'network_error','Upload failed'));};
+      xhr.onabort=()=>{cleanup();reject(new DOMException('Aborted','AbortError'));};
+      signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted){cleanup();reject(new DOMException('Aborted','AbortError'));return;}
+      xhr.send(form);
+    });
+    await this.check(response);
+    if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected upload JSON');
+    const document=readDocument(await response.json());if(document.status!=='staged')throw new ApiError(502,'invalid_response','Expected staged upload');onProgress(1);return document;
+  }
+  async discardStagedUpload(uploadId:string,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId))throw new ApiError(400,'invalid_upload','Invalid upload');
+    await this.json('documents/uploads/'+uploadId+'/',{},signal,'DELETE');
+  }
   async documents(options:DocumentLibraryQuery={},signal?:AbortSignal){
     const {offset=0,category='',q='',order='newest'}=options;
     if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>200||!['newest','name'].includes(order)

@@ -50,5 +50,6 @@
   "previous7Days": "Последние 7 дней",
   "earlierInOctober": "Ранее в октябре",
   "conversationOptionsFor": "Действия с чатом «{{title}}»",
-  "navFiles": "Файлы"
+  "navFiles": "Файлы",
+  "navOther": "Другое"
 }

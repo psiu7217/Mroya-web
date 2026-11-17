@@ -3,7 +3,7 @@ import {ArrowLeft,ChevronRight,Download,FileText,Folder,FolderPlus,Image,LayoutG
 import type {DocumentDto,DocumentDetail,DocumentCategoryDto,FilesPresentation} from '../types/documents';
 import {tr} from '../i18n';
 import {formatDate} from '../i18n/format';
-import {documentImageId} from '../utils/documentImage';
+import {isPreviewableDocumentImage} from '../utils/documentImage';
 
 const t=(key:string,options:Record<string,unknown>={})=>tr(key,{ns:'files',...options});
 const button='inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--mroya-divider)] px-3 py-2 text-sm hover:bg-[var(--mroya-surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
@@ -28,9 +28,8 @@ function Status({file}:{file:DocumentDto}){
 function SearchBadge({enabled}:{enabled:boolean}){return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] ${enabled?'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400':'bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)]'}`}>
  {enabled?<Search className="h-3 w-3"/>:<SearchX className="h-3 w-3"/>}{t(enabled?'searchable':'storageOnly')}</span>;}
 
-const rasterTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 function hasImagePreview(file: DocumentDto, designPreview?: boolean) {
- return !designPreview && rasterTypes.has(file.mime_type) && documentImageId(file.original_url) === file.id;
+ return !designPreview && isPreviewableDocumentImage(file.mime_type, file.original_url, file.id);
 }
 
 function FilePreview({file, showImage, className, iconClassName, thumbnail = false}: {

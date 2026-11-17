@@ -9,7 +9,8 @@ import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
-import {readDocument} from './documents.ts';
+import {readDocument,readDocumentPage,readDocumentCategories,readDocumentCategory,readDocumentDetail} from './documents.ts';
+import type {DocumentCorrection,DocumentLibraryQuery} from '../types/documents.ts';
 import {tr} from '../i18n/index.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
@@ -36,6 +37,36 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async documents(options:DocumentLibraryQuery={},signal?:AbortSignal){
+    const {offset=0,category='',q='',order='newest'}=options;
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>200||!['newest','name'].includes(order)
+      ||category!==''&&category!=='uncategorized'&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
+    return readDocumentPage(await this.json('documents/?'+new URLSearchParams({offset:String(offset),category,q,order}),undefined,signal),offset);
+  }
+  async documentDetail(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocumentDetail(await this.json('documents/'+id+'/',undefined,signal),id);
+  }
+  async documentCategories(signal?:AbortSignal){return readDocumentCategories(await this.json('documents/categories/',undefined,signal));}
+  async setDocumentCategorySearch(id:string,enabled:boolean,version:number,signal?:AbortSignal){
+    if(!isTurnUuid(id)||typeof enabled!=='boolean'||!Number.isSafeInteger(version)||version<1)throw new ApiError(400,'invalid_request','Invalid category policy');
+    return readDocumentCategory(await this.json('documents/categories/'+id+'/',{search_enabled:enabled,version},signal,'PATCH'));
+  }
+  async createDocumentCategory(name:string,parentId:string|null,enabled:boolean,signal?:AbortSignal){
+    if(!name.trim()||Array.from(name).length>120||parentId!==null&&!isTurnUuid(parentId))throw new ApiError(400,'invalid_request','Invalid category');
+    return readDocumentCategory(await this.json('documents/categories/',{name,parent_id:parentId,search_enabled:enabled},signal));
+  }
+  async saveDocument(id:string,changes:DocumentCorrection,signal?:AbortSignal){
+    if(!isTurnUuid(id)||!changes.title.trim()||Array.from(changes.title).length>240||Array.from(changes.summary).length>4000
+      ||changes.keywords.length>20||changes.keywords.some(w=>!w.trim()||Array.from(w).length>120)
+      ||changes.category_id!==null&&!isTurnUuid(changes.category_id)||!Number.isSafeInteger(changes.analysis_version)||changes.analysis_version<0)
+      throw new ApiError(400,'invalid_request','Invalid document correction');
+    return readDocumentDetail(await this.json('documents/'+id+'/',changes,signal,'PATCH'),id);
+  }
+  async retryDocument(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocument(await this.json('documents/'+id+'/retry/',{},signal));
+  }
   async uploadDocument(file:File,uploadId:string,context:string,signal?:AbortSignal){
     if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024||context.length>4000)
       throw new ApiError(400,'invalid_upload','Invalid file upload');
@@ -48,7 +79,7 @@ export class MroyaApi {
   }
   async document(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
-    return readDocument(await this.json('documents/'+id+'/',undefined,signal));
+    return readDocument(await this.json('documents/'+id+'/?brief=1',undefined,signal));
   }
   async memoryTransferStatus(signal?:AbortSignal):Promise<{searchPending:boolean;backupId:string|null;importAvailable:boolean}>{
     const data=await this.json<{search_pending:unknown;backup_uuid:unknown;import_available:unknown}>('me/memory/status/',undefined,signal);

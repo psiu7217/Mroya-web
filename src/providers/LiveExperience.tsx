@@ -3,6 +3,7 @@ import {useMemoryTransfer} from '../hooks/useMemoryTransfer';
 import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
 import {useSpeechInput} from '../hooks/useSpeechInput';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
+import {useFiles} from '../hooks/useFiles';
 import {useLiveNotes} from '../hooks/useLiveNotes';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
 import {useUserTimezone} from '../hooks/useUserTimezone';
@@ -45,13 +46,14 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
  const notifications=useNotificationSettings(source,user.id,telegram,onExpired);
  const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,features.googleCalendar&&state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const files=useFiles(source,user.id,state.capabilities?.documents===true,section==='files',onExpired);
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
  const analysis=useCalendarAnalysis(source,user.id,google?.id??null,section==='connections'&&settingsTab==='connections',onExpired);
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{analysis.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{files.controller.stop();analysis.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -81,6 +83,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   void controller.send(content,()=>resolve(true),files).then(resolve,()=>resolve(false));
  });
  const model:WorkspaceModel={
+  files:files.available?files.presentation:undefined,
   documentsAvailable:state.capabilities?.documents===true,
   speech,
   install,

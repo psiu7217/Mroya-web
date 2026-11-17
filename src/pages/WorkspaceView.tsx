@@ -14,6 +14,7 @@ import { MemoryMapView } from '../components/MemoryMapView';
 import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
 import { NotesView } from '../components/NotesView';
+import {FilesView} from '../components/FilesView';
 import {tr} from '../i18n';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
@@ -272,6 +273,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}
           />
         )}
+
+        {activeSection === 'files' && <FilesView runtime={model.files} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar} onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}/> }
 
         {activeSection === 'notes' && notesAvailable && (
           <NotesView

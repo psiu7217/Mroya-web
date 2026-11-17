@@ -1,4 +1,5 @@
 export interface DocumentDto {
+ source?:'uploaded'|'generated';
  keywords?:string[];
  id:string;filename:string;title:string;mime_type:string;size_bytes:number;
  status:'staged'|'queued'|'processing'|'ready'|'needs_attention'|'failed';error_code:string|null;

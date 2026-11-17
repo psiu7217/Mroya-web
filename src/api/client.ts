@@ -67,7 +67,7 @@ export class MroyaApi {
   async documents(options:DocumentLibraryQuery={},signal?:AbortSignal){
     const {offset=0,category='',q='',order='newest'}=options;
     if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>200||!['newest','name'].includes(order)
-      ||category!==''&&category!=='uncategorized'&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
+      ||!['','uncategorized','generated'].includes(category)&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
     return readDocumentPage(await this.json('documents/?'+new URLSearchParams({offset:String(offset),category,q,order}),undefined,signal),offset);
   }
   async documentDetail(id:string,signal?:AbortSignal){

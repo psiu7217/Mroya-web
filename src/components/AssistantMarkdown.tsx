@@ -35,7 +35,9 @@ export function AssistantMarkdown({content, variant = 'assistant'}: AssistantMar
         a: ({href, children}) => href
           ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
           : <span>{children}</span>,
-        img: ({alt}) => <span className="mroya-markdown-image">{alt || tr('imageOmitted',{ns:'notes'})}</span>,
+        img: ({alt,src}) => variant==='assistant'&&typeof src==='string'&&/^\/api\/v1\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/original\/$/i.test(src)
+          ? <img src={src} alt={alt||tr('imageOmitted',{ns:'notes'})} loading="lazy" referrerPolicy="no-referrer" className="my-3 max-h-[560px] max-w-full rounded-xl object-contain"/>
+          : <span className="mroya-markdown-image">{alt || tr('imageOmitted',{ns:'notes'})}</span>,
         table: ({children}) => <div className="mroya-markdown-scroll" role="region" aria-label={tr('messageTable',{ns:'chat'})} tabIndex={0}><table>{children}</table></div>,
         pre: ({children}) => <pre tabIndex={0}>{children}</pre>,
       }}>{content}</Markdown>

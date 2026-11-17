@@ -6,6 +6,7 @@ export function readDocument(value:unknown):DocumentDto {
  const invalid=():never=>{throw new ApiError(502,'invalid_response','Invalid document response');};
  if(!value||typeof value!=='object'||Array.isArray(value))invalid();
  const row=value as Record<string,unknown>;
+ if(row.source!==undefined&&!['uploaded','generated'].includes(row.source as string))invalid();
  if(!isTurnUuid(row.id)||typeof row.filename!=='string'||!row.filename||typeof row.title!=='string'
   ||typeof row.mime_type!=='string'||!Number.isSafeInteger(row.size_bytes)||(row.size_bytes as number)<1
   ||!['staged','queued','processing','ready','needs_attention','failed'].includes(row.status as string)

@@ -7,6 +7,13 @@ failures still retry analysis. Save remains manual without a background deadline
 
 # Backend contract for Mroya Web
 
+General file uploads are introduced by the companion Document service release.
+See [DOCUMENTS](DOCUMENTS.md) for its capability, owner-scoped multipart upload,
+chat attachment IDs, original links and category-search behavior. Existing
+servers without `capabilities.documents===true` keep uploads unavailable. This
+supersedes the original inventory's statement that no attachment API exists;
+the companion backend must be deployed before activation.
+
 The AI Tasks product presentation requires the companion Backend DTO update:
 Intelligence tasks have event_title, questions, needs_clarification and
 review_phase (answer_processing/null). facts remains a string array with human

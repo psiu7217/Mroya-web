@@ -1,6 +1,7 @@
 import {ApiError} from './errors.ts';
 import {isTurnUuid,readReportContext} from './reportContext.ts';
 import {readTasksPayload} from './aiTasks.ts';
+import {readAttachments} from './documents.ts';
 import type {ConversationSummary,ConversationPage,HistoryResponse} from '../types/api.ts';
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const date=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v)&&Number.isFinite(Date.parse(v));
@@ -36,6 +37,7 @@ export function readConversationHistory(value:unknown,id:string):HistoryResponse
  return {conversation_id:id,next_before:value.next_before as number|null,messages:value.messages.map(m=>({
   id:m.id,sequence:m.sequence,role:m.role,content:m.content,status:m.status,created_at:m.created_at,completed_at:m.completed_at,
   ...(m.report_context?{report_context:readReportContext(m.report_context)}:{}),
+  ...(m.attachments===undefined?{}:{attachments:readAttachments(m.attachments)}),
   ...(readTasksPayload(m.tasks).length?{tasks:readTasksPayload(m.tasks)}:{}),
  }))} as HistoryResponse;
 }

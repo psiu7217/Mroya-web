@@ -9,6 +9,7 @@ import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
+import {readDocument} from './documents.ts';
 import {tr} from '../i18n/index.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
@@ -35,6 +36,20 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async uploadDocument(file:File,uploadId:string,context:string,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024||context.length>4000)
+      throw new ApiError(400,'invalid_upload','Invalid file upload');
+    if(!this.token)await this.csrf(signal);
+    const form=new FormData();form.append('file',file);form.append('upload_id',uploadId);form.append('context',context);
+    const response=await this.fetcher('/api/v1/documents/upload/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','X-CSRFToken':this.token},body:form});
+    await this.check(response);
+    return readDocument(await response.json());
+  }
+  async document(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocument(await this.json('documents/'+id+'/',undefined,signal));
+  }
   async memoryTransferStatus(signal?:AbortSignal):Promise<{searchPending:boolean;backupId:string|null;importAvailable:boolean}>{
     const data=await this.json<{search_pending:unknown;backup_uuid:unknown;import_available:unknown}>('me/memory/status/',undefined,signal);
     if(typeof data.search_pending!=='boolean'||typeof data.import_available!=='boolean'||(data.backup_uuid!==null&&!isTurnUuid(data.backup_uuid)))throw new ApiError(502,'invalid_response','Invalid memory transfer status');
@@ -362,7 +377,7 @@ export class MroyaApi {
     if(!this.token)await this.csrf(options.signal);
     const response=await this.fetcher('/api/v1/'+path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,
       headers:{Accept:'text/event-stream, application/json','Content-Type':'application/json','X-CSRFToken':this.token},
-      body:JSON.stringify({content,submission_id:submissionId,...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
+      body:JSON.stringify({content,submission_id:submissionId,...(options.documentIds?.length?{document_ids:options.documentIds}:{}),...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
     await this.check(response);
     const turn=response.headers.get('X-Chat-Turn-ID');if(turn)options.onTurn?.(turn);
     if(response.headers.get('Content-Type')?.includes('application/json')){const data=await response.json();if(data.state!=='completed'||typeof data.content!=='string')throw new ApiError(502,'invalid_response','Invalid completed replay');onEvent({event:'replay',data});return;}

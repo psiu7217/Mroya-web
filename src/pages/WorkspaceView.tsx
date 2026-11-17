@@ -87,6 +87,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               isThinking={runtime?.busy ?? feedback?.busy}
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}
+              documentsAvailable={model.documentsAvailable}
               account={account}
               memoriesCount={runtime?.memoriesTotal??memories.length}
               conversation={activeConversation}

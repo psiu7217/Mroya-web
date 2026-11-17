@@ -29,11 +29,11 @@ export function MemoryTransferSettings({transfer}: {transfer: MemoryTransferPres
         <input className="sr-only" type="file" accept="application/json,.json" disabled={busy||transfer.searchPending} onChange={event=>void chooseFile(event)} />
       </label>
     </div>
-    {!transfer.importAvailable && <p className="text-sm text-[var(--mroya-text-muted)]">{tr('memoryImportUnavailable',{ns:'connections'})}</p>}
+    {transfer.importUnavailable && <p className="text-sm text-[var(--mroya-text-muted)]">{tr('memoryImportUnavailable',{ns:'connections'})}</p>}
     {confirming && <div className="space-y-3" role="alert">
       <p>{tr('memoryReplaceWarning',{ns:'connections'})}</p>
       <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={busy||!transfer.importAvailable} onClick={()=>{setConfirming(false);transfer.importValidatedFile();}} className="rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] px-4 py-2 disabled:opacity-40">{tr('memoryReplaceConfirm',{ns:'connections'})}</button>
+        <button type="button" disabled={busy||!transfer.canImportFile} onClick={()=>{setConfirming(false);transfer.importValidatedFile();}} className="rounded-lg bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] px-4 py-2 disabled:opacity-40">{tr('memoryReplaceConfirm',{ns:'connections'})}</button>
         <button type="button" disabled={busy} onClick={()=>setConfirming(false)} className="px-4 py-2">{tr('cancel',{ns:'common'})}</button>
       </div>
     </div>}

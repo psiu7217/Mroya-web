@@ -4,6 +4,8 @@ export interface MemoryTransferPresentation {
   success: boolean;
   restored: boolean;
   importAvailable: boolean;
+  importUnavailable: boolean;
+  canImportFile: boolean;
   searchPending: boolean;
   retryAvailable: boolean;
   canRestore: boolean;

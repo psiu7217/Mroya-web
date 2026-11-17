@@ -34,6 +34,8 @@ import {
   Terminal,
 } from 'lucide-react';
 import { AssistantMarkdown } from './AssistantMarkdown';
+import { ImageGenerationCard } from './ImageGenerationCard';
+import {imageGenerationPhase} from '../utils/imageGeneration';
 import { BrandMark } from './BrandMark';
 import {tr} from '../i18n';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
@@ -51,6 +53,7 @@ import type { AiTasksPresentation } from '../types/aiTasks';
 import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 
 export interface ChatWorkspaceProps {
+  onImageOpen?:(url:string,title:string)=>void;
   draftAttachments?:ChatAttachmentsPresentation;
   documentsAvailable?:boolean;
   showModelReasoning?: boolean;
@@ -89,6 +92,7 @@ export interface ChatWorkspaceProps {
 }
 
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
+  onImageOpen,
   draftAttachments, showModelReasoning=false, speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples, documentsAvailable=false,
   memoriesCount,
   conversation,
@@ -693,6 +697,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {hasMessages ? (
             <div className="space-y-6 sm:space-y-8 pb-6">
               {conversation.messages.map((msg) => {
+                const generationPhase=imageGenerationPhase(msg);
                 const actionState=diagnostics?.forMessage(msg);
                 const reporting=actionState?.reporting===true,reported=actionState?.reported===true,copied=actionState?.copied===true;
                 if (msg.sender === 'user') {
@@ -765,7 +770,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Optional model reasoning block when model provides reasoning */}
                       {msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning}/>
+                        <ChatActivityTimeline entries={showModelReasoning?msg.timeline:msg.timeline.filter(entry=>entry.kind!=='tool'||entry.toolName!=='generate_image')} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning}/>
                       ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
@@ -859,7 +864,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           </div>
                         )}
 
-                        <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} />
+                        {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
+                        <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} onImageOpen={onImageOpen}/>
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}

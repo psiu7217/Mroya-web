@@ -3,8 +3,9 @@ import Markdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import {tr} from '../i18n';
+import {documentImageId} from '../utils/documentImage';
 
-export interface AssistantMarkdownProps { content: string; variant?: 'assistant' | 'user' }
+export interface AssistantMarkdownProps { content: string; variant?: 'assistant' | 'user'; onImageOpen?:(url:string,title:string)=>void }
 
 /** Narrow the library's safe URL policy; inspect encoded/control-character schemes too. */
 export function assistantUrlTransform(url: string): string {
@@ -26,7 +27,7 @@ export function assistantUrlTransform(url: string): string {
   return defaultUrlTransform(url);
 }
 
-export function AssistantMarkdown({content, variant = 'assistant'}: AssistantMarkdownProps) {
+export function AssistantMarkdown({content, variant = 'assistant',onImageOpen}: AssistantMarkdownProps) {
   return <div className={variant === 'user'
     ? 'mroya-markdown mroya-markdown-user text-[15px] leading-[23px] text-inherit'
     : 'mroya-markdown text-[15px] sm:text-[16px] leading-[24px] sm:leading-[25px] text-[var(--mroya-text)]'}>
@@ -35,8 +36,9 @@ export function AssistantMarkdown({content, variant = 'assistant'}: AssistantMar
         a: ({href, children}) => href
           ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
           : <span>{children}</span>,
-        img: ({alt,src}) => variant==='assistant'&&typeof src==='string'&&/^\/api\/v1\/documents\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/original\/$/i.test(src)
-          ? <img src={src} alt={alt||tr('imageOmitted',{ns:'notes'})} loading="lazy" referrerPolicy="no-referrer" className="my-3 max-h-[560px] max-w-full rounded-xl object-contain"/>
+        img: ({alt,src}) => variant==='assistant'&&typeof src==='string'&&documentImageId(src)
+          ? onImageOpen?<button type="button" data-image-url={src} onClick={()=>onImageOpen(src,alt||'')} aria-label={tr('imageOpen',{ns:'chat'})} className="my-3 block max-w-full cursor-zoom-in rounded-xl outline-offset-4"><img src={src} alt={alt||tr('imageOmitted',{ns:'notes'})} loading="lazy" referrerPolicy="no-referrer" className="max-h-[560px] max-w-full rounded-xl object-contain"/></button>
+            :<img src={src} alt={alt||tr('imageOmitted',{ns:'notes'})} loading="lazy" referrerPolicy="no-referrer" className="my-3 max-h-[560px] max-w-full rounded-xl object-contain"/>
           : <span className="mroya-markdown-image">{alt || tr('imageOmitted',{ns:'notes'})}</span>,
         table: ({children}) => <div className="mroya-markdown-scroll" role="region" aria-label={tr('messageTable',{ns:'chat'})} tabIndex={0}><table>{children}</table></div>,
         pre: ({children}) => <pre tabIndex={0}>{children}</pre>,

@@ -63,6 +63,7 @@ export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
+    imageViewer?:import('./imageViewer').ImageViewerPresentation;
     chatAttachments?:import('./chatAttachments').ChatAttachmentsPresentation;
     files?:import('./documents').FilesPresentation;
     memoryTransfer?:import('./memoryTransfer').MemoryTransferPresentation;

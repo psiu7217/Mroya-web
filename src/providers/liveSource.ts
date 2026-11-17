@@ -3,6 +3,7 @@ import {ApiError} from '../api/errors.ts';
 import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
+    documentImage:(id,signal)=>api.documentImage(id,signal),
     uploadStagedDocument:(file,id,progress,signal)=>api.uploadStagedDocument(file,id,progress,signal),
     discardStagedUpload:(id,signal)=>api.discardStagedUpload(id,signal),
     documents:(options,signal)=>api.documents(options,signal),documentDetail:(id,signal)=>api.documentDetail(id,signal),

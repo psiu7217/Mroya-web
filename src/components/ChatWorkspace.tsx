@@ -780,7 +780,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
-                      <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
+                      <div className={`mroya-assistant-response w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
                         msg.status === 'failed'
                           ? 'border-[var(--mroya-error)]/40'
                           : 'border-[var(--mroya-divider)]'

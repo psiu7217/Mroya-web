@@ -22,6 +22,18 @@ test('generation has an indeterminate circular progress indicator and no invente
 test('Chat image is an accessible button that opens the viewer',()=>{
  const html=renderToStaticMarkup(React.createElement(AssistantMarkdown,{content:`![Cat](${path})`,onImageOpen:noop}));
  assert.match(html,/<button[^>]*aria-label="Open image"/);assert.match(html,/<img/);
+ assert.match(html,/cursor-pointer/);assert.doesNotMatch(html,/cursor-zoom-in/);
+});
+
+test('old image replies hide only duplicate original links and retain model prose and other sources',()=>{
+ const content=`Ready!\n\n![Cat](${path})\n\n[Download image][original]\n\nThe caption is still here.\n\n[Source](/help)\n\n[original]: ${path}`;
+ const render=(content,variant)=>renderToStaticMarkup(React.createElement(AssistantMarkdown,{content,variant,onImageOpen:noop}));
+ const html=render(content,'assistant');
+ assert.match(html,/<p>Ready!<\/p>/);assert.match(html,/<img/);
+ assert.doesNotMatch(html,/Download image/);assert.doesNotMatch(html,/<p>\s*<\/p>/);
+ assert.match(html,/<p>The caption is still here\.<\/p>/);assert.match(html,/<a href="\/help"/);
+ assert.match(render(`[Download image](${path})`,'assistant'),/<a href=/);
+ assert.match(render(content,'user'),/Download image/);
 });
 
 test('viewer provides close, download and share controls around the actual private image',()=>{
@@ -29,7 +41,11 @@ test('viewer provides close, download and share controls around the actual priva
   loading:false,sharing:false,notice:null,onOpen:noop,onClose:noop,onShare:noop,onRetry:noop};
  const html=renderToStaticMarkup(React.createElement(ImageLightbox,{viewer}));
  assert.match(html,/role="dialog" aria-modal="true"/);assert.match(html,/aria-label="Close image"/);
- assert.match(html,/download="cat.png"/);assert.match(html,/>Share</);assert.match(html,/src="blob:private"/);
+ const toolbar=html.match(/<header[^>]*>(.*?)<\/header>/)?.[1]??'';
+ assert.match(toolbar,/download="cat.png" aria-label="Download"/);
+ assert.match(toolbar,/aria-label="Share"/);assert.match(toolbar,/aria-label="Close image"/);
+ assert.doesNotMatch(toolbar,/>\s*(Download|Share|Cat)\s*</);assert.doesNotMatch(html,/<footer/);
+ assert.match(html,/src="blob:private"/);
  const loading=renderToStaticMarkup(React.createElement(ImageLightbox,{viewer:{...viewer,loading:true,previewUrl:null,downloadUrl:null}}));
  assert.match(loading,/Loading image/);assert.doesNotMatch(loading,/href="blob/);
  assert.equal(renderToStaticMarkup(React.createElement(ImageLightbox,{viewer:{...viewer,image:null}})),'');

@@ -152,6 +152,24 @@ select:focus-visible {
 .mroya-markdown hr { border: 0; border-top: 1px solid var(--mroya-divider); }
 .mroya-markdown-image { color: var(--mroya-text-muted); }
 
+.mroya-chat-image {
+  display: block;
+  max-width: min(100%, 34rem);
+  border-radius: var(--mroya-radius-card);
+  overflow: hidden;
+}
+img.mroya-chat-image, .mroya-chat-image img {
+  max-height: min(34rem, 65dvh);
+  object-fit: contain;
+}
+.mroya-chat-image img { display: block; }
+.mroya-assistant-response:has(.mroya-chat-image, .mroya-image-generation) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
 .mroya-image-generation { background: var(--mroya-surface-muted); }
 .mroya-image-generation-colors {
   background: radial-gradient(ellipse at 24% 30%, #f0c99a 0%, transparent 47%),

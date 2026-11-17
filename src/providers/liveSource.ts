@@ -3,6 +3,11 @@ import {ApiError} from '../api/errors.ts';
 import type {WorkspaceSource,SessionState} from '../types/source.ts';
 export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
   return {
+    documents:(options,signal)=>api.documents(options,signal),documentDetail:(id,signal)=>api.documentDetail(id,signal),
+    documentCategories:signal=>api.documentCategories(signal),
+    setDocumentCategorySearch:(id,enabled,version,signal)=>api.setDocumentCategorySearch(id,enabled,version,signal),
+    createDocumentCategory:(name,parent,enabled,signal)=>api.createDocumentCategory(name,parent,enabled,signal),
+    saveDocument:(id,changes,signal)=>api.saveDocument(id,changes,signal),retryDocument:(id,signal)=>api.retryDocument(id,signal),
     uploadDocument:(file,id,context,signal)=>api.uploadDocument(file,id,context,signal),
     document:(id,signal)=>api.document(id,signal),
     exportMemory:(signal)=>api.exportMemory(signal),

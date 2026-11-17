@@ -1,5 +1,32 @@
 # File attachments
 
+## File library
+
+Files is the second primary navigation item, immediately after Chat. Its list
+and grid include every owned file, including excluded screenshots, unclassified
+uploads and failed processing. Folder cards and breadcrumbs browse the owner's
+category tree. Library search filters names, descriptions and keywords without
+applying the Agent's search exclusions. Pagination and sorting are server-owned.
+
+Selecting a file opens its original download, category, processing/coverage,
+description, keywords, optional selected information and all recognized source
+pages. Images use their same authenticated original URL for a detail preview.
+The user can correct title/description/keywords and move a file to an existing
+folder. Corrections carry `analysis_version`; conflicts and ambiguous writes
+reconcile through GET, never an automatic repeated PATCH. Originals stay intact.
+New folders are created explicitly; the per-folder search checkbox uses the
+existing versioned category policy API and shows inherited exclusion.
+
+`FilesController` and `useFiles` own cancellable account-local reads, deliberate
+uploads and corrections, refresh and bounded polling while processing is visible.
+`FilesView` only receives presentation state and emits actions. It performs no
+API or storage operations. Logout discards state and cancels outstanding work.
+Offline Design has separate example files and never downloads originals or calls
+the API. Original uploads still use the existing idempotent multipart transport.
+
+Companion library API changes must be deployed before this interface. The old
+attachment and Chat contracts remain compatible.
+
 Companion API contract: [Mroya API document service](https://github.com/psiu7217/Mroya-api/blob/codex/document-library/docs/DOCUMENTS.md).
 `capabilities.documents===true` enables real selection in the shared chat
 composer. Missing/false keeps the existing unavailable behavior. Offline Design

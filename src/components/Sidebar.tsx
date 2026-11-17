@@ -23,6 +23,7 @@ import {
   Trash2,
   FileText,
   Inbox,
+  Folder,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {tr} from '../i18n';
@@ -221,6 +222,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     meta?: string;
   }[] = [
     { id: 'chat', label: tr('navChat',{ns:'sidebar'}), icon: MessageSquare },
+    { id: 'files', label: tr('navFiles',{ns:'sidebar'}), icon: Folder },
     {
       id: 'calendar',
       label: tr('navCalendar',{ns:'sidebar'}),

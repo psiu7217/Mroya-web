@@ -95,6 +95,13 @@ test('pending task receipts: reader validates window, approves/cancels via CSRF 
  assert.throws(()=>readTasksPayload('nope'));
 });
 
+test('human review is optional for older APIs and validated without parsing answer text',()=>{
+ assert.deepEqual(readAiTask({...pendingDto,review:['Remember: exact value']}).review,['Remember: exact value']);
+ assert.deepEqual(readAiTask(pendingDto).review,[]);
+ for(const review of [null,'text',[null],[{}],['x'.repeat(32769)],Array(1025).fill('x')])
+  assert.throws(()=>readAiTask({...pendingDto,review}));
+});
+
 test('chat history binds task receipts to assistant messages only, in both multi and single runners',async()=>{
  const parsed=readConversationHistory({conversation_id:conv,next_before:null,messages:[messageA,messageB]},conv);
  assert.deepEqual(parsed.messages[1].tasks?.map(t=>t.status),['pending_confirmation']);

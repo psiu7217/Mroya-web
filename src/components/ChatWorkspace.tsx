@@ -45,6 +45,7 @@ import {
 } from '../types/mroya';
 import { AiTaskCompletionToast } from './AiTaskCompletionToast';
 import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
+import {taskMessageText} from '../utils/taskMessage';
 import type { AiTasksPresentation } from '../types/aiTasks';
 
 export interface ChatWorkspaceProps {
@@ -121,7 +122,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const [submitting, setSubmitting] = useState(false);
 
   const tasks = aiTasks?.tasks ?? [];
-  const completedToastTask = aiTasks?.completedTask;
+  const completedToastTask = aiTasks?.completedTask&&!conversation?.messages.some(message=>
+    message.tasks?.some(task=>task.id===aiTasks.completedTask!.id)) ? aiTasks.completedTask : undefined;
   const openTasks = () => aiTasks?.onOpen();
   const activeTasksCount = tasks.filter(t => ['awaiting_review','pending_confirmation','running','queued','needs_clarification'].includes(t.status)).length;
   const hasRunningTasks = tasks.some(t => t.status === 'running');
@@ -679,6 +681,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {hasMessages ? (
             <div className="space-y-6 sm:space-y-8 pb-6">
               {conversation.messages.map((msg) => {
+                const hasTaskCard=!!(live&&msg.tasks?.length);
+                const legacyMemoryReview=msg.tasks?.some(task=>task.target==='memory'&&!task.review?.length);
+                const taskOnlyAnswer=hasTaskCard&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
                 const actionState=diagnostics?.forMessage(msg);
                 const reporting=actionState?.reporting===true,reported=actionState?.reported===true,copied=actionState?.copied===true;
                 if (msg.sender === 'user') {
@@ -743,7 +748,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Optional model reasoning block when model provides reasoning */}
                       {msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning}/>
+                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning} hideTaskRegistrations={hasTaskCard}/>
                       ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
@@ -753,7 +758,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
-                      <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
+                      {!taskOnlyAnswer&&<div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
                         msg.status === 'failed'
                           ? 'border-[var(--mroya-error)]/40'
                           : 'border-[var(--mroya-divider)]'
@@ -927,12 +932,13 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             )}
                           </div>
                         )}
-                      </div>
+                      </div>}
 
                       {/* Prepared task receipts bound to this answer (canonical server data only). */}
-                      {live && msg.tasks && msg.tasks.length > 0 && (
+                      {hasTaskCard && msg.tasks && (
                         <AiTaskConfirmationCard
                           tasks={msg.tasks}
+                          legacyReview={taskOnlyAnswer&&legacyMemoryReview?msg.content:undefined}
                           compact={!showModelReasoning}
                           beginReview={aiTasks?.beginReview}
                           approveTask={aiTasks?.approveTask}
@@ -948,7 +954,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
                         <button
                           type="button"
-                          onClick={() => handleCopyMessage(msg.id, msg.content)}
+                          onClick={() => taskOnlyAnswer&&!legacyMemoryReview
+                            ? handleCopyMessage(msg.id, taskMessageText(msg.tasks!))
+                            : handleCopyMessage(msg.id, msg.content)}
                           aria-label={copiedMessageId === msg.id ? tr('copied',{ns:'common'}) : tr('copyResponse',{ns:'chat'})}
                           title={copiedMessageId === msg.id ? tr('copiedBang',{ns:'chat'}) : tr('copy',{ns:'chat'})}
                           className="inline-flex items-center justify-center p-1 -ml-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"

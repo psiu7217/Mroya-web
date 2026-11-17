@@ -206,5 +206,15 @@
   "voiceUnavailable": "Voice recognition is temporarily unavailable. Please try later.",
   "voiceSignIn": "Sign in again to use voice input.",
   "voiceCsrf": "Your session needs refreshing. Try recording again.",
-  "voiceError": "Could not record or transcribe audio. Check your microphone and connection, then try again."
+  "voiceError": "Could not record or transcribe audio. Check your microphone and connection, then try again.",
+  "taskReviewChanges": "Prepared changes",
+  "taskOriginalReview": "Original confirmation",
+  "memoryConfirmTitle": "Ready to save",
+  "memoryConfirmHint": "Review the proposed changes. When the timer ends, they will be submitted for saving automatically.",
+  "memoryConfirmExplicitHint": "Review the proposed changes and confirm. They will not be saved without your confirmation.",
+  "memoryStatusQueued": "Waiting to save",
+  "memoryStatusRunning": "Saving to memory…",
+  "memoryStatusCompleted": "Saved to memory",
+  "memoryStatusFailed": "Could not save to memory",
+  "taskResultUnconfirmed": "The result could not be confirmed. Check the current status before trying again."
 }

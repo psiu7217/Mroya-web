@@ -173,3 +173,13 @@ select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .mroya-mobile-drawer, .mroya-mobile-backdrop, .mroya-mobile-panel { transition: none; }
 }
+
+@keyframes mroya-memory-progress {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(360%); }
+}
+.mroya-memory-progress { width: 32%; animation: mroya-memory-progress 1.6s ease-in-out infinite; }
+.mroya-memory-progress-paused { width: 32%; transform: translateX(105%); opacity: .45; }
+@media (prefers-reduced-motion: reduce) {
+  .mroya-memory-progress { animation: none; transform: translateX(105%); }
+}

@@ -12,6 +12,7 @@ function errorMessage(error:unknown,fallback:string):string {
 
 export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enabled:boolean):MemoryTransferPresentation {
   const [busy,setBusy]=useState(false);
+  const [operation,setOperation]=useState<MemoryTransferPresentation['operation']>(null);
   const [error,setError]=useState<string|null>(null);
   const [importAvailable,setImportAvailable]=useState(false);
   const [availabilityKnown,setAvailabilityKnown]=useState(false);
@@ -36,14 +37,14 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
   },[source,enabled]);
   const exportMemory=useCallback(()=>{
     if(!source.exportMemory || busy)return;
-    setError(null);setBusy(true);
+    setError(null);setBusy(true);setOperation('export');
     void source.exportMemory().then(value=>{
       const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
       const link=document.createElement('a');
       link.href=url;link.download=`mroya-memory-${new Date().toISOString().slice(0,10)}.json`;
       document.body.append(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
-    }).catch(error=>setError(tr(memoryExportErrorKey(error),{ns:'connections'}))).finally(()=>setBusy(false));
+    }).catch(error=>setError(tr(memoryExportErrorKey(error),{ns:'connections'}))).finally(()=>{setBusy(false);setOperation(null);});
   },[source,busy]);
   const validateFile=useCallback(async(file:File)=>{
     const current=++validationId.current;
@@ -66,27 +67,27 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
   const importValidatedFile=useCallback(()=>{
     const text=documentRef.current;
     if(!importAvailable||!fileValidated||!text||!source.importMemory||inFlight.current)return;
-    inFlight.current=true;setBusy(true);setError(null);setSuccess(false);setRestored(false);
+    inFlight.current=true;setBusy(true);setOperation('import');setError(null);setSuccess(false);setRestored(false);
     documentRef.current=null;setFileValidated(false);
     void source.importMemory(text).then(result=>{
       setBackupId(result.backupId);setSearchPending(!result.searchReady);setSuccess(result.searchReady);onChanged();
     }).catch(error=>setError(errorMessage(error,'memoryImportFailed')))
-      .finally(()=>{inFlight.current=false;setBusy(false);});
+      .finally(()=>{inFlight.current=false;setBusy(false);setOperation(null);});
   },[source,importAvailable,fileValidated,onChanged]);
   const retrySearch=useCallback(()=>{
     if(!source.retryMemoryRebuild||inFlight.current)return;
-    inFlight.current=true;setBusy(true);setError(null);
+    inFlight.current=true;setBusy(true);setOperation('retry');setError(null);
     void source.retryMemoryRebuild().then(()=>{setSearchPending(false);setSuccess(true);onChanged();})
       .catch(()=>setError(tr('memoryRetryFailed',{ns:'connections'})))
-      .finally(()=>{inFlight.current=false;setBusy(false);});
+      .finally(()=>{inFlight.current=false;setBusy(false);setOperation(null);});
   },[source,onChanged]);
   const restorePrevious=useCallback(()=>{
     if(!backupId||!source.restoreMemory||inFlight.current||!window.confirm(tr('memoryRestoreWarning',{ns:'connections'})))return;
-    inFlight.current=true;setBusy(true);setError(null);setSuccess(false);
+    inFlight.current=true;setBusy(true);setOperation('restore');setError(null);setSuccess(false);
     void source.restoreMemory(backupId).then(result=>{
       setBackupId(null);setRestored(true);setSearchPending(!result.searchReady);setSuccess(result.searchReady);onChanged();
     }).catch(error=>setError(errorMessage(error,'memoryRestoreFailed')))
-      .finally(()=>{inFlight.current=false;setBusy(false);});
+      .finally(()=>{inFlight.current=false;setBusy(false);setOperation(null);});
   },[source,backupId,onChanged]);
-  return {busy,error,success,restored,importAvailable,importUnavailable:availabilityKnown&&!importAvailable,canImportFile:importAvailable&&fileValidated,searchPending,retryAvailable:writesAvailable,canRestore:!!backupId&&writesAvailable,exportMemory,validateFile,importValidatedFile,retrySearch,restorePrevious};
+  return {busy,operation,error,success,restored,importAvailable,importUnavailable:availabilityKnown&&!importAvailable,canImportFile:importAvailable&&fileValidated,searchPending,retryAvailable:writesAvailable,canRestore:!!backupId&&writesAvailable,exportMemory,validateFile,importValidatedFile,retrySearch,restorePrevious};
 }

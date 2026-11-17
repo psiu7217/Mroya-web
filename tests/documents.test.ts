@@ -65,11 +65,20 @@ test('manual upload retry reuses its idempotency ID after an ambiguous response'
  assert.deepEqual(ids,[id,id]);
 });
 
-test('account cancellation stops processing polls and cannot dispatch a chat message',async()=>{
+test('account cancellation during upload cannot dispatch a chat message',async()=>{
  const abort=new AbortController(),batch=new DocumentUploads(()=>id);let reads=0;
- const pending=batch.prepare(source({uploadDocument:async()=>record({status:'queued'}),document:async()=>{reads++;return record();}}),[new File(['abc'],'file.png')],'Translate',abort.signal);
- await Promise.resolve();await Promise.resolve();abort.abort();
+ const pending=batch.prepare(source({uploadDocument:async()=>{abort.abort();return record({status:'queued'});},document:async()=>{reads++;return record();}}),[new File(['abc'],'file.png')],'Translate',abort.signal);
  await assert.rejects(pending,(error:unknown)=>error instanceof Error&&error.name==='AbortError');assert.equal(reads,0);
+});
+
+test('queued files dispatch without waiting for classification or polling document status',async()=>{
+ let sent:string[]|undefined;
+ const controller=new LiveWorkspaceController(source({uploadDocument:async()=>record({status:'queued',category:null,coverage:'unknown'}),
+  document:async()=>{throw Error('Chat must not poll the worker');},send:async(_content,_id,emit,options)=>{
+   sent=options?.documentIds;emit({event:'done',data:{}});
+  }}),()=>{},()=>id);
+ await controller.load();assert.equal(await controller.send('Сохрани файл',undefined,[new File(['abc'],'file.png')]),true);
+ assert.deepEqual(sent,[id]);controller.stop();
 });
 
 test('live chat sends stored document IDs and does not convert an excluded attachment into text-only history',async()=>{

@@ -50,5 +50,6 @@
   "previous7Days": "Previous 7 Days",
   "earlierInOctober": "Earlier in October",
   "conversationOptionsFor": "Options for {{title}}",
-  "navFiles": "Files"
+  "navFiles": "Files",
+  "navOther": "Other"
 }

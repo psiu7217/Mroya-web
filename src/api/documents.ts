@@ -71,5 +71,14 @@ export function readDocumentDetail(value:unknown,id:string):DocumentDetail {
  for(const fact of r.facts as unknown[]){const f=record(fact);requireValue(typeof f.text==='string'&&typeof f.quote==='string'&&Number.isSafeInteger(f.page)&&(f.page as number)>0);}
  for(const value of r.values as unknown[]){const v=record(value);requireValue(typeof v.label==='string'&&typeof v.value==='string'&&typeof v.quote==='string'&&Number.isSafeInteger(v.page)&&(v.page as number)>0
   &&['unit','subject'].every(k=>v[k]===undefined||typeof v[k]==='string')&&(v.observed_on===undefined||v.observed_on===null||typeof v.observed_on==='string'));}
+ if(r.review_reasons!==undefined)requireValue(Array.isArray(r.review_reasons)&&r.review_reasons.length<=5
+  &&r.review_reasons.every(reason=>['unverified_facts','unverified_values','unverified_date','incomplete_text','model_uncertain'].includes(reason)));
  return {...d,...r} as unknown as DocumentDetail;
+}
+
+export function readDocumentDeletion(value:unknown):{status:'deleted';deleted_category_ids:string[]}{
+ const r=record(value);
+ requireValue(r.status==='deleted'&&Array.isArray(r.deleted_category_ids)&&r.deleted_category_ids.length<=8
+  &&r.deleted_category_ids.every(isTurnUuid)&&new Set(r.deleted_category_ids).size===r.deleted_category_ids.length);
+ return {status:'deleted',deleted_category_ids:r.deleted_category_ids as string[]};
 }

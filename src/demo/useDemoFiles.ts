@@ -28,7 +28,7 @@ export function useDemoFiles(empty:boolean):FilesPresentation {
  const detail=rows.find(d=>d.id===selectedId)??null;
  return {designPreview:true,rows:filtered,categories,category,query,order,total:filtered.length,loading:false,loadingMore:false,error:null,hasMore:false,uploading:false,mutating:false,selectedId,detail,detailLoading:false,detailError:null,
   onRefresh:()=>{},onMore:()=>{},onCategory:value=>{setCategory(value);setSelected(null);},onSearch:setQuery,onOrder:setOrder,onSelect:setSelected,onRetryDetail:()=>{},
-  onUpload:async()=>false,onReprocess:()=>{},
+  canDelete:false,onDelete:async()=>false,onUpload:async()=>false,onReprocess:()=>{},
   onSave:async changes=>{setRows(rows.map(d=>d.id!==selectedId?d:{...d,...changes,category:categories.find(c=>c.id===changes.category_id)??null,searchable:!!categories.find(c=>c.id===changes.category_id)?.effective_search_enabled,analysis_version:d.analysis_version+1,analysis_author:'user'}));return true;},
   onCategorySearch:(c,enabled)=>{const next=categories.map(item=>item.id===c.id?{...item,search_enabled:enabled,version:item.version+1,policy_source:'user' as const}:{...item});
    const effective=(item:DocumentCategoryDto):boolean=>item.search_enabled&&(!item.parent_id||effective(next.find(p=>p.id===item.parent_id)!));

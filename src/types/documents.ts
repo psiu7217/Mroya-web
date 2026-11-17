@@ -11,6 +11,7 @@ export interface DocumentCategoryDto {
  effective_search_enabled:boolean;policy_source:'model'|'user';version:number;
 }
 export interface DocumentDetail extends DocumentDto {
+ review_reasons?:('unverified_facts'|'unverified_values'|'unverified_date'|'incomplete_text'|'model_uncertain')[];
  summary:string;analysis_version:number;page_count:number;processed_at:string|null;
  analysis_author:'model'|'user';analysis_model:string;
  pages:{page:number;text:string}[];
@@ -21,6 +22,7 @@ export interface DocumentCorrection {title:string;summary:string;keywords:string
 export interface DocumentLibraryQuery {category?:string;q?:string;order?:'newest'|'name';offset?:number}
 export interface DocumentLibraryPage {documents:DocumentDto[];next_offset:number|null;total:number}
 export interface FilesPresentation {
+ canDelete:boolean;onDelete:()=>Promise<boolean>;
  designPreview?:boolean;
  rows:DocumentDto[];categories:DocumentCategoryDto[];category:string;query:string;order:'newest'|'name';total:number;
  loading:boolean;loadingMore:boolean;error:string|null;hasMore:boolean;uploading:boolean;mutating:boolean;

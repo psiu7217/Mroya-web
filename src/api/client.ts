@@ -9,7 +9,7 @@ import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
-import {readDocument,readDocumentPage,readDocumentCategories,readDocumentCategory,readDocumentDetail} from './documents.ts';
+import {readDocument,readDocumentPage,readDocumentCategories,readDocumentCategory,readDocumentDetail,readDocumentDeletion} from './documents.ts';
 import type {DocumentCorrection,DocumentLibraryQuery} from '../types/documents.ts';
 import {tr} from '../i18n/index.ts';
 function checkedUser(value: unknown): ApiUser {
@@ -75,6 +75,10 @@ export class MroyaApi {
     return readDocumentDetail(await this.json('documents/'+id+'/',undefined,signal),id);
   }
   async documentCategories(signal?:AbortSignal){return readDocumentCategories(await this.json('documents/categories/',undefined,signal));}
+  async deleteDocument(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocumentDeletion(await this.json('documents/'+id+'/',{},signal,'DELETE'));
+  }
   async setDocumentCategorySearch(id:string,enabled:boolean,version:number,signal?:AbortSignal){
     if(!isTurnUuid(id)||typeof enabled!=='boolean'||!Number.isSafeInteger(version)||version<1)throw new ApiError(400,'invalid_request','Invalid category policy');
     return readDocumentCategory(await this.json('documents/categories/'+id+'/',{search_enabled:enabled,version},signal,'PATCH'));

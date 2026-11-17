@@ -35,7 +35,7 @@ export class FilesController {
  private schedule(){clearTimeout(this.poll);if(this.active&&this.visible&&this.state.rows.some(d=>['queued','processing'].includes(d.status)))
   this.poll=setTimeout(()=>void this.refresh(),4000);}
  refresh=async()=>{
-  if(!this.active||!this.visible||!this.source.documents||!this.source.documentCategories)return;
+  if(!this.active||!this.visible||this.state.mutating||!this.source.documents||!this.source.documentCategories)return;
   this.listAbort?.abort();const abort=this.listAbort=new AbortController(),epoch=++this.epoch;
   this.emit({loading:true,loadingMore:false,error:null});
   try{
@@ -83,6 +83,46 @@ export class FilesController {
   return this.mutate(async signal=>{await this.source.saveDocument!(detail.id,{...changes,analysis_version:detail.analysis_version},signal);},true);
  };
  reprocess=()=>{if(this.state.selectedId&&this.source.retryDocument){const id=this.state.selectedId;void this.mutate(signal=>this.source.retryDocument!(id,signal),true);}};
+ deleteSelected=async():Promise<boolean>=>{
+  const id=this.state.selectedId;
+  if(!this.active||!id||!this.source.deleteDocument||this.state.mutating||this.state.uploading)return false;
+  clearTimeout(this.poll);this.listAbort?.abort();this.detailAbort?.abort();this.epoch++;
+  const abort=this.mutationAbort=new AbortController();
+  this.emit({mutating:true,loading:false,loadingMore:false,detailLoading:false,error:null,detailError:null});
+  let removed:string[]=[];
+  try{
+   const receipt=await this.source.deleteDocument(id,abort.signal);removed=receipt.deleted_category_ids;
+  }catch(error){
+   if(!this.active||abort.signal.aborted)return false;
+   if(error instanceof ApiError&&error.status===401){this.message(error);return false;}
+   // Reconcile an uncertain DELETE with GET, never an automatic repeat DELETE.
+   let gone=false;
+   try{await this.source.documentDetail?.(id,abort.signal);}
+   catch(readError){
+    gone=readError instanceof ApiError&&readError.status===404;
+    if(readError instanceof ApiError&&readError.status===401){this.message(readError);return false;}
+   }
+   if(!this.active||abort.signal.aborted)return false;
+   if(!gone){this.emit({mutating:false,detailError:this.message(error)});this.schedule();return false;}
+   try{
+    const current=await this.source.documentCategories!(abort.signal),ids=new Set(current.map(category=>category.id));
+    removed=this.state.categories.filter(category=>!ids.has(category.id)).map(category=>category.id);
+   }catch{
+    // The file is confirmed gone; fall back to All files until folder refresh succeeds.
+    if(this.active&&!abort.signal.aborted)this.emit({category:'',rows:[],total:0,next:null});
+   }
+  }
+  if(!this.active||abort.signal.aborted)return false;
+  this.listAbort?.abort();this.detailAbort?.abort();this.epoch++;
+  const removedIds=new Set(removed),before=this.state.categories;
+  let category=this.state.category;
+  while(removedIds.has(category)){category=before.find(folder=>folder.id===category)?.parent_id??'';}
+  const present=this.state.rows.some(file=>file.id===id),selected=this.state.selectedId===id;
+  this.emit({rows:this.state.rows.filter(file=>file.id!==id),total:Math.max(0,this.state.total-(present?1:0)),
+   categories:before.filter(folder=>!removedIds.has(folder.id)),category,mutating:false,
+   ...(selected?{selectedId:null,detail:null,detailError:null,detailLoading:false}:{})});
+  await this.refresh();return true;
+ };
  categorySearch=(category:DocumentCategoryDto,enabled:boolean)=>{
   if(this.source.setDocumentCategorySearch)void this.mutate(signal=>this.source.setDocumentCategorySearch!(category.id,enabled,category.version,signal));
  };
@@ -98,6 +138,7 @@ export class FilesController {
   }catch(error){if(this.active&&!abort.signal.aborted){const message=this.message(error);if(this.active){this.emit({uploading:false,error:message});}}return false;}
  };
  presentation():FilesPresentation {return {...this.state,hasMore:this.state.next!==null,
+  canDelete:!!this.source.deleteDocument,onDelete:this.deleteSelected,
   onRefresh:()=>void this.refresh(),onMore:()=>void this.more(),onCategory:this.category,onSearch:this.search,onOrder:this.order,
   onSelect:this.select,onRetryDetail:this.retryDetail,onSave:this.save,onReprocess:this.reprocess,onCategorySearch:this.categorySearch,
   onCreateCategory:this.createCategory,onUpload:this.upload};}

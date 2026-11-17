@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {ArrowLeft,ChevronRight,Download,FileText,Folder,FolderPlus,Image,LayoutGrid,List,LoaderCircle,Menu,PanelLeft,Pencil,RefreshCw,Search,SearchX,Upload,X} from 'lucide-react';
+import {ArrowLeft,ChevronRight,Download,FileText,Folder,FolderPlus,Image,LayoutGrid,List,LoaderCircle,Menu,PanelLeft,Pencil,RefreshCw,Search,SearchX,Trash2,Upload,X} from 'lucide-react';
 import type {DocumentDto,DocumentDetail,DocumentCategoryDto,FilesPresentation} from '../types/documents';
 import {tr} from '../i18n';
 import {formatDate} from '../i18n/format';
@@ -19,7 +19,7 @@ function trapFocus(event:React.KeyboardEvent<HTMLElement>){
 }
 function FileIcon({file,className='h-5 w-5'}:{file:DocumentDto;className?:string}){return file.mime_type.startsWith('image/')?<Image className={className}/>:<FileText className={className}/>;}
 function Status({file}:{file:DocumentDto}){
- return <span className={`inline-flex items-center gap-1.5 text-xs ${file.status==='failed'?'text-red-600 dark:text-red-400':file.status==='needs_attention'?'text-amber-700 dark:text-amber-400':'text-[var(--mroya-text-muted)]'}`}>
+ return <span title={file.status==='needs_attention'?t('reviewHint'):undefined} className={`inline-flex items-center gap-1.5 text-xs ${file.status==='failed'?'text-red-600 dark:text-red-400':file.status==='needs_attention'?'text-amber-700 dark:text-amber-400':'text-[var(--mroya-text-muted)]'}`}>
   {pending(file)&&<LoaderCircle className="h-3 w-3 animate-spin"/>}{t('status_'+file.status)}</span>;
 }
 function SearchBadge({enabled}:{enabled:boolean}){return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] ${enabled?'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400':'bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)]'}`}>
@@ -46,7 +46,8 @@ function Details({runtime,detail,onClose}:{runtime:FilesPresentation;detail:Docu
     <dl className="space-y-3 text-sm"><div><dt className="text-xs text-[var(--mroya-text-muted)]">{t('folder')}</dt><dd className="mt-1 break-words">{detail.category?.path.join(' / ')||t('uncategorized')}</dd></div>
      <div className="grid grid-cols-2 gap-3"><div><dt className="text-xs text-[var(--mroya-text-muted)]">{t('uploaded')}</dt><dd className="mt-1">{date(detail.created_at)}</dd></div><div><dt className="text-xs text-[var(--mroya-text-muted)]">{t('documentDate')}</dt><dd className="mt-1">{detail.document_date?date(detail.document_date):t('notSpecified')}</dd></div></div>
     </dl>
-    {detail.coverage!=='complete'&&<p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">{t('coverage_'+(['partial','unsupported'].includes(detail.coverage)?detail.coverage:'unknown'))}</p>}
+    {detail.status==='needs_attention'&&<section className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"><h4 className="font-medium">{t('reviewTitle')}</h4><p className="mt-1">{t('reviewHint')}</p>{!!detail.review_reasons?.length&&<ul className="mt-2 list-disc space-y-1 pl-4">{detail.review_reasons.map(reason=><li key={reason}>{t('review_'+reason)}</li>)}</ul>}</section>}
+    {detail.coverage!=='complete'&&detail.status!=='needs_attention'&&<p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">{t('coverage_'+(['partial','unsupported'].includes(detail.coverage)?detail.coverage:'unknown'))}</p>}
     {detail.status==='failed'&&<p className="text-sm text-red-600 dark:text-red-400">{t('processingFailed')}</p>}
     {!editing?<section>
      <div className="mb-3 flex items-center justify-between gap-2"><h4 className="font-medium">{t(detail.analysis_author==='user'?'yourDescription':'modelDescription')}</h4><button disabled={pending(detail)||runtime.mutating||runtime.uploading} onClick={()=>setEditing(true)} className={button} aria-label={t('editDetails')}><Pencil className="h-3.5 w-3.5"/>{t('edit')}</button></div>
@@ -67,6 +68,7 @@ function Details({runtime,detail,onClose}:{runtime:FilesPresentation;detail:Docu
     </details>
     <div className="border-t border-[var(--mroya-divider)] pt-4 text-xs text-[var(--mroya-text-muted)]"><p>{t('revision',{version:detail.analysis_version})}{detail.analysis_author==='user'?` · ${t('editedByYou')}`:''}</p>{detail.processed_at&&<p className="mt-1">{t('processed',{date:date(detail.processed_at)})}</p>}
      {!pending(detail)&&<><button className={`${button} mt-3 w-full`} disabled={runtime.mutating||runtime.uploading} onClick={()=>{if(window.confirm(t('reprocessConfirm')))runtime.onReprocess();}}><RefreshCw className="h-3.5 w-3.5"/>{t('reprocess')}</button><p className="mt-2">{t('reprocessHint')}</p></>}
+     {runtime.canDelete&&!runtime.designPreview&&<button className={`${button} mt-4 w-full text-red-700 dark:text-red-400`} disabled={runtime.mutating||runtime.uploading} onClick={()=>{if(window.confirm(t('deleteConfirm',{name:detail.title})))void runtime.onDelete();}}><Trash2 className="h-4 w-4"/>{t('deleteDocument')}</button>}
     </div>
    </>}
   </div>

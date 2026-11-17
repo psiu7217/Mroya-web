@@ -84,7 +84,16 @@
   "status_queued": "Waiting for processing",
   "status_processing": "Processing",
   "status_ready": "Processed",
-  "status_needs_attention": "Needs review",
+  "status_needs_attention": "Processed with notes",
   "status_failed": "Processing failed",
-  "previewOnly": "Example file. Original downloads are available in your signed-in account."
+  "previewOnly": "Example file. Original downloads are available in your signed-in account.",
+  "reviewTitle": "Processing notes",
+  "reviewHint": "No approval is required. Some processing results may need checking against the original.",
+  "review_unverified_facts": "Some information could not be verified and was omitted from the extracted facts.",
+  "review_unverified_values": "Some values could not be verified and were omitted from the extracted data.",
+  "review_unverified_date": "The document date could not be validated and was not saved.",
+  "review_incomplete_text": "Some text could not be extracted. The complete original is saved.",
+  "review_model_uncertain": "The model marked the processing result as uncertain.",
+  "deleteDocument": "Delete document",
+  "deleteConfirm": "Permanently delete “{{name}}”?\n\nThe original and processing results will be removed from your library, search and attachments in every chat. Empty folders along its path will also be deleted.\n\nThis cannot be undone."
 }

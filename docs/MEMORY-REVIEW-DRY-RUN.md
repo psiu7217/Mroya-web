@@ -1,12 +1,12 @@
 # Stage 2 — AI Memory Review dry run
 
 Requires matching Backend `memory-review-v1` API and additive migration
-`intelligence.0010_memoryreviewjob_and_more`. See the Backend
+`intelligence.0014_memory_review`. See the Backend
 [contract](https://github.com/psiu7217/Mroya-api/blob/codex/memory-review-dry-run/docs/MEMORY-REVIEW-DRY-RUN.md).
 Do not release Frontend functionality before that Backend is available. Missing
 routes produce an explicit unavailable state, never demo/success data.
 
-Memory Inbox → History/status tab → Initial Filter → **YES** exposes
+Open the connected Google Calendar in Settings. Below the first-stage analysis, **Deep AI review** exposes
 “Send N events for deep AI review”. N comes from Backend eligible_count (current,
 owned, consented APPROVE only), not the paginated initial-results list or an
 approximate old approval count. The Backend enqueues all eligible approved events;
@@ -27,8 +27,8 @@ Transport reuses MroyaApi session + CSRF and WorkspaceSource, with validated bou
 DTOs. POST queue/retry bodies are exactly `{}`. Reads use limit=20/offset. Polling is
 5 seconds after a completed request, only while pending/processing AND enabled AND
 worker heartbeat is current. Stopped/disabled/error states require explicit refresh;
-there is no automatic replay of mutations. Initial Filter refresh also updates the
-eligible count. Leaving the history tab/page, logout, account switch and expiry
+there is no automatic replay of mutations. Review refresh updates the eligible count. Leaving Connections, logout, account
+switch and expiry
 abort requests, cancel timers and erase review state/receipts. Late responses cannot
 restore another account's results. Design Mode makes no stage-2 API calls and gains
 no Production fallback fixtures. Components receive typed presentation props only.
@@ -44,7 +44,7 @@ change in this PR.
    review with conservative output/batch limits, enable review, run existing worker.
 2. Use a synthetic calendar with explicit consent and completed Initial Filter
    APPROVE results. Do not use real personal data for first model verification.
-3. Open YES and enqueue. Watch pending → processing → completed/error; inspect
+3. Open the connected Calendar settings and enqueue. Watch pending → processing → completed/error; inspect
    actual ProviderCall usage/cost in Backend Admin and 0–N draft cards.
 4. Verify no real Memory Inbox proposal, Neo4j read/write or Save action occurs.
 5. Disable review_enabled to stop future processing. No paid requests, production

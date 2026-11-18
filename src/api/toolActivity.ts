@@ -11,10 +11,11 @@ const scalar=(v:unknown)=>nullableText(v)||typeof v==='boolean'||typeof v==='num
 const list=(v:unknown,valid:(item:unknown)=>boolean):boolean=>Array.isArray(v)&&v.length<=4&&v.every(valid);
 const fact=(v:unknown)=>keys(v,['subject','predicate','value'])&&nullableText(v.subject)&&nullableText(v.predicate)&&scalar(v.value);
 const kinds:Record<string,string>={
+ generate_image:'tool',
  search_memory:'memory_search',fast_search_memory:'memory_search',prepare_memory_write:'persistence_check',expand_memory_entities:'memory_search',
  write_statements:'memory_write',revise_memory_statements:'memory_write',forget_memory_statements:'memory_write',resolve_memory_write:'no_write',
  create_note:'note_write',get_note:'note_read',update_note:'note_write',delete_note:'note_write',
- echo:'tool',tool:'tool',search_calendar_events:'calendar_search',get_calendar_events:'calendar_search',
+ enqueue_agent_task:'tool',echo:'tool',submit_memory_changes:'tool',tool:'tool',search_calendar_events:'calendar_search',get_calendar_events:'calendar_search',
  create_calendar_events:'calendar_write',update_calendar_events:'calendar_write',delete_calendar_events:'calendar_write',
 };
 const reasons=['already_present','unsupported_mutation','not_durable','insufficient_context','inappropriate_to_store','other'];

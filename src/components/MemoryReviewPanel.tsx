@@ -6,6 +6,10 @@ export function MemoryReviewPanel({review:r}:{review:ReviewPresentation}){
  return <section className="p-4 sm:p-6 space-y-3 border-b border-[var(--mroya-divider)] bg-[var(--mroya-surface)] text-[13px] text-[var(--mroya-text)]">
   <h2 className="font-semibold">{tr('reviewTitle',{ns:'memory'})}</h2>
   <p className="text-[12px] text-[var(--mroya-text-muted)]">{tr('reviewDryRun',{ns:'memory'})}</p>
+  {r.data&&r.data.processing_enabled&&<button type="button" disabled={waiting||!r.data.eligible_count}
+   onClick={r.onEnqueue} className="font-semibold text-[var(--mroya-primary)] disabled:opacity-60">
+   {tr('reviewEnqueue',{ns:'memory',count:r.data.eligible_count})}
+  </button>}
   {r.loading&&<p role="status">{tr('reviewLoading',{ns:'memory'})}</p>}
   {r.error&&<p role="alert">{r.error}</p>}
   {r.data&&!r.data.processing_enabled&&<p>{tr('reviewDisabled',{ns:'memory'})}</p>}

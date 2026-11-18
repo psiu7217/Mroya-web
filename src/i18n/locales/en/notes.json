@@ -34,6 +34,7 @@
   "queryNoResults": "No notes found for “{{query}}”.",
   "resetFilters": "Reset filters",
   "read": "Read",
+  "allCategories": "All",
   "allNotes": "All notes ({{count}})",
   "emptyState": "Empty state",
   "loadingNote": "Loading note…",

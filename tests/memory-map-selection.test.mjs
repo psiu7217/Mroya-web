@@ -19,6 +19,7 @@ const vite=await createServer({mode:'design',server:{middlewareMode:true},appTyp
 after(async()=>{delete globalThis[key];await vite.close();});
 const {MemoryMapView}=await vite.ssrLoadModule('/src/components/MemoryMapView.tsx');
 const {accountPresentation}=await vite.ssrLoadModule('/src/hooks/liveAdapters.ts');
+const {MapInitializationError}=await vite.ssrLoadModule('/src/components/memory-map/initialization.js');
 const node=id=>({id,label:id,type:'entity',kind:'person',category:'person',subtitle:'',summary:'',source:'',dateRecorded:'',connectionsCount:0});
 const same=(a,b)=>a&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
 function mount(initial,behavior={}){
@@ -102,13 +103,32 @@ test('theme and profile nickname update existing graph; only is_self labels chan
 const pause=()=>new Promise(resolve=>setTimeout(resolve,5));
 async function settle(view,predicate){const deadline=Date.now()+1000;while(!predicate()&&Date.now()<deadline){await pause();view.flush();}assert.ok(predicate(),'bounded async initialization settles');}
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
-test('unmount before module load skips creation; unmount during init destroys late instance and fences callbacks',async()=>{
+test('unmount before module load skips creation; unmount during init destroys late instance and fences callbacks',async t=>{
+ const diagnostics=t.mock.method(console,'error',()=>{});
  const module=deferred(),early=mount({}, {moduleGate:module.promise});early.flush();early.unmount();module.resolve();await pause();assert.equal(early.renderer.creations,0);
  const init=deferred(),behavior={initGate:init.promise},old=mount({},behavior);await old.start();old.unmount();assert.equal(behavior.signal.aborted,true);
  const current=mount({nodes:[node('current')]});await current.start();init.resolve();await pause();old.userSelect('obsolete');assert.equal(old.renderer.destroyed,1);assert.deepEqual(old.changes,[]);assert.equal(current.renderer.destroyed,0);current.unmount();assert.equal(current.renderer.destroyed,1);
+ assert.equal(diagnostics.mock.calls.length,0,'normal cancellation is silent');
 });
-test('chunk loading errors and renderer/WebGL initialization errors have distinct controlled states',async()=>{
- for(const [behavior,expected,absent] of [[{moduleError:Error('synthetic chunk')},'could not be loaded','WebGL'],[{initError:Error('synthetic GPU')},'WebGL','could not be loaded']]){
+test('chunk, WebGL and application failures retain original diagnostics and distinct localized UI',async t=>{
+ const diagnostics=t.mock.method(console,'error',()=>{});
+ const gpu=new MapInitializationError(new Error('driver failure'),'webgl-unavailable',{width:390,height:844,creationStatus:'EGL_NO_CONFIG'});
+ for(const [behavior,expected,absent,kind] of [[{moduleError:Error('synthetic chunk')},'could not be loaded','WebGL','chunk-load'],[{initError:Error('synthetic application failure')},'could not be initialized','WebGL','renderer-init'],[{initError:gpu},'WebGL is unavailable','could not be loaded','webgl-unavailable']]){
   const view=mount({nodes:[node('n')]},behavior);view.flush();await settle(view,()=>JSON.stringify(view.tree).includes(expected));assert.ok(!JSON.stringify(view.tree).includes(absent));view.unmount();
+  const args=diagnostics.mock.calls.at(-1).arguments;
+  assert.equal(args[1].kind,kind);assert.equal(args[2],behavior.moduleError??behavior.initError);
+  assert.ok(!JSON.stringify(view.tree).includes('EGL_NO_CONFIG'),'technical cause stays out of UI');
+ }
+});
+
+test('empty payload and API failure keep their own states even if renderer initialization also fails',async t=>{
+ t.mock.method(console,'error',()=>{});
+ for(const error of [null,'Synthetic API failure']){
+  const view=mount({nodes:[],error},{initError:Error('synthetic render failure')});
+  await view.start();await pause();view.flush();
+  const tree=JSON.stringify(view.tree);
+  assert.ok(!tree.includes('WebGL'));
+  if(error)assert.ok(tree.includes(error));else assert.ok(tree.includes('Your map will grow'));
+  view.unmount();
  }
 });

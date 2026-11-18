@@ -1,8 +1,6 @@
 import {MemoryLinks} from './MemoryLinks';
-import {canonicalEventId} from '../utils/eventAnalysis';
 import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
 import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
-import {EventAnalysisPreview} from './IntelligencePreviews';
 import type {CalendarPresentation} from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -14,13 +12,11 @@ import {
   Check,
   X,
   Menu,
-  PanelLeftOpen,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   Grid2x2,
   CalendarDays,
-  ZoomOut,
   ZoomIn,
   Bell,
   RefreshCw,
@@ -30,32 +26,23 @@ import {
   Trash2,
   Eye,
   AlertTriangle,
-  AlertCircle,
   Lock,
-  ShieldCheck,
   Sparkles,
-  Brain,
-  ExternalLink,
-  User,
-  Building2,
-  MapPin,
-  CheckCircle2,
-  HelpCircle,
 } from 'lucide-react';
 import { GoogleSyncState, CalendarEvent, MemoryItem, ReminderItem, RecurrenceRule } from '../types/mroya';
 import {calendarDate,calendarWeek,sameCalendarDay,calendarKey,calendarYears} from '../utils/calendarDates';
 import { RecurrenceEditor } from './RecurrenceEditor';
 import { doesEventOccurOnDate, localizedRecurrence } from '../utils/recurrenceUtils';
 import {tr} from '../i18n';
-import {formatDate,monthName,weekdayName} from '../i18n/format';
+import {formatDate,formatTime,monthName,weekdayName} from '../i18n/format';
 
 interface CalendarViewProps {
-  eventAnalysis?:import('../types/intelligenceApi').EventAnalysisPresentation;
   memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
-  designEventAnalysis?:import('../types/workspace').DesignIntelligencePreviews['EventAnalysis'];
   readOnly?:boolean;
   live?:boolean;
   calendar?:CalendarPresentation;
+  showGoogleCalendar?:boolean;
+  showReminders?:boolean;
   googleCalendarAvailable?:boolean;
   googleCalendarNotice?:string;
   samples?:{person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
@@ -82,9 +69,9 @@ interface CalendarViewProps {
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
-  eventAnalysis,memoryLinksNavigation,
-  readOnly=false,live=false,calendar,googleCalendarAvailable=false,googleCalendarNotice,
-  samples,designEventAnalysis:DesignEventAnalysis,
+  memoryLinksNavigation,
+  readOnly=false,live=false,calendar,showGoogleCalendar=true,showReminders=true,googleCalendarAvailable=false,googleCalendarNotice,
+  samples,
   events,
   memories,
   reminders,
@@ -125,9 +112,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Viewing, Editing, and Deleting event state
   const [viewingSelection, setViewingEvent] = useState<CalendarEvent | null>(null);
   const viewingEvent=live?events.find(event=>event.id===viewingSelection?.id)??viewingSelection:viewingSelection;
-  const analysisEventId=canonicalEventId(viewingEvent);
-  const selectAnalysis=eventAnalysis?.onSelect;
-  useEffect(()=>{selectAnalysis?.(analysisEventId);return()=>selectAnalysis?.(null);},[analysisEventId,selectAnalysis]);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<CalendarEvent | null>(null);
 
@@ -376,6 +360,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const renderSourceBadge = (ev: CalendarEvent) => {
     const isGoogle = ev.calendarSource === 'google_work' || ev.calendarSource === 'primary' || (ev.sourceName && ev.sourceName.includes('Google'));
     const isGoogleContacts = ev.calendarSource === 'google_birthdays' || (ev.sourceName && ev.sourceName.includes('Contacts'));
+    if (!showGoogleCalendar && (isGoogle || isGoogleContacts)) return <span className="text-[11px] text-[var(--mroya-text-muted)]">{tr('external',{ns:'calendar'})}</span>;
     const sourceLabel = ev.sourceName || (isGoogleContacts ? 'Google Contacts' : isGoogle ? 'Google Calendar' : 'Mroya');
 
     if (isGoogleContacts || ev.isReadOnly) {
@@ -403,6 +388,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const renderSyncStatusBadge = (ev: CalendarEvent) => {
+    if (!showGoogleCalendar) return null;
     if (ev.isReadOnly) {
       return (
         <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-[var(--mroya-text-muted)] bg-[var(--mroya-surface-muted)] px-1.5 py-0.5 rounded-[5px] border border-[var(--mroya-divider)] shrink-0">
@@ -515,6 +501,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const currentMonthData = getMonthCalendarData(currentYear, currentMonthIndex);
   const dayEvents = getEventsForDay(currentYear, currentMonthIndex, selectedDay);
   const formatCivilDate=(year:number,monthIndex:number,day:number,options:Intl.DateTimeFormatOptions)=>formatDate(new Date(Date.UTC(year,monthIndex,day,12)),options,'UTC');
+  const formatCivilEventDate=(value:string)=>{const [year,month,day]=value.split('-').map(Number);return Number.isInteger(year)&&Number.isInteger(month)&&Number.isInteger(day)?formatCivilDate(year,month-1,day,{weekday:'short',month:'short',day:'numeric',year:'numeric'}):value;};
+  const formatCivilEventTime=(value:string)=>{if(isAllDay(value))return tr('allDay',{ns:'calendar'});const [hour,minute]=value.split(':').map(Number);return Number.isInteger(hour)&&Number.isInteger(minute)?formatTime(new Date(Date.UTC(2000,0,1,hour,minute)),{},'UTC'):value;};
   const formattedDayTitle = formatCivilDate(currentYear,currentMonthIndex,selectedDay,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
   const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
@@ -699,7 +687,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* QUICK MONTH & YEAR PICKER POPOVER / SHEET (iOS Style) */}
       {isMonthPickerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-[2px]">
-          <div className="w-full max-w-sm rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-4 sm:p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-sm max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-4 sm:p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-[var(--mroya-divider)]">
               <div>
@@ -745,7 +733,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {/* 12 Months Grid */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--mroya-text-muted)]">
-                Select Month ({currentYear})
+                {tr('selectMonth',{ns:'calendar',year:currentYear})}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {monthNames.map((name, idx) => {
@@ -1161,7 +1149,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               </div>
 
                               {/* Reminders section for event (Mobile) */}
-                              {(() => {
+                              {showReminders && (() => {
                                 const eventReminders = reminders.filter((r) => r.calendarEventId === ev.id);
                                 const isDoctor = ev.id === 'evt-oct13-doctor';
                                 return (
@@ -1302,7 +1290,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 {/* iOS Style Google Calendar Settings Cell */}
-                <div className="p-3.5 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
+                {showGoogleCalendar && <div className="p-3.5 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-[var(--mroya-surface-muted)] flex items-center justify-center shrink-0">
                       <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
@@ -1323,13 +1311,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   >
                     {tr('tabsSettings',{ns:'connections'})}
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* DESKTOP CALENDAR VIEW (hidden on mobile, full workspace on desktop) */}
               <div className="hidden lg:block space-y-6">
                 {/* Google Calendar Connection Entry Point Banner */}
-                {showGoogleBanner && <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {showGoogleCalendar && showGoogleBanner && <div className="p-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start sm:items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center shrink-0">
                       <CalendarIcon className="w-4 h-4 text-[var(--mroya-primary)]" />
@@ -1597,7 +1585,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 </div>
 
                                 {/* Reminders section for event (Desktop) */}
-                                {(() => {
+                                {showReminders && (() => {
                                   const eventReminders = reminders.filter((r) => r.calendarEventId === ev.id);
                                   const isDoctor = ev.id === 'evt-oct13-doctor';
                                   return (
@@ -1857,13 +1845,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {!isNewModalOpen&&!editingEvent&&!deletingEvent&&calendarStatus}
-      {googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
+      {showGoogleCalendar&&googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
-          <div className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="new-event-title" className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+              <h2 id="new-event-title" className="text-[16px] font-semibold text-[var(--mroya-text)]">
                 {tr('newCommitmentModal',{ns:'calendar'})}
               </h2>
               <button
@@ -1930,13 +1918,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   {tr('category',{ns:'calendar'})}
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
+                <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+                  {(['meeting', 'deadline', 'reminder'] as const).map((cat, index) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setNewCategory(cat)}
-                      className={`py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer ${
+                      className={`min-w-0 py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer max-sm:flex max-sm:min-h-9 max-sm:items-center max-sm:justify-center max-sm:px-1 max-sm:text-center max-sm:leading-tight max-sm:whitespace-normal max-sm:break-words ${index === 2 ? 'max-sm:col-span-2' : ''} ${
                         newCategory === cat
                           ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)] text-[var(--mroya-primary)] font-semibold'
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
@@ -1986,7 +1974,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
 
               {/* Optional Reminder Setup */}
-              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
+              {showReminders && <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -2032,7 +2020,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </p>
                   </div>
                 )}
-              </div>
+              </div>}
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
@@ -2065,7 +2053,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           onClick={() => setViewingEvent(null)}
         >
           <div
-            className="w-full max-w-lg rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
+            className="w-full max-w-lg max-h-[calc(100dvh-2rem)] rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -2093,15 +2081,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             <div className="space-y-3 divide-y divide-[var(--mroya-divider)]/60 text-[13px]">
               {/* Date and Time */}
-              <div className="pt-2 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[var(--mroya-text)] font-medium">
+              <div className="pt-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-[var(--mroya-text)] font-medium min-w-0">
                   <Clock className="w-4 h-4 text-[var(--mroya-primary)] shrink-0" />
                   <span>
-                    {viewingEvent.date} · {viewingEvent.time}
+                    {formatCivilEventDate(viewingEvent.date)} · {formatCivilEventTime(viewingEvent.time)}
                   </span>
                 </div>
                 <span className="text-[var(--mroya-text-muted)] text-[12px]">
-                  Duration: {viewingEvent.duration}
+                  {tr('durationLabel',{ns:'calendar',duration:viewingEvent.duration})}
                 </span>
               </div>
 
@@ -2135,7 +2123,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <div className="p-2.5 rounded-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-900 dark:text-purple-200 text-[12px] space-y-1">
                     <div className="flex items-center gap-1.5 font-semibold">
                       <Repeat className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      <span>{tr('recurringSeriesDetail',{ns:'calendar',rule:viewingEvent.recurrence?localizedRecurrence(viewingEvent.recurrence):tr('googleProviderRule',{ns:'calendar'})})}</span>
+                      <span>{tr('recurringSeriesDetail',{ns:'calendar',rule:viewingEvent.recurrence?localizedRecurrence(viewingEvent.recurrence):showGoogleCalendar?tr('googleProviderRule',{ns:'calendar'}):tr('external',{ns:'calendar'})})}</span>
                     </div>
                     <p className="text-[11px] text-purple-800/80 dark:text-purple-300/80">
                       {tr('seriesEditWarning',{ns:'calendar'})}
@@ -2170,14 +2158,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <div>
                       <span className="font-semibold">{tr('readOnlyExternalEvent',{ns:'calendar'})}</span>
                       <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
-                        {tr('externalReadOnlyDescription',{ns:'calendar',source:viewingEvent.sourceName||tr('googleContacts',{ns:'calendar'})})}
+                        {tr('externalReadOnlyDescription',{ns:'calendar',source:showGoogleCalendar?(viewingEvent.sourceName||tr('googleContacts',{ns:'calendar'})):tr('external',{ns:'calendar'})})}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
-
-              {live||!DesignEventAnalysis?<EventAnalysisPreview analysis={eventAnalysis?(eventAnalysis.eventId===analysisEventId?eventAnalysis:{...eventAnalysis,data:null,error:null,loading:!!analysisEventId}):undefined}/>:<DesignEventAnalysis event={viewingEvent} onOpenMemory={onOpenMemory}/>}
 
             </div>
 
@@ -2229,7 +2215,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           onClick={() => setEditingEvent(null)}
         >
           <div
-            className="w-full max-w-md rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 max-h-[90vh] overflow-y-auto text-[var(--mroya-text)]"
+            className="w-full max-w-md max-h-[calc(100dvh-2rem)] rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -2238,7 +2224,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {tr('editCommitment',{ns:'calendar'})}
                 </h2>
                 <p className="text-[11px] text-[var(--mroya-text-muted)]">
-                  {editingEvent.sourceName || 'Mroya Calendar'}
+                  {showGoogleCalendar || editingEvent.calendarSource==='local' ? (editingEvent.sourceName || 'Mroya Calendar') : tr('external',{ns:'calendar'})}
                 </p>
               </div>
               <button
@@ -2303,13 +2289,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   {tr('category',{ns:'calendar'})}
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['meeting', 'deadline', 'reminder'] as const).map((cat) => (
+                <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+                  {(['meeting', 'deadline', 'reminder'] as const).map((cat, index) => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setEditCategory(cat)}
-                      className={`py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer ${
+                      className={`min-w-0 py-1.5 rounded-[6px] text-[12px] capitalize font-medium border cursor-pointer max-sm:flex max-sm:min-h-9 max-sm:items-center max-sm:justify-center max-sm:px-1 max-sm:text-center max-sm:leading-tight max-sm:whitespace-normal max-sm:break-words ${index === 2 ? 'max-sm:col-span-2' : ''} ${
                         editCategory === cat
                           ? 'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)] text-[var(--mroya-primary)] font-semibold'
                           : 'bg-[var(--mroya-surface)] border-[var(--mroya-divider)] text-[var(--mroya-text)]'
@@ -2405,7 +2391,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   {tr((deletingEvent.recurrence||deletingEvent.api?.edit_scope==='series')?'deleteSeriesPrompt':'deleteCommitmentPrompt',{ns:'calendar'})}
                 </h3>
-                <p className="text-[12px] text-[var(--mroya-text-muted)] truncate max-w-[300px]">
+                <p className="max-w-[300px] text-[12px] text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere]">
                   {deletingEvent.title}
                 </p>
               </div>

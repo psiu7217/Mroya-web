@@ -1,9 +1,14 @@
-import {useInitialFilterQueue} from '../hooks/useInitialFilterQueue';
-import {useIntelligence} from '../hooks/useIntelligence';
+import {useChatAttachments} from '../hooks/useChatAttachments';
+import {hasFeature} from '../utils/accountRoles';
+import {useMemoryTransfer} from '../hooks/useMemoryTransfer';
+import {useMemoryReview} from '../hooks/useMemoryReview';
+import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
+import {useSpeechInput} from '../hooks/useSpeechInput';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
+import {useFiles} from '../hooks/useFiles';
+import {useImageViewer} from '../hooks/useImageViewer';
 import {useLiveNotes} from '../hooks/useLiveNotes';
 import {useNotificationSettings} from '../hooks/useNotificationSettings';
-import {useLiveMemoryInbox} from '../hooks/useLiveMemoryInbox';
 import {useUserTimezone} from '../hooks/useUserTimezone';
 import {useLiveCalendar} from '../hooks/useLiveCalendar';
 import {googleSyncPresentation} from '../hooks/calendarAdapters';
@@ -21,11 +26,14 @@ import type {AppLanguage} from '../i18n/language';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
 import type {WorkspaceSource} from '../types/source';
+import type {InstallPresentation} from '../types/install';
 import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
-export function LiveExperience({source,user,onExpired,onLogout}:{source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
+export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
+ const features={googleCalendar:hasFeature(user.role,'google_calendar'),technicalDiagnostics:hasFeature(user.role,'technical_diagnostics'),experimentalFeatures:hasFeature(user.role,'experimental_features'),reminders:hasFeature(user.role,'reminders')};
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
+ const memoryTransfer=useMemoryTransfer(source,()=>void controller.refreshMemory(),user.role==='admin');
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
  const preferences=useUserPreferences(source,user,onExpired,language);
  React.useLayoutEffect(()=>{if(preferences.language!==language){setAppLanguage(preferences.language);setLanguage(preferences.language);}},[preferences.language,language]);
@@ -34,22 +42,24 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
 
  const layout=useWorkspaceLayout({theme:preferences.theme,onThemeChange:preferences.setTheme});
  const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null);
+ const speech=useSpeechInput(source,user.id,section+':'+(state.activeConversationId??''),onExpired);
  const [selectedMemory,setSelectedMemory]=useState<string|null>(null),[selectedNode,setSelectedNode]=useState<string|null>(null);
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
- const [queueVisible,setQueueVisible]=useState(false);
  const [settingsTab,setSettingsTab]=useState<WorkspaceModel['settingsTab']>('connections');
- const initialQueue=useInitialFilterQueue(source,user.id,section==='memory-inbox'&&queueVisible,onExpired,()=>{setSection('connections');setSettingsTab('connections');layout.closeMobile();});
  const telegram=useTelegramConnection(source,user.id,section==='connections'&&settingsTab==='connections',onExpired);
  const notifications=useNotificationSettings(source,user.id,telegram,onExpired);
- const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const calendar=useLiveCalendar(source,user.id,confirmedUser.timezone,state.capabilities?.calendar_rest===true,features.googleCalendar&&state.capabilities?.calendar_rest===true&&state.capabilities?.connections_rest===true,section==='calendar'||section==='connections'&&settingsTab==='connections',onExpired);
+ const attachments=useChatAttachments(source,user.id,state.capabilities?.staged_document_uploads===true);
+ const files=useFiles(source,user.id,state.capabilities?.documents===true,section==='files',onExpired);
+ const images=useImageViewer(source,user.id,section+':'+(state.activeConversationId??''),onExpired);
  const notes=useLiveNotes(source,user.id,state.capabilities?.notes_read===true,section==='notes',state.busy,onExpired);
- const inbox=useLiveMemoryInbox(source,user.id,section==='memory',onExpired,()=>void controller.refreshMemory());
- const intelligence=useIntelligence(source,user.id,section==='connections',onExpired,id=>{setSection('memory');layout.closeMobile();void inbox.controller.focus(id);});
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
+ const analysis=useCalendarAnalysis(source,user.id,google?.id??null,section==='connections'&&settingsTab==='connections',onExpired);
+ const memoryReview=useMemoryReview(source,user.id,!!google?.id&&section==='connections'&&settingsTab==='connections',onExpired);
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{initialQueue.controller.stop();intelligence.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();inbox.controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{images.controller.stop();attachments.controller.stop();files.controller.stop();analysis.controller.stop();memoryReview.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -57,8 +67,8 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map));
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('unavailable');
- const select=(next:NavSection)=>{if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
- const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(tab);};
+ const select=(next:NavSection)=>{if(next!=='chat')attachments.controller.clear();if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
+ const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(!features.experimentalFeatures&&(tab==='settings'||tab==='plan')?'connections':tab);};
  const openMemory=(id:string)=>{
   select('memory');
   if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}
@@ -74,16 +84,37 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
   diagnostics.stop();select('chat');void controller.selectConversation(id);
  };
  const focusMemory=(id:string)=>{if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}setFocusedMemoryId(id);setContextOpen(true);};
- const sendMessage=(content:string)=>new Promise<boolean>(resolve=>{
-  // Acknowledge the composer after CREATE is confirmed and the pending message is queued.
-  void controller.send(content,()=>resolve(true)).then(resolve,()=>resolve(false));
- });
+ const sendMessage=async(content:string,_attachmentName?:string,selected:File[]=[])=>{
+  try{
+   const prepared=selected.length&&attachments.presentation?await attachments.controller.prepare(selected):undefined;
+   return await new Promise<boolean>(resolve=>{
+    const accepted=()=>{if(prepared)attachments.controller.accepted(selected);resolve(true);};
+    void controller.send(content,accepted,prepared?[]:selected,prepared).then(result=>{if(result&&prepared)attachments.controller.accepted(selected);resolve(result);},()=>resolve(false));
+   });
+  }catch{return false;}
+ };
  const model:WorkspaceModel={
-  initialQueue:initialQueue.presentation,onInitialQueueVisible:setQueueVisible,
-  intelligence:intelligence.settings,eventAnalysis:intelligence.event,memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
+  imageViewer:images.presentation,
+  chatAttachments:attachments.presentation,
+  files:files.available?files.presentation:undefined,
+  documentsAvailable:state.capabilities?.documents===true,
+  speech,
+  install,
+  calendarAnalysis:analysis.presentation,
+  memoryReview:memoryReview.presentation,
+  aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
+   executingTaskId:state.executingTaskId,onExecute:id=>void controller.executeTask(id),
+   cancellingTaskId:state.cancellingTaskId,onCancel:id=>void controller.cancelTask(id),
+   onReport:controller.reportTask,
+   decidingTaskId:state.decidingTaskId,onDecision:(id,action,comment)=>controller.decideTask(id,action,comment),
+   beginReview:controller.beginPendingReview,approveTask:controller.approvePendingTask,revokeTask:controller.revokePendingTask,
+   refreshTask:controller.readTask,
+   completedTask:state.completedTask,onOpen:()=>controller.openTasks(),onClose:()=>controller.closeTasks(),
+   onRefresh:()=>void controller.refreshTasks(),onMore:()=>void controller.moreTasks(),
+   onDetails:id=>void controller.taskDetails(id),onDismiss:()=>controller.dismissTask()},
+  memoryLinksNavigation:{targets:linkTargets,onOpen:openMap},
   notifications:notifications.presentation,
-  memoryInbox:inbox.presentation,
-  runtime:{notifications:notifications.presentation,memoryInboxAvailable:inbox.state.available,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
+  runtime:{features,notifications:notifications.presentation,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
@@ -94,8 +125,9 @@ export function LiveExperience({source,user,onExpired,onLogout}:{source:Workspac
    onUnavailable:unavailable,onLogout:logout,
    preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry},
    languageSave:{status:preferences.languageStatus,error:preferences.languageError,onRetry:preferences.retry},
-   showModelReasoning:preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
+   showModelReasoning:features.technicalDiagnostics&&preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
+  memoryTransfer:user.role==='admin'?memoryTransfer:undefined,
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
   language:preferences.language,onChangeLanguage:preferences.setLanguage,

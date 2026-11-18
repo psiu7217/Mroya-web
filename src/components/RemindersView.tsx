@@ -175,11 +175,17 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           <div>
             <h1 className="text-[17px] sm:text-[18px] font-bold text-[var(--mroya-text)] flex items-center gap-2">
               <span>{tr('navReminders',{ns:'sidebar'})}</span>
-              <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]">
-                {tr('scheduledCount',{ns:'reminders',count:totalScheduled})}
+              <span
+                aria-label={tr('scheduledCount',{ns:'reminders',count:totalScheduled})}
+                className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]"
+              >
+                <span className="hidden min-[400px]:inline-flex">
+                  {tr('scheduledCount',{ns:'reminders',count:totalScheduled})}
+                </span>
+                <span className="inline-flex min-[400px]:hidden" aria-hidden="true">{totalScheduled}</span>
               </span>
               {recurringCount > 0 && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                <span className="hidden lg:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                   <Repeat className="w-3 h-3" />
                   <span>{tr('recurringCount',{ns:'reminders',count:recurringCount})}</span>
                 </span>
@@ -197,10 +203,12 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             type="button"
             disabled={readOnly}
             onClick={onOpenNewReminderModal}
-            className="px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[13px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:shadow-sm"
+            aria-label={tr('newReminder',{ns:'reminders'})}
+            title={tr('newReminder',{ns:'reminders'})}
+            className="px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[13px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:shadow-sm"
           >
             <Plus className="w-4 h-4 stroke-[2.4]" />
-            <span>{tr('newReminder',{ns:'reminders'})}</span>
+            <span className="hidden sm:inline">{tr('newReminder',{ns:'reminders'})}</span>
           </button>
         </div>
       </header>
@@ -276,7 +284,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           {/* Filter Tabs & Search Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[var(--mroya-divider)]">
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <div className="flex flex-wrap items-center gap-1 pb-1 sm:pb-0">
               <button
                 type="button"
                 onClick={() => setFilter('all')}
@@ -477,9 +485,9 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             : 'border-[var(--mroya-divider)] hover:border-[var(--mroya-brand-honey)] shadow-2xs'
         }`}
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           {/* Left: Complete toggle + Content */}
-          <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="flex w-full items-start gap-3 min-w-0 flex-1 sm:w-auto">
             {/* Complete Checkbox */}
             <button
               type="button"
@@ -603,7 +611,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           </div>
 
           {/* Right: Context Actions */}
-          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+          <div className="flex w-full items-center justify-end gap-1 shrink-0 pt-0.5 sm:w-auto">
             {/* Quick Action: Complete this occurrence for recurring reminders */}
             {eff.isRecurring && !isCompleted && (
               <button

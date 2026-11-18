@@ -1,4 +1,7 @@
-import {IntelligenceSourcesPreview,IntelligenceAutonomyPreview} from './IntelligencePreviews';
+import {MemoryReviewPanel} from './MemoryReviewPanel';
+import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
+import {MemoryTransferSettings} from './MemoryTransferSettings';
+import type {MemoryTransferPresentation} from '../types/memoryTransfer';
 import {timezoneChoices} from '../utils/timezones';
 import type { AccountPresentation, NotificationPresentation, NotificationPreview, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
 import type {AppLanguage} from '../types/api';
@@ -15,17 +18,13 @@ import {
   User,
   Shield,
   Menu,
-  PanelLeftOpen,
   ChevronDown,
   Brain,
   Calendar as CalendarIcon,
   RefreshCw,
   AlertTriangle,
   AlertCircle,
-  RotateCw,
   CheckCircle2,
-  ArrowRightLeft,
-  ExternalLink,
   Bell,
   Clock,
 } from 'lucide-react';
@@ -65,11 +64,14 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
-  intelligence?:import('../types/intelligenceApi').IntelligencePresentation;
-  designIntelligence?:import('../types/workspace').DesignIntelligencePreviews;
+  memoryReview?:import('../types/memoryReview').ReviewPresentation;
+  calendarAnalysis?:import('../types/calendarAnalysis').CalendarAnalysisPresentation;
+  memoryTransfer?:MemoryTransferPresentation;
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
   live?: boolean;
+  showGoogleCalendar?: boolean;
+  showDeveloperFeatures?: boolean;
   timezoneSettings?:TimezonePresentation;
   telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
@@ -96,7 +98,8 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  intelligence,live=false,connectionSamples,timezoneSettings,designIntelligence,notifications,notificationPreview,
+  memoryTransfer,
+  calendarAnalysis,memoryReview,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -196,8 +199,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     :!notifications.enabled?'disabled':!notifications.connected?'disconnected':!notifications.configured?'unavailable':notifications.deliveryReady?'ready':'notReady';
   const notificationStatus=notificationState==='saving'?tr('saving',{ns:'common'}):tr(({loading:'notificationLoading',sending:'notificationSending',unavailable:'notificationUnavailable',pending:'notificationQueued',processing:'notificationProcessing',retry:'notificationRetrying',sent:'notificationDelivered',failed:'notificationFailed',cancelled:'notificationCancelled',expired:'notificationExpired',disabled:'notificationDisabled',disconnected:'disconnected',ready:'botReady',notReady:'notificationNotReady'} as Record<string,string>)[notificationState]??'notificationUnavailable',{ns:'connections'});
   const notificationError=notifications?.error?tr('requestFailed',{ns:'common'}):notifications?.lastTestStatus==='failed'?tr('deliveryFailed',{ns:'connections'}):null;
-  const SourcesPreview=designIntelligence?.Sources,AutonomyPreview=designIntelligence?.Autonomy;
-  const visibleConnections = live ? plannedConnections() : connections;
+  const visibleConnections = live ? plannedConnections().filter(c=>c.id==='telegram'||(c.id==='google-calendar'&&showGoogleCalendar)||showDeveloperFeatures&&c.id!=='google-calendar') : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
     label: string;
@@ -229,8 +231,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
       </header>
 
       {/* Sub-navigation bar */}
-      <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex items-center gap-1.5 overflow-x-auto">
-        {tabs.map((t) => (
+      <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto">
+        {tabs.filter(t=>showDeveloperFeatures||!['plan','settings'].includes(t.id)).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -475,6 +477,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         {/* CONNECTED & SUB-STATES (Auto-off, Auto-on, Syncing, Error, Conflict, Reconnect) */}
                         {isConnected && gcalSyncState !== 'connecting' && (
                           <div className="space-y-4 pt-1">
+                            <p className="text-xs text-[var(--mroya-text-muted)] leading-relaxed">{tr('calendarStudyNotice',{ns:'connections'})}</p>
                             {/* Connected Account & Last Synced Display */}
                             <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                               <div className="flex items-center gap-3">
@@ -694,6 +697,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 {tr('disconnect',{ns:'connections'})}
                               </button>
                             </div>
+                            <CalendarAnalysisPanel analysis={calendarAnalysis}/>
+                            {memoryReview&&<MemoryReviewPanel review={memoryReview}/>}
                           </div>
                         )}
                         </div>
@@ -932,8 +937,6 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 );})}
               </div>
 
-              {live||!SourcesPreview?<IntelligenceSourcesPreview live={intelligence}/>:<SourcesPreview/>}
-
             </div>
           )}
 
@@ -1096,11 +1099,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   <h2 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
                     {account.displayName}
                   </h2>
-                  <p className="text-[13px] text-[var(--mroya-text-muted)] truncate">
+                  <p className="text-[13px] text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere] lg:truncate">
                     {account.email}{account.description ? ` · ${account.description}` : ''}
                   </p>
                 </div>
               </div>
+
+              {memoryTransfer && <MemoryTransferSettings transfer={memoryTransfer} />}
 
               {/* Nickname section */}
               <div className="space-y-2">
@@ -1313,8 +1318,6 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   </div>
                 </div>
               </div>
-
-              {live||!AutonomyPreview?<IntelligenceAutonomyPreview live={intelligence}/>:<AutonomyPreview/>}
 
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
                 <div className="flex items-center gap-2">

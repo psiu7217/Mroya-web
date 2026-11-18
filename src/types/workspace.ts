@@ -36,8 +36,8 @@ export interface NotificationPresentation {
     onSendTest:()=>Promise<void>; onRefresh:()=>Promise<void>; onRetry:()=>Promise<void>;
 }
 export interface WorkspaceRuntime {
+    features?: {googleCalendar:boolean;technicalDiagnostics:boolean;experimentalFeatures:boolean;reminders:boolean};
     notifications?:NotificationPresentation;
-    memoryInboxAvailable?:boolean;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
@@ -59,24 +59,22 @@ export interface ConnectionSamples {
     calendars:{id:string;name:string;desc:string;available:boolean;read_only:boolean;exportable:boolean}[];
     scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
 }
-export interface DesignIntelligencePreviews {
-    EventAnalysis:React.ComponentType<{event:CalendarEvent;onOpenMemory:(id:string)=>void}>;
-    Sources:React.ComponentType; Autonomy:React.ComponentType;
-}
 export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
-    pipelineSamples?:import('./inboxPipeline').PipelineEventItem[];
-    initialQueue?:import('./initialQueue').InitialQueuePresentation;
-    onInitialQueueVisible?:(visible:boolean)=>void;
-    intelligence?:import('./intelligenceApi').IntelligencePresentation;
-    eventAnalysis?:import('./intelligenceApi').EventAnalysisPresentation;
+    imageViewer?:import('./imageViewer').ImageViewerPresentation;
+    chatAttachments?:import('./chatAttachments').ChatAttachmentsPresentation;
+    files?:import('./documents').FilesPresentation;
+    memoryTransfer?:import('./memoryTransfer').MemoryTransferPresentation;
+    speech?:import('./speech').SpeechPresentation;
+    install?:import('./install').InstallPresentation;
+    memoryReview?:import('./memoryReview').ReviewPresentation;
+    calendarAnalysis?:import('./calendarAnalysis').CalendarAnalysisPresentation;
+    aiTasks?:import('./aiTasks').AiTasksPresentation;
     memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;
-    designIntelligence?:DesignIntelligencePreviews;
     notificationPreview?:NotificationPreview;
     notifications?:NotificationPresentation;
-    memoryInbox?:import('./memoryInbox').MemoryInboxPresentation;
     connectionSamples?:ConnectionSamples;
     onChangeTimezone?:(value:string)=>void;
     onSaveNickname?:(value:string)=>void;
@@ -127,7 +125,8 @@ export interface WorkspaceModel {
     relatedMemoriesForActiveChat: MemoryItem[];
     upcomingRelatedEvent: CalendarEvent | null;
     handleNewChat: () => void;
-    handleSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
+    handleSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
+    documentsAvailable?:boolean;
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     calendar?:CalendarPresentation;

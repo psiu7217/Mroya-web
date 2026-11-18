@@ -1,13 +1,20 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import {randomUUID} from 'node:crypto';
 import {defineConfig} from 'vite';
 
 export default defineConfig(({ mode }) => {
   const target = process.env.MROYA_BUILD_TARGET ?? (mode === 'design' ? 'design' : 'production');
   if (!['design', 'production'].includes(target)) throw new Error('Invalid MROYA_BUILD_TARGET');
+  const buildId = randomUUID();
   return {
-    plugins: [react(), tailwindcss()],
+    define: {__MROYA_BUILD_ID__: JSON.stringify(buildId)},
+    plugins: [react(), tailwindcss(), {
+      name: 'mroya-build-version',
+      apply: 'build',
+      generateBundle() { this.emitFile({type: 'asset', fileName: 'version.json', source: JSON.stringify({buildId})}); },
+    }],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

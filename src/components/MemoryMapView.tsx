@@ -9,6 +9,7 @@ import {
   Minus,
   Scan,
   BookOpen,
+  FileText,
   MessageSquare,
   Crosshair,
   Download,
@@ -17,7 +18,8 @@ import {
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../types/mroya';
 import {tr} from '../i18n';
-import { createMemoryMapRenderer, defaults } from './memory-map/renderer.js';
+import { defaults } from './memory-map/forceDefaults.js';
+import { reportMapFailure } from './memory-map/initialization.js';
 import { renderGraph } from './memory-map/mapModel';
 import { presentationGraph } from './memory-map/graph.js';
 import { mapNodeLabel } from './memory-map/palette.js';
@@ -145,10 +147,11 @@ export function MemoryMapView({
         }
         renderer.current = value;
         setReady(true);
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        if (!cancelled && !initialization.signal.aborted) {
+          const kind = reportMapFailure(error, loadingModule);
           setRenderError(
-            tr(loadingModule?'renderFailedLoad':'renderFailed',{ns:'memory'})
+            tr(kind==='chunk-load'?'renderFailedLoad':kind==='webgl-unavailable'?'webglUnavailable':'renderFailed',{ns:'memory'})
           );
         }
       }
@@ -195,14 +198,13 @@ export function MemoryMapView({
   const stateMessage = loading
     ? tr('connecting',{ns:'memory'})
     : (error && !nodes.length ? error : null) ||
-      renderError ||
       (!nodes.length
         ? tr('mapEmpty',{ns:'memory'})
-        : !ready
+        : renderError || (!ready
         ? tr('preparing',{ns:'memory'})
         : !display.nodes.length
         ? tr('noNodesHideSelf',{ns:'memory'})
-        : null);
+        : null));
 
   const matches = query.trim()
     ? display.nodes
@@ -533,6 +535,18 @@ export function MemoryMapView({
               </div>
 
               {section(tr('currentFacts',{ns:'memory'}), facts)}
+              {!!active.linkedFiles?.length && (
+                <section className="map-detail-section">
+                  <h3>{tr('linkedFiles',{ns:'memory'})}</h3>
+                  {active.linkedFiles.map(file => (
+                    <div className="map-detail-row" key={file.id}>
+                      <a href={file.originalUrl} className="map-detail-link" target="_blank" rel="noopener noreferrer">
+                        <FileText size={14} aria-hidden="true"/>{file.name}
+                      </a>
+                    </div>
+                  ))}
+                </section>
+              )}
               {section(tr('connectionsFrom',{ns:'memory'}), outgoing)}
               {section(tr('connectedBy',{ns:'memory'}), incoming, true)}
 

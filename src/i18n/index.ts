@@ -2,6 +2,8 @@ import i18n from 'i18next';
 import {initReactI18next} from 'react-i18next';
 import {useSyncExternalStore} from 'react';
 import {detectBrowserLanguage,readInitialLanguage,supportedLanguage,type AppLanguage} from './language.ts';
+import enFiles from './locales/en/files.json' with {type:'json'};
+import ruFiles from './locales/ru/files.json' with {type:'json'};
 import enCommon from './locales/en/common.json' with {type:'json'};
 import enAuth from './locales/en/auth.json' with {type:'json'};
 import enSidebar from './locales/en/sidebar.json' with {type:'json'};
@@ -27,10 +29,10 @@ import ruWorkspace from './locales/ru/workspace.json' with {type:'json'};
 import {LANGUAGE_STORAGE_KEY} from './language.ts';
 
 const designMode=import.meta.env?.MODE!=='production';
-const namespaces=['common','auth','sidebar','chat','calendar','connections','memory','notes','reminders','workspace',...(designMode?['design' as const]:[])] as const;
+const namespaces=['files','common','auth','sidebar','chat','calendar','connections','memory','notes','reminders','workspace',...(designMode?['design' as const]:[])] as const;
 const resources={
-  en:{common:enCommon,auth:enAuth,sidebar:enSidebar,chat:enChat,calendar:enCalendar,connections:enConnections,memory:enMemory,notes:enNotes,reminders:enReminders,workspace:enWorkspace,...(designMode?{design:enDesign}:{})},
-  ru:{common:ruCommon,auth:ruAuth,sidebar:ruSidebar,chat:ruChat,calendar:ruCalendar,connections:ruConnections,memory:ruMemory,notes:ruNotes,reminders:ruReminders,workspace:ruWorkspace,...(designMode?{design:ruDesign}:{})},
+  en:{files:enFiles,common:enCommon,auth:enAuth,sidebar:enSidebar,chat:enChat,calendar:enCalendar,connections:enConnections,memory:enMemory,notes:enNotes,reminders:enReminders,workspace:enWorkspace,...(designMode?{design:enDesign}:{})},
+  ru:{files:ruFiles,common:ruCommon,auth:ruAuth,sidebar:ruSidebar,chat:ruChat,calendar:ruCalendar,connections:ruConnections,memory:ruMemory,notes:ruNotes,reminders:ruReminders,workspace:ruWorkspace,...(designMode?{design:ruDesign}:{})},
 };
 export const translationResources=resources;
 let initialLanguage:AppLanguage='en';

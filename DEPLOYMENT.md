@@ -63,3 +63,20 @@ Run python3 -m unittest discover -s deploy -p test_deploy.py -v and bash -n depl
 No Actions, CI/CD, scheduler, new service or credential was added. Real Docker build and administrative installation remain unexecuted in this PR.
 
 Review validation: 14 fake deployment/installer tests, Bash/Python syntax, actual Node lock metadata check, TypeScript, boundaries and both frontend builds passed on Ubuntu. The full frontend suite is 28/29: the unchanged SSR test still pins 1fe0f3b and fails against the already approved Studio PNG logo in main. This PR changes neither UI nor that historical baseline; reconcile the deliberate visual baseline in a separate reviewed change.
+
+## Frontend updates and HTTP caching
+
+The installed `/etc/mroya-web-deploy/nginx.conf` is independent of this repository and must be reviewed and updated separately before deploying this change. Current public checks found HTML and SPA fallback `no-cache`, but Cloudflare returned `/sw.js` with `max-age=14400` and a cache HIT. Confirm the active origin configuration and any Cloudflare cache rules: an edge rule must not override the policies below. Purge only the affected fixed URLs at the CDN if it continues serving an old cached response; do not clear user data.
+
+Inside the existing Nginx `server` block, retain its API routing, health check, security headers and `/assets/` location. Ensure the following policies, including on internally redirected SPA fallback responses:
+
+- `/index.html` and SPA fallback: `Cache-Control: no-cache`.
+- `/sw.js` and `/version.json`: `Cache-Control: no-store`.
+- Other fixed URLs (including manifests, icons and images): `Cache-Control: no-cache`.
+- Content-hashed `/assets/*`: `Cache-Control: public, max-age=31536000, immutable`; use `try_files $uri =404` and do not apply immutable to errors.
+
+For a configuration with the existing `/assets/` and exact `/index.html` locations, add exact locations for `/sw.js` and `/version.json`, each with `try_files $uri =404;` and `add_header Cache-Control "no-store" always;`. Add `add_header Cache-Control "no-cache" always;` to the existing `location /` for fixed URLs, keeping its `try_files $uri $uri/ /index.html;`. Repeat the existing security `add_header` directives inside every location with its own `add_header`: Nginx does not inherit parent headers in that case. Preserve the existing `/index.html` no-cache location and its security headers. Review other matching regex locations and any upstream cache overrides first.
+
+To apply safely, back up the installed file, edit a candidate copy, and validate the complete candidate with the same Nginx version and configuration context before replacing `/etc/mroya-web-deploy/nginx.conf`. A subsequent authorized Web deployment rebuilds the image from that installed file; editing it alone does not change the running container. After deployment verify public GET headers for `/`, an SPA route, `/index.html`, `/sw.js`, `/version.json`, both manifests, a fixed icon and a real hashed asset, including CDN cache status. Verify a nonexistent asset is 404 without an immutable cache policy. No deployment or production configuration change is performed by this PR.
+
+Each production build embeds a fresh ID and emits the same ID in `/version.json`. The app checks it at opening, on returning to the foreground and hourly while visible; network errors leave the current session intact. A different ID shows a localized update button. Only an explicit click reloads the page; no browser storage is cleared. This mechanism starts working once this frontend version has first been loaded. Normal navigations rely on the HTTP policies above to obtain current HTML.

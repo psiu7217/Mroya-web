@@ -31,6 +31,8 @@
   "retryCalendar": "Retry / check calendar",
   "year": "Year",
   "month": "Month",
+  "selectMonth": "Select month ({{year}})",
+  "durationLabel": "Duration: {{duration}}",
   "event": "Event",
   "annualCalendar": "Annual Calendar",
   "today": "Today",

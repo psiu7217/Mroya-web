@@ -1,13 +1,8 @@
-import {readInitialResults} from './initialResults.ts';
 import {readReviewPage,readReviewJob,readReviewReceipt} from './memoryReview.ts';
-import type {InitialDecision} from '../types/initialResults.ts';
-import {readInitialQueue,readInitialQueueReceipt} from './initialQueue.ts';
-import {readScanning} from './intelligence.ts';
-import {readIntelligencePreferences,readIntelligenceSources,readIntelligenceSource,readEventAnalysis} from './intelligence.ts';
+import {readCalendarAnalyses,readCalendarAnalysis,readAnalysisEvents} from './calendarAnalysis.ts';
+import {readAiTask,readAiTasksPage,readTasksPayload} from './aiTasks.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
 import {readNotificationSettings,readNotification,notificationUuid} from './notifications.ts';
-import type {ProposalDecision,DecisionBody} from '../types/intelligenceApi.ts';
-import {readIntelligenceSettings,readIntelligenceRuntime,readIntelligenceProposal,readProposalPage,readProposalHistory,validateDecision} from './intelligence.ts';
 import type {GoogleConfiguration} from '../types/calendarApi.ts';
 import {calendarUuid,readCalendarEvent,readCalendarPage,readCalendarOperation,readGoogleConnection,readGoogleConnections,googleAuthorizationUrl} from './calendar.ts';
 import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
@@ -15,6 +10,8 @@ import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
+import {readDocument,readDocumentPage,readDocumentCategories,readDocumentCategory,readDocumentDetail,readDocumentDeletion} from './documents.ts';
+import type {DocumentCorrection,DocumentLibraryQuery} from '../types/documents.ts';
 import {tr} from '../i18n/index.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
@@ -23,11 +20,13 @@ function checkedUser(value: unknown): ApiUser {
   if(typeof user.nickname!=='string' || Array.from(user.nickname).length>80 || Array.isArray(user.preferences) || !user.preferences || typeof user.preferences!=='object'
     || !['system','light','dark'].includes((user.preferences as Record<string,unknown>).theme as ThemeMode))
     throw new ApiError(502,'invalid_response','Invalid API preferences');
+  // Missing and unrecognized roles keep the session usable with the least privilege.
+  const role = user.role === undefined ? undefined : user.role === 'premium' || user.role === 'admin' ? user.role : 'free';
   const reasoning=(user.preferences as Record<string,unknown>).show_model_reasoning;
   if(reasoning!==undefined&&typeof reasoning!=='boolean')throw new ApiError(502,'invalid_response','Invalid reasoning preference');
   const language=(user.preferences as Record<string,unknown>).language;
   if(language!==undefined&&language!==''&&language!=='en'&&language!=='ru')throw new ApiError(502,'invalid_response','Invalid interface language preference');
-  return value as ApiUser;
+  return (role === undefined ? user : {...user, role}) as unknown as ApiUser;
 }
 // A link is a bearer credential. Never include its value in errors or persistence.
 export function validTelegramLink(value:string):boolean {
@@ -43,31 +42,230 @@ export class MroyaApi {
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid review offset');
     return readReviewPage(await this.json(`memory-intelligence/memory-review/results/?limit=20&offset=${offset}`,undefined,signal),offset);
   }
-  async enqueueMemoryReview(signal?:AbortSignal){return readReviewReceipt(await this.json('memory-intelligence/memory-review/queue/',{},signal,'POST'));}
+  async enqueueMemoryReview(signal?:AbortSignal){
+    return readReviewReceipt(await this.json('memory-intelligence/memory-review/queue/',{},signal,'POST'));
+  }
   async retryMemoryReview(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid review id');
     const body=await this.json(`memory-intelligence/memory-review/jobs/${id}/retry/`,{},signal,'POST') as {job:unknown};
-    return readReviewJob(body.job);
+    return readReviewJob(body?.job);
   }
-  async initialFilterResults(decision:InitialDecision='APPROVE',offset=0,signal?:AbortSignal){
-    if(!['APPROVE','REJECT'].includes(decision)||!Number.isSafeInteger(offset)||offset<0)throw new ApiError(400,'invalid_request','Invalid results page');
-    return readInitialResults(await this.json(`memory-intelligence/initial-filter-results/?decision=${decision}&limit=50&offset=${offset}`,undefined,signal),decision,offset);
+  async uploadStagedDocument(file:File,uploadId:string,onProgress:(fraction:number|null)=>void,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024)throw new ApiError(400,'invalid_upload','Invalid upload');
+    if(!this.token)await this.csrf(signal);
+    signal?.throwIfAborted();
+    const form=new FormData();form.append('file',file);form.append('upload_id',uploadId);
+    const response=await new Promise<Response>((resolve,reject)=>{
+      const xhr=new XMLHttpRequest();
+      const cleanup=()=>signal?.removeEventListener('abort',abort);
+      const abort=()=>xhr.abort();
+      xhr.open('POST','/api/v1/documents/upload/?staged=1');xhr.withCredentials=true;xhr.timeout=180000;
+      xhr.setRequestHeader('Accept','application/json');xhr.setRequestHeader('X-CSRFToken',this.token);
+      xhr.upload.onprogress=event=>onProgress(event.lengthComputable?Math.min(0.98,event.loaded/event.total):null);
+      xhr.onload=()=>{cleanup();if(!xhr.status){reject(new ApiError(0,'network_error','Upload failed'));return;}
+        resolve(new Response(xhr.responseText,{status:xhr.status,headers:{'Content-Type':xhr.getResponseHeader('Content-Type')??''}}));};
+      xhr.onerror=xhr.ontimeout=()=>{cleanup();reject(new ApiError(0,'network_error','Upload failed'));};
+      xhr.onabort=()=>{cleanup();reject(new DOMException('Aborted','AbortError'));};
+      signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted){cleanup();reject(new DOMException('Aborted','AbortError'));return;}
+      xhr.send(form);
+    });
+    await this.check(response);
+    if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected upload JSON');
+    const document=readDocument(await response.json());if(document.status!=='staged')throw new ApiError(502,'invalid_response','Expected staged upload');onProgress(1);return document;
   }
-  async initialFilterQueue(signal?:AbortSignal){return readInitialQueue(await this.json('memory-intelligence/initial-filter-queue/',undefined,signal));}
-  async enqueueInitialFilter(calendarId:string,signal?:AbortSignal){
-    if(!isTurnUuid(calendarId))throw new ApiError(400,'invalid_initial_queue_request','Invalid calendar UUID');
-    return readInitialQueueReceipt(await this.json('memory-intelligence/initial-filter-queue/',{calendar_id:calendarId},signal,'POST',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Queue registration was not confirmed');}));
+  async discardStagedUpload(uploadId:string,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId))throw new ApiError(400,'invalid_upload','Invalid upload');
+    await this.json('documents/uploads/'+uploadId+'/',{},signal,'DELETE');
   }
-
-  async intelligencePreferences(signal?:AbortSignal){return readIntelligencePreferences(await this.json('memory-intelligence/settings/',undefined,signal));}
-  async saveIntelligencePreferences(autonomy:'review_all'|'auto_link',signal?:AbortSignal){
-    if(!['review_all','auto_link'].includes(autonomy))throw new ApiError(400,'invalid_autonomy','Unsupported autonomy');
-    return readIntelligencePreferences(await this.json('memory-intelligence/settings/',{autonomy},signal,'PATCH'));
+  async documents(options:DocumentLibraryQuery={},signal?:AbortSignal){
+    const {offset=0,category='',q='',order='newest'}=options;
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>200||!['newest','name'].includes(order)
+      ||!['','uncategorized','generated'].includes(category)&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
+    return readDocumentPage(await this.json('documents/?'+new URLSearchParams({offset:String(offset),category,q,order}),undefined,signal),offset);
   }
-  async intelligenceSources(offset=0,signal?:AbortSignal){if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new Error('Invalid offset');return readIntelligenceSources(await this.json('memory-intelligence/sources/?limit=50&offset='+offset,undefined,signal),offset);}
-  async saveIntelligenceSource(id:string,enabled:boolean,signal?:AbortSignal){if(!isTurnUuid(id)||typeof enabled!=='boolean')throw new Error('Invalid source');return readIntelligenceSource(await this.json('memory-intelligence/sources/calendar/'+id+'/',{enabled},signal,'PATCH'),id);}
-  async eventAnalysis(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid event UUID');return readEventAnalysis(await this.json('memory-intelligence/calendar-events/'+id+'/status/',undefined,signal),id);}
-
+  async documentDetail(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocumentDetail(await this.json('documents/'+id+'/',undefined,signal),id);
+  }
+  async documentImage(id:string,signal?:AbortSignal):Promise<File>{
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    const response=await this.fetcher('/api/v1/documents/'+id+'/original/',{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'image/png,image/jpeg,image/webp,image/gif'}});
+    await this.check(response);
+    const mime=response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()??'';
+    const extensions:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'};
+    const limit=25*1024*1024,length=response.headers.get('Content-Length');
+    if(!extensions[mime]||!response.body||length!==null&&(!Number.isSafeInteger(Number(length))||Number(length)<1||Number(length)>limit))
+      throw new ApiError(502,'invalid_image','Invalid image response');
+    const reader=response.body.getReader(),chunks:BlobPart[]=[];let size=0;
+    try{
+      while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
+        if(size>limit){await reader.cancel();throw new ApiError(502,'invalid_image','Image exceeds the size limit');}
+        chunks.push(new Uint8Array(value).buffer);
+      }
+    }finally{reader.releaseLock();}
+    const file=new File(chunks,'mroya-'+id+'.'+extensions[mime],{type:mime});
+    const header=new Uint8Array(await file.slice(0,12).arrayBuffer()),text=String.fromCharCode(...header);
+    const valid=mime==='image/png'?text.startsWith('\x89PNG\r\n\x1a\n'):
+      mime==='image/jpeg'?header[0]===255&&header[1]===216&&header[2]===255:
+      mime==='image/webp'?text.startsWith('RIFF')&&text.slice(8)==='WEBP':/^GIF8[79]a/.test(text);
+    if(!size||!valid)throw new ApiError(502,'invalid_image','Invalid image bytes');
+    return file;
+  }
+  async documentCategories(signal?:AbortSignal){return readDocumentCategories(await this.json('documents/categories/',undefined,signal));}
+  async deleteDocument(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocumentDeletion(await this.json('documents/'+id+'/',{},signal,'DELETE'));
+  }
+  async setDocumentCategorySearch(id:string,enabled:boolean,version:number,signal?:AbortSignal){
+    if(!isTurnUuid(id)||typeof enabled!=='boolean'||!Number.isSafeInteger(version)||version<1)throw new ApiError(400,'invalid_request','Invalid category policy');
+    return readDocumentCategory(await this.json('documents/categories/'+id+'/',{search_enabled:enabled,version},signal,'PATCH'));
+  }
+  async createDocumentCategory(name:string,parentId:string|null,enabled:boolean,signal?:AbortSignal){
+    if(!name.trim()||Array.from(name).length>120||parentId!==null&&!isTurnUuid(parentId))throw new ApiError(400,'invalid_request','Invalid category');
+    return readDocumentCategory(await this.json('documents/categories/',{name,parent_id:parentId,search_enabled:enabled},signal));
+  }
+  async saveDocument(id:string,changes:DocumentCorrection,signal?:AbortSignal){
+    if(!isTurnUuid(id)||!changes.title.trim()||Array.from(changes.title).length>240||Array.from(changes.summary).length>4000
+      ||changes.keywords.length>20||changes.keywords.some(w=>!w.trim()||Array.from(w).length>120)
+      ||changes.category_id!==null&&!isTurnUuid(changes.category_id)||!Number.isSafeInteger(changes.analysis_version)||changes.analysis_version<0)
+      throw new ApiError(400,'invalid_request','Invalid document correction');
+    return readDocumentDetail(await this.json('documents/'+id+'/',changes,signal,'PATCH'),id);
+  }
+  async retryDocument(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocument(await this.json('documents/'+id+'/retry/',{},signal));
+  }
+  async uploadDocument(file:File,uploadId:string,context:string,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024||context.length>4000)
+      throw new ApiError(400,'invalid_upload','Invalid file upload');
+    if(!this.token)await this.csrf(signal);
+    const form=new FormData();form.append('file',file);form.append('upload_id',uploadId);form.append('context',context);
+    const response=await this.fetcher('/api/v1/documents/upload/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','X-CSRFToken':this.token},body:form});
+    await this.check(response);
+    return readDocument(await response.json());
+  }
+  async document(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocument(await this.json('documents/'+id+'/?brief=1',undefined,signal));
+  }
+  async memoryTransferStatus(signal?:AbortSignal):Promise<{searchPending:boolean;backupId:string|null;importAvailable:boolean}>{
+    const data=await this.json<{search_pending:unknown;backup_uuid:unknown;import_available:unknown}>('me/memory/status/',undefined,signal);
+    if(typeof data.search_pending!=='boolean'||typeof data.import_available!=='boolean'||(data.backup_uuid!==null&&!isTurnUuid(data.backup_uuid)))throw new ApiError(502,'invalid_response','Invalid memory transfer status');
+    return {searchPending:data.search_pending,backupId:data.backup_uuid as string|null,importAvailable:data.import_available};
+  }
+  async exportMemory(signal?:AbortSignal):Promise<unknown>{
+    const result=await this.json<unknown>('me/memory/export/',undefined,signal);
+    if(!result||typeof result!=='object'||(result as Record<string,unknown>).format!=='mroya-personal-memory'||(result as Record<string,unknown>).version!==2||typeof (result as Record<string,unknown>).baseline!=='string'||!(result as Record<string,unknown>).memory)
+      throw new ApiError(502,'invalid_response','Invalid memory export');
+    return result;
+  }
+  private async memoryDocumentPost(path:string,documentText:string,signal?:AbortSignal):Promise<unknown>{
+    if(!this.token)await this.csrf(signal);
+    const response=await this.fetcher('/api/v1/me/memory/'+path+'/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','Content-Type':'application/json','X-CSRFToken':this.token},body:documentText});
+    await this.check(response);
+    if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected API JSON');
+    return response.json();
+  }
+  async validateMemory(documentText:string,signal?:AbortSignal):Promise<{importAvailable:boolean}>{
+    const data=await this.memoryDocumentPost('validate',documentText,signal) as Record<string,unknown>;
+    if(!data||data.valid!==true||typeof data.import_available!=='boolean')throw new ApiError(502,'invalid_response','Invalid validation result');
+    return {importAvailable:data.import_available};
+  }
+  async importMemory(documentText:string,signal?:AbortSignal):Promise<{searchReady:boolean;backupId:string}>{
+    const data=await this.memoryDocumentPost('import',documentText,signal) as Record<string,unknown>;
+    if(!data||data.canonical_saved!==true||typeof data.search_ready!=='boolean'||!isTurnUuid(data.backup_uuid))throw new ApiError(502,'invalid_response','Invalid import result');
+    return {searchReady:data.search_ready,backupId:data.backup_uuid as string};
+  }
+  async retryMemoryRebuild(signal?:AbortSignal):Promise<void>{
+    const data=await this.json<{search_ready:unknown}>('me/memory/rebuild/',{},signal,'POST');
+    if(data.search_ready!==true)throw new ApiError(502,'invalid_response','Invalid rebuild result');
+  }
+  async restoreMemory(backupId:string,signal?:AbortSignal):Promise<{searchReady:boolean}>{
+    if(!isTurnUuid(backupId))throw new ApiError(400,'invalid_request','Invalid backup UUID');
+    const data=await this.json<{restored:unknown;search_ready:unknown}>('me/memory/backups/'+backupId+'/restore/',{},signal,'POST');
+    if(data.restored!==true||typeof data.search_ready!=='boolean')throw new ApiError(502,'invalid_response','Invalid restoration result');
+    return {searchReady:data.search_ready};
+  }
+  async transcribeAudio(audio:Blob,signal?:AbortSignal):Promise<string>{
+    if(!audio.size||audio.size>12*1024*1024)throw new ApiError(413,'audio_too_large','Invalid audio size');
+    if(!this.token)await this.csrf(signal);
+    const mime=audio.type.split(';')[0];
+    const extension:Record<string,string>={'audio/mp4':'m4a','video/mp4':'mp4','audio/webm':'webm','audio/ogg':'ogg','audio/wav':'wav'};
+    const body=new FormData();body.append('file',audio,'recording.'+(extension[mime]??'audio'));
+    const response=await this.fetcher('/api/v1/chat/transcriptions/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','X-CSRFToken':this.token},body});
+    await this.check(response);
+    if(response.status!==200||!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected transcription JSON');
+    const data=await response.json();
+    if(!data||typeof data.text!=='string'||!data.text.trim()||data.text.length>16000)throw new ApiError(502,'invalid_response','Invalid transcription');
+    return data.text.trim();
+  }
+  async calendarAnalyses(connectionId:string,signal?:AbortSignal){
+    calendarUuid(connectionId);
+    return readCalendarAnalyses(await this.json('calendar/google/connections/'+connectionId+'/analysis/',undefined,signal));
+  }
+  async calendarAnalysisEvents(id:string,offset=0,signal?:AbortSignal){
+    calendarUuid(id);if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid analysis page');
+    return readAnalysisEvents(await this.json('calendar/google/calendars/'+id+'/analysis/events/?limit=50&offset='+offset,undefined,signal),id,offset);
+  }
+  async controlCalendarAnalysis(id:string,action:'stop'|'retry',version:number,jobId?:string,signal?:AbortSignal){
+    calendarUuid(id);if(!['stop','retry'].includes(action)||!Number.isSafeInteger(version)||version<1||action==='stop'&&jobId!==undefined)
+      throw new ApiError(400,'invalid_request','Invalid analysis action');
+    if(jobId!==undefined)calendarUuid(jobId);
+    const result=await this.json<{calendar:unknown}>('calendar/google/calendars/'+id+'/analysis/'+action+'/',
+      {version,...(jobId?{job_id:jobId}:{})},signal,'POST');
+    return readCalendarAnalysis(result.calendar,id);
+  }
+  async agentTasks(offset=0,signal?:AbortSignal){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid tasks offset');
+    return readAiTasksPage(await this.json('ai-tasks/?limit=50&offset='+offset,undefined,signal),offset);
+  }
+  async reportAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{issue_id:unknown;task_id:unknown;created:unknown}>('agent-tasks/'+id+'/report/',{},signal,'POST');
+    if(!isTurnUuid(data.issue_id)||data.task_id!==id||typeof data.created!=='boolean')throw new ApiError(502,'invalid_response','Invalid report');
+  }
+  async executeAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/execute/',{},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async beginAgentTaskReview(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/review/',{},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async approveAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/approve/',{},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async revokePendingAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/cancel/',{},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async cancelAgentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/cancel/',{pending_only:false},signal,'POST');
+    return readAiTask(data.task,id);
+  }
+  async agentTask(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
+    const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/',undefined,signal);
+    return readAiTask(data.task,id);
+  }
+  async decideAiTask(id:string,action:'accept'|'reject'|'comment'|'retry',version:number,comment?:string,signal?:AbortSignal){
+    if(!isTurnUuid(id)||!['accept','reject','comment','retry'].includes(action)||!Number.isSafeInteger(version)||version<1
+      ||action==='comment'&&(typeof comment!=='string'||!comment.trim()||comment.length>2000))
+      throw new ApiError(400,'invalid_request','Invalid task decision');
+    const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/decision/',
+      {action,version,request_id:crypto.randomUUID(),...(action==='comment'?{comment}: {})},signal,'POST');
+    return readAiTask(data.task,id);
+  }
   async notes(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid Notes offset');
     return readNotesPage(await this.json('notes/?limit=20&offset='+offset,undefined,signal),offset);
@@ -92,20 +290,6 @@ export class MroyaApi {
     if(!notificationUuid(id))throw new Error('Invalid notification UUID');
     return readNotification(await this.json('me/notifications/'+id+'/',undefined,signal),id);
   }
-  async intelligenceSettings(signal?:AbortSignal){return readIntelligenceSettings(await this.json('memory-intelligence/settings/',undefined,signal));}
-  async intelligenceScans(offset=0,signal?:AbortSignal){if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw Error('Invalid offset');return readScanning(await this.json('memory-intelligence/scans/?limit=50&offset='+offset,undefined,signal),offset);}
-  async scanIntelligence(calendar_ids:string[],signal?:AbortSignal){if(!calendar_ids.length||calendar_ids.length>50||calendar_ids.some(id=>!isTurnUuid(id))||new Set(calendar_ids).size!==calendar_ids.length)throw Error('Invalid calendars');return readScanning(await this.json('memory-intelligence/scans/',{calendar_ids},signal));}
-  async intelligenceStatus(signal?:AbortSignal){return readIntelligenceRuntime(await this.json('memory-intelligence/status/',undefined,signal));}
-  async inboxProposals(offset=0,signal?:AbortSignal){return readProposalPage(await this.json('memory-intelligence/proposals/?limit=50&offset='+offset,undefined,signal),offset);}
-  async inboxProposal(id:string,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');const v=await this.json<{proposal:unknown}>('memory-intelligence/proposals/'+id+'/',undefined,signal);return readIntelligenceProposal(v.proposal,id);}
-  async inboxHistory(id:string,offset=0,signal?:AbortSignal){if(!isTurnUuid(id))throw new Error('Invalid proposal UUID');return readProposalHistory(await this.json('memory-intelligence/proposals/'+id+'/history/?limit=50&offset='+offset,undefined,signal),offset);}
-  async inboxDecision(id:string,action:ProposalDecision,body:DecisionBody,signal?:AbortSignal){
-    validateDecision(id,action,body);
-    const v=await this.json<{proposal:unknown;replayed:unknown}>('memory-intelligence/proposals/'+id+'/'+action+'/',body,signal);
-    if(typeof v.replayed!=='boolean')throw new ApiError(502,'invalid_response','Invalid decision confirmation.');
-    return {proposal:readIntelligenceProposal(v.proposal,id),replayed:v.replayed};
-  }
-
   async calendarEvents(start:string,end:string,offset=0,signal?:AbortSignal){
     return readCalendarPage(await this.json('calendar/events/?'+new URLSearchParams({start_date:start,end_date:end,limit:'100',offset:String(offset)}),undefined,signal));
   }
@@ -194,15 +378,15 @@ export class MroyaApi {
     const snapshot=readReportContext(context);
     if(!snapshot)throw new ApiError(400,'invalid_report','Invalid failure attempt');
     let status=0;
-    const data=await this.json<unknown>('chat/turns/'+snapshot.turn_id+'/report/',{request_trace_id:snapshot.request_trace_id},signal,'POST',value=>{
+    const data=await this.json<unknown>('chat/turns/'+snapshot.turn_id+'/report/',snapshot.report_token?{report_token:snapshot.report_token}:{request_trace_id:snapshot.request_trace_id},signal,'POST',value=>{
       status=value;if(value!==200&&value!==201)throw new ApiError(502,'invalid_response','Invalid report status');
     });
     const v=data as Partial<IssueReportResponse>|null,issue=v?.issue;
-    if(!v||Array.isArray(v)||typeof v.created!=='boolean'||v.created!==(status===201)||!issue||!isTurnUuid(issue.id)
-      ||issue.turn_id!==snapshot.turn_id||issue.request_trace_id!==snapshot.request_trace_id
+    if(!v||Array.isArray(v)||typeof v.created!=='boolean'||v.created!==(status===201)||!issue
+      ||issue.turn_id!==snapshot.turn_id||(snapshot.report_token?issue.report_token!==snapshot.report_token:(!isTurnUuid(issue.id)||issue.request_trace_id!==snapshot.request_trace_id))
       ||!['new','investigating','resolved'].includes(issue.status)||typeof issue.created_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(issue.created_at)||!Number.isFinite(Date.parse(issue.created_at)))
       throw new ApiError(502,'invalid_response','Invalid report confirmation');
-    return {issue:{id:issue.id,turn_id:issue.turn_id,request_trace_id:issue.request_trace_id,status:issue.status,created_at:issue.created_at},created:v.created};
+    return {issue:{...issue},created:v.created};
   }
   getChatErrorReport(turnId:string,signal?:AbortSignal):Promise<string>{
     return this.readChatErrorReport(turnId,false,16*1024,signal);
@@ -282,7 +466,7 @@ export class MroyaApi {
   sendConversation(id:string,content:string,submissionId:string,onEvent:(event:ChatStreamEvent)=>void,options:SendOptions={}):Promise<void>{
     return this.send(content,submissionId,onEvent,options,'chat/conversations/'+conversationId(id)+'/send/');
   }
-  history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal);}
+  history(before?:number,signal?:AbortSignal):Promise<HistoryResponse>{return this.json<HistoryResponse>('chat/messages/'+(before===undefined?'':'?before='+encodeURIComponent(before)),undefined,signal).then(data=>({...data,messages:data.messages.map(m=>{if(m.role!=='assistant'&&m.tasks!==undefined)throw new ApiError(502,'invalid_response','Task receipts require an assistant');const tasks=readTasksPayload(m.tasks);return tasks.length?{...m,tasks}:{...m};})}));}
   memories(options:{state?:'active'|'history'|'all';q?:string;offset?:number;limit?:number}={},signal?:AbortSignal):Promise<MemoriesResponse>{const query=new URLSearchParams(Object.entries(options).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]));return this.json('memories/'+(query.size?'?'+query:''),undefined,signal);}
   map(signal?:AbortSignal):Promise<MemoryMapResponse>{return this.json('memories/map/',undefined,signal);}
   capabilities(signal?:AbortSignal):Promise<Capabilities>{return this.json('capabilities/',undefined,signal);}
@@ -293,7 +477,7 @@ export class MroyaApi {
     if(!this.token)await this.csrf(options.signal);
     const response=await this.fetcher('/api/v1/'+path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,
       headers:{Accept:'text/event-stream, application/json','Content-Type':'application/json','X-CSRFToken':this.token},
-      body:JSON.stringify({content,submission_id:submissionId,...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
+      body:JSON.stringify({content,submission_id:submissionId,...(options.documentIds?.length?{document_ids:options.documentIds}:{}),...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
     await this.check(response);
     const turn=response.headers.get('X-Chat-Turn-ID');if(turn)options.onTurn?.(turn);
     if(response.headers.get('Content-Type')?.includes('application/json')){const data=await response.json();if(data.state!=='completed'||typeof data.content!=='string')throw new ApiError(502,'invalid_response','Invalid completed replay');onEvent({event:'replay',data});return;}

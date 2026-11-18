@@ -9,6 +9,7 @@ test('memory export errors select safe messages without exposing server details'
     [new ApiError(401, 'authentication_required', 'private'), 'memorySessionExpired'],
     [new ApiError(409, 'memory_busy', 'private'), 'memoryBusy'],
     [new ApiError(422, 'memory_export_failed', 'private'), 'memoryExportPreparationFailed'],
+    [new ApiError(422, 'memory_export_unsupported_node', 'private'), 'memoryExportPreparationFailed'],
     [new ApiError(503, 'memory_unavailable', 'private'), 'memoryServerUnavailable'],
     [new TypeError('network failed'), 'memoryServerUnavailable'],
     [new ApiError(400, 'unknown', 'private'), 'memoryExportFailed'],

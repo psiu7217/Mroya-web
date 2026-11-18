@@ -69,6 +69,7 @@ export interface WorkspaceModel {
     memoryTransfer?:import('./memoryTransfer').MemoryTransferPresentation;
     speech?:import('./speech').SpeechPresentation;
     install?:import('./install').InstallPresentation;
+    memoryReview?:import('./memoryReview').ReviewPresentation;
     calendarAnalysis?:import('./calendarAnalysis').CalendarAnalysisPresentation;
     aiTasks?:import('./aiTasks').AiTasksPresentation;
     memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;

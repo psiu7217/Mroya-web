@@ -224,6 +224,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             memoryTransfer={model.memoryTransfer}
             showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
             calendarAnalysis={model.calendarAnalysis}
+            memoryReview={model.memoryReview}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
             timezoneSettings={runtime?.timezoneSettings}

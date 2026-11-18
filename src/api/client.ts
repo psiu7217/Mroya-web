@@ -1,3 +1,4 @@
+import {readReviewPage,readReviewJob,readReviewReceipt} from './memoryReview.ts';
 import {readCalendarAnalyses,readCalendarAnalysis,readAnalysisEvents} from './calendarAnalysis.ts';
 import {readAiTask,readAiTasksPage,readTasksPayload} from './aiTasks.ts';
 import {readNotesPage,readNoteDetail,noteId} from './notes.ts';
@@ -37,6 +38,18 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async memoryReviewResults(offset=0,signal?:AbortSignal){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid review offset');
+    return readReviewPage(await this.json(`memory-intelligence/memory-review/results/?limit=20&offset=${offset}`,undefined,signal),offset);
+  }
+  async enqueueMemoryReview(signal?:AbortSignal){
+    return readReviewReceipt(await this.json('memory-intelligence/memory-review/queue/',{},signal,'POST'));
+  }
+  async retryMemoryReview(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid review id');
+    const body=await this.json(`memory-intelligence/memory-review/jobs/${id}/retry/`,{},signal,'POST') as {job:unknown};
+    return readReviewJob(body?.job);
+  }
   async uploadStagedDocument(file:File,uploadId:string,onProgress:(fraction:number|null)=>void,signal?:AbortSignal){
     if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024)throw new ApiError(400,'invalid_upload','Invalid upload');
     if(!this.token)await this.csrf(signal);

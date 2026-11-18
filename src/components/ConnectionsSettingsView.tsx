@@ -1,3 +1,4 @@
+import {MemoryReviewPanel} from './MemoryReviewPanel';
 import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
 import {MemoryTransferSettings} from './MemoryTransferSettings';
 import type {MemoryTransferPresentation} from '../types/memoryTransfer';
@@ -63,6 +64,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
+  memoryReview?:import('../types/memoryReview').ReviewPresentation;
   calendarAnalysis?:import('../types/calendarAnalysis').CalendarAnalysisPresentation;
   memoryTransfer?:MemoryTransferPresentation;
   notifications?:NotificationPresentation;
@@ -97,7 +99,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   memoryTransfer,
-  calendarAnalysis,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
+  calendarAnalysis,memoryReview,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -696,6 +698,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               </button>
                             </div>
                             <CalendarAnalysisPanel analysis={calendarAnalysis}/>
+                            {memoryReview&&<MemoryReviewPanel review={memoryReview}/>}
                           </div>
                         )}
                         </div>

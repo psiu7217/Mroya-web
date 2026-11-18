@@ -1,6 +1,7 @@
 import {useChatAttachments} from '../hooks/useChatAttachments';
 import {hasFeature} from '../utils/accountRoles';
 import {useMemoryTransfer} from '../hooks/useMemoryTransfer';
+import {useMemoryReview} from '../hooks/useMemoryReview';
 import {useCalendarAnalysis} from '../hooks/useCalendarAnalysis';
 import {useSpeechInput} from '../hooks/useSpeechInput';
 import {memoryLinkTargets} from '../hooks/memoryLinkTargets';
@@ -55,9 +56,10 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const linkTargets=useMemo(()=>memoryLinkTargets(state.map),[state.map]);
  const google=calendar.controller.connection;
  const analysis=useCalendarAnalysis(source,user.id,google?.id??null,section==='connections'&&settingsTab==='connections',onExpired);
+ const memoryReview=useMemoryReview(source,user.id,!!google?.id&&section==='connections'&&settingsTab==='connections',onExpired);
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{images.controller.stop();attachments.controller.stop();files.controller.stop();analysis.controller.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{images.controller.stop();attachments.controller.stop();files.controller.stop();analysis.controller.stop();memoryReview.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -99,6 +101,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   speech,
   install,
   calendarAnalysis:analysis.presentation,
+  memoryReview:memoryReview.presentation,
   aiTasks:{tasks:state.agentTasks,loading:state.tasksLoading,error:state.tasksError,hasMore:state.tasksNext!==null,
    executingTaskId:state.executingTaskId,onExecute:id=>void controller.executeTask(id),
    cancellingTaskId:state.cancellingTaskId,onCancel:id=>void controller.cancelTask(id),

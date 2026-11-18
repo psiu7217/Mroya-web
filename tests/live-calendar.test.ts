@@ -63,7 +63,7 @@ test('whole-series edit loads canonical DTSTART and uses series UUID/version; st
 
 test('OAuth return only removes the hint; GET confirms state, ON/OFF waits for GET and manual sync never enables auto',async()=>{
  const histories:any[]=[];const message=consumeCalendarOAuthReturn({href:'https://app.heymroya.com/?calendar_google=connected&tab=calendar#details'},{state:{keep:true},replaceState:(...args)=>histories.push(args)});
- assert.match(message!,/Backend/);assert.equal(histories[0][2],'/?tab=calendar#details');
+ assert.equal(message,'Checking your Google Calendar connection…');assert.equal(histories[0][2],'/?tab=calendar#details');
  let confirmed=structuredClone(connection);const pending=gate(),configs:any[]=[];let waits=false;
  const controller=new LiveCalendarController(source({googleCalendarConnections:async()=>{if(waits)await pending.promise;return [confirmed];},configureCalendarGoogle:async(uuid,changes)=>{configs.push(changes);confirmed={...confirmed,sync_enabled:changes.sync_enabled??confirmed.sync_enabled};return confirmed;},syncCalendarGoogle:async()=>{confirmed={...confirmed,sync_requested:true,sync_status:'pending'};}}),'UTC',()=>{});
  controller.start(true,true);controller.oauthReturn(message);assert.equal(controller.snapshot().connections.length,0);await controller.loadConnections();

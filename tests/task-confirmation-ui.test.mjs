@@ -96,14 +96,13 @@ function chat(row,technical=false,status='completed',completedTask=null){
  }));
 }
 
-test('the chat renders one task card instead of a duplicate technical answer in both reasoning modes',()=>{
+test('live chat renders one task card without diagnostic text even with an old reasoning preference',()=>{
  for(const technical of [false,true]){
   const markup=chat({...task,review:['Remember: exact proposed value']},technical);
   assert.equal((markup.match(/data-task-id=/g)||[]).length,1);
   assert.equal((markup.match(/Synthetic prepared intent/g)||[]).length,1);
   assert.match(markup,/exact proposed value/);assert.doesNotMatch(markup,/LEGACY_TECHNICAL_RESPONSE|obj:private/);
-  assert.doesNotMatch(markup,/Registered task marker/);
-  if(technical)assert.match(markup,/Model reasoning marker/);
+  assert.doesNotMatch(markup,/Registered task marker|Model reasoning marker/);
  }
  // Without canonical receipts the ordinary answer must remain visible.
  assert.match(chat(null),/LEGACY_TECHNICAL_RESPONSE/);

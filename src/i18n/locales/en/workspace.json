@@ -2,14 +2,13 @@
   "loading": "Loading your workspace…",
   "loadFailed": "We couldn’t load your workspace. Check your connection and try again.",
   "designErrorPreview": "Unable to load workspace. Design preview of the error state.",
-  "checkServer": "Check server status",
   "timezoneError": "The time zone could not be saved.",
   "chooseTimezone": "Choose a time zone in Profile",
   "unavailable": "Not available yet. No changes have been saved.",
   "loadEarlier": "Load earlier messages",
   "readOnlyMemory": "Read-only list. Ask Mroya in chat to update your memory.",
   "loadMoreMemories": "Load more memories",
-  "mapTruncated": "This map is limited by the server; some connections are not shown.",
+  "mapTruncated": "Only some connections are shown.",
   "retryInbox": "Retry Inbox",
   "memoryNotLoaded": "This memory is not in the loaded page. Load more memories to inspect it.",
   "memoryNoNode": "This memory has no displayed map node.",
@@ -21,5 +20,7 @@
   "switchFree": "Switch to Free",
   "premiumDescription": "Restrained warm-gold accent with upgrade prompts removed.",
   "activePremium": "Active (Premium)",
-  "previewPremium": "Preview Mroya Premium"
+  "previewPremium": "Preview Mroya Premium",
+  "reportFailed": "Couldn’t send the report. Try again.",
+  "reportChanged": "Reload the chat before reporting this reply."
 }

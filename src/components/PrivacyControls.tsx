@@ -22,7 +22,9 @@ export function PrivacyControls({privacy}:{privacy?:PrivacyPresentation}) {
     {kinds.map(kind=><button key={kind} type="button" disabled={busy} onClick={()=>privacy.request(kind)} className="underline">{label('privacyKind_'+kind)}</button>)}
    </div>
    <a href="mailto:support@dotstech.app" className="underline">support@dotstech.app</a>
-   {!!state.requests.length&&<ul>{state.requests.map(item=><li key={item.id}>{label('privacyKind_'+item.kind)} · {item.status==='needs_review'?label('privacyNeedsReview'):item.status} · {item.id}</li>)}</ul>}
+   {!!state.requests.length&&<ul>{state.requests.filter(item=>kinds.includes(item.kind)).map(item=><li key={item.id}>
+    {label('privacyKind_'+item.kind)}{item.status==='needs_review'&&<> · {label('privacyNeedsReview')}</>}
+   </li>)}</ul>}
   </>}
   <button type="button" disabled={busy} onClick={privacy.refresh} className="underline">{label(busy?'privacyWaiting':'privacyRefresh')}</button>
   {error&&<p role="alert">{error}</p>}{message&&<p role="status">{message}</p>}

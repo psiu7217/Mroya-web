@@ -130,7 +130,7 @@
   "linkedToCalendar": "Linked to Calendar",
   "emptyTitle": "No reminders found",
   "emptySearch": "No reminders match your current search query.",
-  "apiUnavailable": "Reminders API is not available yet.",
+  "apiUnavailable": "Reminders are temporarily unavailable.",
   "allCaughtUp": "You are all caught up! Create a standalone recurring reminder or link one to your calendar.",
   "googleSynced": "Google synced",
   "paused": "Paused",

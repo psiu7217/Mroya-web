@@ -88,7 +88,6 @@ export interface ChatWorkspaceProps {
   onOpenSettingsTab?: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
   diagnostics?:ChatDiagnostics;
   isAdmin?: boolean;
-  showDeveloperFeatures?: boolean;
   isThinking?: boolean;
 }
 
@@ -115,9 +114,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onOpenSettingsTab,
   diagnostics,
   isAdmin = true,
-  showDeveloperFeatures = true,
   isThinking = false,
 }) => {
+  const showDeveloperFeatures = !live;
   const starterSuggestions=[tr('starterRememberMe',{ns:'chat'}),tr('starterUpcoming',{ns:'chat'}),tr('starterRemember',{ns:'chat'})];
   const [input, setInput] = useState('');
   const [sampleAttachment, setAttachedFile] = useState<string | null>(null);
@@ -769,15 +768,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={showModelReasoning?msg.timeline:msg.timeline.filter(entry=>entry.kind!=='tool'||entry.toolName!=='generate_image')} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning} hideTaskRegistrations={hasTaskCard}/>
+                      {!live && (msg.timeline?.some(entry=>entry.kind==='tool') ? (
+                        <ChatActivityTimeline entries={showModelReasoning?msg.timeline:msg.timeline.filter(entry=>entry.kind!=='tool'||entry.toolName!=='generate_image')} isStreaming={msg.status==='streaming'} technical={showModelReasoning}/>
                       ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
                           isStreaming={msg.status === 'streaming'}
                           defaultExpanded={true}
                         />
-                      )}
+                      ))}
 
                       {taskOnlyAnswer&&generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
@@ -829,7 +828,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 )}
                               </button>}
 
-                              {(isAdmin && (live ? actionState?.available : true)) && (
+                              {!live && isAdmin && (
                                 <button
                                   type="button"
                                   onClick={() => handleCopyAdminDiagnostics(msg)}
@@ -866,7 +865,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         )}
 
                         {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
-                        {!(msg.status==='failed' && msg.failureNotice) && <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} onImageOpen={onImageOpen}/>}
+                        {(msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) && <AssistantMarkdown content={msg.content} onImageOpen={onImageOpen}/>}
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}
@@ -976,6 +975,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Assistant message footer: Copy icon · Time */}
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
+                        {(!live || msg.status !== 'failed') && <>
                         <button
                           type="button"
                           onClick={() => taskOnlyAnswer&&!legacyMemoryReview
@@ -992,6 +992,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           )}
                         </button>
                         <span aria-hidden="true" className="select-none">·</span>
+                        </>}
                         <span className="tabular-nums">{msg.timestamp}</span>
                       </div>
                   </div>

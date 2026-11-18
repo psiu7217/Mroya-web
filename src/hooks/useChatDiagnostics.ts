@@ -44,10 +44,7 @@ export class ChatDiagnosticsController {
  private failure(error:unknown){
   if(error instanceof ApiError&&error.status===401){this.stop();this.onExpired();return;}
   if(error instanceof ApiError&&error.status===403)this.csrfRequired=true;
-  this.onError(error instanceof ApiError&&error.status===403?'Session verification expired. Press Report issue again to refresh it and retry the same attempt.'
-   :error instanceof ApiError&&error.status===404?'This failure attempt is unavailable. No diagnostic report was copied or registered.'
-   :error instanceof ApiError&&error.status===409?'This failure attempt has changed. Reload history before reporting or copying it again.'
-   :'The diagnostic action did not complete. You can retry using the same button. No success has been confirmed.');
+  this.onError(error instanceof ApiError&&error.status===409?'reportChanged':'reportFailed');
  }
  onReport=async(message:ChatMessage)=>{
   const context=this.context(message);if(!this.active||this.source.kind!=='live'||!context)return;

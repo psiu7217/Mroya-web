@@ -19,12 +19,17 @@ const settings={account,connections:[],plan:'free',onSelectPlan:noop,theme:'syst
 const sidebar={account,activeSection:'connections',onSelectSection:noop,conversations:[],activeConversationId:null,onSelectConversation:noop,onNewChat:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,isCollapsed:false,onToggleCollapse:noop,mobileOpen:false,onCloseMobile:noop,memoriesCount:0,upcomingEventsCount:0,pendingRemindersCount:0,onOpenSettingsTab:noop};
 const markup=props=>renderToStaticMarkup(React.createElement(ConnectionsSettingsView,{...settings,...props}));
 const labels=['Connections','Plan','Appearance','Profile','Assistant preferences'];
-test('both workspace pages render the same five settings tabs in order',()=>{
+test('live settings omit preview tabs and use the shared settings shell',()=>{
  function Design(){const model=useDemoWorkspace();return React.createElement(WorkspaceView,{model:{...model,activeSection:'connections'}});}
  const design=renderToStaticMarkup(React.createElement(Design));
  function Live(){const model=useDemoWorkspace('empty');return React.createElement(WorkspaceView,{model:{...model,account,activeSection:'connections',runtime:{pending:false,loading:false,busy:false,error:null,onRetry:noop,chatAvailable:true,memoryAvailable:true,calendarAvailable:false,remindersAvailable:false,memoriesTotal:0,hasOlder:false,onOlder:noop,hasMoreMemories:false,onMoreMemories:noop,truncated:false,notice:null,onCloseNotice:noop,onUnavailable:noop,onLogout:noop,preferenceSave:{status:'saved',error:null,onRetry:noop},onSaveNickname:noop,onClearNickname:noop}}});}
  const live=renderToStaticMarkup(React.createElement(Live));
- for(const html of [design,live]){let previous=-1;for(const label of labels){const index=html.indexOf('>'+label+'</button>');assert.ok(index>previous,label);previous=index;}assert.match(html,/Connections &amp; Account/);}
+ for(const [html,available] of [[design,labels],[live,['Connections','Appearance','Profile']]]){
+  let previous=-1;
+  for(const label of available){const index=html.indexOf('>'+label+'</button>');assert.ok(index>previous,label);previous=index;}
+  assert.match(html,/Connections &amp; Account/);
+ }
+ assert.doesNotMatch(live,/>Plan<\/button>|>Assistant preferences<\/button>/);
  assert.match(fs.readFileSync('src/pages/WorkspaceView.tsx','utf8'),/<ConnectionsSettingsView\b/);
  assert.ok(!fs.existsSync('src/pages/LiveWorkspace.tsx'));
 });
@@ -42,19 +47,17 @@ test('localized account-menu handlers route Profile, Connected accounts, Setting
  assert.equal((s.match(/if \(item.id === 'connections'\) onOpenSettingsTab\('connections'\)/g)||[]).length,1);
  const provider=fs.readFileSync('src/providers/LiveExperience.tsx','utf8');
  assert.equal((provider.match(/on(?:Sidebar|ChatWorkspace)OpenSettingsTab:openSettings/g)||[]).length,2);
- assert.match(provider,/select\('connections'\);setSettingsTab\(!features.experimentalFeatures&&\(tab==='settings'\|\|tab==='plan'\)\?'connections':tab\)/);
+ assert.match(provider,/select\('connections'\);setSettingsTab\(tab==='settings'\|\|tab==='plan'\?'connections':tab\)/);
 });
-test('live shows unavailable services/plan/memory controls without fake successes or demo accounts',()=>{
+test('live settings show supported connections and omit unfinished services and plan controls',()=>{
  const connections=markup({live:true});
- assert.equal((connections.match(/>Coming soon<\/button>/g)||[]).length,2);
  assert.match(connections,/Checking Telegram connection/);
- assert.doesNotMatch(connections,/Connected \(|Disconnect preview|alex@|lindqvist|Saved<|Enabled</);
- for(const control of connections.matchAll(/<button([^>]*)>Coming soon<\/button>/g))assert.match(control[1],/disabled=""/,'every unavailable action is disabled');
+ assert.doesNotMatch(connections,/Coming soon|Gmail|Connected \(|Disconnect preview|alex@|lindqvist|Saved<|Enabled</);
  assert.match(connections,/<input[^>]*aria-label="Telegram notifications"[^>]*disabled=""/);
  assert.match(connections,/<button[^>]*title="Refresh status"[^>]*disabled=""/);
  assert.match(connections,/<button[^>]*disabled=""[^>]*>Send test notification<\/button>/);
- const plan=markup({live:true,activeTab:'plan'});assert.equal((plan.match(/>Coming soon<\/button>/g)||[]).length,2);assert.doesNotMatch(plan,/Current active preview/);
- const memory=markup({live:true,activeTab:'settings'});assert.match(memory,/Coming soon/);assert.doesNotMatch(memory,/>Enabled</);
+ assert.doesNotMatch(markup({live:true,activeTab:'plan'}),/Plan preview|Coming soon/);
+ assert.doesNotMatch(markup({live:true,activeTab:'settings',showModelReasoning:true}),/Show model reasoning|Configure AI assistant|Coming soon/);
 });
 test('live and Studio share nickname editor; timezone editing is enabled with the live preferences adapter',()=>{
  const live=markup({live:true,activeTab:'profile'}),design=markup({activeTab:'profile'});
@@ -71,7 +74,7 @@ test('live and Studio share nickname editor; timezone editing is enabled with th
 });
 test('save failures render unsaved/error/retry, not Coming soon; pending is explicit',()=>{
  const html=markup({live:true,activeTab:'appearance',preferenceSave:{status:'unsaved',error:'CSRF expired',onRetry:noop}});
- for(const value of ['These changes are not saved','Retry saving','System theme','Light theme','Dark theme'])assert.ok(html.includes(value),value);
+ for(const value of ['These changes haven’t been saved','Retry saving','System theme','Light theme','Dark theme'])assert.ok(html.includes(value),value);
  assert.doesNotMatch(html,/Coming soon|>Saved</);
  assert.match(markup({live:true,activeTab:'appearance',preferenceSave:{status:'saving',error:null,onRetry:noop}}),/Saving account settings/);
 });

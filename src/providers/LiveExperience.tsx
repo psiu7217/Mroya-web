@@ -22,7 +22,7 @@ import {conversationListPresentation} from '../hooks/conversationPresentation';
 import {useChatDiagnostics} from '../hooks/useChatDiagnostics';
 import {useUserPreferences} from '../hooks/useUserPreferences';
 import {setAppLanguage,tr} from '../i18n';
-import {currentLocale} from '../i18n/format';
+import {currentLocale,formatDate} from '../i18n/format';
 import type {AppLanguage} from '../i18n/language';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
@@ -32,7 +32,7 @@ import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
- const features={googleCalendar:hasFeature(user.role,'google_calendar'),technicalDiagnostics:hasFeature(user.role,'technical_diagnostics'),experimentalFeatures:hasFeature(user.role,'experimental_features'),reminders:hasFeature(user.role,'reminders')};
+ const features={googleCalendar:hasFeature(user.role,'google_calendar'),reminders:hasFeature(user.role,'reminders')};
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
  const memoryTransfer=useMemoryTransfer(source,()=>void controller.refreshMemory(),user.role==='admin');
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
@@ -70,7 +70,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('unavailable');
  const select=(next:NavSection)=>{if(next!=='chat')attachments.controller.clear();if(next==='connections')setSettingsTab('connections');setSection(next);layout.closeMobile();setNotice(null);};
- const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(!features.experimentalFeatures&&(tab==='settings'||tab==='plan')?'connections':tab);};
+ const openSettings=(tab:WorkspaceModel['settingsTab'])=>{select('connections');setSettingsTab(tab==='settings'||tab==='plan'?'connections':tab);};
  const openMemory=(id:string)=>{
   select('memory');
   if(!memories.some(m=>m.id===id)){setNotice('memoryNotLoaded');return;}
@@ -128,7 +128,6 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
    onUnavailable:unavailable,onLogout:logout,
    preferenceSave:{status:preferences.status,error:preferences.error,onRetry:preferences.retry},
    languageSave:{status:preferences.languageStatus,error:preferences.languageError,onRetry:preferences.retry},
-   showModelReasoning:features.technicalDiagnostics&&preferences.show_model_reasoning,onToggleShowModelReasoning:preferences.setShowModelReasoning,
    onSaveNickname:preferences.saveNickname,onClearNickname:()=>preferences.saveNickname('')},
   memoryTransfer:user.role==='admin'?memoryTransfer:undefined,
   account,activeSection:section,isSidebarCollapsed:layout.collapsed,mobileMenuOpen:layout.mobile,
@@ -148,7 +147,8 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   googleConnections:calendar.state.connections,selectedGoogleConnectionId:calendar.state.selectedConnectionId,
   onSelectGoogleConnection:calendar.controller.selectConnection,onRefreshGoogleCalendar:()=>void calendar.controller.loadConnections(),
   onConnectAnotherGoogleCalendar:()=>void calendar.controller.connect(true),
-  gcalSyncState:googleView.state,autoSync:google?.sync_enabled??false,lastSyncedTime:google?.last_synced_at??'',syncSummary:null,
+  gcalSyncState:googleView.state,autoSync:google?.sync_enabled??false,
+  lastSyncedTime:google?.last_synced_at?formatDate(google.last_synced_at,{dateStyle:'medium',timeStyle:'short'}):'',syncSummary:null,
   googleCalendarEmail:google?.email??'',importedCalendars:google?.calendars.filter(c=>c.selected).map(c=>c.id)??[],
   exportCalendar:google?.calendars.find(c=>c.export_destination)?.id??'',
   onConnectGoogleCalendar:()=>void calendar.controller.connect(),onDisconnectGoogleCalendar:()=>void calendar.controller.disconnect(),

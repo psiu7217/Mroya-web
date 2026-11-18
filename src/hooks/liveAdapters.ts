@@ -13,7 +13,7 @@ export function chatPresentation(id:string,messages:ApiMessage[]):Conversation {
  return {id,title:tr('yourConversation',{ns:'chat'}),group:tr('today',{ns:'sidebar'}),updatedAt:messages.at(-1)?.created_at??'',relatedMemoryIds:[],messages:messages.map(m=>({id:m.id,sender:m.role,...(m.attachments?.length?{attachments:m.attachments.map(file=>({id:file.id,filename:file.filename,originalUrl:file.original_url,mimeType:file.mime_type}))}:{}),content:m.content||(m.status==='failed'?tr('assistantReplyIncomplete',{ns:'chat'}):''),status:m.status,...(m.role==='assistant'&&m.timeline?.length?{timeline:m.timeline}:{}),...(m.role==='assistant'&&m.reasoning?{reasoning:m.reasoning}:{}),...(m.role==='assistant'&&m.tasks?.length?{tasks:m.tasks}:{}),...(m.role==='assistant'&&m.status==='failed'?{report_context:readReportContext(m.report_context),failureNotice:m.failure_notice}:{}),timestamp:formatTime(m.created_at,{hour:'2-digit',minute:'2-digit'})}))};
 }
 export function memoryPresentation(m:CanonicalMemory,map:MemoryMapResponse):MemoryItem {
- const subject=text(m.subject),predicate=text(m.predicate||m.predicate_key),value=text(m.object_label??m.literal_value);
+ const subject=text(m.subject),predicate=text(m.predicate),value=text(m.object_label??m.literal_value);
  const node=map.nodes.find(n=>n.type==='memory'&&n.statement_id===m.uuid);
  return {id:m.uuid,title:[subject,predicate].filter(Boolean).join(' · ')||tr('personalMemory',{ns:'memory'}),summary:value,details:[subject,predicate,value].filter(Boolean).join(' — '),category:'Personal memory',dateSaved:text(m.learned_at).slice(0,10),source:tr('canonicalMemory',{ns:'memory'}),entities:[subject,text(m.object_label)].filter(Boolean),relatedNodeId:node?.id??'',confidenceNote:text(m.state)};
 }

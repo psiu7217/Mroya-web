@@ -19,5 +19,5 @@ test('closed accordion shows error count and real actions in RU/EN without devel
 test('empty calendar has honest empty copy; expanded stopped request explains in-flight fencing',()=>{
  const empty=html({calendars:[{...calendar,total:0,errors:0,progress:0,status:'empty',can_retry:false}]});assert.match(empty,/No events to analyse/);assert.doesNotMatch(empty,/role="progressbar"/);
  const stopping=html({calendars:[{...calendar,status:'stopping',remaining:1,errors:46}],expanded:[id],events:{[id]:{rows:[{id:'internal-job-id',title:'Synthetic event',date:'2026-11-14',status:'stopping',can_retry:false}],next:null,loading:false,error:false}}});
- assert.match(stopping,/request already sent may finish/);assert.match(stopping,/Synthetic event/);assert.doesNotMatch(stopping,/internal-job-id/);
+ assert.match(stopping,/Analysis is stopping/);assert.match(stopping,/Synthetic event/);assert.doesNotMatch(stopping,/internal-job-id/);
 });

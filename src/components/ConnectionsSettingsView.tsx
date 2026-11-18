@@ -73,7 +73,6 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   notificationPreview?:NotificationPreview;
   live?: boolean;
   showGoogleCalendar?: boolean;
-  showDeveloperFeatures?: boolean;
   timezoneSettings?:TimezonePresentation;
   telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
@@ -101,7 +100,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   memoryTransfer,
-  calendarAnalysis,memoryReview,privacy,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
+  calendarAnalysis,memoryReview,privacy,live=false,showGoogleCalendar=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -201,7 +200,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     :!notifications.enabled?'disabled':!notifications.connected?'disconnected':!notifications.configured?'unavailable':notifications.deliveryReady?'ready':'notReady';
   const notificationStatus=notificationState==='saving'?tr('saving',{ns:'common'}):tr(({loading:'notificationLoading',sending:'notificationSending',unavailable:'notificationUnavailable',pending:'notificationQueued',processing:'notificationProcessing',retry:'notificationRetrying',sent:'notificationDelivered',failed:'notificationFailed',cancelled:'notificationCancelled',expired:'notificationExpired',disabled:'notificationDisabled',disconnected:'disconnected',ready:'botReady',notReady:'notificationNotReady'} as Record<string,string>)[notificationState]??'notificationUnavailable',{ns:'connections'});
   const notificationError=notifications?.error?tr('requestFailed',{ns:'common'}):notifications?.lastTestStatus==='failed'?tr('deliveryFailed',{ns:'connections'}):null;
-  const visibleConnections = live ? plannedConnections().filter(c=>c.id==='telegram'||(c.id==='google-calendar'&&showGoogleCalendar)||showDeveloperFeatures&&c.id!=='google-calendar') : connections;
+  const visibleConnections = live ? plannedConnections().filter(c=>c.id==='telegram'||(c.id==='google-calendar'&&showGoogleCalendar&&googleCalendarAvailable)) : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
     label: string;
@@ -234,7 +233,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
       {/* Sub-navigation bar */}
       <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto">
-        {tabs.filter(t=>showDeveloperFeatures||!['plan','settings'].includes(t.id)).map((t) => (
+        {tabs.filter(t=>!live||!['plan','settings'].includes(t.id)).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -532,9 +531,6 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
                                   {tr('conflictingChangesDescription',{ns:'connections'})}
                                 </p>
-                                <div className="pt-1">
-                                  <span className="text-[12px] text-[var(--mroya-text-muted)]">{tr('noConflictResolution',{ns:'connections'})}</span>
-                                </div>
                               </div>
                             )}
 
@@ -869,7 +865,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 {notificationState === 'unavailable' && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-zinc-500">
                                     <AlertTriangle className="w-3.5 h-3.5" />
-                                    <span>{notifications?.available?tr('serviceUnavailable',{ns:'connections'}):tr('soon',{ns:'connections'})}</span>
+                                    <span>{tr(live||notifications?.available?'serviceUnavailable':'soon',{ns:'connections'})}</span>
                                   </span>
                                 )}
                                 {['disabled','disconnected','notReady','cancelled','expired'].includes(notificationState) && (
@@ -944,7 +940,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
           {activeTab==='connections'&&live&&privacy&&<PrivacyControls privacy={privacy}/>}
 
-          {activeTab === 'plan' && (
+          {!live && activeTab === 'plan' && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-[18px] font-semibold text-[var(--mroya-text)]">
@@ -1189,7 +1185,6 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     {timezoneSettings.status==='saving'&&<p role="status">{tr('savingTimezone',{ns:'connections'})}</p>}
                     {timezoneSettings.status==='saved'&&timezoneSettings.timezone&&<p role="status">{tr('savedTimezone',{ns:'connections',timezone:timezoneSettings.timezone})}</p>}
                     {timezoneSettings.status==='error'&&<><p role="alert">{tr('timezoneNotSaved',{ns:'connections'})}</p>{timezoneSettings.apiReady&&<button type="button" onClick={timezoneSettings.onRetry} className="underline mt-2">{tr('retryTimezone',{ns:'connections'})}</button>}</>}
-                    {!timezoneSettings.apiReady&&<p>{tr('timezoneUnavailable',{ns:'connections'})}</p>}
                   </div>}
 
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
@@ -1234,7 +1229,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             </div>
           )}
 
-          {activeTab === 'settings' && (
+          {!live && activeTab === 'settings' && (
             <div className="space-y-5">
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">
                 <div className="flex items-center gap-2.5">

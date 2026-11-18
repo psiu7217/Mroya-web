@@ -1,7 +1,13 @@
 import {PrivacyControls} from './PrivacyControls';
-import {IntelligenceSourcesPreview,IntelligenceAutonomyPreview} from './IntelligencePreviews';
+import {MemoryReviewPanel} from './MemoryReviewPanel';
+import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
+import {MemoryTransferSettings} from './MemoryTransferSettings';
+import type {MemoryTransferPresentation} from '../types/memoryTransfer';
 import {timezoneChoices} from '../utils/timezones';
 import type { AccountPresentation, NotificationPresentation, NotificationPreview, TelegramPresentation, TimezonePresentation, WorkspaceModel } from '../types/workspace';
+import type {AppLanguage} from '../types/api';
+import {tr} from '../i18n';
+import {currentLocale} from '../i18n/format';
 import React from 'react';
 import {
   Link2,
@@ -13,17 +19,13 @@ import {
   User,
   Shield,
   Menu,
-  PanelLeftOpen,
   ChevronDown,
   Brain,
   Calendar as CalendarIcon,
   RefreshCw,
   AlertTriangle,
   AlertCircle,
-  RotateCw,
   CheckCircle2,
-  ArrowRightLeft,
-  ExternalLink,
   Bell,
   Clock,
 } from 'lucide-react';
@@ -35,50 +37,49 @@ import {
   ThemeMode,
 } from '../types/mroya';
 
-const COMMON_TIMEZONES = [
-  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
-  { value: 'Europe/London', label: 'Europe/London (GMT / BST)' },
-  { value: 'Europe/Berlin', label: 'Europe/Berlin (CET / CEST)' },
-  { value: 'Europe/Warsaw', label: 'Europe/Warsaw (CET / CEST)' },
-  { value: 'Europe/Stockholm', label: 'Europe/Stockholm (CET / CEST)' },
-  { value: 'Europe/Kyiv', label: 'Europe/Kyiv (EET / EEST)' },
-  { value: 'Europe/Vilnius', label: 'Europe/Vilnius (EET / EEST)' },
-  { value: 'Europe/Minsk', label: 'Europe/Minsk (MSK, UTC+3)' },
-  { value: 'Europe/Moscow', label: 'Europe/Moscow (MSK, UTC+3)' },
-  { value: 'Europe/Istanbul', label: 'Europe/Istanbul (TRT, UTC+3)' },
-  { value: 'Asia/Tbilisi', label: 'Asia/Tbilisi (GET, UTC+4)' },
-  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST, UTC+4)' },
-  { value: 'Asia/Almaty', label: 'Asia/Almaty (UTC+5)' },
-  { value: 'Asia/Tashkent', label: 'Asia/Tashkent (UZT, UTC+5)' },
-  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT, UTC+8)' },
-  { value: 'Asia/Hong_Kong', label: 'Asia/Hong_Kong (HKT, UTC+8)' },
-  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (JST, UTC+9)' },
-  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST / AEDT)' },
-  { value: 'America/New_York', label: 'America/New_York (EST / EDT)' },
-  { value: 'America/Chicago', label: 'America/Chicago (CST / CDT)' },
-  { value: 'America/Denver', label: 'America/Denver (MST / MDT)' },
-  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (PST / PDT)' },
-  { value: 'America/Sao_Paulo', label: 'America/Sao_Paulo (BRT, UTC-3)' },
-];
+const COMMON_TIMEZONE_IDS = ['UTC','Europe/London','Europe/Berlin','Europe/Warsaw','Europe/Stockholm','Europe/Kyiv','Europe/Vilnius','Europe/Minsk','Europe/Moscow','Europe/Istanbul','Asia/Tbilisi','Asia/Dubai','Asia/Almaty','Asia/Tashkent','Asia/Singapore','Asia/Hong_Kong','Asia/Tokyo','Australia/Sydney','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Sao_Paulo'];
 
 // Public service catalogue only: no fictional account IDs, connection state or user data.
-const PLANNED_CONNECTIONS: ServiceConnection[] = [
-  {id:'google-calendar',name:'Google Calendar',category:'Calendar & Scheduling',description:'Calendar connections are not available yet.',connected:false,capabilities:[]},
-  {id:'telegram',name:'Telegram',category:'Personal text chat',description:'Chat privately with Mroya in Telegram using your existing account.',connected:false,capabilities:['Personal text chat with Mroya','Shared conversation history between Web and Telegram','Shared personal memory','Telegram replies only to messages sent in Telegram']},
-  {id:'gmail',name:'Google Mail (Context Forwarding)',category:'Email & Proposals',description:'Email connections are not available yet.',connected:false,capabilities:[]},
+const plannedConnections = (): ServiceConnection[] => [
+  {id:'google-calendar',name:'Google Calendar',category:tr('calendarCategory',{ns:'connections'}),description:tr('calendarUnavailable',{ns:'connections'}),connected:false,capabilities:[]},
+  {id:'telegram',name:'Telegram',category:tr('personalChatCategory',{ns:'connections'}),description:tr('telegramDescription',{ns:'connections'}),connected:false,capabilities:[tr('telegramCapabilityChat',{ns:'connections'}),tr('telegramCapabilityHistory',{ns:'connections'}),tr('telegramCapabilityMemory',{ns:'connections'}),tr('telegramCapabilityReplies',{ns:'connections'})]},
+  {id:'gmail',name:tr('googleMailName',{ns:'connections'}),category:tr('emailCategory',{ns:'connections'}),description:tr('gmailUnavailable',{ns:'connections'}),connected:false,capabilities:[]},
 ];
+const localizedConnectionName=(connection:ServiceConnection)=>connection.id==='gmail'?tr('googleMailName',{ns:'connections'}):connection.name;
+const localizedConnectionCategory=(connection:ServiceConnection)=>connection.id==='google-calendar'?tr('calendarCategory',{ns:'connections'}):connection.id==='telegram'?tr('personalChatCategory',{ns:'connections'}):connection.id==='gmail'?tr('emailCategory',{ns:'connections'}):connection.category;
+const localizedConnectionDescription=(connection:ServiceConnection)=>connection.id==='google-calendar'?tr('calendarUnavailable',{ns:'connections'}):connection.id==='telegram'?tr('telegramDescription',{ns:'connections'}):connection.id==='gmail'?tr('gmailUnavailable',{ns:'connections'}):connection.description;
+const localizedConnectionCapability=(connection:ServiceConnection,capability:string)=>{
+  if(connection.id!=='telegram')return capability;
+  const index=connection.capabilities.indexOf(capability);
+  return [tr('telegramCapabilityChat',{ns:'connections'}),tr('telegramCapabilityHistory',{ns:'connections'}),tr('telegramCapabilityMemory',{ns:'connections'}),tr('telegramCapabilityReplies',{ns:'connections'})][index]??capability;
+};
+const syncScenarioLabel=(id:string)=>{
+  const keys:Record<string,string>={disconnected:'disconnected',connecting:'connecting',initial_syncing:'initialSync',connected_auto_off:'connectedSyncOff',connected_auto_on:'connectedSyncOn',syncing:'synchronizing',sync_error:'syncError',conflict:'conflictDetected',reconnect_required:'reconnectRequired'};
+  return tr(keys[id]??id,{ns:'connections'});
+};
+const notificationScenarioLabel=(id:string)=>{
+  const keys:Record<string,string>={disconnected:'disconnected',disabled:'notificationDisabled',enabled:'botReady',queued:'notificationQueued',delivered:'notificationDelivered',failed:'notificationFailed',unavailable:'notificationUnavailable',loading:'notificationLoading'};
+  return tr(keys[id]??id,{ns:'connections'});
+};
 export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   privacy?:import('../types/privacy').PrivacyPresentation;
-  designIntelligence?:import('../types/workspace').DesignIntelligencePreviews;
+  memoryReview?:import('../types/memoryReview').ReviewPresentation;
+  calendarAnalysis?:import('../types/calendarAnalysis').CalendarAnalysisPresentation;
+  memoryTransfer?:MemoryTransferPresentation;
   notifications?:NotificationPresentation;
   notificationPreview?:NotificationPreview;
   live?: boolean;
+  showGoogleCalendar?: boolean;
+  showDeveloperFeatures?: boolean;
   timezoneSettings?:TimezonePresentation;
   telegram?: TelegramPresentation;
   preferenceSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
+  languageSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
+  language?:AppLanguage;
+  onChangeLanguage?:(language:AppLanguage)=>void;
   account: AccountPresentation;
   connections: ServiceConnection[];
   onToggleConnection: (id: string) => void;
@@ -99,7 +100,8 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 }
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
-  privacy,live=false,connectionSamples,timezoneSettings,designIntelligence,notifications,notificationPreview,
+  memoryTransfer,
+  calendarAnalysis,memoryReview,privacy,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -108,6 +110,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   onSyncNowGoogleCalendar:handleSyncNow,onToggleAutoSyncGoogleCalendar:handleToggleAutoSync,onSetGcalSyncState,
   telegram,
   preferenceSave,
+  languageSave,language='en',onChangeLanguage,
   account,
   connections,
   onToggleConnection,
@@ -138,14 +141,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   const [customTimezone,setCustomTimezone]=React.useState('');
   const [customTimezoneOpen,setCustomTimezoneOpen]=React.useState(false);
   const timezoneValue=live?(timezoneSettings?.draft??account.timezone??''):selectedTimezone;
-  const [saveStatus, setSaveStatus] = React.useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = React.useState<'saved'|'cleared'|'nicknameTooLong'|null>(null);
   const [nicknameSubmitted, setNicknameSubmitted] = React.useState(false);
   const nicknameEdited = React.useRef(false);
   const nicknameStatus = live
     ? nicknameSubmitted && preferenceSave
-      ? preferenceSave.status==='saving' ? 'Saving…' : preferenceSave.status==='unsaved' ? 'Not saved' : 'Saved'
+      ? preferenceSave.status==='saving' ? tr('saving',{ns:'common'}) : preferenceSave.status==='unsaved' ? preferenceSave.error==='Nickname must be at most 80 characters.'?tr('nicknameTooLong',{ns:'connections'}):tr('notSaved',{ns:'connections'}) : tr('saved',{ns:'connections'})
       : null
-    : saveStatus;
+      : saveStatus?tr(saveStatus,{ns:'connections'}):null;
 
   React.useEffect(() => {
     if (!nicknameEdited.current) setNicknameDraft(account.nickname || '');
@@ -155,20 +158,23 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     setSelectedTimezone(account.timezone || 'UTC');
   }, [account.timezone]);
 
-  const availableTimezones = React.useMemo(()=>timezoneChoices(account.timezone,timezoneValue,COMMON_TIMEZONES),[account.timezone,timezoneValue]);
+  const availableTimezones = React.useMemo(()=>timezoneChoices(account.timezone,timezoneValue,COMMON_TIMEZONE_IDS.map(value=>({value,label:value}))).map(({value})=>{
+    try{const name=new Intl.DateTimeFormat(currentLocale(),{timeZone:value,timeZoneName:'longGeneric'}).formatToParts(new Date()).find(part=>part.type==='timeZoneName')?.value;return {value,label:name?`${value} (${name})`:value};}
+    catch{return {value,label:value};}
+  }),[account.timezone,timezoneValue,currentLocale()]);
 
   const handleSaveNickname = () => {
     const value = nicknameDraft.trim();
     if (Array.from(value).length > 80) {
       if (live) { setNicknameSubmitted(true); onSaveNickname?.(value); }
-      else setSaveStatus('Nickname must be at most 80 characters.');
+      else setSaveStatus('nicknameTooLong');
       return;
     }
     nicknameEdited.current = false;
     setNicknameDraft(value);
     if (live) { setNicknameSubmitted(true); onSaveNickname?.(value); return; }
     onSaveNickname?.(value);
-    setSaveStatus('Saved');
+    setSaveStatus('saved');
     setTimeout(() => setSaveStatus(null), 2000);
   };
 
@@ -177,7 +183,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     setNicknameDraft('');
     if (live) { setNicknameSubmitted(true); onClearNickname?.(); return; }
     onClearNickname?.();
-    setSaveStatus('Cleared');
+    setSaveStatus('cleared');
     setTimeout(() => setSaveStatus(null), 2000);
   };
 
@@ -189,22 +195,22 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   };
 
   const notificationBusy=!!notifications&&(notifications.loading||notifications.saving||notifications.testing);
-  const notificationStatus=notifications?.loading?'Loading':notifications?.saving?'Saving':notifications?.testing?'Sending'
-    :!notifications?.available?'Unavailable'
-    :notifications.lastTest&&notifications.lastTestStatus?({pending:'Queued',processing:'Processing',retry:'Retrying',sent:'Delivered',failed:'Failed',cancelled:'Cancelled',expired:'Expired'} as const)[notifications.lastTestStatus]
-    :!notifications.enabled?'Disabled':!notifications.connected?'Disconnected':!notifications.configured?'Unavailable':notifications.deliveryReady?'Ready':'NotReady';
-  const notificationError=notifications?.error||(notifications?.lastTestStatus==='failed'?'Delivery failed'+(notifications.lastTest?.deliveries[0].error_code?' · '+notifications.lastTest.deliveries[0].error_code:''):null);
-  const SourcesPreview=designIntelligence?.Sources,AutonomyPreview=designIntelligence?.Autonomy;
-  const visibleConnections = live ? PLANNED_CONNECTIONS : connections;
+  const notificationState=notifications?.loading?'loading':notifications?.saving?'saving':notifications?.testing?'sending'
+    :!notifications?.available?'unavailable'
+    :notifications.lastTest&&notifications.lastTestStatus?notifications.lastTestStatus
+    :!notifications.enabled?'disabled':!notifications.connected?'disconnected':!notifications.configured?'unavailable':notifications.deliveryReady?'ready':'notReady';
+  const notificationStatus=notificationState==='saving'?tr('saving',{ns:'common'}):tr(({loading:'notificationLoading',sending:'notificationSending',unavailable:'notificationUnavailable',pending:'notificationQueued',processing:'notificationProcessing',retry:'notificationRetrying',sent:'notificationDelivered',failed:'notificationFailed',cancelled:'notificationCancelled',expired:'notificationExpired',disabled:'notificationDisabled',disconnected:'disconnected',ready:'botReady',notReady:'notificationNotReady'} as Record<string,string>)[notificationState]??'notificationUnavailable',{ns:'connections'});
+  const notificationError=notifications?.error?tr('requestFailed',{ns:'common'}):notifications?.lastTestStatus==='failed'?tr('deliveryFailed',{ns:'connections'}):null;
+  const visibleConnections = live ? plannedConnections().filter(c=>c.id==='telegram'||(c.id==='google-calendar'&&showGoogleCalendar)||showDeveloperFeatures&&c.id!=='google-calendar') : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
     label: string;
   }[] = [
-    { id: 'connections', label: 'Connected accounts' },
-    { id: 'plan', label: 'My plan' },
-    { id: 'appearance', label: 'Appearance' },
-    { id: 'profile', label: 'Profile' },
-    { id: 'settings', label: 'Assistant preferences' },
+    { id: 'connections', label: tr('tabsConnections',{ns:'connections'}) },
+    { id: 'plan', label: tr('tabsPlan',{ns:'connections'}) },
+    { id: 'appearance', label: tr('tabsAppearance',{ns:'connections'}) },
+    { id: 'profile', label: tr('tabsProfile',{ns:'connections'}) },
+    { id: 'settings', label: tr('assistantPreferences',{ns:'connections'}) },
   ];
 
   return (
@@ -215,20 +221,20 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            aria-label="Open navigation"
+            aria-label={tr('openNavigation',{ns:'connections'})}
             className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]"
           >
             <Menu className="w-5 h-5" />
           </button>
           <h1 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
-            Connections & Account
+            {tr('header',{ns:'connections'})}
           </h1>
         </div>
       </header>
 
       {/* Sub-navigation bar */}
-      <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex items-center gap-1.5 overflow-x-auto">
-        {tabs.map((t) => (
+      <div className="px-4 sm:px-6 py-2.5 border-b border-[var(--mroya-divider)] flex flex-wrap lg:flex-nowrap items-center gap-1.5 lg:overflow-x-auto">
+        {tabs.filter(t=>showDeveloperFeatures||!['plan','settings'].includes(t.id)).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -248,17 +254,17 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-[820px] mx-auto space-y-6">
           {preferenceSave && <div className="text-[13px] text-[var(--mroya-text-muted)]" aria-live="polite">
-            {preferenceSave.status==='saving' && <p role="status">Saving account settings…</p>}
-            {preferenceSave.status==='unsaved' && <><p role="alert">These changes are not saved on the server.</p>{preferenceSave.error && <p role="alert" className="text-[var(--mroya-error)]">{preferenceSave.error}</p>}<button type="button" onClick={preferenceSave.onRetry} className="underline mt-2">Retry saving</button></>}
+            {preferenceSave.status==='saving' && <p role="status">{tr('savingAccount',{ns:'connections'})}</p>}
+            {preferenceSave.status==='unsaved' && <><p role="alert">{tr('changesNotSaved',{ns:'connections'})}</p><button type="button" onClick={preferenceSave.onRetry} className="underline mt-2">{tr('retrySaving',{ns:'connections'})}</button></>}
           </div>}
           {activeTab === 'connections' && (
             <div className="space-y-4">
               <div>
                 <h2 className="text-[18px] font-semibold text-[var(--mroya-text)]">
-                  External services & context sources
+                  {tr('externalServices',{ns:'connections'})}
                 </h2>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] mt-0.5">
-                  Connect your calendar and messaging channels so Mroya can remember commitments and answer questions with full context.
+                  {tr('externalServicesHelp',{ns:'connections'})}
                 </p>
               </div>
 
@@ -267,6 +273,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   // Explicit catalogue mapping: Studio and live IDs are deliberately different.
                   const isTelegram=conn.id===(live?'telegram':connectionSamples?.telegramId);
                   const isGoogleCalendar = (!live||googleCalendarAvailable) && conn.id===(live?'google-calendar':connectionSamples?.googleCalendarId);
+                  const category=localizedConnectionCategory(conn);
+                  const description=localizedConnectionDescription(conn);
 
                   // Shared Google Calendar card: demo props or confirmed backend data.
                   if (isGoogleCalendar) {
@@ -287,10 +295,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-semibold tracking-wider uppercase text-[var(--mroya-text-muted)] flex items-center gap-1.5">
                               <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
-                              <span>Design Mode · Sync state switcher</span>
+                              <span>{tr('designSyncSwitcher',{ns:'connections'})}</span>
                             </span>
                             <span className="text-[11px] text-[var(--mroya-text-muted)]">
-                              Click any scenario to preview UI
+                              {tr('clickPreview',{ns:'connections'})}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -305,7 +313,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                     : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)]'
                                 }`}
                               >
-                                {st.label}
+                                {syncScenarioLabel(st.id)}
                               </button>
                             ))}
                           </div>
@@ -320,10 +328,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-[16px] font-bold text-[var(--mroya-text)]">
-                                  {conn.name}
+                              {conn.name}
                                 </h3>
                                 <span className="text-[12px] text-[var(--mroya-text-muted)]">
-                                  · {conn.category}
+                              · {category}
                                 </span>
                               </div>
                               <p className="text-[12.5px] text-[var(--mroya-text-muted)]">
@@ -337,55 +345,55 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             {gcalSyncState === 'disconnected' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-medium bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
                                 <span className="w-2 h-2 rounded-full bg-[var(--mroya-text-muted)]" />
-                                <span>Disconnected</span>
+                              <span>{tr('disconnected',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'connecting' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
                                 <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
-                                <span>Connecting…</span>
+                              <span>{tr('connecting',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'initial_syncing' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
                                 <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
-                                <span>Initial sync in progress</span>
+                              <span>{tr('initialSync',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'connected_auto_off' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Connected · Auto-sync OFF</span>
+                              <span>{tr('connectedSyncOff',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'connected_auto_on' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Connected · Auto-sync ON</span>
+                              <span>{tr('connectedSyncOn',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'syncing' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
                                 <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
-                                <span>Synchronizing…</span>
+                              <span>{tr('synchronizing',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'sync_error' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                                 <AlertTriangle className="w-3.5 h-3.5" />
-                                <span>Sync error</span>
+                              <span>{tr('syncError',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'conflict' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                                 <AlertCircle className="w-3.5 h-3.5" />
-                                <span>Conflict detected</span>
+                              <span>{tr('conflictDetected',{ns:'connections'})}</span>
                               </span>
                             )}
                             {gcalSyncState === 'reconnect_required' && (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                                 <AlertTriangle className="w-3.5 h-3.5" />
-                                <span>Reconnect required</span>
+                              <span>{tr('reconnectRequired',{ns:'connections'})}</span>
                               </span>
                             )}
                           </div>
@@ -395,7 +403,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         {gcalSyncState === 'disconnected' && (
                           <div className="space-y-4 pt-1 animate-in fade-in duration-150">
                             <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[21px]">
-                              {live?'Mroya requests read access to your calendar list and permission to view and edit events. It imports selected calendars and can create, update or delete events in your writable export calendar. Initial connection can run a one-time two-way sync; automatic sync is a separate setting. AI processing requires a separate choice below. Google authorization does not grant Gmail or Drive access.':'Connect your Google Calendar for two-way synchronization with Mroya. Your schedule, client meetings, and deadlines will be cross-referenced automatically while protecting morning deep work before 11:00 AM.'}
+                              {tr('connectGoogleDescription',{ns:'connections'})}
                             </p>
                             <ul className="space-y-1.5">
                               {conn.capabilities.map((cap, i) => (
@@ -404,13 +412,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   className="text-[12.5px] text-[var(--mroya-text)] flex items-center gap-2"
                                 >
                                   <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                                  <span>{cap}</span>
+                                  <span>{localizedConnectionCapability(conn,cap)}</span>
                                 </li>
                               ))}
                             </ul>
                             <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]/40">
                               <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                Local events created in Mroya remain stored securely even when disconnected.
+                                {tr('localEventsRemain',{ns:'connections'})}
                               </p>
                               <button
                                 type="button"
@@ -418,20 +426,20 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 disabled={googleCalendarBusy}
                                 className="px-5 py-2.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap shadow-xs shrink-0 self-start sm:self-center"
                               >
-                                Connect Google Calendar
+                                {tr('connectGoogleCalendar',{ns:'connections'})}
                               </button>
                             </div>
                           </div>
                         )}
 
                         {live&&<div className="space-y-2">
-                          {googleConnections.length>0&&<select aria-label="Google Calendar account" value={selectedGoogleConnectionId??''} disabled={googleCalendarBusy} onChange={e=>onSelectGoogleConnection?.(e.target.value)} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]">
-                            {googleConnections.map(account=><option key={account.id} value={account.id}>{account.email||'Google account'} · {account.status}</option>)}
+                          {googleConnections.length>0&&<select aria-label={tr('googleAccount',{ns:'connections'})} value={selectedGoogleConnectionId??''} disabled={googleCalendarBusy} onChange={e=>onSelectGoogleConnection?.(e.target.value)} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]">
+                            {googleConnections.map(account=><option key={account.id} value={account.id}>{account.email||tr('googleAccountName',{ns:'connections'})} · {tr(account.status==='connected'?'googleStatusConnected':account.status==='reconnect'?'googleStatusReconnect':'googleStatusDisconnected',{ns:'connections'})}</option>)}
                           </select>}
-                          {googleConnections.length>0&&<button disabled={googleCalendarBusy} onClick={onConnectAnotherGoogleCalendar} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">Connect another Google account</button>}
+                          {googleConnections.length>0&&<button disabled={googleCalendarBusy} onClick={onConnectAnotherGoogleCalendar} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">{tr('connectGoogleAccount',{ns:'connections'})}</button>}
                           {(googleCalendarBusy||googleCalendarError||googleCalendarNotice)&&<p role={googleCalendarError?'alert':'status'} className="text-[12px] text-[var(--mroya-text-muted)]">
-                            {googleCalendarError??(googleCalendarBusy?'Waiting for backend confirmation…':googleCalendarNotice)}
-                            <button disabled={googleCalendarBusy} onClick={onRefreshGoogleCalendar} className="ml-3 underline">Check status</button>
+                            {googleCalendarError?tr('requestFailed',{ns:'common'}):(googleCalendarBusy?tr('awaitingBackend',{ns:'connections'}):googleCalendarNotice)}
+                            <button disabled={googleCalendarBusy} onClick={onRefreshGoogleCalendar} className="ml-3 underline">{tr('checkStatus',{ns:'connections'})}</button>
                           </p>}
                         </div>}
 
@@ -441,10 +449,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             <RefreshCw className="w-7 h-7 text-[var(--mroya-primary)] animate-spin" />
                             <div className="space-y-1">
                               <h4 className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                                Connecting to Google Calendar…
+                                {tr('connectingGoogleCalendar',{ns:'connections'})}
                               </h4>
                               <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                                Authorizing account {googleCalendarEmail} and preparing two-way channel
+                                {tr('authorizingGoogleAccount',{ns:'connections',email:googleCalendarEmail})}
                               </p>
                             </div>
                           </div>
@@ -456,14 +464,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             <div className="flex items-center gap-2.5 text-blue-700 dark:text-blue-300">
                               <RefreshCw className="w-4.5 h-4.5 animate-spin shrink-0 text-blue-600 dark:text-blue-400" />
                               <h4 className="text-[14px] font-bold">
-                                Initial synchronization in progress
+                                {tr('initialSynchronization',{ns:'connections'})}
                               </h4>
                             </div>
                             <p className="text-[13px] text-blue-800 dark:text-blue-200 leading-[19px]">
-                              Importing Google Calendar events and exporting your existing Mroya events.
+                              {tr('initialSynchronizationDescription',{ns:'connections'})}
                             </p>
                             <p className="text-[11.5px] text-[var(--mroya-text-muted)] pt-1 border-t border-blue-500/20">
-                              A one-time initial synchronization runs automatically after authorization, independent of the Automatic sync setting.
+                              {tr('initialSynchronizationNote',{ns:'connections'})}
                             </p>
                           </div>
                         )}
@@ -471,6 +479,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         {/* CONNECTED & SUB-STATES (Auto-off, Auto-on, Syncing, Error, Conflict, Reconnect) */}
                         {isConnected && gcalSyncState !== 'connecting' && (
                           <div className="space-y-4 pt-1">
+                            <p className="text-xs text-[var(--mroya-text-muted)] leading-relaxed">{tr('calendarStudyNotice',{ns:'connections'})}</p>
                             {/* Connected Account & Last Synced Display */}
                             <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                               <div className="flex items-center gap-3">
@@ -482,12 +491,12 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                     {googleCalendarEmail}
                                   </div>
                                   <div className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                    Connected Google Account
+                                    {tr('connectedGoogleAccount',{ns:'connections'})}
                                   </div>
                                 </div>
                               </div>
                               <div className="text-[12px] text-[var(--mroya-text-muted)] sm:text-right">
-                                <span className="font-medium text-[var(--mroya-text)]">Last synced:</span> {lastSyncedTime||'Not yet'}
+                                <span className="font-medium text-[var(--mroya-text)]">{tr('lastSynced',{ns:'connections'})}</span> {lastSyncedTime||tr('notYet',{ns:'connections'})}
                               </div>
                             </div>
 
@@ -496,10 +505,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
                                 <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
                                   <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[13px] font-bold">Synchronization error</span>
+                                  <span className="text-[13px] font-bold">{tr('syncErrorTitle',{ns:'connections'})}</span>
                                 </div>
                                 <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  {live?(googleCalendarNotice||'The backend reported a synchronization problem. Check status before retrying.'): 'Unable to reach Google Calendar API (network timeout). Your local Mroya commitments are preserved and safe.'}
+                                  {live?(googleCalendarNotice||tr('syncProblemFallback',{ns:'connections'})):tr('calendarNetworkErrorFallback',{ns:'connections'})}
                                 </p>
                                 <div className="pt-1 flex items-center gap-2">
                                   <button
@@ -508,7 +517,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                     disabled={googleCalendarBusy}
                                     className="px-3 py-1.5 rounded-[6px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
                                   >
-                                    Retry sync
+                                    {tr('retrySync',{ns:'connections'})}
                                   </button>
                                 </div>
                               </div>
@@ -518,13 +527,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
                                 <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
                                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[13px] font-bold">Sync conflict detected</span>
+                                  <span className="text-[13px] font-bold">{tr('syncConflictTitle',{ns:'connections'})}</span>
                                 </div>
                                 <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  Conflicting changes were detected. Conflict information is retained by the backend; synchronization is paused until resolution. No duplicate events are created automatically.
+                                  {tr('conflictingChangesDescription',{ns:'connections'})}
                                 </p>
                                 <div className="pt-1">
-                                  <span className="text-[12px] text-[var(--mroya-text-muted)]">No conflict-resolution endpoint is connected. Resolve support is not available here.</span>
+                                  <span className="text-[12px] text-[var(--mroya-text-muted)]">{tr('noConflictResolution',{ns:'connections'})}</span>
                                 </div>
                               </div>
                             )}
@@ -533,10 +542,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
                                 <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
                                   <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[13px] font-bold">Reconnect required</span>
+                                  <span className="text-[13px] font-bold">{tr('reconnectRequired',{ns:'connections'})}</span>
                                 </div>
                                 <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  Google Calendar authorization credentials expired or were revoked. Reconnect your account to resume automatic syncing.
+                              {tr('googleAuthorizationExpired',{ns:'connections'})}
                                 </p>
                                 <div className="pt-1">
                                   <button
@@ -545,7 +554,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 disabled={googleCalendarBusy}
                                     className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12.5px] font-semibold cursor-pointer"
                                   >
-                                    Reconnect Google Calendar
+                                    {tr('reconnectGoogleCalendar',{ns:'connections'})}
                                   </button>
                                 </div>
                               </div>
@@ -557,11 +566,11 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 <div className="flex items-center gap-2 text-[var(--mroya-text)]">
                                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                   <span>
-                                    <strong>{syncSummary.imported}</strong> events imported · <strong>{syncSummary.exported}</strong> events exported
+                                    <strong>{syncSummary.imported}</strong> {tr('eventsImported',{ns:'connections'})} · <strong>{syncSummary.exported}</strong> {tr('eventsExported',{ns:'connections'})}
                                   </span>
                                 </div>
                                 <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                  Last synced: {syncSummary.lastSynced}
+                                  {tr('lastSyncedValue',{ns:'connections',date:syncSummary.lastSynced})}
                                 </span>
                               </div>
                             )}
@@ -569,7 +578,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             {/* 3. LIST OF GOOGLE CALENDARS FOR IMPORT */}
                             <div className="space-y-2">
                               <label className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
-                                Google Calendars to import:
+                                {tr('googleCalendarsToImport',{ns:'connections'})}
                               </label>
                               <div className="space-y-1.5">
                                 {calendars.map((cal) => (
@@ -590,7 +599,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                           {cal.name}
                                         </div>
                                         <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
-                                          {live?(cal.available?'Available'+(cal.read_only?' · Read-only':''):'Unavailable'):('desc' in cal?cal.desc:'')}
+                                          {live?(cal.available?tr('available',{ns:'connections'})+(cal.read_only?' · '+tr('readOnly',{ns:'connections'}):''):tr('unavailable',{ns:'connections'})):('desc' in cal?cal.desc:'')}
                                         </div>
                                       </div>
                                     </div>
@@ -601,7 +610,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                           : 'text-[var(--mroya-text-muted)]'
                                       }`}
                                     >
-                                      {importedCalendars.includes(cal.id) ? 'Active' : 'Ignored'}
+                                      {importedCalendars.includes(cal.id) ? tr('active',{ns:'connections'}) : tr('ignored',{ns:'connections'})}
                                     </span>
                                   </label>
                                 ))}
@@ -611,7 +620,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             {/* 4. CALENDAR SELECTION FOR EXPORTING MROYA EVENTS */}
                             <div className="space-y-1.5">
                               <label className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
-                                Export Mroya events to:
+                                {tr('exportMroyaEventsTo',{ns:'connections'})}
                               </label>
                               <select
                                 value={exportCalendar}
@@ -619,11 +628,11 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 onChange={(e) => onChangeExportCalendar?.(e.target.value)}
                                 className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
                               >
-                                {live&&<option value="">Choose export calendar</option>}
+                                {live&&<option value="">{tr('chooseExportCalendar',{ns:'connections'})}</option>}
                                 {calendars.filter(cal=>cal.available&&!cal.read_only&&(!('exportable' in cal)||cal.exportable)).map(cal=><option key={cal.id} value={cal.id}>{cal.name}</option>)}
                               </select>
                               <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                Mroya events use this calendar for export after a successful sync; automatic sync must be enabled for automatic export.
+                                {tr('exportCalendarHelp',{ns:'connections'})}
                               </p>
                             </div>
 
@@ -631,7 +640,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex items-center justify-between gap-4">
                               <div className="space-y-0.5">
                                 <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
-                                  <span>Automatic sync</span>
+                                  <span>{tr('automaticSync',{ns:'connections'})}</span>
                                   <span
                                     className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
                                       autoSync
@@ -639,11 +648,11 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                         : 'bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]'
                                     }`}
                                   >
-                                    {autoSync ? 'ON' : 'OFF'}
+                                      {autoSync ? tr('on',{ns:'common'}) : tr('off',{ns:'common'})}
                                   </span>
                                 </div>
                                 <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[17px]">
-                                  Automatic sync is OFF by default. It controls continuous background exchange of schedule changes.
+                                  {tr('automaticSyncDescription',{ns:'connections'})}
                                 </p>
                               </div>
                               <button
@@ -674,10 +683,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer disabled:opacity-60"
                                 >
                                   <RefreshCw className={`w-3.5 h-3.5 ${gcalSyncState === 'syncing' ? 'animate-spin text-[var(--mroya-primary)]' : ''}`} />
-                                  <span>{gcalSyncState === 'syncing' ? 'Syncing now…' : 'Sync now'}</span>
+                                  <span>{gcalSyncState === 'syncing' ? tr('syncingNow',{ns:'connections'}) : tr('syncNow',{ns:'connections'})}</span>
                                 </button>
                                 <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                  {lastSyncedTime||'Not yet'}
+                                  {lastSyncedTime||tr('notYet',{ns:'connections'})}
                                 </span>
                               </div>
 
@@ -687,9 +696,11 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 disabled={googleCalendarBusy}
                                 className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer self-start sm:self-center"
                               >
-                                Disconnect
+                                {tr('disconnect',{ns:'connections'})}
                               </button>
                             </div>
+                            <CalendarAnalysisPanel analysis={calendarAnalysis}/>
+                            {memoryReview&&<MemoryReviewPanel review={memoryReview}/>}
                           </div>
                         )}
                         </div>
@@ -704,19 +715,19 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   const pending=!!state?.link;
                   const unavailable=!!state?.status&&!state.status.configured&&!connected;
                   const status=live&&isTelegram
-                    ? !state||state.phase==='loading'?'Checking Telegram connection…'
-                      : state.phase==='creating'?'Creating Telegram link…'
-                      : state.phase==='disconnecting'?'Disconnecting Telegram…'
-                      : state.checking?'Checking Telegram connection…'
-                      : connected?'Connected'+(state.status?.telegram_username?' (@'+state.status.telegram_username.replace(/^@/,'')+')':'')
-                      : state.phase==='expired'?'Link expired'
-                      : pending?state.openFallback?'Waiting for Telegram. Open Telegram and press Start, then check connection.':'Waiting for Telegram. Press Start in the Telegram tab, then return to Mroya.'
-                      : unavailable?'Telegram connection is temporarily unavailable.'
-                      : state.status?'Disconnected':'Telegram connection has not been checked.'
-                    : live?'Not available yet':conn.connected?'Connected ('+(conn.accountLabel||'Active in prototype')+')':'Disconnected';
+                    ? !state||state.phase==='loading'?tr('checkingTelegram',{ns:'connections'})
+                      : state.phase==='creating'?tr('creatingTelegramLink',{ns:'connections'})
+                      : state.phase==='disconnecting'?tr('disconnectingTelegram',{ns:'connections'})
+                      : state.checking?tr('checkingTelegram',{ns:'connections'})
+                      : connected?state.status?.telegram_username?tr('connectedTelegramUser',{ns:'connections',username:state.status.telegram_username.replace(/^@/,'')}):tr('connectedTelegram',{ns:'connections'})
+                      : state.phase==='expired'?tr('telegramLinkExpired',{ns:'connections'})
+                      : pending?state.openFallback?tr('telegramWaitingFallback',{ns:'connections'}):tr('telegramWaiting',{ns:'connections'})
+                      : unavailable?tr('telegramTemporarilyUnavailable',{ns:'connections'})
+                      : state.status?tr('disconnected',{ns:'connections'}):tr('telegramNotChecked',{ns:'connections'})
+                    : live?tr('unavailableSoon',{ns:'connections'}):conn.connected?tr('connectedAccount',{ns:'connections',account:conn.accountLabel||tr('activeInPrototype',{ns:'connections'})}):tr('disconnected',{ns:'connections'});
                   const buttonLabel=live&&isTelegram
-                    ? !state||busy?'Please wait…':state.error?'Retry':connected?'Disconnect':pending?'Check connection':state.phase==='expired'?'Generate new link':unavailable?'Check connection':'Connect Telegram'
-                    :live?'Coming soon':conn.connected?'Disconnect preview':'Connect '+conn.name;
+                    ? !state||busy?tr('pleaseWait',{ns:'connections'}):state.error?tr('retry',{ns:'connections'}):connected?tr('disconnect',{ns:'connections'}):pending?tr('checkConnection',{ns:'connections'}):state.phase==='expired'?tr('generateNewLink',{ns:'connections'}):unavailable?tr('checkConnection',{ns:'connections'}):tr('connectTelegram',{ns:'connections'})
+                    :live?tr('comingSoon',{ns:'connections'}):conn.connected?tr('disconnectPreview',{ns:'connections'}):tr('connectService',{ns:'connections',name:localizedConnectionName(conn)});
                   const action=live&&isTelegram
                     ? state?.error?state.onRetry:connected?state?.onDisconnect:pending||unavailable?state?.onCheck:state?.onConnect
                     :()=>onToggleConnection(conn.id);
@@ -729,14 +740,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       <div className="flex items-center gap-2">
                         <Link2 className="w-4 h-4 text-[var(--mroya-primary)]" />
                         <span className="text-[15px] font-semibold text-[var(--mroya-text)]">
-                          {conn.name}
+                          {localizedConnectionName(conn)}
                         </span>
                         <span className="text-[12px] text-[var(--mroya-text-muted)]">
-                          · {conn.category}
+                          · {localizedConnectionCategory(conn)}
                         </span>
                       </div>
                       <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-                        {conn.description}
+                        {localizedConnectionDescription(conn)}
                       </p>
                       <ul className="space-y-1 pt-1">
                         {conn.capabilities.map((cap, i) => (
@@ -745,16 +756,16 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             className="text-[12px] text-[var(--mroya-text)] flex items-center gap-2"
                           >
                             <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                            <span>{cap}</span>
+                            <span>{localizedConnectionCapability(conn,cap)}</span>
                           </li>
                         ))}
                       </ul>
                       <div className="text-[12px] text-[var(--mroya-text-muted)] pt-1">
                         {status}
                       </div>
-                      {state?.link && state.openFallback && <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] whitespace-nowrap">Open Telegram</a>}
-                      {state?.link && state.openFallback && <p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">Telegram could not open automatically. Your browser may have blocked the tab. Use Open Telegram to continue.</p>}
-                      {state?.error && <p role="alert" className="text-[12px] text-[var(--mroya-error)]">{state.error}</p>}
+                      {state?.link && state.openFallback && <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] whitespace-nowrap">{tr('openTelegram',{ns:'connections'})}</a>}
+                    {state?.link && state.openFallback && <p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">{tr('telegramPopupBlocked',{ns:'connections'})}</p>}
+                      {state?.error && <p role="alert" className="text-[12px] text-[var(--mroya-error)]">{tr('requestFailed',{ns:'common'})}</p>}
 
                       {/* Telegram notifications visual management block */}
                       {isTelegram && (
@@ -765,9 +776,9 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <div className="flex items-center justify-between text-[11px] text-[var(--mroya-text-muted)] font-semibold">
                                 <span className="flex items-center gap-1 text-[var(--mroya-brand-honey)]">
                                   <Sparkles className="w-3 h-3" />
-                                  <span>Состояния Telegram Notifications:</span>
+                                  <span>{tr('telegramStates',{ns:'connections'})}</span>
                                 </span>
-                                <span className="font-normal opacity-80">Simulation · Переключение для дизайн-ревью</span>
+                                <span className="font-normal opacity-80">{tr('designSimulation',{ns:'connections'})}</span>
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {notificationPreview.scenarios.map((st) => (
@@ -781,7 +792,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                         : 'bg-[var(--mroya-surface)] text-[var(--mroya-text)] border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface-muted)]'
                                     }`}
                                   >
-                                    {st.label}
+                                    {notificationScenarioLabel(st.id)}
                                   </button>
                                 ))}
                               </div>
@@ -793,22 +804,22 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             <div>
                               <h4 className="text-[14px] font-semibold text-[var(--mroya-text)] flex items-center gap-1.5">
                                 <Bell className="w-4 h-4 text-[var(--mroya-primary)]" />
-                                <span>Telegram notifications</span>
+                                <span>{tr('telegramNotifications',{ns:'connections'})}</span>
                               </h4>
                               <p className="text-[12px] text-[var(--mroya-text-muted)] mt-0.5">
-                                Receive notifications from Mroya in Telegram
+                                {tr('receiveTelegramNotifications',{ns:'connections'})}
                               </p>
                             </div>
 
                             {/* Switch: Notifications */}
                             <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
                               <span className="text-[12px] font-medium text-[var(--mroya-text)] hidden sm:inline">
-                                Notifications
+                                {tr('notifications',{ns:'connections'})}
                               </span>
                               <div className="relative inline-flex items-center">
                                 <input
                                   type="checkbox"
-                                  aria-label="Telegram notifications"
+                                  aria-label={tr('telegramNotifications',{ns:'connections'})}
                                   checked={notifications?.enabled??false}
                                   disabled={!notifications?.available||notificationBusy||(!notifications.enabled&&!notifications.canEnable)}
                                   onChange={(e) => {void notifications?.onToggleTelegram(e.target.checked);}}
@@ -824,46 +835,46 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               {/* Status of last notification */}
                               <div className="flex items-center gap-2 text-[12px]">
-                                <span className="text-[var(--mroya-text-muted)]">Статус:</span>
-                                {['Loading','Saving','Sending'].includes(notificationStatus) && (
+                                <span className="text-[var(--mroya-text-muted)]">{tr('notificationStatus',{ns:'connections'})}</span>
+                                {['loading','saving','sending'].includes(notificationState) && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-[var(--mroya-text)]">
                                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-[var(--mroya-primary)]" />
-                                    <span>{notificationStatus==='Saving'?'Saving notification settings…':notificationStatus==='Loading'?'Loading notification settings…':'Sending test notification…'}</span>
+                                    <span>{notificationState==='saving'?tr('savingNotificationSettings',{ns:'connections'}):notificationState==='loading'?tr('loadingNotificationSettings',{ns:'connections'}):tr('sendingTestNotification',{ns:'connections'})}</span>
                                   </span>
                                 )}
-                                {notificationStatus === 'Ready' && (
+                                {notificationState === 'ready' && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Ready · Bot connected</span>
+                                    <span>{tr('botReady',{ns:'connections'})}</span>
                                   </span>
                                 )}
-                                {['Queued','Processing','Retrying'].includes(notificationStatus) && (
+                                {['pending','processing','retry'].includes(notificationState) && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
                                     <Clock className="w-3.5 h-3.5" />
                                     <span>{notificationStatus}</span>
                                   </span>
                                 )}
-                                {notificationStatus === 'Delivered' && (
+                                {notificationState === 'sent' && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
                                     <Check className="w-3.5 h-3.5" />
-                                    <span>Delivered to Telegram</span>
+                                    <span>{tr('deliveredTelegram',{ns:'connections'})}</span>
                                   </span>
                                 )}
-                                {notificationStatus === 'Failed' && (
+                                {notificationState === 'failed' && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-red-600 dark:text-red-400">
                                     <AlertCircle className="w-3.5 h-3.5" />
-                                    <span>Delivery failed</span>
+                                    <span>{tr('deliveryFailed',{ns:'connections'})}</span>
                                   </span>
                                 )}
-                                {notificationStatus === 'Unavailable' && (
+                                {notificationState === 'unavailable' && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-zinc-500">
                                     <AlertTriangle className="w-3.5 h-3.5" />
-                                    <span>{notifications?.available?'Service unavailable':'Soon · Функция скоро появится'}</span>
+                                    <span>{notifications?.available?tr('serviceUnavailable',{ns:'connections'}):tr('soon',{ns:'connections'})}</span>
                                   </span>
                                 )}
-                                {['Disabled','Disconnected','NotReady','Cancelled','Expired'].includes(notificationStatus) && (
+                                {['disabled','disconnected','notReady','cancelled','expired'].includes(notificationState) && (
                                   <span className="inline-flex items-center gap-1.5 font-medium text-[var(--mroya-text-muted)]">
-                                    <span>{notificationStatus==='Disabled'?'Notifications disabled':notificationStatus==='Disconnected'?'Telegram disconnected':notificationStatus==='NotReady'?'Delivery not ready':notificationStatus}</span>
+                                    <span>{notificationStatus}</span>
                                   </span>
                                 )}
                               </div>
@@ -872,7 +883,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  title="Refresh status"
+                                  title={tr('refreshStatus',{ns:'connections'})}
                                   disabled={!notifications?.available||notificationBusy}
                                   onClick={() => {void notifications?.onRefresh();}}
                                   className="p-1.5 rounded-[6px] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
@@ -885,7 +896,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   onClick={() => {void notifications?.onSendTest();}}
                                   className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-50 text-[var(--mroya-on-primary)] transition-colors cursor-pointer shadow-xs whitespace-nowrap"
                                 >
-                                  Send test notification
+                                  {tr('sendTestNotification',{ns:'connections'})}
                                 </button>
                               </div>
                             </div>
@@ -903,7 +914,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   onClick={() => {void notifications?.onRetry();}}
                                   className="px-2.5 py-1 rounded-[6px] bg-red-600 hover:bg-red-700 text-white font-semibold text-[11px] shrink-0 cursor-pointer shadow-xs"
                                 >
-                                  Retry
+                                  {tr('retry',{ns:'connections'})}
                                 </button>
                               </div>
                             )}
@@ -928,19 +939,19 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 );})}
               </div>
 
-              {live||!SourcesPreview?<IntelligenceSourcesPreview/>:<SourcesPreview/>}
-
             </div>
           )}
+
+          {activeTab==='connections'&&live&&privacy&&<PrivacyControls privacy={privacy}/>}
 
           {activeTab === 'plan' && (
             <div className="space-y-5">
               <div>
                 <h2 className="text-[18px] font-semibold text-[var(--mroya-text)]">
-                  {live ? 'Subscription & plan' : 'Subscription & plan preview'}
+                  {live ? tr('subscriptionAndPlan',{ns:'connections'}) : tr('subscriptionAndPlanPreview',{ns:'connections'})}
                 </h2>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] mt-0.5">
-                  {live ? 'Subscription management is not available yet.' : 'Switch between the Free and Mroya Premium states to preview how the interface adapts.'}
+                  {live ? tr('subscriptionUnavailable',{ns:'connections'}) : tr('planPreviewDescription',{ns:'connections'})}
                 </p>
               </div>
 
@@ -955,13 +966,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 >
                   <div className="space-y-2">
                     <div className="text-[12px] font-medium text-[var(--mroya-text-muted)]">
-                      Default tier
+                      {tr('defaultTier',{ns:'connections'})}
                     </div>
                     <h3 className="text-[18px] font-semibold text-[var(--mroya-text)]">
                       Mroya Free
                     </h3>
                     <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-                      Natural conversation, personal memory capture, source citations, and calendar scheduling.
+                      {tr('freePlanDescription',{ns:'connections'})}
                     </p>
                   </div>
                   <button
@@ -974,7 +985,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         : 'bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-text)]'
                     }`}
                   >
-                    {live ? 'Coming soon' : plan === 'free' ? 'Current active preview (Free)' : 'Preview Free state'}
+                    {live ? tr('comingSoon',{ns:'connections'}) : plan === 'free' ? tr('currentPreviewFree',{ns:'connections'}) : tr('previewFreeState',{ns:'connections'})}
                   </button>
                 </div>
 
@@ -989,13 +1000,13 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   <div className="space-y-2">
                     <div className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--mroya-primary)]">
                       <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
-                      <span>For client-facing professionals</span>
+                        <span>{tr('clientFacing',{ns:'connections'})}</span>
                     </div>
                     <h3 className="text-[18px] font-semibold text-[var(--mroya-text)]">
                       Mroya Premium
                     </h3>
                     <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-                      Extended long-term relationship recall, multi-account calendar & Telegram sync, and full Memory Map exploration.
+                      {tr('premiumPlanDescription',{ns:'connections'})}
                     </p>
                   </div>
                   <button
@@ -1008,9 +1019,9 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         : 'bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)]'
                     }`}
                   >
-                    {live ? 'Coming soon' : plan === 'premium'
-                      ? 'Current active preview (Premium)'
-                      : 'Preview Mroya Premium'}
+                    {live ? tr('comingSoon',{ns:'connections'}) : plan === 'premium'
+                      ? tr('currentPreviewPremium',{ns:'connections'})
+                      : tr('previewMroyaPremium',{ns:'connections'})}
                   </button>
                 </div>
               </div>
@@ -1021,16 +1032,16 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
               <div>
                 <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                  Theme & visual palette
+                  {tr('themePalette',{ns:'connections'})}
                 </h2>
                 <p className="text-[13px] text-[var(--mroya-text-muted)]">
-                  Pale Honey Linen & Sand Oat light palette (#FBF8F3) or Deep Wood dark palette (#171513).
+                  {tr('paletteDescription',{ns:'connections'})}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button type="button" onClick={() => onSelectTheme('system')} aria-pressed={theme==='system'} className={`p-4 rounded-[10px] border text-left flex items-center justify-between cursor-pointer ${theme==='system'?'bg-[var(--mroya-surface-active)] border-[var(--mroya-primary)]':'bg-[var(--mroya-surface-muted)] border-[var(--mroya-divider)]'}`}>
-                  <div className="flex items-center gap-3"><Monitor className="w-4 h-4 text-[var(--mroya-primary)]"/><div><div className="text-[14px] font-semibold">System theme</div><div className="text-[12px] text-[var(--mroya-text-muted)]">Follow device appearance</div></div></div>{theme==='system'&&<Check className="w-4 h-4 text-[var(--mroya-primary)]"/>}
+                  <div className="flex items-center gap-3"><Monitor className="w-4 h-4 text-[var(--mroya-primary)]"/><div><div className="text-[14px] font-semibold">{tr('systemTheme',{ns:'connections'})}</div><div className="text-[12px] text-[var(--mroya-text-muted)]">{tr('followDevice',{ns:'connections'})}</div></div></div>{theme==='system'&&<Check className="w-4 h-4 text-[var(--mroya-primary)]"/>}
                 </button>
                 <button
                   type="button"
@@ -1045,10 +1056,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     <Sun className="w-4 h-4 text-[var(--mroya-primary)]" />
                     <div>
                       <div className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                        Light theme
+                        {tr('lightTheme',{ns:'connections'})}
                       </div>
                       <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                        Warm linen #FBF8F3 & honey #7E5301
+                        {tr('lightPalette',{ns:'connections'})}
                       </div>
                     </div>
                   </div>
@@ -1068,10 +1079,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     <Moon className="w-4 h-4 text-[var(--mroya-primary)]" />
                     <div>
                       <div className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                        Dark theme
+                        {tr('darkTheme',{ns:'connections'})}
                       </div>
                       <div className="text-[12px] text-[var(--mroya-text-muted)]">
-                        Deep wood #171513 & warm gold #ECC682
+                        {tr('darkPalette',{ns:'connections'})}
                       </div>
                     </div>
                   </div>
@@ -1092,17 +1103,19 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   <h2 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
                     {account.displayName}
                   </h2>
-                  <p className="text-[13px] text-[var(--mroya-text-muted)] truncate">
+                  <p className="text-[13px] text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere] lg:truncate">
                     {account.email}{account.description ? ` · ${account.description}` : ''}
                   </p>
                 </div>
               </div>
 
+              {memoryTransfer && <MemoryTransferSettings transfer={memoryTransfer} />}
+
               {/* Nickname section */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label htmlFor="mroya-profile-nickname" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
-                    Nickname
+                    {tr('nickname',{ns:'connections'})}
                   </label>
                   {nicknameStatus && (
                     <span className="text-[12px] font-medium text-[var(--mroya-primary)]">
@@ -1117,7 +1130,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     autoComplete="nickname"
                     value={nicknameDraft}
                     onChange={(e) => { nicknameEdited.current = true; setNicknameSubmitted(false); setSaveStatus(null); setNicknameDraft(e.target.value); }}
-                    placeholder="Enter your nickname"
+                    placeholder={tr('nicknamePlaceholder',{ns:'connections'})}
                     className="flex-1 min-w-[200px] rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2 text-[13px] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors"
                   />
                   <div className="flex items-center gap-2 shrink-0">
@@ -1126,27 +1139,27 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       onClick={handleSaveNickname}
                       className="px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer"
                     >
-                      Save
+                      {tr('save',{ns:'common'})}
                     </button>
                     <button
                       type="button"
                       onClick={handleClearNickname}
                       className="px-3 py-2 rounded-full text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
-                      title="Clear nickname"
+                      title={tr('clearNickname',{ns:'connections'})}
                     >
-                      Clear
+                      {tr('clear',{ns:'common'})}
                     </button>
                   </div>
                 </div>
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  How Mroya addresses you in personal conversations and greetings.
+                  {tr('nicknameHelp',{ns:'connections'})}
                 </p>
               </div>
 
               {/* Time zone section */}
               <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">
                 <label htmlFor="mroya-timezone-select" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
-                  Time zone
+                  {tr('timezone',{ns:'connections'})}
                 </label>
                 <div className="relative">
                   <select
@@ -1156,45 +1169,71 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     onChange={handleTimezoneChange}
                     className="w-full appearance-none rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2.5 pr-10 text-[13px] text-[var(--mroya-text)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors cursor-pointer"
                   >
-                    {!timezoneValue&&<option value="">Not set</option>}
+                    {!timezoneValue&&<option value="">{tr('notSet',{ns:'common'})}</option>}
                     {availableTimezones.map((tz) => (
                       <option key={tz.value} value={tz.value} className="bg-[var(--mroya-surface)] text-[var(--mroya-text)]">
                         {tz.label}
                       </option>
                     ))}
-                    <option value="__custom__">Other IANA timezone…</option>
+                    <option value="__custom__">{tr('otherTimezone',{ns:'connections'})}</option>
                     </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-[var(--mroya-text-muted)]">
                     <ChevronDown className="w-4 h-4" />
                   </div>
                   </div>
                   {customTimezoneOpen&&<div className="flex items-center gap-2">
-                    <input aria-label="Custom IANA timezone" value={customTimezone} onChange={event=>setCustomTimezone(event.target.value)} placeholder="e.g. Pacific/Chatham" disabled={live&&!timezoneSettings?.apiReady} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]"/>
-                    <button type="button" disabled={!customTimezone.trim()||live&&!timezoneSettings?.apiReady} onClick={()=>{const value=customTimezone.trim();setSelectedTimezone(value);(onChangeTimezone??timezoneSettings?.onChange)?.(value);}} className="px-3 py-2 rounded-[8px] bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[13px]">Use timezone</button>
+                    <input aria-label={tr('customTimezone',{ns:'connections'})} value={customTimezone} onChange={event=>setCustomTimezone(event.target.value)} placeholder={tr('timezonePlaceholder',{ns:'connections'})} disabled={live&&!timezoneSettings?.apiReady} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]"/>
+                    <button type="button" disabled={!customTimezone.trim()||live&&!timezoneSettings?.apiReady} onClick={()=>{const value=customTimezone.trim();setSelectedTimezone(value);(onChangeTimezone??timezoneSettings?.onChange)?.(value);}} className="px-3 py-2 rounded-[8px] bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[13px]">{tr('useTimezone',{ns:'connections'})}</button>
                   </div>}
                   {live&&timezoneSettings&&<div aria-live="polite" className="text-[12px] text-[var(--mroya-text-muted)]">
-                    {timezoneSettings.status==='saving'&&<p role="status">Saving timezone…</p>}
-                    {timezoneSettings.status==='saved'&&timezoneSettings.timezone&&<p role="status">Saved · {timezoneSettings.timezone}</p>}
-                    {timezoneSettings.status==='error'&&<><p role="alert">{timezoneSettings.error}</p>{timezoneSettings.apiReady&&<button type="button" onClick={timezoneSettings.onRetry} className="underline mt-2">Retry timezone</button>}</>}
-                    {!timezoneSettings.apiReady&&<p>Timezone editing is waiting for the backend API integration. Your existing setting is preserved.</p>}
+                    {timezoneSettings.status==='saving'&&<p role="status">{tr('savingTimezone',{ns:'connections'})}</p>}
+                    {timezoneSettings.status==='saved'&&timezoneSettings.timezone&&<p role="status">{tr('savedTimezone',{ns:'connections',timezone:timezoneSettings.timezone})}</p>}
+                    {timezoneSettings.status==='error'&&<><p role="alert">{tr('timezoneNotSaved',{ns:'connections'})}</p>{timezoneSettings.apiReady&&<button type="button" onClick={timezoneSettings.onRetry} className="underline mt-2">{tr('retryTimezone',{ns:'connections'})}</button>}</>}
+                    {!timezoneSettings.apiReady&&<p>{tr('timezoneUnavailable',{ns:'connections'})}</p>}
                   </div>}
 
                 <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  {live ? (timezoneSettings?.apiReady?'Confirmed timezone applies to future events. Existing events keep their original timezone.':'Time zone is read-only until the backend timezone API is connected.') : 'Select your time zone so Mroya can accurately schedule reminders and coordinate calendar events.'}
+                  {live ? (timezoneSettings?.apiReady?tr('confirmedTimezoneHelp',{ns:'connections'}):tr('timezoneReadOnly',{ns:'connections'})) : tr('timezoneTitle',{ns:'connections'})}
                 </p>
+              </div>
+
+              {/* Interface language */}
+              <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">
+                <label htmlFor="mroya-language-select" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
+                  {tr('language',{ns:'connections'})}
+                </label>
+                <select
+                  id="mroya-language-select"
+                  value={language}
+                  disabled={!onChangeLanguage}
+                  onChange={event=>onChangeLanguage?.(event.target.value as AppLanguage)}
+                  className="w-full appearance-none rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2.5 text-[13px] text-[var(--mroya-text)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors cursor-pointer"
+                  aria-describedby="mroya-language-help mroya-language-status"
+                >
+                  <option value="en">English</option>
+                  <option value="ru">Русский</option>
+                </select>
+                <p id="mroya-language-help" className="text-[12px] text-[var(--mroya-text-muted)]">
+                  {tr('languageHelp',{ns:'connections'})}
+                </p>
+                <div id="mroya-language-status" aria-live="polite" className="text-[12px] text-[var(--mroya-text-muted)]">
+                  {languageSave?.status==='saving'&&<p role="status">{tr('savingLanguage',{ns:'connections'})}</p>}
+                  {languageSave?.status==='saved'&&<p role="status">{tr('savedLanguage',{ns:'connections'})}</p>}
+                  {languageSave?.status==='unsaved'&&<div role="alert"><p>{tr('languageNotSaved',{ns:'connections'})}</p><button type="button" onClick={languageSave.onRetry} className="underline mt-2">{tr('retryLanguage',{ns:'connections'})}</button></div>}
+                    {!live&&<p role="status">{tr('savedLanguage',{ns:'connections'})}</p>}
+                </div>
               </div>
 
               {/* Personal space summary */}
               <div className="pt-3 border-t border-[var(--mroya-divider)] text-[13px]">
-                <div className="text-[var(--mroya-text-muted)]">Personal space</div>
+                <div className="text-[var(--mroya-text-muted)]">{tr('personalSpace',{ns:'connections'})}</div>
                 <div className="font-medium text-[var(--mroya-text)] mt-0.5">
-                  {account.spaceDescription || 'Personal space'}
+                  {account.spaceDescription || tr('personalSpaceFallback',{ns:'connections'})}
                 </div>
               </div>
             </div>
           )}
 
-          <PrivacyControls privacy={privacy}/>
           {activeTab === 'settings' && (
             <div className="space-y-5">
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">
@@ -1202,10 +1241,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   <Brain className="w-5 h-5 text-[var(--mroya-brand-honey)]" />
                   <div>
                     <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                      Assistant preferences
+                      {tr('assistantPreferences',{ns:'connections'})}
                     </h2>
                     <p className="text-[12.5px] text-[var(--mroya-text-muted)] mt-0.5">
-                      Configure AI assistant behavior and model reasoning display.
+                      {tr('assistantPreferencesDescription',{ns:'connections'})}
                     </p>
                   </div>
                 </div>
@@ -1221,10 +1260,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     />
                     <div className="space-y-0.5">
                       <span className="text-[13.5px] font-medium text-[var(--mroya-text)] group-hover:text-[var(--mroya-text)]">
-                        Show model reasoning
+                        {tr('showReasoning',{ns:'connections'})}
                       </span>
                       <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
-                        See the model&apos;s reasoning as it is generated, when available. Not all AI models provide visible reasoning.
+                        {tr('modelReasoningDescription',{ns:'connections'})}
                       </p>
                     </div>
                   </label>
@@ -1234,10 +1273,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <div className="pt-4 border-t border-[var(--mroya-divider)] space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                      Chat preview
+                      {tr('chatPreview',{ns:'connections'})}
                     </div>
                     <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                      {showModelReasoning ? 'Preview with reasoning' : 'Standard preview'}
+                      {showModelReasoning ? tr('previewWithReasoning',{ns:'connections'}) : tr('standardPreview',{ns:'connections'})}
                     </span>
                   </div>
 
@@ -1245,7 +1284,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     {/* User message example */}
                     <div className="flex flex-col items-end">
                       <div className="max-w-[88%] sm:max-w-[78%] px-3.5 py-2.5 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[13.5px] leading-[21px] text-[var(--mroya-text)] shadow-xs">
-                        Запомни, что у меня есть друг Сашка.
+                        {tr('previewUserMessage',{ns:'connections'})}
                       </div>
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                         12:00
@@ -1265,10 +1304,10 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                       {showModelReasoning && (
                         <ModelReasoningBlock
                           reasoning={[
-                            'Пользователь сообщил информацию о друге. Нужно проверить, есть ли этот человек в существующей памяти.',
-                            'Перед сохранением нового факта необходимо выполнить поиск.',
-                            'Поиск не обнаружил подходящей записи. Можно перейти к созданию нового факта.',
-                            'Теперь необходимо сохранить сведения и дождаться подтверждения.',
+                            tr('previewReasoning1',{ns:'connections'}),
+                            tr('previewReasoning2',{ns:'connections'}),
+                            tr('previewReasoning3',{ns:'connections'}),
+                            tr('previewReasoning4',{ns:'connections'}),
                           ]}
                           isIllustrativeExample={true}
                           defaultExpanded={true}
@@ -1277,30 +1316,28 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
                       {/* Final Assistant Response */}
                       <div className="w-full p-3.5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] text-[13.5px] leading-[21px] text-[var(--mroya-text)]">
-                        Запомнила, что у тебя есть друг Сашка.
+                        {tr('previewAssistantMessage',{ns:'connections'})}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {live||!AutonomyPreview?<IntelligenceAutonomyPreview/>:<AutonomyPreview/>}
-
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-[var(--mroya-primary)]" />
-                  <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                    Memory transparency & control
+                    <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
+                    {tr('memoryTransparency',{ns:'connections'})}
                   </h2>
                 </div>
                 <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-                  {live ? 'Ask Mroya in chat to update or forget memories. Memory preference controls are not available yet.' : 'Every fact Mroya remembers includes a verifiable source citation and date. You can edit or permanently forget any memory at any time from the Memory section or directly from chat citations.'}
+                  {live ? tr('memoryPreferenceUnavailable',{ns:'connections'}) : tr('memoryTransparencyDescription',{ns:'connections'})}
                 </p>
                 <div className="pt-2 border-t border-[var(--mroya-divider)] flex items-center justify-between text-[13px]">
                   <span className="font-medium text-[var(--mroya-text)]">
-                    Show inline &ldquo;Saved to memory&rdquo; confirmations in chat
+                    {tr('inlineMemoryConfirmation',{ns:'connections'})}
                   </span>
-                  <span className="text-[var(--mroya-primary)] font-semibold">{live ? 'Coming soon' : 'Enabled'}</span>
+                  <span className="text-[var(--mroya-primary)] font-semibold">{live ? tr('comingSoon',{ns:'connections'}) : tr('enabled',{ns:'connections'})}</span>
                 </div>
               </div>
             </div>

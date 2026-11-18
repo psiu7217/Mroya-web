@@ -13,9 +13,9 @@ test('real privacy UI distinguishes consent, requests and completed erasure',()=
   deletion_automatic:false,notice:'Optional AI notice',privacy_contact:'support@dotstech.app',
   requests:[{id:'synthetic',kind:'account_deletion',status:'needs_review',reason_code:'review',created_at:'synthetic'}]},
  busy:false,error:null,message:null,refresh:noop,consent:noop,request:noop}}));
- assert.match(html,/External AI is blocked/);
- assert.match(html,/do not claim that deletion is complete/);
- assert.match(html,/needs_review/);
+ assert.match(html,/Google-data AI processing is unavailable/);
+ assert.match(html,/Deletion requests go to review/);
+ assert.match(html,/Awaiting review/);
  assert.match(html,/href="https:\/\/heymroya.com\/privacy"/);
  assert.doesNotMatch(html,/<input[^>]*checked/);
  assert.equal(renderToStaticMarkup(React.createElement(PrivacyControls,{})),'');

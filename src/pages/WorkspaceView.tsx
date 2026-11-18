@@ -1,8 +1,12 @@
-import React from 'react';
+import React,{useState} from 'react';
+import {AiTasksDrawer} from '../components/AiTasksDrawer';
+import {DialogFocus} from '../components/DialogFocus';
+import {WorkspaceSurface} from '../components/WorkspaceSurface';
 import { Sparkles, Check, X } from 'lucide-react';
 import type { WorkspaceModel } from '../types/workspace';
 import { Sidebar } from '../components/Sidebar';
 import { ChatWorkspace } from '../components/ChatWorkspace';
+import { ImageLightbox } from '../components/ImageLightbox';
 import { MemoryContextPanel } from '../components/MemoryContextPanel';
 import { CalendarView } from '../components/CalendarView';
 import { RemindersView } from '../components/RemindersView';
@@ -11,20 +15,32 @@ import { MemoryView } from '../components/MemoryView';
 import { MemoryMapView } from '../components/MemoryMapView';
 import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
+import { NotesView } from '../components/NotesView';
+import {FilesView} from '../components/FilesView';
+import {tr} from '../i18n';
+import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
+ const [tasksOpen,setTasksOpen]=useState(false),[taskHighlight,setTaskHighlight]=useState<string|null>(null);
+ const openTasks=(id?:string)=>{setTaskHighlight(id??null);setTasksOpen(true);model.aiTasks?.onOpen();model.onSidebarCloseMobile();};
+ const closeTasks=()=>{setTasksOpen(false);model.aiTasks?.onClose();};
+ const tasksPresentation=model.aiTasks?{...model.aiTasks,onOpen:openTasks,onClose:closeTasks}:undefined;
  const feedback=model.feedback??runtime;
- const {account, activeSection, isSidebarCollapsed, mobileMenuOpen, theme, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation, focusedMemory, relatedMemoriesForActiveChat, upcomingRelatedEvent, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onChatWorkspaceOpenMobileMenu, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onCalendarViewOpenMobileMenu, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onRemindersViewOpenMobileMenu, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryViewOpenMobileMenu, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onMemoryMapViewOpenMobileMenu, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onConnectionsSettingsViewOpenMobileMenu, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose}=model;
+ const {account, activeSection:requestedSection, isSidebarCollapsed, mobileMenuOpen, theme, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation, focusedMemory, relatedMemoriesForActiveChat, upcomingRelatedEvent, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onChatWorkspaceOpenMobileMenu, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onCalendarViewOpenMobileMenu, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onRemindersViewOpenMobileMenu, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryViewOpenMobileMenu, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onMemoryMapViewOpenMobileMenu, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onConnectionsSettingsViewOpenMobileMenu, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose}=model;
+ const notesAvailable=model.notesAvailable===true;
+ const activeSection=requestedSection==='notes'&&!notesAvailable?'chat':requestedSection;
  return (
-    <div className="flex h-dvh w-full overflow-hidden bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
+    <WorkspaceSurface mobileOpen={mobileMenuOpen} onOpenMobile={onChatWorkspaceOpenMobileMenu} onCloseMobile={onSidebarCloseMobile}>
       {/* Left Navigation Sidebar */}
       <Sidebar
         account={account}
+        showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
+        showReminders={runtime ? !!runtime.features?.reminders : true}
         conversationLocked={runtime?.conversationLocked}
         live={!!runtime}
         onLogout={runtime?.onLogout}
         activeSection={activeSection}
-        onSelectSection={onSidebarSelectSection}
+        onSelectSection={next=>next==='ai-tasks'?openTasks():onSidebarSelectSection(next)}
         conversations={conversations}
         activeConversationId={activeConversationId}
         onSelectConversation={onSidebarSelectConversation}
@@ -43,33 +59,41 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         memoriesCount={runtime?.memoriesTotal??memories.length}
         upcomingEventsCount={events.length}
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
+        notesAvailable={notesAvailable}
+        notesCount={notesAvailable?(model.notes ?? []).length:0}
+        aiTasksCount={model.aiTasks?.tasks.filter(countsTowardTaskBadge).length}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 
       {/* Center Primary Workspace + Optional Contextual Memory Details */}
       <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
         {feedback && (feedback.error || feedback.loading) && <div role={feedback.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-          {feedback.error ?? 'Loading your workspace…'}
-          {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">Check server status</button>}
+          {feedback.error ? tr('loadFailed',{ns:'workspace'}) : tr('loading',{ns:'workspace'})}
+          {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">{tr('checkServer',{ns:'workspace'})}</button>}
         </div>}
         {runtime?.timezoneSettings?.status==='error'&&<div role="alert" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
-          {runtime.timezoneSettings.error}
-          <button type="button" onClick={()=>onSidebarOpenSettingsTab('profile')} className="ml-3 underline">Choose timezone in Profile</button>
+          {tr('timezoneError',{ns:'workspace'})}
+          <button type="button" onClick={()=>onSidebarOpenSettingsTab('profile')} className="ml-3 underline">{tr('chooseTimezone',{ns:'workspace'})}</button>
         </div>}
-        {runtime && !runtime.loading && !runtime.error && ((activeSection==='calendar'&&!runtime.calendarAvailable)||(activeSection==='reminders'&&!runtime.remindersAvailable)||(activeSection==='chat'&&!runtime.chatAvailable)||((activeSection==='memory'||activeSection==='memory-map')&&!runtime.memoryAvailable)) && <p role="status" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">Not available yet. No changes have been saved.</p>}
-        {runtime?.hasOlder && activeSection==='chat' && <button disabled={runtime.loading||runtime.busy} onClick={runtime.onOlder} className="py-2 text-xs underline shrink-0">Load earlier messages</button>}
-        {runtime && activeSection==='memory' && <div className="px-4 py-2 text-xs shrink-0">Read-only list. Ask Mroya in chat to update your memory.{runtime.hasMoreMemories&&<button disabled={runtime.loading||runtime.busy} onClick={runtime.onMoreMemories} className="ml-3 underline">Load more memories</button>}</div>}
-        {runtime?.truncated && activeSection==='memory-map' && <p role="status" className="p-2 text-xs shrink-0">This map is limited by the server; some connections are not shown.</p>}
+        {runtime && !runtime.loading && !runtime.error && ((activeSection==='calendar'&&!runtime.calendarAvailable)||(activeSection==='reminders'&&!runtime.remindersAvailable)||(activeSection==='chat'&&!runtime.chatAvailable)||((activeSection==='memory'||activeSection==='memory-map')&&!runtime.memoryAvailable)) && <p role="status" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">{tr('unavailable',{ns:'workspace'})}</p>}
+        {runtime?.hasOlder && activeSection==='chat' && <button disabled={runtime.loading||runtime.busy} onClick={runtime.onOlder} className="py-2 text-xs underline shrink-0">{tr('loadEarlier',{ns:'workspace'})}</button>}
+        {runtime && activeSection==='memory' && <div className="px-4 py-2 text-xs shrink-0">{tr('readOnlyMemory',{ns:'workspace'})}{runtime.hasMoreMemories&&<button disabled={runtime.loading||runtime.busy} onClick={runtime.onMoreMemories} className="ml-3 underline">{tr('loadMoreMemories',{ns:'workspace'})}</button>}</div>}
+        {runtime?.truncated && activeSection==='memory-map' && <p role="status" className="p-2 text-xs shrink-0">{tr('mapTruncated',{ns:'workspace'})}</p>}
         <div className="flex flex-1 min-w-0 min-h-0">
         {activeSection === 'chat' && (
           <>
-            <ChatWorkspace
+            <ChatWorkspace isAdmin={runtime ? !!runtime.features?.technicalDiagnostics : true} showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true} showModelReasoning={runtime?.showModelReasoning} install={model.install}
+              speech={model.speech}
+              onImageOpen={model.imageViewer?.onOpen}
+              aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
               pending={runtime?.pending??feedback?.loading}
               isThinking={runtime?.busy ?? feedback?.busy}
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}
+              documentsAvailable={model.documentsAvailable}
+              draftAttachments={model.chatAttachments}
               account={account}
               memoriesCount={runtime?.memoriesTotal??memories.length}
               conversation={activeConversation}
@@ -107,11 +131,13 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'calendar' && (
           <CalendarView
-            designEventAnalysis={runtime?undefined:model.designIntelligence?.EventAnalysis}
+            memoryLinksNavigation={model.memoryLinksNavigation}
             samples={model.calendarSamples}
             readOnly={!!runtime&&!runtime.calendarAvailable}
             live={!!runtime}
             calendar={model.calendar}
+            showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
+            showReminders={runtime ? !!runtime.features?.reminders : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarNotice={model.googleCalendarNotice}
             events={events}
@@ -128,6 +154,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onSimulateGoogleSync={handleSimulateGoogleSync}
             onNavigateToReminders={onCalendarViewNavigateToReminders}
             googleCalendarConnected={runtime&&!model.googleCalendarAvailable?false:googleCalendarConnected}
+            autoSync={model.autoSync}
             gcalSyncState={runtime&&!model.googleCalendarAvailable?undefined:model.gcalSyncState}
             googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
             isSidebarCollapsed={isSidebarCollapsed}
@@ -157,11 +184,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
 
-        {activeSection==='memory'&&runtime&&!runtime.memoryInboxAvailable&&model.memoryInbox?.error&&<p role="alert" className="px-4 py-2 text-sm border-b border-[var(--mroya-divider)]">{model.memoryInbox.error}<button type="button" className="ml-3 underline" onClick={model.memoryInbox.onRefresh}>Retry Inbox</button></p>}
         {activeSection === 'memory' && (
           <MemoryView
-            key={model.memoryInbox?.scopeKey??'saved-memory'}
-            inbox={!runtime||runtime.memoryInboxAvailable===true?model.memoryInbox:undefined}
+            key="saved-memory"
             readOnly={!!runtime}
             memories={memories}
             selectedMemoryId={selectedMemoryViewId}
@@ -197,13 +222,17 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            memoryTransfer={model.memoryTransfer}
+            showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
+            calendarAnalysis={model.calendarAnalysis}
+            memoryReview={model.memoryReview}
             privacy={model.privacy}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
-            designIntelligence={runtime?undefined:model.designIntelligence}
             timezoneSettings={runtime?.timezoneSettings}
             onChangeTimezone={runtime?.timezoneSettings?.onChange??model.onChangeTimezone}
             connectionSamples={runtime?undefined:model.connectionSamples}
+            showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarBusy={model.googleCalendarBusy}
             googleCalendarNotice={model.googleCalendarNotice}
@@ -230,6 +259,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             live={!!runtime}
             telegram={runtime?.telegram}
             preferenceSave={runtime?.preferenceSave}
+            languageSave={runtime?.languageSave}
+            language={model.language}
+            onChangeLanguage={model.onChangeLanguage}
             showModelReasoning={runtime?.showModelReasoning}
             onToggleShowModelReasoning={runtime?.onToggleShowModelReasoning}
             onSaveNickname={runtime?.onSaveNickname ?? model.onSaveNickname}
@@ -248,25 +280,40 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}
           />
         )}
+
+        {activeSection === 'files' && <FilesView runtime={model.files} onImageOpen={model.imageViewer?.onOpen} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar} onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}/> }
+
+        {activeSection === 'notes' && notesAvailable && (
+          <NotesView
+            memoryLinksNavigation={model.memoryLinksNavigation}
+            key={model.notesRuntime?.scopeKey}
+            runtime={model.notesRuntime}
+            notes={model.notes ?? []}
+            designPreview={!runtime}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onExpandSidebar={onConnectionsSettingsViewExpandSidebar}
+            onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}
+          />
+        )}
         </div>
-        {runtime?.notice && <div className="absolute top-16 left-3 right-3 z-40 max-w-md mx-auto"><AccessNotice message={runtime.notice} onClose={runtime.onCloseNotice}/></div>}
+        {runtime?.notice && <div className="absolute top-16 left-3 right-3 z-40 max-w-md mx-auto"><AccessNotice message={tr(runtime.notice,{ns:'workspace'})} onClose={runtime.onCloseNotice}/></div>}
       </main>
 
       {/* Subscription Plan Preview Modal (Free vs Mroya Premium) */}
       {planModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
-          <div className="w-full max-w-lg rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-6 space-y-5">
+          <DialogFocus onClose={onClosePlanPreview} role="dialog" aria-modal="true" aria-labelledby="plan-preview-title" tabIndex={-1} className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-6 space-y-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
-                <h2 className="text-[17px] font-semibold text-[var(--mroya-text)]">
-                  Mroya Subscription Preview
+                <h2 id="plan-preview-title" className="text-[17px] font-semibold text-[var(--mroya-text)]">
+                    {tr('subscriptionPreview',{ns:'workspace'})}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onClosePlanPreview}
-                aria-label="Close plan modal"
+                aria-label={tr('close',{ns:'common'})}
                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -274,7 +321,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             </div>
 
             <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[20px]">
-              Preview how Mroya presents subscription states in the sidebar and workspace header.
+              {tr('subscriptionHelp',{ns:'workspace'})}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -287,10 +334,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               >
                 <div className="space-y-1.5">
                   <div className="text-[15px] font-semibold text-[var(--mroya-text)]">
-                    Free Plan
+                    {tr('freePlan',{ns:'workspace'})}
                   </div>
                   <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
-                    Clean default state with a quiet Upgrade link and no intrusive banners.
+                    {tr('freePlanHelp',{ns:'workspace'})}
                   </p>
                 </div>
                 <button
@@ -298,7 +345,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                   onClick={onPreviewFreePlan}
                   className="w-full py-2 px-3 rounded-full bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
                 >
-                  {plan === 'free' ? 'Active (Free)' : 'Switch to Free'}
+                  {plan === 'free' ? tr('activeFree',{ns:'workspace'}) : tr('switchFree',{ns:'workspace'})}
                 </button>
               </div>
 
@@ -315,7 +362,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                     <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                   </div>
                   <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[18px]">
-                    Restrained warm-gold accent with upgrade prompts removed.
+                    {tr('premiumDescription',{ns:'workspace'})}
                   </p>
                 </div>
                 <button
@@ -324,11 +371,11 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
                   className="w-full py-2 px-3 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{plan === 'premium' ? 'Active (Premium)' : 'Preview Mroya Premium'}</span>
+                  <span>{plan === 'premium' ? tr('activePremium',{ns:'workspace'}) : tr('previewPremium',{ns:'workspace'})}</span>
                 </button>
               </div>
             </div>
-          </div>
+          </DialogFocus>
         </div>
       )}
 
@@ -341,5 +388,12 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         events={events}
         preselectedEventId={reminderPreselectedEventId}
       />
-    </div>);
+      <AiTasksDrawer isOpen={tasksOpen} onClose={closeTasks} tasks={model.aiTasks?.tasks??[]}
+       loading={model.aiTasks?.loading} error={model.aiTasks?.error} hasMore={model.aiTasks?.hasMore}
+       onRefresh={model.aiTasks?.onRefresh} onMore={model.aiTasks?.onMore} highlightTaskId={taskHighlight}
+       executingTaskId={model.aiTasks?.executingTaskId} onExecute={model.aiTasks?.onExecute}
+       cancellingTaskId={model.aiTasks?.cancellingTaskId} onCancel={model.aiTasks?.onCancel}
+       decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision} onReport={model.aiTasks?.onReport}/>
+      <ImageLightbox viewer={model.imageViewer}/>
+    </WorkspaceSurface>);
 }

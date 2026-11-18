@@ -83,12 +83,9 @@ test('useDemoWorkspace supports creating, selecting, renaming and permanently de
 
 test('Sidebar includes exact delete confirmation dialog text and destructive button', () => {
   const sidebarSource = fs.readFileSync('src/components/Sidebar.tsx', 'utf8');
-  assert.match(
-    sidebarSource,
-    /Permanently delete this chat and all its messages\? This cannot be undone\. Your saved memories will not be affected\./
-  );
-  assert.match(sidebarSource, /saving \? 'Deleting…' : 'Delete'/);
-  assert.match(sidebarSource, />\s*Cancel\s*<\/button>/);
+  assert.match(sidebarSource, /tr\('deletePrompt',\{ns:'sidebar'\}\)/);
+  assert.match(sidebarSource, /saving \? tr\('deleting',\{ns:'sidebar'\}\) : tr\('delete',\{ns:'sidebar'\}\)/);
+  assert.match(sidebarSource, /tr\('cancel',\{ns:'common'\}\)/);
 });
 
 test('ChatWorkspace renders empty state when active conversation is null or has no messages', () => {

@@ -1,8 +1,0 @@
-import type {IntelligenceProposal,IntelligenceCapabilities,IntelligenceRuntime} from '../src/types/intelligenceApi.ts';
-export const proposalId='10000000-0000-4000-8000-000000000001';
-export const capabilities:IntelligenceCapabilities={stage:'safe_apply',inbox:true,deep_analysis:true,memory_apply:true,auto_link:true,auto_write:false,related_sources:true};
-export const runtime:IntelligenceRuntime={worker_enabled:true,deep_enabled:true,apply_enabled:true};
-export function proposal(patch:Partial<IntelligenceProposal>={}):IntelligenceProposal{
- return {id:proposalId,version:1,status:'pending',source:{kind:'calendar',id:'10000000-0000-4000-8000-000000000002',resource_id:'10000000-0000-4000-8000-000000000003',revision:'a'.repeat(64)},space_uuid:'10000000-0000-4000-8000-000000000004',source_preview:{available:true,title:'Synthetic event',calendar_name:'Synthetic calendar',date:'2026-10-20',time_kind:'all_day',recurrence:{frequency:'yearly',interval:1}},plan:{rationale:'Synthetic rationale',matches:[{mention:'Synthetic person',objects:[{object_uuid:'10000000-0000-4000-8000-000000000005',label:'Synthetic person',kind:'person'}]}],actions:[{type:'link',target:{reference:'existing',object_uuid:'10000000-0000-4000-8000-000000000005'},reason:'Synthetic reason'}]},policy:'auto_link',analysis_version:'deep-v1',memory_applied:false,canonical_saved:false,search_ready:false,apply:null,created_at:'2026-10-20T10:00:00Z',updated_at:'2026-10-20T10:00:00Z',...patch};
-}
-export const operation=(result:Record<string,any>={},status='pending')=>({operation_id:'10000000-0000-5000-8000-000000000006',status,code:null,attempts:1,result});

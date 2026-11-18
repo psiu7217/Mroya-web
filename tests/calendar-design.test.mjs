@@ -4,7 +4,7 @@ import {createServer} from 'vite';
 const key='__calendarDesignHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
  name:'calendar-design-hooks',enforce:'pre',
- transform(code,id){if(/\/(useDemoMemoryInbox|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
+ transform(code,id){if(/\/(useDemoFiles|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView|WorkspaceView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
  resolveId(id){if(id==='virtual:calendar-design-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:calendar-design-hooks')return `import React from 'react';
  ${['useState','useRef','useEffect','useMemo','useSyncExternalStore'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}
@@ -18,7 +18,7 @@ const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 const originals=Object.fromEntries(['window','document','setTimeout','clearTimeout','fetch'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
 let requests=0,timerId=0;const timers=new Map();
 globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};
-globalThis.document={documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
+globalThis.document={querySelectorAll:()=>[],documentElement:{setAttribute(){},removeAttribute(){}},addEventListener(){},removeEventListener(){}};
 globalThis.setTimeout=callback=>{const id=++timerId;timers.set(id,callback);return id;};
 globalThis.clearTimeout=id=>timers.delete(id);
 globalThis.fetch=()=>{requests++;throw new Error('Design must stay offline');};
@@ -39,7 +39,11 @@ function all(node,predicate){if(!node||typeof node!=='object')return [];return [
 function find(tree,predicate){const node=all(tree,predicate)[0];assert.ok(node,'expected element');return node;}
 function text(node){if(node===null||node===undefined||typeof node==='boolean')return '';if(typeof node!=='object')return String(node);return [node.props?.children].flat(Infinity).map(text).join(' ');}
 const button=(tree,label)=>find(tree,node=>node.type==='button'&&text(node).trim()===label);
-const child=(model,section,type)=>find(WorkspaceView({model:{...model,activeSection:section}}),node=>node.type===type).props;
+const child=(model,section,type)=>{
+ const view=mount(()=>WorkspaceView({model:{...model,activeSection:section}}));
+ try{return find(view.flush(),node=>node.type===type).props;}
+ finally{view.unmount();}
+};
 const calendar=model=>child(model,'calendar',CalendarView);
 const settings=model=>child(model,'connections',ConnectionsSettingsView);
 const event={title:'Local appointment',date:'2026-10-12',dayOfMonth:12,time:'12:00',duration:'1h',category:'meeting',source:'manual',notes:''};
@@ -171,7 +175,7 @@ test('Profile timezone uses confirmed state, keeps failed selection and supports
  assert.equal(select().props.disabled,false);assert.ok(all(page.value,node=>node.type==='option'&&node.props.value==='Pacific/Chatham').length);
  select().props.onChange({target:{value:'Pacific/Chatham'}});page.flush();assert.equal(select().props.value,'Pacific/Chatham');assert.equal(store.snapshot().timezone,'UTC');assert.match(text(page.value),/Saving timezone/);assert.doesNotMatch(text(page.value),/Saved ·/);
  resolve();for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.match(text(page.value),/Saved ·\s*Pacific\/Chatham/);
- fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/Timezone request failed/);assert.doesNotMatch(text(page.value),/Saved ·/);
+ fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/The timezone could not be saved/);assert.doesNotMatch(text(page.value),/Saved ·/);
  button(page.value,'Retry timezone').props.onClick();for(let i=0;i<12;i++)await Promise.resolve();page.flush();assert.equal(store.snapshot().timezone,'Asia/Tokyo');assert.match(text(page.value),/Saved ·\s*Asia\/Tokyo/);
  page.unmount();view.unmount();store.stop();assert.equal(requests,0);
 });
@@ -213,12 +217,12 @@ for(const live of [false,true])for(const dialog of ['create','edit','delete'])te
  if(dialog!=='delete'){
   const form=find(page.value,node=>node.type==='form');
   const grid=find(form,node=>node.props?.className==='grid grid-cols-2 gap-3'&&all(node,item=>item.type==='input'&&item.props.type==='date').length>0);
-  assert.deepEqual(all(grid,node=>node.type==='label').map(node=>text(node).trim()),['Date','Time']);
+  assert.deepEqual(all(grid,node=>node.type==='label').map(node=>text(node).trim()),['Date','Time','All day']);
   const inputs=all(grid,node=>node.type==='input');assert.equal(inputs[0].props.className,inputs[1].props.className);
  }
  props={...props,calendar:{...props.calendar,busy:true}};page.flush();assert.match(text(page.value),/Saving calendar change/);
  props={...props,calendar:{...props.calendar,loading:false,busy:false,error:'Calendar backend unavailable'}};page.flush();
- assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Calendar backend unavailable/);
+ assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Could not save this change/);
  button(page.value,'Retry / check calendar').props.onClick();await Promise.resolve();assert.equal(retries,1);
  props={...props,calendar:{...props.calendar,error:null}};page.flush();assert.deepEqual(markup(page.value),before);
  page.unmount();view.unmount();timers.clear();assert.equal(requests,0);
@@ -242,4 +246,78 @@ test('visible live Calendar still refreshes every 10 seconds and on focus/visibi
   globalThis.document.visibilityState='hidden';tick();assert.equal(reads,initial+3);
   page.unmount();page=null;assert.equal(cleared,true);assert.equal(listeners.size,0);
  }finally{page?.unmount();Object.assign(globalThis,saved);}
+});
+
+test('all create entry points use selected full date; open drafts are untouched and Cancel resets the next opening',()=>{
+ const view=workspace(),page=mount(()=>CalendarView(calendar(view.value)));page.flush();button(page.value,'Month').props.onClick();page.flush();button(page.value,'22').props.onClick();page.flush();
+ find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();
+ const date=()=>find(page.value,n=>n.type==='input'&&n.props.type==='date');assert.equal(date().props.value,'2026-10-22');
+ date().props.onChange({target:{value:'2028-02-29'}});page.flush();find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();assert.equal(date().props.value,'2028-02-29');
+ button(page.value,'Cancel').props.onClick();page.flush();
+ for(let i=0;i<3;i++){find(page.value,n=>n.type==='button'&&n.props.title==='Next month').props.onClick();page.flush();}
+ button(page.value,'+ Add event').props.onClick();page.flush();assert.equal(date().props.value,'2027-01-22');page.unmount();view.unmount();
+});
+
+for(const editing of [false,true])test(`${editing?'edit':'create'} uses the same time mask, field error and explicit All day choice`,async()=>{
+ const view=workspace(),writes=[];const existing={...event,id:'clock'};
+ const props={...calendar(view.value),events:[existing],onAddEvent:async e=>{writes.push(e);return false;},onEditEvent:async e=>{writes.push(e);return false;}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ if(editing){button(page.value,'Month').props.onClick();page.flush();find(page.value,n=>n.type==='button'&&n.props.title==='Edit commitment').props.onClick();}
+ else find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();
+ page.flush();const form=()=>find(page.value,n=>n.type==='form');
+ const title=find(form(),n=>n.type==='input'&&n.props.type==='text'&&!n.props['aria-label']);title.props.onChange({target:{value:'Clock test'}});page.flush();
+ const clock=()=>find(page.value,n=>n.type==='input'&&n.props['aria-label']===(editing?'Edit event time':'New event time'));
+ const input=raw=>{clock().props.onChange({target:{value:raw,selectionStart:raw.length}});page.flush();};
+ input('1630');assert.equal(clock().props.value,'16:30');input('09:45');assert.equal(clock().props.value,'09:45');input('ab');assert.equal(clock().props.value,'');
+ for(const bad of ['2400','1875','123']){input(bad);await form().props.onSubmit({preventDefault(){}});page.flush();assert.equal(writes.length,0);assert.match(text(form()),/00:00–23:59/);}
+ input('16:3');assert.equal(clock().props.value,'16:3');input('16:');assert.equal(clock().props.value,'16');
+ const allDay=find(form(),n=>n.type==='label'&&text(n).trim()==='All day');find(allDay,n=>n.type==='input').props.onChange({target:{checked:true}});page.flush();assert.equal(clock().props.disabled,true);
+ await form().props.onSubmit({preventDefault(){}});page.flush();assert.equal(writes.length,1);assert.equal(writes[0].time,'All day');page.unmount();view.unmount();
+});
+
+test('month title width is stable for all 12 English months; Auto Sync uses confirmed boolean and keeps attention states',()=>{
+ const view=workspace();let props={...calendar(view.value),googleCalendarConnected:true,autoSync:true,gcalSyncState:'connected_auto_on'};
+ const page=mount(()=>CalendarView(props));page.flush();assert.doesNotMatch(text(page.value),/Google Calendar integration/);let monthClass;
+ for(let i=0;i<12;i++){
+  const month=find(page.value,n=>n.type==='button'&&n.props.title==='Click to jump to another month or year');monthClass??=month.props.className;assert.equal(month.props.className,monthClass);assert.match(month.props.className,/w-\[150px\]/);
+  find(page.value,n=>n.type==='button'&&n.props.title==='Next month').props.onClick();page.flush();
+ }
+ for(const state of ['syncing','initial_syncing']){props={...props,gcalSyncState:state};page.flush();assert.doesNotMatch(text(page.value),/Google Calendar integration/);}
+ for(const state of ['sync_error','conflict','reconnect_required']){props={...props,gcalSyncState:state};page.flush();assert.match(text(page.value),/Google Calendar integration/);button(page.value,'Manage connection');}
+ props={...props,gcalSyncState:'connected_auto_on',autoSync:false};page.flush();assert.match(text(page.value),/Google Calendar integration/);
+ assert.ok(all(page.value,n=>n.type==='button'&&n.props.onClick===props.onOpenConnections).length>=2,'mobile access remains');page.unmount();view.unmount();
+});
+
+test('live Upcoming respects selected November date, displays December and navigates to its actual year/date',()=>{
+ const view=workspace(),year=new Date().getFullYear()+1;
+ const events=[{...event,id:'old2',title:'OLD NOVEMBER 2',date:`${year}-11-02`},{...event,id:'old8',title:'OLD NOVEMBER 8',date:`${year}-11-08`},{...event,id:'dec',title:'December upcoming',date:`${year}-12-02`}];
+ const props={...calendar(view.value),live:true,events:[],calendar:{...calendar(view.value).calendar,timezone:'Europe/Minsk',upcoming:{events,loading:false,error:null,onStartChange(){},onRetry(){}}}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ find(page.value,n=>n.type==='button'&&n.props.title==='Click to jump to another month or year').props.onClick();page.flush();button(page.value,String(year)).props.onClick();page.flush();button(page.value,'Nov').props.onClick();page.flush();button(page.value,'Month').props.onClick();page.flush();button(page.value,'22').props.onClick();page.flush();
+ assert.doesNotMatch(text(page.value),/OLD NOVEMBER/);assert.match(text(page.value),/December upcoming/);
+ find(page.value,n=>n.type==='button'&&text(n).includes('December upcoming')).props.onClick();page.flush();find(page.value,n=>n.type==='button'&&n.props['aria-label']==='New commitment').props.onClick();page.flush();assert.equal(find(page.value,n=>n.type==='input'&&n.props.type==='date').props.value,`${year}-12-02`);page.unmount();view.unmount();
+});
+
+test('Calendar content swipes still change months; inner edge gesture is reserved for the mobile drawer',()=>{
+ const view=workspace(),page=mount(()=>CalendarView(calendar(view.value)));page.flush();
+ const gesture=(start,end)=>{page.value.props.onTouchStart({touches:[{clientX:start,clientY:200}]});page.value.props.onTouchEnd({changedTouches:[{clientX:end,clientY:205}]});page.flush();};
+ assert.match(text(page.value),/October/);gesture(220,100);assert.match(text(page.value),/November/);
+ gesture(100,220);assert.match(text(page.value),/October/);
+ gesture(24,180);assert.match(text(page.value),/October/);
+ page.unmount();view.unmount();
+});
+
+for(const kind of ['create','edit','delete'])test(`${kind} dialog cannot discard its form via Escape/backdrop/cancel while saving or unresolved`,async()=>{
+ const view=workspace(),existing={...event,id:'protected-modal',date:'2024-02-12',dayOfMonth:12,recurrence:{frequency:'daily',interval:1,endCondition:'never'}};
+ let props={...calendar(view.value),events:[existing],readOnly:false,calendar:{loading:false,busy:false,mutationPending:false,error:null,timezone:'UTC',onRangeChange(){},onLoadEventForEdit:async()=>existing,onRetry:async()=>false}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ if(kind==='create')button(page.value,'+ Add event').props.onClick();else{button(page.value,'Month').props.onClick();page.flush();await find(page.value,n=>n.type==='button'&&n.props.title===(kind==='edit'?'Edit commitment':'Delete commitment')).props.onClick();}page.flush();
+ const label={create:'new-event-title',edit:'edit-event-title',delete:'delete-event-dialog-title'}[kind];
+ for(const patch of [{busy:true,mutationPending:false},{busy:false,mutationPending:true}]){
+  props={...props,calendar:{...props.calendar,...patch}};page.flush();let dialog=find(page.value,n=>n.props?.['aria-labelledby']===label);
+  dialog.props.onClose();dialog.props.onClick?.();page.flush();assert.ok(find(page.value,n=>n.props?.['aria-labelledby']===label));
+  button(find(page.value,n=>n.props?.['aria-labelledby']===label),'Cancel').props.onClick();page.flush();assert.ok(find(page.value,n=>n.props?.['aria-labelledby']===label));
+ }
+ props={...props,calendar:{...props.calendar,busy:false,mutationPending:false}};page.flush();find(page.value,n=>n.props?.['aria-labelledby']===label).props.onClose();page.flush();assert.equal(all(page.value,n=>n.props?.['aria-labelledby']===label).length,0);
+ page.unmount();view.unmount();
 });

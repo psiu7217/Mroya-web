@@ -1,4 +1,100 @@
+Historical Memory save conflicts (`new_entity_candidate_found` /
+`confirmed_memory_conflict`) with a server-authorized Retry now reopen the same
+proposal for explicit Save through the shared Memory writer. They do not trigger
+Deep Analysis. The companion API release owns this behavior; UI translations must
+not assert that a real duplicate or contradiction has been established. Analysis
+failures still retry analysis. Save remains manual without a background deadline.
+
 # Backend contract for Mroya Web
+
+Image generation uses the companion API image-generation release and migrations
+`provider.0014` / `documents.0003`. Admin selects a separate OpenRouter image model.
+Chat calls the server-owned `generate_image` tool; Web never sends provider
+credentials or generation requests. File DTOs optionally include
+`source=uploaded|generated` (missing means a legacy upload).
+`documents/?category=generated` lists the owner's generated files. The collection
+includes files moved into another category. Generated originals use the existing
+authenticated `/api/v1/documents/{id}/original/` URL. Assistant Markdown displays
+images only at this exact relative path; remote/data URLs remain omitted.
+Live `generate_image` activities have kind `tool` and null input/output, keeping
+prompts and base64 out of SSE activity. Deploy API before Web.
+
+The Chat image card follows that activity's running/finished lifecycle and shows
+an indeterminate circular indicator; no percentage is inferred. Opening an image
+loads its existing authenticated original through the session client, with a
+25 MiB bound and raster MIME/signature checks. The viewer shares the actual File
+through the device share sheet. Without file sharing it copies a PNG when the
+clipboard permits, or offers download. Private original URLs are never presented
+as publicly shareable links. Bytes/object URLs are disposed on close, conversation
+change and logout. File preloading happens before the Share click, retaining the
+browser's required transient user activation.
+
+Memory-transfer version 2 accepts optional `object_merges` (`from` → `into` UUIDs)
+and a non-executable `editing_guide`. New exports include both fields; the client
+preserves the complete JSON when downloading or submitting it. Backend redirects
+typed Memory references and transfers calendar/note links, with recoverable import
+and restoration. See the companion [memory transfer guide](https://github.com/psiu7217/Mroya-api/blob/main/docs/MEMORY-TRANSFER.md).
+Feature availability comes from the server and is separate from validation of the
+selected file. A rejected file must not display “Memory import is not available yet”.
+
+General file uploads are introduced by the companion Document service release.
+See [DOCUMENTS](DOCUMENTS.md) for its capability, owner-scoped multipart upload,
+chat attachment IDs, original links and category-search behavior. Existing
+servers without `capabilities.documents===true` keep uploads unavailable. This
+supersedes the original inventory's statement that no attachment API exists;
+the companion backend must be deployed before activation.
+
+The AI Tasks product presentation requires the companion Backend DTO update:
+Intelligence tasks have event_title, questions, needs_clarification and
+review_phase (answer_processing/null). facts remains a string array with human
+labels/literals and self/negation/validity in the owner's saved language. description is the event title;
+rationale/reasons and opaque references are never display content. The reader
+discards legacy facts without the new presentation fields and ignores legacy descriptions for non-Chat rows.
+Save remains authorized exclusively by actions=accept and existing server checks.
+Answer/Correct/Study with context use the same versioned comment endpoint; no
+ChatTurn or presentation AI request is introduced. Questions are displayed as
+received, regardless of UI language or script. Backend owns generated text language
+using saved User.language; the frontend never detects/translates/replaces questions.
+Existing stored questions are not rewritten or reanalyzed for translation. See the canonical
+[Calendar AI tasks contract](https://github.com/psiu7217/Mroya-api/blob/main/docs/CALENDAR-AI-TASKS.md).
+
+Calendar first-stage controls require the companion Backend calendar-analysis
+release and migration `intelligence.0011`. Inside the Google Calendar card,
+`GET calendar/google/connections/{id}/analysis/` lists selected calendars;
+`GET calendar/google/calendars/{id}/analysis/events/?limit=50&offset=0` lazily
+loads event rows. Session/CSRF POST to `analysis/stop/` or `analysis/retry/`
+uses the current `{version}`; retry optionally carries `job_id` for one row.
+Canonical permissions and counts come from the server. A conflict or lost
+response triggers GET, never an automatic repeated POST. Stop may remain
+`stopping` while a request already sent settles. The closed-by-default list
+shows human statuses only; initial classifications remain in settings, while
+approved events retain the existing AI Tasks review flow. Full contract:
+[Calendar analysis controls](https://github.com/psiu7217/Mroya-api/blob/main/docs/CALENDAR-ANALYSIS-CONTROLS.md).
+
+Task-panel cancellation requires the companion Backend cancellation release.
+Task DTOs carry optional boolean `can_cancel` (missing means unavailable). The
+panel sends session/CSRF POST `agent-tasks/{uuid}/cancel/` with `{"pending_only":false}` for queued or
+eligible needs_clarification tasks; cancelled remains in history/Issues. A lost
+response or conflict triggers a canonical GET, never an automatic repeated POST.
+Chat's existing window Cancel/Edit keeps `{}` and its unchanged deadline checks.
+Older Backend versions omit permission so panel Cancel remains hidden; do not infer permission from model
+text or client-side error-code lists.
+
+Chat Memory confirmations use the companion API's additive `review: string[]`:
+frozen, human-readable proposed values without execution references. The Web
+validates and displays these rows beside the self-contained description in one
+card bound to the original task ID. It does not parse the assistant's fallback
+answer into facts or infer successful persistence. Existing canonical task
+updates replace the card's state; completed Memory alone displays Saved.
+Queued/running/failed/needs_clarification/cancelled retain their distinct states.
+
+Older APIs or legacy snapshots can omit the review or return an empty array.
+For a single legacy Memory receipt, the original confirmation remains accessible
+inside the card (expanded while awaiting confirmation); a mixed legacy batch
+retains its original answer. Failed chat turns still show accepted receipts as
+well as their failure. The timer, delivery ACK, approval/revocation/edit requests
+and write reconciliation are unchanged. Model action-description guidance is
+domain-independent and does not introduce another AI request.
 
 Mroya API is authoritative for identity, user data and business logic. This inventory was checked against Django routes/views, chat and memory services, and Google OAuth application code installed at `503f99c98c`. The canonical methods, payloads, DTOs, limits and errors are in [API.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md); OAuth setup and flow are in [GOOGLE-OAUTH.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/GOOGLE-OAUTH.md). Read those references before adding a feature. Markdown alone does not establish API availability: verify current code and capabilities.
 
@@ -46,7 +142,7 @@ Submit an ordinary same-origin POST form to auth/google/start/; do not fetch-fol
 
 Available in the original contract: chat, memory_read, memory_mutations_via_chat. google_oauth is configuration-dependent. Backend Calendar PR #28 additionally advertises calendar_rest, connections_rest and local_recurrence; enable these only from actual runtime capabilities, since older servers still return false. memory_mutations_rest, reminders and sse_token_streaming remain unsupported. Missing/unknown flags mean unsupported. See the Calendar section below.
 
-Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, attachment/voice upload, chat cancellation endpoints. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
+Authenticated Google Connect is published by the API; a Connect UI is outside this preferences PR. There are no public subscription, password signup, general attachment upload or chat cancellation endpoints. Voice dictation is separately introduced by the companion Speech-to-Text Backend PR described below. Existing internal modules and design screens do not establish those contracts. If a required route is absent, report the necessary API work; never invent a URL or pass local simulated state off as persisted data.
 
 Design Mode remains a separate offline build with fictional data/accounts. Production cannot be switched into Design Mode through query strings, storage or a user control. Preserve all visual screens and responsive layout; live unavailable features remain explicitly unavailable. See [AI Studio workflow](AI_STUDIO_WORKFLOW.md) and [guest/live behavior](GUEST_CHAT.md).
 
@@ -374,3 +470,92 @@ explicitly labelled inert Preview / Soon examples, separate from real user data.
 Their actions await verified Intelligence DTOs and owner-scoped IDs.
 HTTP 202 means queued, never delivered. A source PR does not establish deployment
 or worker readiness; old servers remain unavailable without demo fallback.
+
+
+## Notes v1 (read-only)
+
+Reviewed against API PR #38 `255a4ae444eef168e0d25edf42df7cf8d0fe7e36`,
+merged into API main. Deployment is independent: missing `notes_read` remains
+unavailable. See [Notes integration](NOTES.md) and the canonical
+[Backend contract](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md#notes).
+
+- GET `notes/?limit=20&offset=0`: `{notes, limit, offset, has_more}`. Each brief
+  record has `id`, `space_uuid`, `title`, `summary`, `keywords`, `search_phrases`,
+  `version`, `sync_status` (`pending|synced|error`), `created_at`, `updated_at`.
+  Limit 1..50, offset 0..10000; Web uses 20. Sorted updated_at then UUID descending.
+- GET `notes/{uuid}/`: `{note}` with the same fields plus exact `content` and
+  `memory_links: [{space_uuid, object_uuid}]`. Missing/deleted/foreign notes: 404.
+- Authenticated Django session, same-origin GET only. Normal 401/session expiry,
+  403/access denial and bounded JSON validation apply. Errors never mean empty.
+- `notes_read: true` enables a configured authenticated source; omitted/false flags
+  keep Notes hidden. No REST POST/PATCH/DELETE. Agent-only writes happen via Chat.
+  No category/source/readTime/noteType or server full-text search contract exists.
+
+Keep raw Markdown and temporary checklist overrides separate. Do not send checks
+back or persist them until a separately approved write contract exists.
+
+
+## Calendar proposals in AI tasks
+
+Requires the paired Calendar AI Tasks API release and intelligence.0010 migration.
+GET ai-tasks/?limit=50&offset=0 returns the unified, owner-scoped list; GET
+ai-tasks/{uuid}/ returns its canonical task. Chat mutation URLs are unchanged.
+
+Intelligence rows add task_kind (calendar_review / memory_proposal), version,
+actions (accept / reject / comment), event_date, facts and result_code.
+awaiting_review waits indefinitely, with no Chat delivery ACK or countdown.
+POST ai-tasks/{uuid}/decision/ uses session/CSRF and structured action, version,
+request_id UUID and optional comment (required for comment, 1..2000 characters).
+A 409 reconciles through canonical GET without replaying the decision.
+
+Successful Google import registers initial-filter-v1 once per selected calendar.
+Approved candidates appear automatically through existing task polling. Study or
+Study with comment authorizes Deep directly; Save separately authorizes the frozen
+Memory plan. Comment on a Memory proposal prepares a new version without saving.
+Completed Memory results require a confirmed canonical receipt. Rejected or
+unavailable/changed-source tasks cannot authorize a new write.
+
+The former memory-intelligence settings, scans, initial queue/results and proposal
+routes are removed. Their separate production UI/controllers/clients are retired.
+Main Memory/Map and Calendar Sync remain; diagnostics stay on Backend.
+
+## Manual AgentTask execution
+
+POST agent-tasks/{uuid}/execute/ accepts {} using session + CSRF, executes the
+owner's selected queued task synchronously, and returns HTTP 200 {task:<DTO>}.
+404 means foreign/missing; 409 task_not_queued or owner_task_running prevents a
+second execution. Never automatically replay this POST, including after a timeout
+or CSRF rejection. Use existing list/detail GETs to reconcile while it runs.
+DTOs add started_at, finished_at (ISO/null) and duration_ms (integer/null), backed
+by the existing AgentTask model dates. The sole user Chat remains reads + enqueue;
+manual domain execution is a separate internal service with no worker/scheduler.
+
+
+## AgentTask confirmation (paired API PR #80 / Web PR #57)
+
+Each new structured task receipt is pending_confirmation and initially has a null
+confirm_deadline_at. A rendered Chat card sends POST agent-tasks/{id}/review/ with
+{} using the existing session/CSRF client. Only that delivery ACK starts its
+immutable 15-second UTC deadline; model time, polling and history reads do not.
+The task's server_time corrects the display clock. At expiry the server's effective
+state is queued even with all tabs closed; actual execution remains manual.
+
+POST approve/ queues; POST cancel/ revokes pending work before expiry without AI.
+Edit waits for canonical cancelled, then sends description + comment as a new Chat
+message only on explicit submit. Cancelling input never revives the original.
+409 responses include canonical task state and are followed by a GET. The drawer
+and every bound Chat receipt share the controller's canonical rows; stale reads
+must not regress a confirmed/terminal state. Legacy tasks keep previous behavior.
+
+
+## Voice dictation (companion Backend PR, deployment pending)
+
+`POST chat/transcriptions/` uses the existing authenticated session and CSRF,
+with multipart/form-data containing one `file` part. Success: `{text:string}`.
+The Backend uses Groq whisper-large-v3-turbo with automatic language detection;
+no translation. Limits: 120 seconds, 12 MiB, six requests/minute and 30/hour per
+user. WebM, audio-only MP4/M4A, OGG, WAV, FLAC and MP3 are verified server-side.
+Missing configuration returns 503; no anonymous transcription is enabled.
+This only inserts editable text into the composer. It creates no ChatTurn,
+Agent/Deep Analysis/Memory operation and never submits automatically.
+See [implementation and mobile acceptance](SPEECH-TO-TEXT.md).

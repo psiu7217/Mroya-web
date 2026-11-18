@@ -4,7 +4,6 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createServer} from 'vite';
 import fs from 'node:fs';
-import {execFileSync} from 'node:child_process';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom'});
 after(()=>vite.close());
 const {ChatDiagnosticsController}=await vite.ssrLoadModule('/src/hooks/useChatDiagnostics.ts');
@@ -25,6 +24,14 @@ function setup(overrides={},copy=async load=>{await load();}){
  const c=new ChatDiagnosticsController(source,()=>expired++,text=>notices.push(text),copy);
  return {c,source,notices,counts:()=>({posts,reads,csrf,expired})};
 }
+test('public opaque attempt supports reporting and never copies diagnostics',async()=>{
+ const token='b'.repeat(64), publicMessage={...message,report_context:{turn_id:turn,report_token:token,report_url:context.report_url}};
+ let sent;const s=setup({reportChatIssue:async ctx=>{sent=ctx;return {};}});
+ try{assert.equal(s.c.forMessage(publicMessage).available,true);await s.c.onReport(publicMessage);
+  assert.equal(sent.report_token,token);assert.equal(s.c.forMessage(publicMessage).reported,true);
+  await s.c.onCopy(publicMessage);assert.equal(s.counts().reads,0);
+ }finally{s.c.stop();}
+});
 test('Sending -> Report sent only after response; double click has one active POST',async()=>{
  const pending=deferred();let posts=0;
  const s=setup({reportChatIssue:()=>{posts++;return pending.promise;}});
@@ -135,24 +142,28 @@ const noop=()=>{};
 const account={displayName:'Synthetic account',initials:'SA',email:'',description:'',timezone:'UTC',spaceDescription:'Personal space'};
 const props={account,memoriesCount:0,conversation:{id:'synthetic',title:'Synthetic',group:'Today',updatedAt:'',relatedMemoryIds:[],messages:[message]},onSendMessage:noop,onCitationClick:noop,onActionClick:noop,addedActionIds:[],isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,isContextPanelOpen:false,onToggleContextPanel:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,onNewChat:noop};
 const markup=extra=>renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,...extra}));
-test('existing Studio buttons/classes/icons/layout are preserved against current main for failed messages',async()=>{
- fs.mkdirSync('.review-baseline/diagnostics-main',{recursive:true});
- const archive=execFileSync('git',['archive','7344679c7ba338e5f6298ed89bd20e40394b6ded','src'],{maxBuffer:32*1024*1024});execFileSync('tar',['-xf','-','-C','.review-baseline/diagnostics-main'],{input:archive});
- const {ChatWorkspace:Studio}=await vite.ssrLoadModule('/.review-baseline/diagnostics-main/src/components/ChatWorkspace.tsx');
+test('public chat retains useful tool progress without raw technical details',()=>{
+ const progress={kind:'tool',id:'progress',sequence:1,toolKind:'memory_search',title:'Memory search completed',status:'success',output:{text:JSON.stringify({facts:[{subject:'Alex',predicate:'likes',value:'music'}],error_code:'INTERNAL_TECHNICAL_DETAIL'}),format:'json'}};
+ const conversation={...props.conversation,messages:[{...message,status:'completed',timeline:[progress]}]};
+ const html=markup({live:true,isAdmin:false,showModelReasoning:false,conversation});
+ assert.match(html,/Memory search completed/);assert.match(html,/Alex.*likes.*music/);assert.doesNotMatch(html,/INTERNAL_TECHNICAL_DETAIL/);
+});
+test('failed live messages render the existing diagnostics controls',()=>{
  const s=setup();
  try{
-  const expected=renderToStaticMarkup(React.createElement(Studio,props));
-  assert.equal(markup({diagnostics:s.c}),expected);
-  assert.equal(markup({live:true,diagnostics:s.c}),renderToStaticMarkup(React.createElement(Studio,{...props,live:true})));
-  const html=markup({live:true,diagnostics:s.c,isAdmin:false});assert.match(html,/Copy Error For Admin Diagnostics/);
+  const html=markup({live:true,diagnostics:s.c});
+  assert.match(html,/Reply failed/);
+  assert.match(html,/Report issue/);
+  assert.match(html,/Copy Error For Admin Diagnostics/);
+  const publicView=markup({live:true,diagnostics:s.c,isAdmin:false});assert.doesNotMatch(publicView,/Copy Error For Admin Diagnostics/);assert.match(publicView,/Report issue/);
  }finally{s.c.stop();}
 });
-test('only existing UI states are used, invalid context disables actions, and callback payload is the failed message',async()=>{
+test('only existing UI states are used, local failures hide backend report actions, and callbacks use the failed message',async()=>{
  const pending=deferred(),s=setup({reportChatIssue:()=>pending.promise});
  try{
   const write=s.c.onReport(message);const sending=markup({live:true,diagnostics:s.c});assert.match(sending,/Sending report…/);assert.doesNotMatch(sending,/Report sent/);
   pending.resolve({});await write;assert.match(markup({live:true,diagnostics:s.c}),/Report sent/);
-  const invalid=markup({live:true});assert.match(invalid,/disabled="" aria-label="Report issue to backend"/);assert.match(invalid,/Copy Error For Admin Diagnostics/);assert.doesNotMatch(invalid,/Report sent|Diagnostics copied!/);
+  const invalid=markup({live:true});assert.doesNotMatch(invalid,/Report issue to backend|Copy Error For Admin Diagnostics|Report sent|Diagnostics copied!/);
   const code=fs.readFileSync('src/components/ChatWorkspace.tsx','utf8');
   assert.doesNotMatch(code,/errorDiagnostics|timestamp_iso|navigator.userAgent|setReportingMessageId|setReportedMessageIds|setCopiedDiagnosticsId/);
   assert.match(code,/handleReportIssue\(msg\)/);assert.match(code,/handleCopyAdminDiagnostics\(msg\)/);

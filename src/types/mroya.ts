@@ -1,4 +1,6 @@
-export type NavSection = 'chat' | 'calendar' | 'reminders' | 'memory' | 'memory-map' | 'connections';
+import type {ChatMessageAttachment} from './chatAttachments';
+
+export type NavSection = 'chat' | 'files' | 'calendar' | 'reminders' | 'memory' | 'ai-tasks' | 'memory-map' | 'connections' | 'notes';
 
 export type SubscriptionPlan = 'free' | 'premium';
 
@@ -89,8 +91,12 @@ export interface ReasoningTimelineEntry {kind:'reasoning';id:string;sequence:num
 export type ChatTimelineEntry = ToolTimelineEntry | ReasoningTimelineEntry;
 
 export interface ChatMessage {
+  attachments?:ChatMessageAttachment[];
   timeline?:ChatTimelineEntry[];
   report_context?:import('./api').ReportContext;
+  failureNotice?:string;
+  /** Task receipts bound to the assistant source turn (live + history). */
+  tasks?: import('./aiTasks').AiTask[];
   signInPrompt?: boolean;
   status?: string;
   reasoning?: string | string[];
@@ -165,6 +171,7 @@ export interface GoogleSyncResult {
 }
 
 export interface CalendarEvent {
+  memoryLinks?:import('./memoryLinks').MemoryLink[];
   api?:import('./calendarApi').CalendarEventDto; // Canonical metadata; occurrences keep a separate presentation id.
   id: string;
   title: string;
@@ -188,6 +195,12 @@ export interface CalendarEvent {
 
 export type GraphNodeCategory = 'person' | 'agreement' | 'event' | 'organization' | 'preference';
 
+export interface MemoryLinkedFile {
+  id: string;
+  name: string;
+  originalUrl: string;
+}
+
 export interface GraphNode {
   type?: 'entity'|'memory'; kind?: string; is_self?: boolean; degree?: number; memory_count?: number;
   subject?: string; statement_id?: string; predicate?: string; predicate_key?: string; polarity?: string;
@@ -204,6 +217,7 @@ export interface GraphNode {
   dateRecorded: string;
   source: string;
   linkedMemoryId?: string;
+  linkedFiles?: MemoryLinkedFile[];
 }
 
 export interface GraphEdge {

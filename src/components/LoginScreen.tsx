@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrandMark } from './BrandMark';
+import {tr} from '../i18n';
 
 export interface LoginScreenProps {
   pending: boolean;
@@ -24,15 +25,15 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
       try {
         await onGoogleSignIn();
       } catch (err) {
-        setGoogleNotice(err instanceof Error ? err.message : 'Google authorization failed');
+        setGoogleNotice(tr('googleAuthorizationFailed',{ns:'auth'}));
       } finally {
         setGooglePending(false);
       }
     } else {
       setGoogleNotice(
         design
-          ? 'Google sign-in is unavailable in this preview.'
-          : 'Google sign-in is not configured on this server.'
+          ? tr('googleUnavailablePreview',{ns:'auth'})
+          : tr('googleUnavailableServer',{ns:'auth'})
       );
     }
   };
@@ -54,10 +55,10 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
       >
         <div className="flex items-center gap-3">
           <BrandMark size="lg" />
-          <h1 className="text-xl font-semibold">Welcome to Mroya</h1>
+          <h1 className="text-xl font-semibold">{tr('welcomeTitle',{ns:'auth'})}</h1>
         </div>
         <p className="text-sm text-[var(--mroya-text-muted)]">
-          {design ? 'Design preview. Use fictional credentials only.' : 'Sign in to your personal space.'}
+          {design ? tr('designPreview',{ns:'auth'}) : tr('personalSpacePrompt',{ns:'auth'})}
         </p>
 
         {/* Google Authentication Section */}
@@ -68,7 +69,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
             disabled={pending || googlePending || !onGoogleSignIn}
             aria-describedby="google-availability"
             className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-full border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] active:scale-[0.99] text-sm font-medium text-[var(--mroya-text)] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-            aria-label="Sign in with Google"
+            aria-label={tr('signInWithGoogle',{ns:'auth'})}
           >
             <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -88,22 +89,22 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
             </svg>
-            <span>{googlePending ? 'Connecting to Google…' : 'Sign in with Google'}</span>
+            <span>{googlePending ? tr('googleConnecting',{ns:'auth'}) : tr('signInWithGoogle',{ns:'auth'})}</span>
           </button>
         </div>
 
-        {!onGoogleSignIn && <p id="google-availability" className="text-xs text-[var(--mroya-text-muted)] text-center">Google sign-in — coming soon.</p>}
+        {!onGoogleSignIn && <p id="google-availability" className="text-xs text-[var(--mroya-text-muted)] text-center">{tr('googleComingSoon',{ns:'auth'})}</p>}
         {/* Separator */}
         <div className="relative flex items-center justify-center">
           <div className="grow border-t border-[var(--mroya-divider)]" />
           <span className="shrink-0 px-3 text-xs uppercase tracking-wider text-[var(--mroya-text-muted)] bg-[var(--mroya-surface)]">
-            or
+            {tr('or',{ns:'auth'})}
           </span>
           <div className="grow border-t border-[var(--mroya-divider)]" />
         </div>
 
         <label className="block text-sm">
-          Username
+          {tr('username',{ns:'auth'})}
           <input
             autoFocus={embedded}
             name="username"
@@ -115,7 +116,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
           />
         </label>
         <label className="block text-sm">
-          Password
+          {tr('password',{ns:'auth'})}
           <input
             name="password"
             type="password"
@@ -128,7 +129,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
         </label>
         {error && (
           <p role="alert" className="text-sm text-[var(--mroya-error)]">
-            {error}
+            {tr('signInFailed',{ns:'auth'})}
           </p>
         )}
         {googleNotice && (
@@ -140,7 +141,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
           disabled={pending || googlePending}
           className="w-full rounded-full py-2.5 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] font-medium text-sm disabled:opacity-50 hover:bg-[var(--mroya-primary-hover)] active:scale-[0.99] transition-all cursor-pointer"
         >
-          {pending ? 'Signing in…' : 'Sign in'}
+          {pending ? tr('signingIn',{ns:'auth'}) : tr('signIn',{ns:'auth'})}
         </button>
       </form>
     </main>

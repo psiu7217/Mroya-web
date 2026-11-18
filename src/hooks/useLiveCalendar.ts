@@ -2,6 +2,7 @@ import {dateInTimezone,upcomingCalendarEvents} from '../utils/upcomingCalendar.t
 import {calendarKey} from '../utils/calendarDates.ts';
 import {useEffect,useMemo,useRef,useSyncExternalStore} from 'react';
 import {ApiError} from '../api/errors.ts';
+import {tr} from '../i18n/index.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {CalendarEventDto,GoogleConnectionDto,GoogleConfiguration} from '../types/calendarApi.ts';
 import type {CalendarEvent} from '../types/mroya.ts';
@@ -153,8 +154,11 @@ export class LiveCalendarController {
     if(!this.source.startCalendarGoogle)throw new Error('Google Calendar is unavailable.');
     const url=await this.source.startCalendarGoogle(!another&&connection?.status==='reconnect'?connection.id:undefined,abort.signal);
     if(this.active&&!abort.signal.aborted&&generation===this.generation)this.navigate(url);
-   }else if(action==='disconnect')await this.source.disconnectCalendarGoogle!(connection!.id,abort.signal);
-   else if(action==='sync')await this.source.syncCalendarGoogle!(connection!.id,abort.signal);
+   }else if(action==='disconnect'){
+    const receipt=await this.source.disconnectCalendarGoogle!(connection!.id,abort.signal);
+    if(this.active&&!abort.signal.aborted&&generation===this.generation)
+     this.emit({oauthNotice:tr(receipt?.revoked?'googleRevoked':receipt?.revocationPending?'googleRevocationPending':'googleRevocationUnconfirmed',{ns:'connections'})});
+   }else if(action==='sync')await this.source.syncCalendarGoogle!(connection!.id,abort.signal);
    else await this.source.configureCalendarGoogle!(connection!.id,changes!,abort.signal);
   }catch(error){if(this.active&&!abort.signal.aborted&&generation===this.generation)this.fail(error,true);}
   finally{

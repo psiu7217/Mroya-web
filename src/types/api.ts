@@ -38,7 +38,7 @@ export interface ApiMessage { attachments?:import('./documents').DocumentDto[]; 
 export interface ConversationSummary {id:string;title:string;created_at:string;updated_at:string}
 export interface ConversationPage {conversations:ConversationSummary[];next_offset:number|null}
 export interface HistoryResponse { conversation_id:string; messages:ApiMessage[]; next_before:number|null }
-export interface Capabilities { staged_document_uploads?:boolean; documents?:boolean; api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean; notes_read?:boolean; agent_task_confirmation?:boolean }
+export interface Capabilities { google_data_privacy?:boolean; staged_document_uploads?:boolean; documents?:boolean; api_version:'v1'; chat:boolean; memory_read:boolean; memory_mutations_via_chat:boolean; memory_mutations_rest:boolean; calendar_rest:boolean; connections_rest:boolean; reminders:boolean; local_recurrence:boolean; sse_token_streaming:boolean; google_oauth?:boolean; notes_read?:boolean; agent_task_confirmation?:boolean }
 // Canonical statements deliberately retain provenance/revisions without pretending to be UI cards.
 export type CanonicalMemory = {uuid:string} & Record<string,unknown>;
 export interface MemoriesResponse { memories:CanonicalMemory[]; total:number }

@@ -16,6 +16,9 @@ export interface WorkspaceSource {
   retryMemoryRebuild?:MroyaApi['retryMemoryRebuild'];
   restoreMemory?:MroyaApi['restoreMemory'];
   transcribeAudio?:MroyaApi['transcribeAudio'];
+  privacySettings?:MroyaApi['privacySettings'];
+  savePrivacyConsent?:MroyaApi['savePrivacyConsent'];
+  requestPrivacy?:MroyaApi['requestPrivacy'];
   memoryReviewResults?:MroyaApi['memoryReviewResults'];
   enqueueMemoryReview?:MroyaApi['enqueueMemoryReview'];
   retryMemoryReview?:MroyaApi['retryMemoryReview'];

@@ -226,6 +226,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
             calendarAnalysis={model.calendarAnalysis}
             memoryReview={model.memoryReview}
+            privacy={model.privacy}
             notifications={model.notifications}
             notificationPreview={runtime?undefined:model.notificationPreview}
             timezoneSettings={runtime?.timezoneSettings}

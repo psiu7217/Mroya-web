@@ -1,3 +1,4 @@
+import {PrivacyControls} from './PrivacyControls';
 import {MemoryReviewPanel} from './MemoryReviewPanel';
 import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
 import {MemoryTransferSettings} from './MemoryTransferSettings';
@@ -64,6 +65,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
   'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
+  privacy?:import('../types/privacy').PrivacyPresentation;
   memoryReview?:import('../types/memoryReview').ReviewPresentation;
   calendarAnalysis?:import('../types/calendarAnalysis').CalendarAnalysisPresentation;
   memoryTransfer?:MemoryTransferPresentation;
@@ -99,7 +101,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   memoryTransfer,
-  calendarAnalysis,memoryReview,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
+  calendarAnalysis,memoryReview,privacy,live=false,showGoogleCalendar=true,showDeveloperFeatures=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
   googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
   gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
@@ -939,6 +941,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
             </div>
           )}
+
+          {activeTab==='connections'&&live&&privacy&&<PrivacyControls privacy={privacy}/>}
 
           {activeTab === 'plan' && (
             <div className="space-y-5">

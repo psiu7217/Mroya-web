@@ -7,6 +7,7 @@ import type {GoogleConfiguration} from '../types/calendarApi.ts';
 import {calendarUuid,readCalendarEvent,readCalendarPage,readCalendarOperation,readGoogleConnection,readGoogleConnections,googleAuthorizationUrl} from './calendar.ts';
 import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,ThemeMode,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,TurnResponse,ChatStreamEvent,SendOptions} from '../types/api.ts';
 import {readReportContext,isTurnUuid} from './reportContext.ts';
+import {readPrivacy,readPrivacyReceipt,type PrivacyKind} from './privacy.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
@@ -38,6 +39,13 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async privacySettings(signal?:AbortSignal){return readPrivacy(await this.json('me/privacy/',undefined,signal));}
+  async savePrivacyConsent(enabled:boolean,noticeVersion:string,signal?:AbortSignal){
+    return readPrivacy(await this.json('me/privacy/',{ai_consent:enabled,notice_version:noticeVersion},signal,'PATCH'));
+  }
+  async requestPrivacy(kind:PrivacyKind,signal?:AbortSignal){
+    return readPrivacyReceipt(await this.json('me/privacy/requests/',{kind,confirmation:kind},signal,'POST'),kind);
+  }
   async memoryReviewResults(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_pagination','Invalid review offset');
     return readReviewPage(await this.json(`memory-intelligence/memory-review/results/?limit=20&offset=${offset}`,undefined,signal),offset);
@@ -305,7 +313,7 @@ export class MroyaApi {
     const data=await this.json<{connection:unknown}>('calendar/google/connections/'+id+'/',changes,signal,'PATCH');return readGoogleConnection(data.connection);
   }
   async syncCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string}>('calendar/google/connections/'+id+'/sync/',{},signal);if(data.status!=='pending')throw new ApiError(502,'invalid_response','Sync request was not confirmed');}
-  async disconnectCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string}>('calendar/google/connections/'+id+'/',{},signal,'DELETE');if(data.status!=='disconnected')throw new ApiError(502,'invalid_response','Disconnect was not confirmed');}
+  async disconnectCalendarGoogle(id:string,signal?:AbortSignal){if(!calendarUuid(id))throw new Error('Invalid connection UUID');const data=await this.json<{status:string;revoked?:boolean;revocation_pending?:boolean}>('calendar/google/connections/'+id+'/',{},signal,'DELETE');if(data.status!=='disconnected')throw new ApiError(502,'invalid_response','Disconnect was not confirmed');return {revoked:data.revoked===true,revocationPending:data.revocation_pending===true};}
   private token='';
   private csrfPending:Promise<void>|null=null;
   private fetcher:typeof fetch;

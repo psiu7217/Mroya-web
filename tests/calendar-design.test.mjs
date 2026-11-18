@@ -4,7 +4,7 @@ import {createServer} from 'vite';
 const key='__calendarDesignHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
  name:'calendar-design-hooks',enforce:'pre',
- transform(code,id){if(/\/(useDemoMemoryInbox|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
+ transform(code,id){if(/\/(useDemoFiles|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView|WorkspaceView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
  resolveId(id){if(id==='virtual:calendar-design-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:calendar-design-hooks')return `import React from 'react';
  ${['useState','useRef','useEffect','useMemo','useSyncExternalStore'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}
@@ -39,7 +39,11 @@ function all(node,predicate){if(!node||typeof node!=='object')return [];return [
 function find(tree,predicate){const node=all(tree,predicate)[0];assert.ok(node,'expected element');return node;}
 function text(node){if(node===null||node===undefined||typeof node==='boolean')return '';if(typeof node!=='object')return String(node);return [node.props?.children].flat(Infinity).map(text).join(' ');}
 const button=(tree,label)=>find(tree,node=>node.type==='button'&&text(node).trim()===label);
-const child=(model,section,type)=>find(WorkspaceView({model:{...model,activeSection:section}}),node=>node.type===type).props;
+const child=(model,section,type)=>{
+ const view=mount(()=>WorkspaceView({model:{...model,activeSection:section}}));
+ try{return find(view.flush(),node=>node.type===type).props;}
+ finally{view.unmount();}
+};
 const calendar=model=>child(model,'calendar',CalendarView);
 const settings=model=>child(model,'connections',ConnectionsSettingsView);
 const event={title:'Local appointment',date:'2026-10-12',dayOfMonth:12,time:'12:00',duration:'1h',category:'meeting',source:'manual',notes:''};
@@ -300,5 +304,20 @@ test('Calendar content swipes still change months; inner edge gesture is reserve
  assert.match(text(page.value),/October/);gesture(220,100);assert.match(text(page.value),/November/);
  gesture(100,220);assert.match(text(page.value),/October/);
  gesture(24,180);assert.match(text(page.value),/October/);
+ page.unmount();view.unmount();
+});
+
+for(const kind of ['create','edit','delete'])test(`${kind} dialog cannot discard its form via Escape/backdrop/cancel while saving or unresolved`,async()=>{
+ const view=workspace(),existing={...event,id:'protected-modal',date:'2024-02-12',dayOfMonth:12,recurrence:{frequency:'daily',interval:1,endCondition:'never'}};
+ let props={...calendar(view.value),events:[existing],readOnly:false,calendar:{loading:false,busy:false,mutationPending:false,error:null,timezone:'UTC',onRangeChange(){},onLoadEventForEdit:async()=>existing,onRetry:async()=>false}};
+ const page=mount(()=>CalendarView(props));page.flush();
+ if(kind==='create')button(page.value,'+ Add event').props.onClick();else{button(page.value,'Month').props.onClick();page.flush();await find(page.value,n=>n.type==='button'&&n.props.title===(kind==='edit'?'Edit commitment':'Delete commitment')).props.onClick();}page.flush();
+ const label={create:'new-event-title',edit:'edit-event-title',delete:'delete-event-dialog-title'}[kind];
+ for(const patch of [{busy:true,mutationPending:false},{busy:false,mutationPending:true}]){
+  props={...props,calendar:{...props.calendar,...patch}};page.flush();let dialog=find(page.value,n=>n.props?.['aria-labelledby']===label);
+  dialog.props.onClose();dialog.props.onClick?.();page.flush();assert.ok(find(page.value,n=>n.props?.['aria-labelledby']===label));
+  button(find(page.value,n=>n.props?.['aria-labelledby']===label),'Cancel').props.onClick();page.flush();assert.ok(find(page.value,n=>n.props?.['aria-labelledby']===label));
+ }
+ props={...props,calendar:{...props.calendar,busy:false,mutationPending:false}};page.flush();find(page.value,n=>n.props?.['aria-labelledby']===label).props.onClose();page.flush();assert.equal(all(page.value,n=>n.props?.['aria-labelledby']===label).length,0);
  page.unmount();view.unmount();
 });

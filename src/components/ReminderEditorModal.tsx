@@ -17,12 +17,12 @@ import { ReminderItem, CalendarEvent, RecurrenceRule } from '../types/mroya';
 import {tr} from '../i18n';
 import {formatDate,formatTime} from '../i18n/format';
 import { RecurrenceEditor } from './RecurrenceEditor';
+import { DialogFocus } from './DialogFocus';
 import {
   localizedRecurrence,
   getEffectiveRecurrence,
   getNextOccurrenceDate,
 } from '../utils/recurrenceUtils';
-
 interface ReminderEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -241,7 +241,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150">
-      <div className="w-full max-w-lg max-h-[calc(100dvh-1.5rem)] rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain">
+      <DialogFocus onClose={onClose} role="dialog" aria-modal="true" aria-labelledby="reminder-editor-title" tabIndex={-1} className="w-full max-w-lg max-h-[calc(100dvh-1.5rem)] rounded-[20px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-5 overflow-y-auto overscroll-contain">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[var(--mroya-divider)]">
           <div className="flex items-center gap-2.5">
@@ -249,7 +249,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
               <Bell className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-[17px] font-bold text-[var(--mroya-text)]">
+              <h2 id="reminder-editor-title" className="text-[17px] font-bold text-[var(--mroya-text)]">
                 {editingReminder ? tr('editReminderTitle',{ns:'reminders'}) : tr('newReminderTitle',{ns:'reminders'})}
               </h2>
               <p className="text-[12px] text-[var(--mroya-text-muted)]">
@@ -681,7 +681,7 @@ export const ReminderEditorModal: React.FC<ReminderEditorModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
+      </DialogFocus>
     </div>
   );
 };

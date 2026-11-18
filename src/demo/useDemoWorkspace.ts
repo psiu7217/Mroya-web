@@ -813,7 +813,7 @@ export function useDemoWorkspace(seed: 'filled' | 'empty' = 'filled'): Workspace
   const onConnectionsSettingsViewChangeTab: React.ComponentProps<typeof ConnectionsSettingsView>['onChangeTab'] = (tab) => setSettingsTab(tab);
   const onConnectionsSettingsViewExpandSidebar: React.ComponentProps<typeof ConnectionsSettingsView>['onExpandSidebar'] = () => setIsSidebarCollapsed(false);
   const onConnectionsSettingsViewOpenMobileMenu: React.ComponentProps<typeof ConnectionsSettingsView>['onOpenMobileMenu'] = () => setMobileMenuOpen(true);
-  const onClosePlanPreview: React.ComponentProps<'button'>['onClick'] = () => setPlanModalOpen(false);
+  const onClosePlanPreview = () => setPlanModalOpen(false);
   const onPreviewFreePlan: React.ComponentProps<'button'>['onClick'] = () => {
                     setPlan('free');
                     setPlanModalOpen(false);

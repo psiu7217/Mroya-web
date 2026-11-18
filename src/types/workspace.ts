@@ -215,7 +215,7 @@ export interface WorkspaceModel {
     onConnectionsSettingsViewChangeTab: (tab: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings') => void;
     onConnectionsSettingsViewExpandSidebar: () => void;
     onConnectionsSettingsViewOpenMobileMenu: () => void;
-    onClosePlanPreview: React.MouseEventHandler<HTMLButtonElement>;
+    onClosePlanPreview: () => void;
     onPreviewFreePlan: React.MouseEventHandler<HTMLButtonElement>;
     onPreviewPremiumPlan: React.MouseEventHandler<HTMLButtonElement>;
     onReminderEditorModalClose: () => void;

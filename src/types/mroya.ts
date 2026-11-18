@@ -94,6 +94,7 @@ export interface ChatMessage {
   attachments?:ChatMessageAttachment[];
   timeline?:ChatTimelineEntry[];
   report_context?:import('./api').ReportContext;
+  failureNotice?:string;
   /** Task receipts bound to the assistant source turn (live + history). */
   tasks?: import('./aiTasks').AiTask[];
   signInPrompt?: boolean;

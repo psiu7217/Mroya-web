@@ -34,7 +34,7 @@ export type ExpandedToolActivity = {
  | {phase:'finished';status:'not_executed';input:null;output:LiveToolOutput|null;duration_ms:null}
 );
 export interface ToolActivityEvent {sequence:number;activity:LegacyToolActivity|ExpandedToolActivity}
-export interface ApiMessage { attachments?:import('./documents').DocumentDto[]; /** Controller-local, never a history/write DTO. */ timeline?:import('./mroya').ChatTimelineEntry[]; /** Transient live reasoning, never sent or persisted. */ reasoning?:string; /** Task receipts bound to this source turn; see Mroya-api /agent-tasks. */ tasks?:import('./aiTasks').AiTask[]; report_context?:ReportContext; id:string; sequence:number; role:'user'|'assistant'; content:string; status:string; created_at:string; completed_at:string|null }
+export interface ApiMessage { attachments?:import('./documents').DocumentDto[]; /** Controller-local, never a history/write DTO. */ timeline?:import('./mroya').ChatTimelineEntry[]; /** Transient live reasoning, never sent or persisted. */ reasoning?:string; /** Task receipts bound to this source turn; see Mroya-api /agent-tasks. */ tasks?:import('./aiTasks').AiTask[]; report_context?:ReportContext; failure_notice?:string; id:string; sequence:number; role:'user'|'assistant'; content:string; status:string; created_at:string; completed_at:string|null }
 export interface ConversationSummary {id:string;title:string;created_at:string;updated_at:string}
 export interface ConversationPage {conversations:ConversationSummary[];next_offset:number|null}
 export interface HistoryResponse { conversation_id:string; messages:ApiMessage[]; next_before:number|null }
@@ -45,7 +45,7 @@ export interface MemoriesResponse { memories:CanonicalMemory[]; total:number }
 export interface MapNode { id:string; type:'entity'|'memory'; label:string; kind?:string; resolution_state?:string|null; is_self?:boolean; degree?:number; memory_count?:number; subject?:string; literal_type?:string; [field:string]:unknown }
 export interface MapEdge { id:string; source:string; target:string; type:'relation'|'memory'; statement_id:string; predicate:string; predicate_key:string; polarity:string; valid_from:string|null; valid_to:string|null; learned_at:string|null; evidence_count:number }
 export interface MemoryMapResponse { nodes:MapNode[]; edges:MapEdge[]; stats?:{entities:number;memories:number;connections:number;truncated:boolean}; truncated?:boolean }
-export interface TurnResponse { report_context?:ReportContext; turn_status:'running'|'completed'|'failed'; summary:string; events:Record<string,unknown>[]; assistant_content?:string; error_id?:string; error_message?:string; error_report_url?:string; [field:string]:unknown }
+export interface TurnResponse { report_context?:ReportContext; turn_status:'running'|'completed'|'failed'; summary:string; events:Record<string,unknown>[]; assistant_content?:string; failure_notice?:string; error_id?:string; error_message?:string; error_report_url?:string; [field:string]:unknown }
 export interface SendOptions { documentIds?:string[]; signal?:AbortSignal; retry?:boolean; timezone?:string; onTurn?:(id:string)=>void }
 export type ChatStreamEvent = {event:'trace'|'delta'|'done'|'error'|'replay'|'reasoning_delta'|'tool_activity';data:Record<string,unknown>};
 

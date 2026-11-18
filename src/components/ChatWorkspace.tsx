@@ -789,7 +789,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                   {tr('replyFailed',{ns:'chat'})}
                                 </div>
                                 <p className="text-[12.5px] leading-relaxed text-[var(--mroya-text-muted)] mt-0.5">
-                                  {tr('assistantError',{ns:'chat'})}
+                                  {msg.failureNotice || tr('assistantError',{ns:'chat'})}
                                 </p>
                               </div>
                             </div>
@@ -860,7 +860,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         )}
 
                         {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
-                        <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} onImageOpen={onImageOpen}/>
+                        {!(msg.status==='failed' && msg.failureNotice) && <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} onImageOpen={onImageOpen}/>}
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}

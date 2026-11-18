@@ -458,7 +458,7 @@ export class LiveWorkspaceController {
     if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
      failedActivity=true;
      const context=readReportContext(event.data.report_context);
-     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(reasoning?{reasoning}:{}),...(timeline.length?{timeline:settleFailedTimeline(timeline)}:{ }),created_at:now,completed_at:null,
+     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',failure_notice:typeof event.data.failure_notice==='string'?event.data.failure_notice:undefined,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline:settleFailedTimeline(timeline)}:{ }),created_at:now,completed_at:null,
       ...(context&&(!this.turnId||context.turn_id===this.turnId)?{report_context:context}:{})}]}});
      return;
     }
@@ -536,11 +536,11 @@ export class LiveWorkspaceController {
      const confirmedContext=context?.turn_id===this.turnId&&(previous||!hasActivity)?context:undefined;
      return {...message,status:'failed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,
       reasoning:sameAttempt?message.reasoning:undefined,timeline:sameAttempt&&message.timeline?settleFailedTimeline(message.timeline):undefined,
-      report_context:confirmedContext};
+      report_context:confirmedContext,failure_notice:typeof turn.failure_notice==='string'?turn.failure_notice:undefined};
     });
     const pending=messages.at(-1);
     if(this.replyId&&context?.turn_id===this.turnId&&typeof turn.assistant_content==='string'&&pending?.id==='pending:'+this.replyId.slice(6)){
-     messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context}];
+     messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context,failure_notice:typeof turn.failure_notice==='string'?turn.failure_notice:undefined}];
     }
     this.set({history:{...this.state.history,messages}});
    }if(turn.turn_status==='completed'){
@@ -548,7 +548,7 @@ export class LiveWorkspaceController {
     // The authenticated ChatTurn wins over a local stream/parser failure.
     // Clear the transient failed status before historyWithReasoning reconciles it.
     this.set({error:null,history:{...this.state.history,messages:this.state.history.messages.map(message=>
-     message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined,...(confirmedTasks.length?{tasks:confirmedTasks}:{})}:message)}});
+     message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined,failure_notice:undefined,...(confirmedTasks.length?{tasks:confirmedTasks}:{})}:message)}});
     void this.refreshTasks();
    }if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
    await this.load();

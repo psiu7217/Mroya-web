@@ -233,5 +233,15 @@
   "imageNotice_copied": "Image copied. Paste it into a chat or another app.",
   "imageNotice_download": "Download the image and send the file to a chat or another app.",
   "imageNotice_shareFailed": "Could not share. Try again or download the image.",
-  "imageNotice_loadFailed": "Could not load the image. The file may have been deleted or is unavailable."
+  "imageNotice_loadFailed": "Could not load the image. The file may have been deleted or is unavailable.",
+  "taskReviewChanges": "Prepared changes",
+  "taskOriginalReview": "Original confirmation",
+  "memoryConfirmTitle": "Ready to save",
+  "memoryConfirmHint": "Review the proposed changes. When the timer ends, they will be submitted for saving automatically.",
+  "memoryConfirmExplicitHint": "Review the proposed changes and confirm. They will not be saved without your confirmation.",
+  "memoryStatusQueued": "Waiting to save",
+  "memoryStatusRunning": "Saving to memory…",
+  "memoryStatusCompleted": "Saved to memory",
+  "memoryStatusFailed": "Could not save to memory",
+  "taskResultUnconfirmed": "The result could not be confirmed. Check the current status before trying again."
 }

@@ -18,6 +18,26 @@ const tool=(sequence:number,call_id:string,phase:'started'|'finished',status='su
 });
 const failedTrace=(ctx=context):ChatStreamEvent=>({event:'trace',data:{turn_status:'failed',assistant_content:'Safe server failure',report_context:ctx}});
 const terminal=()=>new ApiError(502,'chat_failed','Synthetic failure');
+
+test('confirmed attachment failure notice survives live failure and reloaded history',async()=>{
+ const notice='Файл сохранён. Создать связь не удалось.';
+ let reads=0;
+ const c=new LiveWorkspaceController(source({
+  history:async()=>({...empty,messages:++reads===1?[]:[{...canonical(),failure_notice:notice}]}),
+  send:async(_text,_id,emit,options)=>{
+   options?.onTurn?.(turn);
+   const event=failedTrace();
+   emit({...event,data:{...event.data,assistant_content:notice,failure_notice:notice}});
+   assert.equal(last(c).failure_notice,notice);
+   throw terminal();
+  },
+ }),()=>{},()=>turn);
+ await c.load();
+ await c.send('Link the attachment');
+ assert.equal(last(c).status,'failed');
+ assert.equal(chatPresentation('synthetic',[last(c)]).messages[0].failureNotice,notice);
+ c.stop();
+});
 const last=(c:LiveWorkspaceController)=>c.snapshot().history.messages.at(-1)!;
 test('reasoning-only terminal failure without trace/history remains local static text, never an unconfirmed answer',async()=>{
  const c=new LiveWorkspaceController(source({send:async(_t,_id,emit)=>{emit(reason(1,'Already received'));emit({event:'delta',data:{text:'UNCONFIRMED ANSWER'}});throw terminal();}}),()=>{},()=>turn);

@@ -63,6 +63,9 @@ export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
+    imageViewer?:import('./imageViewer').ImageViewerPresentation;
+    chatAttachments?:import('./chatAttachments').ChatAttachmentsPresentation;
+    files?:import('./documents').FilesPresentation;
     memoryTransfer?:import('./memoryTransfer').MemoryTransferPresentation;
     speech?:import('./speech').SpeechPresentation;
     install?:import('./install').InstallPresentation;
@@ -121,7 +124,8 @@ export interface WorkspaceModel {
     relatedMemoriesForActiveChat: MemoryItem[];
     upcomingRelatedEvent: CalendarEvent | null;
     handleNewChat: () => void;
-    handleSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
+    handleSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
+    documentsAvailable?:boolean;
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     calendar?:CalendarPresentation;

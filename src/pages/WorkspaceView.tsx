@@ -5,6 +5,7 @@ import { Sparkles, Check, X } from 'lucide-react';
 import type { WorkspaceModel } from '../types/workspace';
 import { Sidebar } from '../components/Sidebar';
 import { ChatWorkspace } from '../components/ChatWorkspace';
+import { ImageLightbox } from '../components/ImageLightbox';
 import { MemoryContextPanel } from '../components/MemoryContextPanel';
 import { CalendarView } from '../components/CalendarView';
 import { RemindersView } from '../components/RemindersView';
@@ -14,7 +15,9 @@ import { MemoryMapView } from '../components/MemoryMapView';
 import { AccessNotice } from '../components/AccessNotice';
 import { ConnectionsSettingsView } from '../components/ConnectionsSettingsView';
 import { NotesView } from '../components/NotesView';
+import {FilesView} from '../components/FilesView';
 import {tr} from '../i18n';
+import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
  const [tasksOpen,setTasksOpen]=useState(false),[taskHighlight,setTaskHighlight]=useState<string|null>(null);
@@ -57,7 +60,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
         notesAvailable={notesAvailable}
         notesCount={notesAvailable?(model.notes ?? []).length:0}
-        aiTasksCount={model.aiTasks?.tasks.filter(t=>['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(t.status)).length}
+        aiTasksCount={model.aiTasks?.tasks.filter(countsTowardTaskBadge).length}
         onOpenSettingsTab={onSidebarOpenSettingsTab}
       />
 
@@ -80,6 +83,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           <>
             <ChatWorkspace isAdmin={runtime ? !!runtime.features?.technicalDiagnostics : true} showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true} showModelReasoning={runtime?.showModelReasoning} install={model.install}
               speech={model.speech}
+              onImageOpen={model.imageViewer?.onOpen}
               aiTasks={tasksPresentation}
               diagnostics={runtime?.diagnostics??model.diagnostics}
               live={!!runtime}
@@ -87,6 +91,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               isThinking={runtime?.busy ?? feedback?.busy}
               onUnavailable={runtime?.onUnavailable}
               samples={model.composerSamples}
+              documentsAvailable={model.documentsAvailable}
+              draftAttachments={model.chatAttachments}
               account={account}
               memoriesCount={runtime?.memoriesTotal??memories.length}
               conversation={activeConversation}
@@ -272,6 +278,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           />
         )}
 
+        {activeSection === 'files' && <FilesView runtime={model.files} onImageOpen={model.imageViewer?.onOpen} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar} onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}/> }
+
         {activeSection === 'notes' && notesAvailable && (
           <NotesView
             memoryLinksNavigation={model.memoryLinksNavigation}
@@ -383,5 +391,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
        executingTaskId={model.aiTasks?.executingTaskId} onExecute={model.aiTasks?.onExecute}
        cancellingTaskId={model.aiTasks?.cancellingTaskId} onCancel={model.aiTasks?.onCancel}
        decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision} onReport={model.aiTasks?.onReport}/>
+      <ImageLightbox viewer={model.imageViewer}/>
     </WorkspaceSurface>);
 }

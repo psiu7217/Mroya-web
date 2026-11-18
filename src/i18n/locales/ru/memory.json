@@ -73,6 +73,7 @@
   "connectionsFrom": "Связи объекта",
   "connectedBy": "Связи с объектом",
   "memoryConnectionsCount": "Воспоминаний: {{memories}} · Связей: {{connections}}",
+  "linkedFiles": "Связанные файлы",
   "graphStats": "Объектов: {{entities}} · Воспоминаний: {{memories}} · Связей: {{connections}}",
   "myMap": "Моя карта памяти",
   "showcaseStats": "ОБЪЕКТЫ: {{entities}} · ВОСПОМИНАНИЯ: {{memories}}",

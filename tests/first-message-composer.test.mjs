@@ -35,6 +35,18 @@ function mount(onSendMessage){
   unmount(){slots.forEach(slot=>slot.cleanup?.());},
  };
 }
+test('real file selection reaches the send action and survives rejection until a confirmed retry',async()=>{
+ let accepted=false;const sent=[];
+ const view=mount((...args)=>{sent.push(args);return accepted;});view.update({documentsAvailable:true});
+ const file=new File(['synthetic screenshot'],'screen.png',{type:'image/png'});
+ view.find(node=>node.type==='input'&&node.props.type==='file').props.onChange({currentTarget:{files:[file],value:'screen.png'}});
+ view.flush();view.input('Переведи текст');view.enter();await tick();view.flush();
+ assert.equal(sent[0][2][0],file);assert.equal(view.draft,'Переведи текст');
+ assert.ok(view.stateValues().some(value=>Array.isArray(value)&&value.includes(file)));
+ accepted=true;view.enter();await tick();view.flush();
+ assert.equal(sent[1][2][0],file);assert.equal(view.draft,'');
+ assert.ok(!view.stateValues().some(value=>Array.isArray(value)&&value.includes(file)));view.unmount();
+});
 test('empty-workspace composer accepts Enter once and retains its draft after failed creation',async()=>{
  const pending=gate(),sent=[];const view=mount(text=>{sent.push(text);return pending.promise;});view.flush();view.input('Первое сообщение\n\nС абзацем');
  view.enter();view.enter();view.flush();assert.equal(sent.length,1);assert.equal(view.draft,sent[0]);

@@ -44,6 +44,14 @@ test('Fast Search accepts started/finished projections and completes the SSE str
  await assert.rejects(parse([event(1,started),done]),ApiError);
 });
 
+test('image generation streams as a bounded action with no prompt or image bytes',async()=>{
+ const started=start({tool_name:'generate_image',kind:'tool',title:'Generating image',input:null});
+ const finished=finish({tool_name:'generate_image',kind:'tool',title:'Image saved',output:null});
+ const stream=[event(1,started),event(2,finished),done];
+ assert.deepEqual(await parse(stream),stream);
+ assert.throws(()=>readToolActivity({sequence:1,activity:{...started,input:{prompt:'not projected'}}}),ApiError);
+});
+
 test('Submit Memory Changes streams as a tool-kind activity and completes through done',async()=>{
  const base={tool_name:'submit_memory_changes',kind:'tool',title:'Running action',input:null};
  const started=start(base),finished=finish({...base,title:'Action completed',output:null});
@@ -166,7 +174,7 @@ test('not_executed without started is one Not executed card, null calendar detai
 test('interrupted running is local uncertainty; prior confirmed outcomes stay intact; logout and late results clear',async()=>{
  let emit!:(e:ChatStreamEvent)=>void,release!:()=>void;
  const gate=new Promise<void>(r=>{release=r;});
- const c=new LiveWorkspaceController(source({send:async(_t,_id,onEvent,options)=>{
+ const c=new LiveWorkspaceController(source({turn:async()=>({turn_status:'running',summary:'',events:[]}),send:async(_t,_id,onEvent,options)=>{
  options?.onTurn?.(id);emit=onEvent;onEvent(event(1,start()));onEvent(event(2,finish()));
  onEvent(reasoning(3));onEvent(event(4,start({call_id:'t1-c2'})));await gate;throw new StreamInterruptedError();
  }}),()=>{},()=>id);

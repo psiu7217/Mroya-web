@@ -29,6 +29,8 @@ export interface AiTask {
   resultCode?: 'no_new_information'|'analysis_complete'|'memory_saved';
   id: string;
   title: string;
+  /** Owner-scoped, frozen human-readable projection of the prepared changes. */
+  review?: string[];
   target: AiTaskTarget;
   status: AiTaskStatus;
   userPrompt: string;

@@ -4,11 +4,14 @@ import {tr} from '../i18n/index.ts';
 import {ApiError} from '../api/errors.ts';
 import {taskTimeRemaining} from '../api/aiTasks.ts';
 import type {AiTask,AiTaskStatus} from '../types/aiTasks';
+import {AssistantMarkdown} from './AssistantMarkdown';
 
 export interface AiTaskConfirmationCardProps {
   /** Task receipts bound to this assistant answer; the first pending status wins. */
   tasks:AiTask[];
   compact?:boolean;
+  /** Original confirmation retained when an older API has no frozen human review. */
+  legacyReview?:string;
   beginReview?:(id:string)=>Promise<AiTask>;
   approveTask?:(id:string)=>Promise<AiTask>;
   revokeTask?:(id:string)=>Promise<AiTask>;
@@ -31,9 +34,25 @@ function statusKeys(status:AiTaskStatus):{label:string;tone:string;icon:React.Re
   }
 }
 
+function TaskContent({task,legacyReview}:{task:AiTask;legacyReview?:string}){
+  return <div className="min-w-0 space-y-3">
+    <p className="text-[15px] leading-6 text-[var(--mroya-text)] break-words [overflow-wrap:anywhere]">{task.title}</p>
+    {!!task.review?.length&&<div className="space-y-1.5 border-l-2 border-[var(--mroya-divider)] pl-3">
+      <p className="text-[11px] font-medium text-[var(--mroya-text-muted)]">{tr('taskReviewChanges',{ns:'chat'})}</p>
+      <ul className="space-y-1.5 text-[13px] leading-5 text-[var(--mroya-text-muted)] break-words [overflow-wrap:anywhere]">
+        {task.review.map((line,index)=><li key={index}>{line}</li>)}
+      </ul>
+    </div>}
+    {legacyReview&&!task.review?.length&&<details open={task.status==='pending_confirmation'} className="text-[13px] leading-5">
+      <summary className="cursor-pointer text-[var(--mroya-text-muted)]">{tr('taskOriginalReview',{ns:'chat'})}</summary>
+      <div className="pt-2"><AssistantMarkdown content={legacyReview}/></div>
+    </details>}
+  </div>;
+}
+
 /** One per-task row inside the answer card; owns countdown + canonical reconciliation. */
-function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit}:{
-  task: AiTask; compact?:boolean;
+function TaskConfirmationRow({task,compact,legacyReview,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit}:{
+  task: AiTask; compact?:boolean;legacyReview?:string;
 } & Pick<AiTaskConfirmationCardProps,'beginReview'|'approveTask'|'revokeTask'|'refreshTask'|'onEditSubmit'>){
   const [remaining,setRemaining]=useState<number|null>(()=>taskTimeRemaining(task));
   const [frozen,setFrozen]=useState(false);
@@ -117,7 +136,7 @@ function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,re
     finally{setSending(false);}
   };
 
-  return <TaskConfirmationView compact={compact} task={task} remaining={remaining} frozen={frozen} busy={busy}
+  return <TaskConfirmationView compact={compact} legacyReview={legacyReview} task={task} remaining={remaining} frozen={frozen} busy={busy}
     editing={editing} comment={comment} sending={sending} notice={notice}
     canApprove={!!approveTask} canRevoke={!!revokeTask} onComment={setComment}
     onSubmit={()=>void submitEdit()} onEdit={()=>void startEdit()}
@@ -126,29 +145,29 @@ function TaskConfirmationRow({task,compact,beginReview,approveTask,revokeTask,re
 }
 
 /** Pure view keeps the editor visible after the original canonical task is cancelled. */
-export function TaskConfirmationView({task,compact=false,remaining=null,frozen=false,busy=null,editing=false,
+export function TaskConfirmationView({task,compact=false,legacyReview,remaining=null,frozen=false,busy=null,editing=false,
   comment='',sending=false,notice=null,canApprove=false,canRevoke=false,
   onComment,onSubmit,onEdit,onApprove,onRevoke,onDiscard}:{
-  task:AiTask;compact?:boolean;remaining?:number|null;frozen?:boolean;busy?:'approve'|'revoke'|null;
+  task:AiTask;compact?:boolean;legacyReview?:string;remaining?:number|null;frozen?:boolean;busy?:'approve'|'revoke'|null;
   editing?:boolean;comment?:string;sending?:boolean;notice?:string|null;
   canApprove?:boolean;canRevoke?:boolean;onComment?:(value:string)=>void;
   onSubmit?:()=>void;onEdit?:()=>void;onApprove?:()=>void;onRevoke?:()=>void;onDiscard?:()=>void;
 }){
   const frozenTimer=frozen&&remaining!==null;
-  if(compact&&task.status!=='pending_confirmation'&&!editing)return null;
   if(task.status!=='pending_confirmation'&&!editing){
     const{label,tone,icon}=statusKeys(task.status);
+    const memoryLabel=task.target==='memory'?({queued:'memoryStatusQueued',running:'memoryStatusRunning',completed:'memoryStatusCompleted',failed:'memoryStatusFailed'} as Record<string,string>)[task.status]:undefined;
     return (
-      <div className="p-2.5 rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)]/50 space-y-1">
+      <div className={`${compact?'p-3.5':'p-4 sm:p-5'} rounded-[12px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] space-y-3`} data-task-id={task.id}>
+        <TaskContent task={task} legacyReview={legacyReview}/>
         <div className="flex items-center gap-1.5 text-[11.5px] font-semibold">
-          <span className={`inline-flex items-center gap-1 ${tone}`}>{icon}{tr(label,{ns:'chat'})}</span>
+          <span className={`inline-flex items-center gap-1 ${tone}`} role="status">{icon}{tr(memoryLabel??label,{ns:'chat'})}</span>
         </div>
-        <p className="text-[12.5px] leading-snug text-[var(--mroya-text)]">{task.title}</p>
-        {task.status==='completed'&&task.resultSummary&&(
+        {task.status==='completed'&&task.target!=='memory'&&task.resultSummary&&(
           <p className="text-[12px] leading-snug text-[var(--mroya-text-muted)]">{task.resultSummary}</p>
         )}
         {(task.status==='failed'||task.status==='needs_clarification')&&(task.resultSummary||task.errorMessage)&&(
-          <p className="text-[11.5px] leading-snug text-rose-700 dark:text-rose-400">{task.resultSummary||task.errorMessage}</p>
+          <p className="text-[12px] leading-snug text-rose-700 dark:text-rose-400">{task.resultSummary||tr('taskResultUnconfirmed',{ns:'chat'})}</p>
         )}
         {notice&&<p className="text-[11.5px] text-[var(--mroya-text-muted)]">{tr(notice,{ns:'chat'})}</p>}
       </div>
@@ -156,11 +175,12 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
   }
   const seconds=remaining===null?null:Math.ceil(remaining/1000);
   return (
-    <div className="p-3 rounded-[10px] border border-amber-500/40 bg-amber-500/5 dark:bg-amber-900/10 space-y-2.5">
+    <div className={`${compact?'p-3.5':'p-4 sm:p-5'} rounded-[12px] border border-amber-500/30 bg-[var(--mroya-surface)] space-y-3.5`} data-task-id={task.id}>
+      <TaskContent task={task} legacyReview={legacyReview}/>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="inline-flex items-center gap-1 text-[12px] font-bold text-amber-700 dark:text-amber-400">
           <Clock className="w-3.5 h-3.5" />
-          {tr('taskConfirmTitle',{ns:'chat'})}
+          {tr(task.target==='memory'?'memoryConfirmTitle':'taskConfirmTitle',{ns:'chat'})}
         </span>
         <span className="text-[11px] text-[var(--mroya-text-muted)]">{tr(targetLabels[task.target]??'taskTypeOther',{ns:'chat'})}</span>
         {seconds!==null&&!editing&&(
@@ -169,8 +189,9 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
           </span>
         )}
       </div>
-      <p className="text-[13.5px] leading-snug font-medium text-[var(--mroya-text)] break-words">{task.title}</p>
-      <p className="text-[11.5px] leading-snug text-[var(--mroya-text-muted)]">{tr(task.confirmationMode==='explicit'?'taskConfirmExplicitHint':'taskConfirmHint',{ns:'chat'})}</p>
+      <p className="text-[11.5px] leading-snug text-[var(--mroya-text-muted)]">{tr(task.target==='memory'
+        ? task.confirmationMode==='explicit'?'memoryConfirmExplicitHint':'memoryConfirmHint'
+        : task.confirmationMode==='explicit'?'taskConfirmExplicitHint':'taskConfirmHint',{ns:'chat'})}</p>
       {notice&&<p className="text-[11.5px] leading-snug text-[var(--mroya-text-muted)]">{tr(notice,{ns:'chat'})}</p>}
       {editing?(
         <div className="space-y-2 pt-1 border-t border-amber-500/25">
@@ -186,7 +207,7 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
             className="w-full px-2.5 py-2 rounded-[8px] text-[13px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--mroya-primary)]" />
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSubmit} disabled={!comment.trim()||sending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40 cursor-pointer">
+              className="inline-flex min-h-10 sm:min-h-8 items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40 cursor-pointer">
               {sending?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<Send className="w-3.5 h-3.5" />}
               {sending?tr('taskEditSending',{ns:'chat'}):tr('taskEditSubmit',{ns:'chat'})}
             </button>
@@ -196,21 +217,21 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
       ):(
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onApprove} disabled={busy!==null||frozenTimer||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!canApprove}
-            aria-label={tr('taskConfirmSend',{ns:'chat'})}
-            className="relative overflow-hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40 cursor-pointer">
+            aria-label={tr(task.target==='memory'?'taskSave':'taskConfirmSend',{ns:'chat'})}
+            className="relative overflow-hidden inline-flex min-h-10 sm:min-h-8 items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40 cursor-pointer">
             <span aria-hidden="true" className="absolute inset-y-0 left-0 bg-white/20 pointer-events-none transition-[width] duration-100" style={{width:`${Math.min(100,Math.max(0,100-(remaining??15000)/150))}%`}} />
             {busy==='approve'?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<CheckCircle2 className="w-3.5 h-3.5" />}
-            {tr('taskConfirmSend',{ns:'chat'})}
+            {tr(task.target==='memory'?'taskSave':'taskConfirmSend',{ns:'chat'})}
           </button>
           <button type="button" onClick={onEdit} disabled={busy!==null||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!canRevoke}
             aria-label={tr('taskConfirmEdit',{ns:'chat'})}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] disabled:opacity-40 cursor-pointer">
+            className="inline-flex min-h-10 sm:min-h-8 items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] disabled:opacity-40 cursor-pointer">
             {busy==='revoke'&&frozen?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<Pencil className="w-3.5 h-3.5" />}
             {tr('taskConfirmEdit',{ns:'chat'})}
           </button>
           <button type="button" onClick={onRevoke} disabled={busy!==null||frozenTimer||(!task.confirmDeadlineAt&&task.confirmationMode!=='explicit')||!canRevoke}
             aria-label={tr('taskConfirmCancel',{ns:'chat'})}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] disabled:opacity-40 cursor-pointer">
+            className="inline-flex min-h-10 sm:min-h-8 items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-semibold bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] disabled:opacity-40 cursor-pointer">
             {busy==='revoke'&&!frozen?<span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />:<X className="w-3.5 h-3.5" />}
             {tr('taskConfirmCancel',{ns:'chat'})}
           </button>
@@ -221,13 +242,13 @@ export function TaskConfirmationView({task,compact=false,remaining=null,frozen=f
 }
 
 export const AiTaskConfirmationCard:React.FC<AiTaskConfirmationCardProps>=({
-  tasks,compact,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit,
+  tasks,compact,legacyReview,beginReview,approveTask,revokeTask,refreshTask,onEditSubmit,
 })=>{
   if(!tasks.length)return null;
   return (
     <div className="space-y-2" role="group" aria-label={tr('taskCardGroup',{ns:'chat'})}>
       {tasks.map(task=>(
-        <TaskConfirmationRow key={task.id} task={task} compact={compact} beginReview={beginReview} approveTask={approveTask} revokeTask={revokeTask} refreshTask={refreshTask} onEditSubmit={onEditSubmit} />
+        <TaskConfirmationRow key={task.id} task={task} compact={compact} legacyReview={legacyReview} beginReview={beginReview} approveTask={approveTask} revokeTask={revokeTask} refreshTask={refreshTask} onEditSubmit={onEditSubmit} />
       ))}
     </div>
   );

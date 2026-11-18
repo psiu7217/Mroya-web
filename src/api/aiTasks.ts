@@ -7,6 +7,8 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
     || !['memory','calendar','notes'].includes(v.type as string)
     || !['awaiting_review','pending_confirmation','queued','running','completed','failed','needs_clarification','cancelled'].includes(v.status as string)
     || typeof v.description !== 'string' || !v.description
+    || !(v.review === undefined || Array.isArray(v.review) && v.review.length <= 1024
+      && v.review.every(line => typeof line === 'string' && line.length <= 32768))
     || !['created_at','updated_at'].every(k => typeof v[k] === 'string' && Number.isFinite(Date.parse(v[k] as string)))
     || !['started_at','finished_at'].every(k => v[k] == null || typeof v[k] === 'string' && Number.isFinite(Date.parse(v[k] as string)))
     || !(v.confirm_deadline_at === undefined || v.confirm_deadline_at === null
@@ -32,7 +34,7 @@ export function readAiTask(value: unknown, expectedId?: string): AiTask {
     ||typeof v.needs_clarification!=='boolean'||!(v.review_phase===null||v.review_phase==='answer_processing')))
     throw new ApiError(502,'invalid_response','Invalid task presentation');
   const title=kind==='chat'?v.description as string:product&&v.event_title?v.event_title as string:'Calendar';
-  return {id:v.id as string, title, userPrompt:title,
+  return {id:v.id as string, title, userPrompt:title, review:v.review as string[] ?? [],
     eventTitle:product?v.event_title as string||undefined:undefined,
     questions:product?v.questions as string[]:[],needsClarification:product?v.needs_clarification as boolean:false,
     reviewPhase:product?v.review_phase as AiTask['reviewPhase']||undefined:undefined,

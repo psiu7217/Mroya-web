@@ -7,6 +7,43 @@ failures still retry analysis. Save remains manual without a background deadline
 
 # Backend contract for Mroya Web
 
+Image generation uses the companion API image-generation release and migrations
+`provider.0014` / `documents.0003`. Admin selects a separate OpenRouter image model.
+Chat calls the server-owned `generate_image` tool; Web never sends provider
+credentials or generation requests. File DTOs optionally include
+`source=uploaded|generated` (missing means a legacy upload).
+`documents/?category=generated` lists the owner's generated files. The collection
+includes files moved into another category. Generated originals use the existing
+authenticated `/api/v1/documents/{id}/original/` URL. Assistant Markdown displays
+images only at this exact relative path; remote/data URLs remain omitted.
+Live `generate_image` activities have kind `tool` and null input/output, keeping
+prompts and base64 out of SSE activity. Deploy API before Web.
+
+The Chat image card follows that activity's running/finished lifecycle and shows
+an indeterminate circular indicator; no percentage is inferred. Opening an image
+loads its existing authenticated original through the session client, with a
+25 MiB bound and raster MIME/signature checks. The viewer shares the actual File
+through the device share sheet. Without file sharing it copies a PNG when the
+clipboard permits, or offers download. Private original URLs are never presented
+as publicly shareable links. Bytes/object URLs are disposed on close, conversation
+change and logout. File preloading happens before the Share click, retaining the
+browser's required transient user activation.
+
+Memory-transfer version 2 accepts optional `object_merges` (`from` → `into` UUIDs)
+and a non-executable `editing_guide`. New exports include both fields; the client
+preserves the complete JSON when downloading or submitting it. Backend redirects
+typed Memory references and transfers calendar/note links, with recoverable import
+and restoration. See the companion [memory transfer guide](https://github.com/psiu7217/Mroya-api/blob/main/docs/MEMORY-TRANSFER.md).
+Feature availability comes from the server and is separate from validation of the
+selected file. A rejected file must not display “Memory import is not available yet”.
+
+General file uploads are introduced by the companion Document service release.
+See [DOCUMENTS](DOCUMENTS.md) for its capability, owner-scoped multipart upload,
+chat attachment IDs, original links and category-search behavior. Existing
+servers without `capabilities.documents===true` keep uploads unavailable. This
+supersedes the original inventory's statement that no attachment API exists;
+the companion backend must be deployed before activation.
+
 The AI Tasks product presentation requires the companion Backend DTO update:
 Intelligence tasks have event_title, questions, needs_clarification and
 review_phase (answer_processing/null). facts remains a string array with human
@@ -42,6 +79,22 @@ response or conflict triggers a canonical GET, never an automatic repeated POST.
 Chat's existing window Cancel/Edit keeps `{}` and its unchanged deadline checks.
 Older Backend versions omit permission so panel Cancel remains hidden; do not infer permission from model
 text or client-side error-code lists.
+
+Chat Memory confirmations use the companion API's additive `review: string[]`:
+frozen, human-readable proposed values without execution references. The Web
+validates and displays these rows beside the self-contained description in one
+card bound to the original task ID. It does not parse the assistant's fallback
+answer into facts or infer successful persistence. Existing canonical task
+updates replace the card's state; completed Memory alone displays Saved.
+Queued/running/failed/needs_clarification/cancelled retain their distinct states.
+
+Older APIs or legacy snapshots can omit the review or return an empty array.
+For a single legacy Memory receipt, the original confirmation remains accessible
+inside the card (expanded while awaiting confirmation); a mixed legacy batch
+retains its original answer. Failed chat turns still show accepted receipts as
+well as their failure. The timer, delivery ACK, approval/revocation/edit requests
+and write reconciliation are unchanged. Model action-description guidance is
+domain-independent and does not introduce another AI request.
 
 Mroya API is authoritative for identity, user data and business logic. This inventory was checked against Django routes/views, chat and memory services, and Google OAuth application code installed at `503f99c98c`. The canonical methods, payloads, DTOs, limits and errors are in [API.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/API.md); OAuth setup and flow are in [GOOGLE-OAUTH.md](https://github.com/psiu7217/Mroya-api/blob/main/docs/GOOGLE-OAUTH.md). Read those references before adding a feature. Markdown alone does not establish API availability: verify current code and capabilities.
 

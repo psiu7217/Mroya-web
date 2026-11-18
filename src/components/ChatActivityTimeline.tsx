@@ -17,7 +17,8 @@ function publicFacts(text:string):string[]{
  }catch{return [];}
 }
 
-export function ChatActivityTimeline({entries,isStreaming=false,technical=true}:{entries:ChatTimelineEntry[];isStreaming?:boolean;technical?:boolean}){
+export function ChatActivityTimeline({entries,isStreaming=false,technical=true,hideTaskRegistrations=false}:{entries:ChatTimelineEntry[];isStreaming?:boolean;technical?:boolean;hideTaskRegistrations?:boolean}){
+ if(hideTaskRegistrations)entries=entries.filter(entry=>entry.kind!=='tool'||!['submit_memory_changes','enqueue_agent_task'].includes(entry.toolName??''));
  if(!technical)return <div className="space-y-1" role="status">{entries.filter(entry=>entry.kind==='tool').map(entry=>
   <div key={entry.id} className="text-xs text-[var(--mroya-text-muted)]"><p>{entry.title}</p>
    {entry.output?.format==='json'&&publicFacts(entry.output.text).map((fact,index)=><p key={index}>{fact}</p>)}

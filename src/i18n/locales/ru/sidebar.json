@@ -49,5 +49,7 @@
   "today": "Сегодня",
   "previous7Days": "Последние 7 дней",
   "earlierInOctober": "Ранее в октябре",
-  "conversationOptionsFor": "Действия с чатом «{{title}}»"
+  "conversationOptionsFor": "Действия с чатом «{{title}}»",
+  "navFiles": "Файлы",
+  "navOther": "Другое"
 }

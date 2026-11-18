@@ -9,6 +9,8 @@ import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {ApiError} from './errors.ts';
 import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
+import {readDocument,readDocumentPage,readDocumentCategories,readDocumentCategory,readDocumentDetail,readDocumentDeletion} from './documents.ts';
+import type {DocumentCorrection,DocumentLibraryQuery} from '../types/documents.ts';
 import {tr} from '../i18n/index.ts';
 function checkedUser(value: unknown): ApiUser {
   if (!value || typeof value !== 'object') throw new ApiError(502,'invalid_response','Missing API user');
@@ -35,6 +37,106 @@ export function validTelegramLink(value:string):boolean {
   } catch {return false;}
 }
 export class MroyaApi {
+  async uploadStagedDocument(file:File,uploadId:string,onProgress:(fraction:number|null)=>void,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024)throw new ApiError(400,'invalid_upload','Invalid upload');
+    if(!this.token)await this.csrf(signal);
+    signal?.throwIfAborted();
+    const form=new FormData();form.append('file',file);form.append('upload_id',uploadId);
+    const response=await new Promise<Response>((resolve,reject)=>{
+      const xhr=new XMLHttpRequest();
+      const cleanup=()=>signal?.removeEventListener('abort',abort);
+      const abort=()=>xhr.abort();
+      xhr.open('POST','/api/v1/documents/upload/?staged=1');xhr.withCredentials=true;xhr.timeout=180000;
+      xhr.setRequestHeader('Accept','application/json');xhr.setRequestHeader('X-CSRFToken',this.token);
+      xhr.upload.onprogress=event=>onProgress(event.lengthComputable?Math.min(0.98,event.loaded/event.total):null);
+      xhr.onload=()=>{cleanup();if(!xhr.status){reject(new ApiError(0,'network_error','Upload failed'));return;}
+        resolve(new Response(xhr.responseText,{status:xhr.status,headers:{'Content-Type':xhr.getResponseHeader('Content-Type')??''}}));};
+      xhr.onerror=xhr.ontimeout=()=>{cleanup();reject(new ApiError(0,'network_error','Upload failed'));};
+      xhr.onabort=()=>{cleanup();reject(new DOMException('Aborted','AbortError'));};
+      signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted){cleanup();reject(new DOMException('Aborted','AbortError'));return;}
+      xhr.send(form);
+    });
+    await this.check(response);
+    if(!response.headers.get('Content-Type')?.includes('application/json'))throw new ApiError(502,'invalid_response','Expected upload JSON');
+    const document=readDocument(await response.json());if(document.status!=='staged')throw new ApiError(502,'invalid_response','Expected staged upload');onProgress(1);return document;
+  }
+  async discardStagedUpload(uploadId:string,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId))throw new ApiError(400,'invalid_upload','Invalid upload');
+    await this.json('documents/uploads/'+uploadId+'/',{},signal,'DELETE');
+  }
+  async documents(options:DocumentLibraryQuery={},signal?:AbortSignal){
+    const {offset=0,category='',q='',order='newest'}=options;
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>200||!['newest','name'].includes(order)
+      ||!['','uncategorized','generated'].includes(category)&&!isTurnUuid(category))throw new ApiError(400,'invalid_request','Invalid file library query');
+    return readDocumentPage(await this.json('documents/?'+new URLSearchParams({offset:String(offset),category,q,order}),undefined,signal),offset);
+  }
+  async documentDetail(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocumentDetail(await this.json('documents/'+id+'/',undefined,signal),id);
+  }
+  async documentImage(id:string,signal?:AbortSignal):Promise<File>{
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    const response=await this.fetcher('/api/v1/documents/'+id+'/original/',{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'image/png,image/jpeg,image/webp,image/gif'}});
+    await this.check(response);
+    const mime=response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()??'';
+    const extensions:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'};
+    const limit=25*1024*1024,length=response.headers.get('Content-Length');
+    if(!extensions[mime]||!response.body||length!==null&&(!Number.isSafeInteger(Number(length))||Number(length)<1||Number(length)>limit))
+      throw new ApiError(502,'invalid_image','Invalid image response');
+    const reader=response.body.getReader(),chunks:BlobPart[]=[];let size=0;
+    try{
+      while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
+        if(size>limit){await reader.cancel();throw new ApiError(502,'invalid_image','Image exceeds the size limit');}
+        chunks.push(new Uint8Array(value).buffer);
+      }
+    }finally{reader.releaseLock();}
+    const file=new File(chunks,'mroya-'+id+'.'+extensions[mime],{type:mime});
+    const header=new Uint8Array(await file.slice(0,12).arrayBuffer()),text=String.fromCharCode(...header);
+    const valid=mime==='image/png'?text.startsWith('\x89PNG\r\n\x1a\n'):
+      mime==='image/jpeg'?header[0]===255&&header[1]===216&&header[2]===255:
+      mime==='image/webp'?text.startsWith('RIFF')&&text.slice(8)==='WEBP':/^GIF8[79]a/.test(text);
+    if(!size||!valid)throw new ApiError(502,'invalid_image','Invalid image bytes');
+    return file;
+  }
+  async documentCategories(signal?:AbortSignal){return readDocumentCategories(await this.json('documents/categories/',undefined,signal));}
+  async deleteDocument(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocumentDeletion(await this.json('documents/'+id+'/',{},signal,'DELETE'));
+  }
+  async setDocumentCategorySearch(id:string,enabled:boolean,version:number,signal?:AbortSignal){
+    if(!isTurnUuid(id)||typeof enabled!=='boolean'||!Number.isSafeInteger(version)||version<1)throw new ApiError(400,'invalid_request','Invalid category policy');
+    return readDocumentCategory(await this.json('documents/categories/'+id+'/',{search_enabled:enabled,version},signal,'PATCH'));
+  }
+  async createDocumentCategory(name:string,parentId:string|null,enabled:boolean,signal?:AbortSignal){
+    if(!name.trim()||Array.from(name).length>120||parentId!==null&&!isTurnUuid(parentId))throw new ApiError(400,'invalid_request','Invalid category');
+    return readDocumentCategory(await this.json('documents/categories/',{name,parent_id:parentId,search_enabled:enabled},signal));
+  }
+  async saveDocument(id:string,changes:DocumentCorrection,signal?:AbortSignal){
+    if(!isTurnUuid(id)||!changes.title.trim()||Array.from(changes.title).length>240||Array.from(changes.summary).length>4000
+      ||changes.keywords.length>20||changes.keywords.some(w=>!w.trim()||Array.from(w).length>120)
+      ||changes.category_id!==null&&!isTurnUuid(changes.category_id)||!Number.isSafeInteger(changes.analysis_version)||changes.analysis_version<0)
+      throw new ApiError(400,'invalid_request','Invalid document correction');
+    return readDocumentDetail(await this.json('documents/'+id+'/',changes,signal,'PATCH'),id);
+  }
+  async retryDocument(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocument(await this.json('documents/'+id+'/retry/',{},signal));
+  }
+  async uploadDocument(file:File,uploadId:string,context:string,signal?:AbortSignal){
+    if(!isTurnUuid(uploadId)||file.size<1||file.size>25*1024*1024||context.length>4000)
+      throw new ApiError(400,'invalid_upload','Invalid file upload');
+    if(!this.token)await this.csrf(signal);
+    const form=new FormData();form.append('file',file);form.append('upload_id',uploadId);form.append('context',context);
+    const response=await this.fetcher('/api/v1/documents/upload/',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal,
+      headers:{Accept:'application/json','X-CSRFToken':this.token},body:form});
+    await this.check(response);
+    return readDocument(await response.json());
+  }
+  async document(id:string,signal?:AbortSignal){
+    if(!isTurnUuid(id))throw new ApiError(400,'invalid_document','Invalid document UUID');
+    return readDocument(await this.json('documents/'+id+'/?brief=1',undefined,signal));
+  }
   async memoryTransferStatus(signal?:AbortSignal):Promise<{searchPending:boolean;backupId:string|null;importAvailable:boolean}>{
     const data=await this.json<{search_pending:unknown;backup_uuid:unknown;import_available:unknown}>('me/memory/status/',undefined,signal);
     if(typeof data.search_pending!=='boolean'||typeof data.import_available!=='boolean'||(data.backup_uuid!==null&&!isTurnUuid(data.backup_uuid)))throw new ApiError(502,'invalid_response','Invalid memory transfer status');
@@ -362,7 +464,7 @@ export class MroyaApi {
     if(!this.token)await this.csrf(options.signal);
     const response=await this.fetcher('/api/v1/'+path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:options.signal,
       headers:{Accept:'text/event-stream, application/json','Content-Type':'application/json','X-CSRFToken':this.token},
-      body:JSON.stringify({content,submission_id:submissionId,...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
+      body:JSON.stringify({content,submission_id:submissionId,...(options.documentIds?.length?{document_ids:options.documentIds}:{}),...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
     await this.check(response);
     const turn=response.headers.get('X-Chat-Turn-ID');if(turn)options.onTurn?.(turn);
     if(response.headers.get('Content-Type')?.includes('application/json')){const data=await response.json();if(data.state!=='completed'||typeof data.content!=='string')throw new ApiError(502,'invalid_response','Invalid completed replay');onEvent({event:'replay',data});return;}

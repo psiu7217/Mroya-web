@@ -44,6 +44,33 @@ test('Fast Search accepts started/finished projections and completes the SSE str
  await assert.rejects(parse([event(1,started),done]),ApiError);
 });
 
+test('image generation streams as a bounded action with no prompt or image bytes',async()=>{
+ const started=start({tool_name:'generate_image',kind:'tool',title:'Generating image',input:null});
+ const finished=finish({tool_name:'generate_image',kind:'tool',title:'Image saved',output:null});
+ const stream=[event(1,started),event(2,finished),done];
+ assert.deepEqual(await parse(stream),stream);
+ assert.throws(()=>readToolActivity({sequence:1,activity:{...started,input:{prompt:'not projected'}}}),ApiError);
+});
+
+test('Submit Memory Changes streams as a tool-kind activity and completes through done',async()=>{
+ const base={tool_name:'submit_memory_changes',kind:'tool',title:'Running action',input:null};
+ const started=start(base),finished=finish({...base,title:'Action completed',output:null});
+ for(const [index,activity] of [started,finished].entries())
+  assert.deepEqual(readToolActivity({sequence:index+1,activity}).activity,activity);
+ // not_executed keeps the generic contract; confirmation is never declared here.
+ readToolActivity({sequence:1,activity:finish({...base,title:'Action not executed',status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})});
+ const stream=[{event:'trace',data:{turn_status:'running'}} as ChatStreamEvent,reasoning(1),
+  event(2,started),event(3,finished),reasoning(4,'After changes'),answer,done];
+ assert.deepEqual(await parse(stream),stream);
+ // Web lifecycle: a finished/not_executed arrives only for a call that never started.
+ await parse([event(1,finish({...base,title:'Action not executed',status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})),answer,done]);
+ // Strict allowlist: no memory-write kind, no invented input/output shapes.
+ assert.throws(()=>readToolActivity({sequence:1,activity:start({...base,input:{changes:[]}})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:1,activity:start({...base,kind:'memory_write'})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:2,activity:finish({...base,output:{changes:0}})}),ApiError);
+ assert.throws(()=>readToolActivity({sequence:2,activity:finish({...base,output:{error_code:'not_executed'}})}),ApiError);
+});
+
 test('strict legacy/expanded forms and phase invariants; no mixed schemas or secret/unknown fields',()=>{
  const good=[start(),finish(),finish({status:'failure',output:{error_code:'tool_execution_failed'}}),
  finish({status:'not_executed',duration_ms:null,output:{error_code:'not_executed'}})];
@@ -73,7 +100,7 @@ test('all documented allowlisted tool input/output schemas, nullable safe projec
  ['revise_memory_statements','memory_write',{facts:[]},{revised_count:2,results:[{action:'revised'}],search_ready:null}],
  ['forget_memory_statements','memory_write',null,{forgotten_count:9,results:[{action:'forgotten'}],search_ready:true}],
  ['resolve_memory_write','no_write',{reason:'already_present',missing_dimension:null},{decision_resolved:true,new_facts_added:false}],
- ['search_calendar_events','calendar_search',null,null],['echo','tool',null,null],['tool','tool',null,null],
+ ['search_calendar_events','calendar_search',null,null],['echo','tool',null,null],['tool','tool',null,null],['submit_memory_changes','tool',null,null],
  ] as const;
  for(const [tool_name,kind,input,output] of cases){
   readToolActivity({sequence:1,activity:start({tool_name,kind,input})});
@@ -147,7 +174,7 @@ test('not_executed without started is one Not executed card, null calendar detai
 test('interrupted running is local uncertainty; prior confirmed outcomes stay intact; logout and late results clear',async()=>{
  let emit!:(e:ChatStreamEvent)=>void,release!:()=>void;
  const gate=new Promise<void>(r=>{release=r;});
- const c=new LiveWorkspaceController(source({send:async(_t,_id,onEvent,options)=>{
+ const c=new LiveWorkspaceController(source({turn:async()=>({turn_status:'running',summary:'',events:[]}),send:async(_t,_id,onEvent,options)=>{
  options?.onTurn?.(id);emit=onEvent;onEvent(event(1,start()));onEvent(event(2,finish()));
  onEvent(reasoning(3));onEvent(event(4,start({call_id:'t1-c2'})));await gate;throw new StreamInterruptedError();
  }}),()=>{},()=>id);
@@ -185,4 +212,20 @@ test('a fresh send may reuse call_id without inheriting the previous call or acc
  assert.equal(old[0].kind==='tool'&&old[0].status,'success');
  assert.equal(next.length,1);assert.equal(next[0].kind==='tool'&&next[0].status,'failure');
  assert.equal(next[0].kind==='tool'&&next[0].input,undefined);c.stop();
+});
+
+
+test('Notes v1 read/write projections complete the SSE stream without exposing note content or relaxing schemas',async()=>{
+ for(const [tool_name,kind,output] of [
+  ['create_note','note_write',{note_action:'create_note',search_ready:false}],
+  ['get_note','note_read',{note_read:true}],
+  ['update_note','note_write',{note_action:'update_note',search_ready:null}],
+  ['delete_note','note_write',{note_action:'delete_note',search_removed:true}],
+ ] as const){
+  const started=start({tool_name,kind,input:null}),finished=finish({tool_name,kind,output});
+  const stream=[event(1,started),event(2,finished),answer,done];assert.deepEqual(await parse(stream),stream);
+  assert.throws(()=>readToolActivity({sequence:1,activity:start({tool_name,kind,input:{content:'Do not expose body'}})}),ApiError);
+  assert.throws(()=>readToolActivity({sequence:2,activity:finish({tool_name,kind,output:{...output,content:'Do not expose body'}})}),ApiError);
+  assert.throws(()=>readToolActivity({sequence:2,activity:finish({tool_name,kind,output:{...output,note_action:'another_tool'}})}),ApiError);
+ }
 });

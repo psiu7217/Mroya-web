@@ -1,4 +1,6 @@
 import React from 'react';
+import {tr} from '../i18n';
+import {formatDate} from '../i18n/format';
 import {
   X,
   BookOpen,
@@ -39,7 +41,7 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
 
   return (
     <aside
-      aria-label="Contextual memory details"
+      aria-label={tr('contextPanel',{ns:'memory'})}
       className="w-full sm:w-[336px] h-full bg-[var(--mroya-surface-muted)] border-l border-[var(--mroya-divider)] flex flex-col shrink-0 z-30 fixed sm:static right-0 top-0 bottom-0 shadow-lg sm:shadow-none"
     >
       {/* Panel Header */}
@@ -47,13 +49,13 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           <BookOpen className="w-4 h-4 text-[var(--mroya-primary)] shrink-0" />
           <h2 className="text-[14px] font-semibold text-[var(--mroya-text)] truncate">
-            Memory context
+            {tr('memoryContext',{ns:'memory'})}
           </h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close memory context panel"
+          aria-label={tr('closeMemoryContext',{ns:'memory'})}
           className="w-7 h-7 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
         >
           <X className="w-4 h-4" />
@@ -83,7 +85,7 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
               {/* Source Attribution */}
               <div className="pt-2.5 border-t border-[var(--mroya-divider)] space-y-1">
                 <div className="text-[11px] font-medium text-[var(--mroya-text-muted)]">
-                  Source & provenance
+                  {tr('sourceProvenance',{ns:'memory'})}
                 </div>
                 <div className="flex items-center gap-2 text-[12px] text-[var(--mroya-text)]">
                   <FileText className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
@@ -95,7 +97,7 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
               {activeMemory.entities.length > 0 && (
                 <div className="pt-2 border-t border-[var(--mroya-divider)]">
                   <div className="text-[11px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                    Linked entities
+                    {tr('linkedEntities',{ns:'memory'})}
                   </div>
                   <div className="text-[12px] text-[var(--mroya-text)] leading-[18px]">
                     {activeMemory.entities.join(' · ')}
@@ -112,7 +114,7 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <BookOpen className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                    <span>Open in Memory</span>
+                    <span>{tr('openInMemory',{ns:'memory'})}</span>
                   </span>
                   <ArrowUpRight className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
                 </button>
@@ -124,7 +126,7 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Share2 className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                    <span>Explore in Memory Map</span>
+                    <span>{tr('exploreMap',{ns:'memory'})}</span>
                   </span>
                   <ArrowUpRight className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
                 </button>
@@ -135,13 +137,13 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
             {upcomingEvent && (
               <div className="space-y-2">
                 <div className="text-[12px] font-semibold text-[var(--mroya-text-muted)]">
-                  Upcoming related commitment
+                  {tr('upcomingRelatedCommitment',{ns:'memory'})}
                 </div>
                 <div className="p-3.5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-2">
                   <div className="flex items-center justify-between text-[12px] text-[var(--mroya-text-muted)] tabular-nums">
                     <span className="flex items-center gap-1.5 font-medium text-[var(--mroya-primary)]">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>Oct {upcomingEvent.dayOfMonth}, 2026</span>
+                      <span>{formatDate(upcomingEvent.date,{month:'short',day:'numeric',year:'numeric'},'UTC')}</span>
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -159,7 +161,7 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
                     onClick={() => onOpenInCalendar(upcomingEvent.id)}
                     className="inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer pt-0.5"
                   >
-                    <span>View in Calendar</span>
+                    <span>{tr('viewInCalendar',{ns:'memory'})}</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -205,10 +207,10 @@ export const MemoryContextPanel: React.FC<MemoryContextPanelProps> = ({
         ) : (
           <div className="p-6 text-center space-y-2">
             <p className="text-[14px] font-medium text-[var(--mroya-text)]">
-              No specific memory selected
+              {tr('noSpecificMemorySelected',{ns:'memory'})}
             </p>
             <p className="text-[13px] text-[var(--mroya-text-muted)]">
-              Ask Mroya about people, agreements, or upcoming dates to inspect cited memories here.
+              {tr('noSpecificMemoryHelp',{ns:'memory'})}
             </p>
           </div>
         )}

@@ -1,6 +1,8 @@
 // Stable shared UI contract. Only coordinated, reviewed changes should alter this interface.
 import type React from 'react';
+import type { NoteItem } from './notes';
 import { NavSection, SubscriptionPlan, ThemeMode, ConversationListItem, Conversation, MemoryItem, CalendarEvent, GraphNode, ChatAction, ReminderItem } from './mroya';
+import type {AppLanguage} from './api';
 export interface AccountPresentation { displayName:string; initials:string; email:string; description:string; timezone:string; spaceDescription:string; nickname?:string }
 export interface TelegramPresentation {
     status:import('./api').TelegramConnectionStatus|null;
@@ -34,8 +36,8 @@ export interface NotificationPresentation {
     onSendTest:()=>Promise<void>; onRefresh:()=>Promise<void>; onRetry:()=>Promise<void>;
 }
 export interface WorkspaceRuntime {
+    features?: {googleCalendar:boolean;technicalDiagnostics:boolean;experimentalFeatures:boolean;reminders:boolean};
     notifications?:NotificationPresentation;
-    memoryInboxAvailable?:boolean;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
@@ -46,8 +48,10 @@ export interface WorkspaceRuntime {
     memoriesTotal:number; hasOlder:boolean; onOlder:()=>void; hasMoreMemories:boolean; onMoreMemories:()=>void;
     truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
     preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
+    languageSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
     showModelReasoning?:boolean; onToggleShowModelReasoning?:(enabled:boolean)=>void;
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
+    onChangeLanguage?:(language:AppLanguage)=>void;
 }
 export interface ConnectionSamples {
     googleCalendarId:string;
@@ -55,22 +59,28 @@ export interface ConnectionSamples {
     calendars:{id:string;name:string;desc:string;available:boolean;read_only:boolean;exportable:boolean}[];
     scenarios:{id:import('./mroya').GoogleSyncState;label:string}[];
 }
-export interface DesignIntelligencePreviews {
-    EventAnalysis:React.ComponentType<{event:CalendarEvent;onOpenMemory:(id:string)=>void}>;
-    Sources:React.ComponentType; Autonomy:React.ComponentType;
-}
 export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
 export interface WorkspaceModel {
-    designIntelligence?:DesignIntelligencePreviews;
+    imageViewer?:import('./imageViewer').ImageViewerPresentation;
+    chatAttachments?:import('./chatAttachments').ChatAttachmentsPresentation;
+    files?:import('./documents').FilesPresentation;
+    memoryTransfer?:import('./memoryTransfer').MemoryTransferPresentation;
+    speech?:import('./speech').SpeechPresentation;
+    install?:import('./install').InstallPresentation;
+    memoryReview?:import('./memoryReview').ReviewPresentation;
+    calendarAnalysis?:import('./calendarAnalysis').CalendarAnalysisPresentation;
+    aiTasks?:import('./aiTasks').AiTasksPresentation;
+    memoryLinksNavigation?:import('./memoryLinks').MemoryLinksNavigation;
     notificationPreview?:NotificationPreview;
     notifications?:NotificationPresentation;
-    memoryInbox?:import('./memoryInbox').MemoryInboxPresentation;
     connectionSamples?:ConnectionSamples;
     onChangeTimezone?:(value:string)=>void;
     onSaveNickname?:(value:string)=>void;
     onClearNickname?:()=>void;
+    language?:AppLanguage;
+    onChangeLanguage?:(language:AppLanguage)=>void;
     diagnostics?:ChatDiagnostics;
     runtime?:WorkspaceRuntime;
     feedback?:Pick<WorkspaceRuntime,'loading'|'busy'|'error'|'onRetry'>;
@@ -91,6 +101,10 @@ export interface WorkspaceModel {
     nodes: GraphNode[];
     connections: import("./mroya").ServiceConnection[];
     reminders: ReminderItem[];
+    notes?: NoteItem[];
+    notesRuntime?: import('./notes').NotesPresentation;
+    /** Set only by a configured Notes source; absence does not mean an empty loaded list. */
+    notesAvailable?: boolean;
     reminderModalOpen: boolean;
     editingReminder: ReminderItem | null;
     reminderPreselectedEventId: string | undefined;
@@ -111,7 +125,8 @@ export interface WorkspaceModel {
     relatedMemoriesForActiveChat: MemoryItem[];
     upcomingRelatedEvent: CalendarEvent | null;
     handleNewChat: () => void;
-    handleSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
+    handleSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
+    documentsAvailable?:boolean;
     handleCitationClick: (memoryId: string) => void;
     handleChatActionClick: (action: ChatAction) => void;
     calendar?:CalendarPresentation;
@@ -200,7 +215,7 @@ export interface WorkspaceModel {
     onConnectionsSettingsViewChangeTab: (tab: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings') => void;
     onConnectionsSettingsViewExpandSidebar: () => void;
     onConnectionsSettingsViewOpenMobileMenu: () => void;
-    onClosePlanPreview: React.MouseEventHandler<HTMLButtonElement>;
+    onClosePlanPreview: () => void;
     onPreviewFreePlan: React.MouseEventHandler<HTMLButtonElement>;
     onPreviewPremiumPlan: React.MouseEventHandler<HTMLButtonElement>;
     onReminderEditorModalClose: () => void;

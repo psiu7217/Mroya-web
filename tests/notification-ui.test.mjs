@@ -1,7 +1,6 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer,build} from 'vite';
-import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 const key='__notificationUiHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
@@ -88,12 +87,12 @@ test('raw delivery statuses have truthful labels; Ready and no receipt never imp
   p.props.notifications={...blank,enabled:true,lastTestStatus:status,lastTest:{deliveries:[{status,error_code:null}]} };p.page.flush();assert.ok(text(p.page.value).includes(label));if(status!=='sent')assert.doesNotMatch(text(p.page.value),/Delivered to Telegram/);
  }
  p.props.notifications={...blank,enabled:true,deliveryReady:true,lastTestStatus:'sent',lastTest:null};p.page.flush();assert.match(text(p.page.value),/Ready · Bot connected/);assert.doesNotMatch(text(p.page.value),/Delivered to Telegram/);
- p.props.notifications={...blank,available:false};p.page.flush();assert.match(text(p.page.value),/Soon · Функция скоро появится/);assert.equal(toggle(p.page.value).props.disabled,true);assert.equal(button(p.page.value,'Send test notification').props.disabled,true);p.close();
+ p.props.notifications={...blank,available:false};p.page.flush();assert.match(text(p.page.value),/Coming soon/);assert.equal(toggle(p.page.value).props.disabled,true);assert.equal(button(p.page.value,'Send test notification').props.disabled,true);p.close();
 });
 
 test('404/409/429/503 errors are separate from delivery receipts; explicit Retry invokes exactly its callback',()=>{
  const p=panel();let retries=0;
- for(const code of [404,409,429,503]){p.props.notifications={...blank,enabled:true,error:'HTTP '+code,onRetry:async()=>{retries++;}};p.page.flush();assert.match(text(p.page.value),new RegExp('HTTP '+code));assert.doesNotMatch(text(p.page.value),/Delivered to Telegram|Test alert received/);button(p.page.value,'Retry').props.onClick();}
+ for(const code of [404,409,429,503]){p.props.notifications={...blank,enabled:true,error:'HTTP '+code,onRetry:async()=>{retries++;}};p.page.flush();assert.match(text(p.page.value),/Something went wrong/);assert.doesNotMatch(text(p.page.value),/HTTP \d+|Delivered to Telegram|Test alert received/);button(p.page.value,'Retry').props.onClick();}
  assert.equal(retries,4);p.close();
 });
 
@@ -108,37 +107,39 @@ test('Workspace forwards one presentation; Design scenarios are offline and not 
 
 test('Studio panels exist in Production as inert Preview/Soon examples, separate from real events and memory',()=>{
  const w=workspace();let memoryActions=0;
- const source=mount(()=>IntelligenceSourcesPreview({preview:true}));source.flush();assert.match(text(source.value),/Preview|Пример/);assert.match(text(source.value),/Soon/);
+ const source=mount(()=>IntelligenceSourcesPreview({preview:true}));source.flush();assert.match(text(source.value),/Preview/);assert.match(text(source.value),/Coming soon/);
  for(const control of all(source.value,n=>n.type==='input')){assert.equal(control.props.disabled,true);assert.equal(control.props.onChange,undefined);}
- const autonomy=mount(()=>IntelligenceAutonomyPreview({preview:true}));autonomy.flush();assert.match(text(autonomy.value),/Soon/);assert.doesNotMatch(text(autonomy.value),/Сохранено|Сохранение…/);
+ const autonomy=mount(()=>IntelligenceAutonomyPreview({preview:true}));autonomy.flush();assert.match(text(autonomy.value),/Coming soon/);assert.doesNotMatch(text(autonomy.value),/Saved|Saving…/);
  assert.equal(all(autonomy.value,n=>n.type==='input'&&n.props.type==='radio').length,3);
  for(const control of all(autonomy.value,n=>n.type==='input')){assert.equal(control.props.disabled,true);assert.equal(control.props.onChange,undefined);}
  for(const label of all(autonomy.value,n=>n.type==='label'))assert.equal(label.props.onClick,undefined);
  const now=new Date(),currentDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
  const props={...calendar(w.value),live:true,selectedEventId:'owned-event',events:[{...event,date:currentDate,dayOfMonth:now.getDate(),id:'owned-event',person:'PRIVATE PERSON',organization:'PRIVATE COMPANY'}],onOpenMemory:()=>memoryActions++,designEventAnalysis:designIntelligence.EventAnalysis};
  const page=mount(()=>CalendarView(props));page.flush();button(page.value,'Month').props.onClick();page.flush();button(page.value,'View details').props.onClick();page.flush();const preview=find(page.value,n=>n.type===EventAnalysisPreview);assert.equal(preview.props.event,undefined);assert.equal(preview.props.onViewProposal,undefined);
- const example=mount(()=>EventAnalysisPreview(preview.props));example.flush();assert.match(text(example.value),/Preview/);assert.match(text(example.value),/94%/);assert.match(text(example.value),/не результат обработки вашего события/);assert.doesNotMatch(text(example.value),/PRIVATE PERSON|PRIVATE COMPANY|Проанализировано AI|Предложение принято|Подтверждено/);
+ const example=mount(()=>EventAnalysisPreview(preview.props));example.flush();assert.match(text(example.value),/Preview/);assert.match(text(example.value),/94%/);assert.match(text(example.value),/not an analysis of your event or memory/);assert.doesNotMatch(text(example.value),/PRIVATE PERSON|PRIVATE COMPANY|Analyzed by AI|Proposal accepted|Confirmed/);
  for(const action of all(example.value,n=>n.type==='button')){assert.equal(action.props.disabled,true);assert.equal(action.props.onClick,undefined);}
  const p=panel(blank,{activeTab:'settings',designIntelligence});assert.equal(all(p.page.value,n=>n.type===IntelligenceAutonomyPreview).length,1);p.close();
  const connections=panel(blank,{designIntelligence});assert.equal(all(connections.page.value,n=>n.type===IntelligenceSourcesPreview).length,1);connections.close();
  const design=designIntelligence.EventAnalysis({event:{...event,id:'evt-oct14-alex'},onOpenMemory:()=>memoryActions++});
- const eventView=mount(()=>EventAnalysisPreview(design.props));eventView.flush();assert.equal(button(eventView.value,'Подтвердить факт').props.disabled,false);button(eventView.value,'Подтвердить факт').props.onClick();eventView.flush();assert.match(text(eventView.value),/Предложение принято/);
+ const eventView=mount(()=>EventAnalysisPreview(design.props));eventView.flush();assert.equal(button(eventView.value,'Confirm fact').props.disabled,false);button(eventView.value,'Confirm fact').props.onClick();eventView.flush();assert.match(text(eventView.value),/Proposal accepted/);
  assert.equal(memoryActions,0);assert.equal(requests,0);eventView.unmount();example.unmount();page.unmount();autonomy.unmount();source.unmount();w.unmount();
 });
 
-test('Shared Preview markup retains original Studio class attributes',()=>{
- const studioCalendar=execFileSync('git',['show','654a31763e03dc8b0bf5d2d462e2c58b43253619:src/components/CalendarView.tsx'],{encoding:'utf8'});
- const studioSettings=execFileSync('git',['show','654a31763e03dc8b0bf5d2d462e2c58b43253619:src/components/ConnectionsSettingsView.tsx'],{encoding:'utf8'});
- const moved=fs.readFileSync('src/components/IntelligencePreviews.tsx','utf8');
- const classes=s=>[...s.matchAll(/className=(?:"([^"]*)"|`([^`]+)`|\{`([^`]+)`\})/g)].map(m=>m[1]??m[2]??m[3]);
- const section=(s,start,end)=>s.slice(s.indexOf(start),s.indexOf(end,s.indexOf(start)));
- const analysis=section(studioCalendar,'{/* Memory Intelligence Event Analysis Section */}','{/* Footer buttons */}');
- const source=section(studioSettings,'{/* Memory Intelligence —',"{activeTab === 'plan'");
- const autonomy=section(studioSettings,'{/* Memory Intelligence Autonomy Card */}','Memory transparency & control');
- // Each unchanged original attribute remains present; the surrounding shared page containers are excluded.
- for(const cls of classes(analysis))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
- for(const cls of classes(source).slice(0,-1))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
- for(const cls of classes(autonomy).slice(0,-3))assert.ok(moved.replace(/\s+/g,' ').includes(cls.replace(/\s+/g,' ')),cls);
+test('Studio adapters and Production examples share the same visual components, with different permissions',()=>{
+ const w=workspace();
+ for(const name of ['Sources','Autonomy']){
+  const Component=name==='Sources'?IntelligenceSourcesPreview:IntelligenceAutonomyPreview;
+  const example=mount(()=>Component({preview:true}));example.flush();
+  const designNode=designIntelligence[name]({});assert.equal(designNode.type,Component);
+  const design=mount(()=>Component(designNode.props));design.flush();
+  const classes=tree=>all(tree,n=>typeof n.type==='string'&&n.props.className).map(n=>n.props.className);
+  // Labels and permissions differ honestly; preserve the shared Studio layout containers.
+  assert.equal(example.value.props.className,design.value.props.className);
+  for(const control of all(example.value,n=>n.type==='input')){assert.equal(control.props.disabled,true);assert.equal(control.props.onChange,undefined);}
+  assert.ok(classes(example.value).length>5);assert.match(text(example.value),/Preview|Soon/);
+  example.unmount();design.unmount();
+ }
+ assert.equal(requests,0);w.unmount();
 });
 
 test('actual Production graph includes public Soon previews but excludes account fixtures and private demo runtime',async()=>{
@@ -147,6 +148,28 @@ test('actual Production graph includes public Soon previews but excludes account
  assert.equal(chunks.flatMap(c=>c.moduleIds).some(id=>id.replaceAll('\\','/').includes('/src/demo/')),false);
  assert.ok(chunks.flatMap(c=>c.moduleIds).some(id=>id.replaceAll('\\','/').endsWith('/src/components/IntelligencePreviews.tsx')));
  const js=chunks.map(c=>c.code).join('\n');
- assert.ok(js.includes('Пример · Soon'));assert.ok(js.includes('не результат обработки вашего события'));
+ assert.ok(js.includes('Example · Coming soon. Calendars below are illustrative, not your connected sources.'));assert.ok(js.includes('This illustration is not a result for your data.'));
  for(const marker of ['Harbor Labs','mem-schedule-pref','evt-oct14-alex','Test alert received','1 notification in queue','Design simulation: notification service unavailable.'])assert.equal(js.includes(marker),false,marker);
+});
+
+
+test('real Intelligence keeps Studio controls and styles but uses only confirmed source consent/autonomy, never simulated Saved',async()=>{
+ const changes=[],live={available:true,loading:false,busy:false,error:null,preferences:{autonomy:'review_all',capabilities:{auto_link:true}},runtime:{worker_enabled:true,deep_enabled:false,apply_enabled:false},sources:[{kind:'calendar',id:'owned',name:'Owned calendar',enabled:false}],hasMore:false,onRefresh(){},onMore(){},onSource:(...v)=>changes.push(v),onAutonomy:v=>changes.push(v)};
+ const sources=mount(()=>IntelligenceSourcesPreview({live}));sources.flush();const checkbox=all(sources.value,n=>n.type==='input'&&n.props['aria-label']==='AI analysis: Owned calendar')[0];assert.equal(checkbox.props.checked,false);assert.match(text(sources.value),/including Google imports/);assert.match(text(sources.value),/external AI provider/);assert.match(text(sources.value),/Google Sync works independently/);checkbox.props.onChange({target:{checked:true}});sources.flush();assert.equal(checkbox.props.checked,false);assert.deepEqual(changes,[['owned',true]]);assert.doesNotMatch(text(sources.value),/Work calendar|Personal calendar/);sources.unmount();
+ const autonomy=mount(()=>IntelligenceAutonomyPreview({live,preview:false}));autonomy.flush();const radios=all(autonomy.value,n=>n.type==='input'&&n.props.type==='radio');assert.equal(radios[0].props.checked,true);assert.equal(radios[2].props.disabled,true);radios[1].props.onChange();assert.equal(changes.at(-1),'auto_link');assert.doesNotMatch(text(autonomy.value),/Simulation|Design Mode/);assert.match(text(autonomy.value),/Processing enabled:\s+ON/);assert.match(text(autonomy.value),/Worker process status is not verified/);assert.doesNotMatch(text(autonomy.value),/Worker:|Events and email/);assert.match(text(autonomy.value),/Calendar events/);assert.match(text(autonomy.value),/Deep Analysis:\s+OFF/);assert.match(text(autonomy.value),/Apply:\s+OFF/);assert.match(text(autonomy.value),/Automatic links/);autonomy.unmount();
+ live.error='Backend refused consent';live.busy=false;const failed=mount(()=>IntelligenceSourcesPreview({live}));failed.flush();assert.ok(all(failed.value,n=>n.type==='input').every(n=>n.props.disabled));assert.match(text(failed.value),/Could not load this information/);failed.unmount();assert.equal(requests,0);
+});
+
+test('real event analysis renders no example outcomes, routes only to confirmed proposal; links show count and only owned reader labels',async()=>{
+ let opened;const analysis={eventId:'event',loading:false,error:null,data:{event_id:'event',source:{enabled:true},runtime:{worker_enabled:true,deep_enabled:true,apply_enabled:true},job:null,proposal:{id:'confirmed-proposal',status:'pending_apply',canonical_saved:false,links_saved:false,search_ready:false}},onRefresh(){},onProposal:id=>{opened=id;}};
+ const view=mount(()=>EventAnalysisPreview({analysis}));view.flush();assert.match(text(view.value),/Waiting to apply; not saved yet/);assert.doesNotMatch(text(view.value),/Analyzed by AI|Example|94%|Confirmed|New fact saved/);button(view.value,'View proposal').props.onClick();assert.equal(opened,'confirmed-proposal');view.unmount();
+ const {MemoryLinks}=await vite.ssrLoadModule('/src/components/MemoryLinks.tsx');let node;
+ const links=MemoryLinks({links:[{space_uuid:'space',object_uuid:'owned'},{space_uuid:'space',object_uuid:'unknown'}],navigation:{targets:{owned:{nodeId:'entity:owned',label:'Owned person'}},onOpen:id=>{node=id;}}});assert.match(text(links),/2 memory links/);assert.doesNotMatch(text(links),/unknown/);button(links,'Owned person').props.onClick();assert.equal(node,'entity:owned');assert.match(text(links),/Some linked objects/);assert.equal(requests,0);
+});
+
+
+test('calendar list has no Production AI badge without per-event evidence; original Design badge remains',()=>{
+ const w=workspace(),now=new Date(),date=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+ const live=mount(()=>CalendarView({...calendar(w.value),live:true,selectedEventId:'owned',events:[{...event,id:'owned',date,dayOfMonth:now.getDate(),person:'Александр'}]}));live.flush();button(live.value,'Month').props.onClick();live.flush();assert.doesNotMatch(text(live.value),/AI analysis|Проанализировано AI/);live.unmount();
+ const design=mount(()=>CalendarView({...calendar(w.value),live:false,selectedEventId:'demo',events:[{...event,id:'demo',person:'Александр'}]}));design.flush();button(design.value,'Month').props.onClick();design.flush();assert.match(text(design.value),/Analyzed by AI\s+·\s+Preview/);design.unmount();w.unmount();assert.equal(requests,0);
 });

@@ -44,11 +44,11 @@ test('guest saved preference restores on reopening and the last applied canvas r
 test('reloaded authenticated layout applies the confirmed profile preference, including System',()=>{
  const env=setup(true);let view=mount({theme:'light'});expectTheme(env,view,'light');view.unmount();view=mount({theme:'dark'});expectTheme(env,view,'dark');view.unmount();view=mount({theme:'system'});expectTheme(env,view,'dark');view.unmount();
 });
-test('first-paint color candidates and CSS schemes/backgrounds agree without enabling standalone or altering mobile geometry',()=>{
+test('first-paint color candidates and CSS schemes/backgrounds agree with PWA metadata while preserving mobile geometry',()=>{
  const html=readFileSync('index.html','utf8'),css=readFileSync('src/index.css','utf8');
  assert.match(html,/name="theme-color" media="\(prefers-color-scheme: light\)" content="#FBF8F3"/);assert.match(html,/name="theme-color" media="\(prefers-color-scheme: dark\)" content="#171513"/);
  assert.match(css,/:root \{\s+color-scheme: light/);assert.match(css,/\[data-theme="dark"\] \{\s+color-scheme: dark/);assert.match(css,/:root:not\(\[data-theme\]\) \{\s+color-scheme: dark/);
  assert.match(css,/html,\s*body,\s*#root \{[^}]*background-color: var\(--mroya-bg\)/);
- assert.doesNotMatch(html,/apple-mobile-web-app-capable|apple-mobile-web-app-status-bar-style|rel="manifest"|viewport-fit|user-scalable|maximum-scale/);
+ assert.doesNotMatch(html,/apple-mobile-web-app-status-bar-style|viewport-fit|user-scalable|maximum-scale/);
  assert.match(readFileSync('src/demo/useDemoWorkspace.ts','utf8'),/applyBrowserTheme\(value\)/);
 });

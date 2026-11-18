@@ -1034,11 +1034,11 @@
     }
     .map-sidebar {
       top: auto;
-      bottom: 10px;
+      bottom: 80px;
       right: 10px;
       left: 10px;
       width: auto;
-      height: min(48vh, 380px);
+      height: min(46vh, 320px);
       padding: 16px;
     }
     .map-sidebar h2 {

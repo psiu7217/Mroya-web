@@ -4,7 +4,7 @@ import {createServer} from 'vite';
 const key='__calendarDesignHooks';
 const vite=await createServer({mode:'design',server:{middlewareMode:true},appType:'custom',plugins:[{
  name:'calendar-design-hooks',enforce:'pre',
- transform(code,id){if(/\/(useDemoMemoryInbox|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
+ transform(code,id){if(/\/(useDemoFiles|useDemoWorkspace|useDemoDiagnostics|useLiveCalendar|CalendarView|ConnectionsSettingsView|WorkspaceView)\.(tsx|ts)$/.test(id.replaceAll('\\','/')))return code.replace(/from 'react';/g,"from 'virtual:calendar-design-hooks';");},
  resolveId(id){if(id==='virtual:calendar-design-hooks')return '\0'+id;},
  load(id){if(id==='\0virtual:calendar-design-hooks')return `import React from 'react';
  ${['useState','useRef','useEffect','useMemo','useSyncExternalStore'].map(name=>`export const ${name}=(...args)=>globalThis.${key}.${name}(...args);`).join('\n')}
@@ -39,7 +39,11 @@ function all(node,predicate){if(!node||typeof node!=='object')return [];return [
 function find(tree,predicate){const node=all(tree,predicate)[0];assert.ok(node,'expected element');return node;}
 function text(node){if(node===null||node===undefined||typeof node==='boolean')return '';if(typeof node!=='object')return String(node);return [node.props?.children].flat(Infinity).map(text).join(' ');}
 const button=(tree,label)=>find(tree,node=>node.type==='button'&&text(node).trim()===label);
-const child=(model,section,type)=>find(WorkspaceView({model:{...model,activeSection:section}}),node=>node.type===type).props;
+const child=(model,section,type)=>{
+ const view=mount(()=>WorkspaceView({model:{...model,activeSection:section}}));
+ try{return find(view.flush(),node=>node.type===type).props;}
+ finally{view.unmount();}
+};
 const calendar=model=>child(model,'calendar',CalendarView);
 const settings=model=>child(model,'connections',ConnectionsSettingsView);
 const event={title:'Local appointment',date:'2026-10-12',dayOfMonth:12,time:'12:00',duration:'1h',category:'meeting',source:'manual',notes:''};
@@ -171,7 +175,7 @@ test('Profile timezone uses confirmed state, keeps failed selection and supports
  assert.equal(select().props.disabled,false);assert.ok(all(page.value,node=>node.type==='option'&&node.props.value==='Pacific/Chatham').length);
  select().props.onChange({target:{value:'Pacific/Chatham'}});page.flush();assert.equal(select().props.value,'Pacific/Chatham');assert.equal(store.snapshot().timezone,'UTC');assert.match(text(page.value),/Saving timezone/);assert.doesNotMatch(text(page.value),/Saved ·/);
  resolve();for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.match(text(page.value),/Saved ·\s*Pacific\/Chatham/);
- fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/Timezone request failed/);assert.doesNotMatch(text(page.value),/Saved ·/);
+ fail=true;select().props.onChange({target:{value:'Asia/Tokyo'}});for(let i=0;i<8;i++)await Promise.resolve();page.flush();assert.equal(select().props.value,'Asia/Tokyo');assert.match(text(page.value),/The timezone could not be saved/);assert.doesNotMatch(text(page.value),/Saved ·/);
  button(page.value,'Retry timezone').props.onClick();for(let i=0;i<12;i++)await Promise.resolve();page.flush();assert.equal(store.snapshot().timezone,'Asia/Tokyo');assert.match(text(page.value),/Saved ·\s*Asia\/Tokyo/);
  page.unmount();view.unmount();store.stop();assert.equal(requests,0);
 });
@@ -218,7 +222,7 @@ for(const live of [false,true])for(const dialog of ['create','edit','delete'])te
  }
  props={...props,calendar:{...props.calendar,busy:true}};page.flush();assert.match(text(page.value),/Saving calendar change/);
  props={...props,calendar:{...props.calendar,loading:false,busy:false,error:'Calendar backend unavailable'}};page.flush();
- assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Calendar backend unavailable/);
+ assert.match(text(find(page.value,node=>node.props?.role==='alert')),/Could not save this change/);
  button(page.value,'Retry / check calendar').props.onClick();await Promise.resolve();assert.equal(retries,1);
  props={...props,calendar:{...props.calendar,error:null}};page.flush();assert.deepEqual(markup(page.value),before);
  page.unmount();view.unmount();timers.clear();assert.equal(requests,0);

@@ -11,6 +11,36 @@ const user={id:3,username:'test',email:'',first_name:'Test',last_name:'',timezon
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 const uuid='00000000-0000-4000-8000-000000000001';
 function fakeFetch(fn:(url:string,init:RequestInit)=>Response|Promise<Response>):typeof fetch{return ((url,init={})=>Promise.resolve(fn(String(url),init))) as typeof fetch;}
+test('memory export uses the authenticated same-origin API and rejects malformed documents',async()=>{
+ const document={format:'mroya-personal-memory',version:2,baseline:'signed',memory:{objects:[],statements:[]}};
+ const api=new MroyaApi(fakeFetch((url,init)=>{assert.equal(url,'/api/v1/me/memory/export/');assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');return json(document);}));
+ assert.deepEqual(await createLiveSource(api).exportMemory?.(),document);
+ await assert.rejects(new MroyaApi(fakeFetch(()=>json({format:'wrong'}))).exportMemory(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+});
+test('memory validation sends the original file bytes through the CSRF protected API',async()=>{
+ const original='{"format":"mroya-personal-memory", "version":2}';let writes=0;
+ const api=new MroyaApi(fakeFetch((url,init)=>{
+  if(url.endsWith('auth/csrf/'))return json({csrf_token:'test-csrf'});
+  assert.equal(url,'/api/v1/me/memory/validate/');assert.equal(init.body,original);
+  assert.equal((init.headers as Record<string,string>)['X-CSRFToken'],'test-csrf');writes++;
+  return json({valid:true,import_available:false});
+ }));
+ await api.validateMemory(original);assert.equal(writes,1);
+});
+test('memory import reports pending search and supports retry and restore without replay',async()=>{
+ let imports=0;const backup='00000000-0000-4000-8000-000000000002';
+ const api=new MroyaApi(fakeFetch((url,init)=>{
+  if(url.endsWith('auth/csrf/'))return json({csrf_token:'test-csrf'});
+  if(url.endsWith('memory/import/')){imports++;assert.equal(init.body,'{}');return json({canonical_saved:true,search_ready:false,backup_uuid:backup},202);}
+  if(url.endsWith('memory/rebuild/'))return json({search_ready:true});
+  if(url.endsWith(`/backups/${backup}/restore/`))return json({restored:true,search_ready:false},202);
+  throw new Error('Unexpected request');
+ }));
+ assert.deepEqual(await api.importMemory('{}'),{searchReady:false,backupId:backup});
+ await api.retryMemoryRebuild();
+ assert.deepEqual(await api.restoreMemory(backup),{searchReady:false});
+ assert.equal(imports,1);
+});
 function stream(bytes:Uint8Array[],type='text/event-stream') {return new Response(new ReadableStream({start(c){for(const b of bytes)c.enqueue(b);c.close();}}),{headers:{'Content-Type':type,'X-Chat-Turn-ID':uuid}});}
 const bytes=(text:string)=>new TextEncoder().encode(text);
 test('same-origin session POSTs use CSRF rotated after login and logout',async()=>{
@@ -62,6 +92,23 @@ test('default transport calls browser fetch with its global receiver',async()=>{
 
 test('malformed successful session cannot become an authenticated user',async()=>{
  await assert.rejects(createLiveSource(new MroyaApi(fakeFetch(()=>json({user:{username:'invalid'}})))).session(),(e:unknown)=>e instanceof ApiError&&e.code==='invalid_response');
+});
+
+test('unknown roles do not break sessions or grant privileged access',async()=>{
+ for(const role of [undefined,'future-role',null,'admin']){
+  const api=new MroyaApi(fakeFetch(()=>json({user:{...user,role}})));
+  assert.equal((await api.me()).user.role,role===undefined?undefined:role==='admin'?'admin':'free');
+ }
+});
+
+test('an unset backend language is accepted and can be initialized conditionally',async()=>{
+ const calls:{url:string;init:RequestInit}[]=[];
+ const unset={...user,preferences:{theme:'system' as const,language:''}};
+ const api=new MroyaApi(fakeFetch((url,init)=>{calls.push({url,init});if(url.endsWith('csrf/'))return json({csrf_token:'token'});return json({user:url.endsWith('preferences/')?{...unset,preferences:{...unset.preferences,language:'ru'}}:unset});}));
+ assert.equal((await api.me()).user.preferences.language,'');
+ const saved=await api.savePreferences({language:'ru',language_only_if_unset:true});
+ assert.equal(saved.preferences.language,'ru');
+ assert.deepEqual(JSON.parse(calls.at(-1)!.init.body as string),{language:'ru',language_only_if_unset:true});
 });
 
 test('startGoogleAuth verifies capabilities, gets CSRF and submits HTML form', async () => {
@@ -185,6 +232,21 @@ test('preferences PATCH uses CSRF and accepts independent fields from same-origi
  assert.equal(calls[1].init.credentials,'same-origin');
  assert.equal((calls[1].init.headers as Record<string,string>)['X-CSRFToken'],'csrf-for-patch');
  assert.deepEqual(JSON.parse(calls[1].init.body as string),{nickname:'Alex',theme:'dark'});
+});
+test('preferences language patch uses the existing preferences endpoint and validates confirmation',async()=>{
+ const confirmed={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const calls:{url:string;init:RequestInit}[]=[];
+ const api=new MroyaApi(fakeFetch((url,init)=>{calls.push({url,init});return url.endsWith('csrf/')?json({csrf_token:'language-csrf'}):json({user:confirmed});}));
+ assert.deepEqual(await api.savePreferences({language:'ru'}),confirmed);
+ assert.equal(calls[1].url,'/api/v1/me/preferences/');
+ assert.deepEqual(JSON.parse(calls[1].init.body as string),{language:'ru'});
+ await assert.rejects(api.savePreferences({language:'fr' as 'en'}),/Invalid interface language/);
+});
+
+test('language initialization permits a saved backend choice to win conditional PATCH',async()=>{
+ const saved={...user,preferences:{theme:'system' as const,language:'ru' as const}};
+ const api=new MroyaApi(fakeFetch(url=>url.endsWith('csrf/')?json({csrf_token:'language-csrf'}):json({user:saved})));
+ assert.deepEqual(await api.savePreferences({language:'en',language_only_if_unset:true}),saved);
 });
 test('preferences invalid shape exposes validation fields without retry',async()=>{
  let writes=0;

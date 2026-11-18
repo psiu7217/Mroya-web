@@ -1,5 +1,7 @@
 import {ApiError} from './errors.ts';
 import {isTurnUuid,readReportContext} from './reportContext.ts';
+import {readTasksPayload} from './aiTasks.ts';
+import {readAttachments} from './documents.ts';
 import type {ConversationSummary,ConversationPage,HistoryResponse} from '../types/api.ts';
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const date=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v)&&Number.isFinite(Date.parse(v));
@@ -28,11 +30,16 @@ export function readConversationHistory(value:unknown,id:string):HistoryResponse
   if(!object(m)||!isTurnUuid(m.id)||!Number.isSafeInteger(m.sequence)||(m.sequence as number)<=sequence
    ||!['user','assistant'].includes(m.role as string)||typeof m.content!=='string'||!['completed','streaming','failed'].includes(m.status as string)
    ||!date(m.created_at)||m.completed_at!==null&&!date(m.completed_at)
-   ||m.report_context!==undefined&&!readReportContext(m.report_context))invalid();
+   ||m.report_context!==undefined&&!readReportContext(m.report_context)
+   ||m.failure_notice!==undefined&&(m.role!=='assistant'||m.status!=='failed'||typeof m.failure_notice!=='string'||m.failure_notice.length>240)
+   ||readTasksPayload(m.tasks).length>0&&m.role!=='assistant')invalid();
   sequence=m.sequence as number;
  }
  return {conversation_id:id,next_before:value.next_before as number|null,messages:value.messages.map(m=>({
   id:m.id,sequence:m.sequence,role:m.role,content:m.content,status:m.status,created_at:m.created_at,completed_at:m.completed_at,
   ...(m.report_context?{report_context:readReportContext(m.report_context)}:{}),
+  ...(m.failure_notice?{failure_notice:m.failure_notice}:{}),
+  ...(m.attachments===undefined?{}:{attachments:readAttachments(m.attachments)}),
+  ...(readTasksPayload(m.tasks).length?{tasks:readTasksPayload(m.tasks)}:{}),
  }))} as HistoryResponse;
 }

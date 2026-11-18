@@ -1,7 +1,14 @@
+import {AttachmentPreviews} from './AttachmentPreviews';
+import {MessageAttachments} from './MessageAttachments';
+import type {ChatAttachmentsPresentation} from '../types/chatAttachments';
+import {appendDictation} from '../utils/dictation';
+import type {SpeechPresentation} from '../types/speech';
+import type {InstallPresentation} from '../types/install';
 import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu,
+  Download,
   PanelLeftOpen,
   PanelRight,
   Paperclip,
@@ -15,7 +22,6 @@ import {
   Sun,
   Moon,
   MoreHorizontal,
-  FileText,
   X,
   Plus,
   User,
@@ -28,7 +34,10 @@ import {
   Terminal,
 } from 'lucide-react';
 import { AssistantMarkdown } from './AssistantMarkdown';
+import { ImageGenerationCard } from './ImageGenerationCard';
+import {imageGenerationPhase} from '../utils/imageGeneration';
 import { BrandMark } from './BrandMark';
+import {tr} from '../i18n';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
 import { ChatActivityTimeline } from './ChatActivityTimeline';
 import {
@@ -38,8 +47,20 @@ import {
   SubscriptionPlan,
   ThemeMode,
 } from '../types/mroya';
+import { AiTaskCompletionToast } from './AiTaskCompletionToast';
+import { AiTaskConfirmationCard } from './AiTaskConfirmationCard';
+import {taskMessageText} from '../utils/taskMessage';
+import type { AiTasksPresentation } from '../types/aiTasks';
+import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 
 export interface ChatWorkspaceProps {
+  onImageOpen?:(url:string,title:string)=>void;
+  draftAttachments?:ChatAttachmentsPresentation;
+  documentsAvailable?:boolean;
+  showModelReasoning?: boolean;
+  speech?: SpeechPresentation;
+  install?: InstallPresentation;
+  aiTasks?: AiTasksPresentation;
   account: AccountPresentation;
   live?: boolean;
   intro?: React.ReactNode;
@@ -49,7 +70,7 @@ export interface ChatWorkspaceProps {
   samples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
   memoriesCount: number;
   conversation: Conversation | null;
-  onSendMessage: (content: string, attachmentName?: string) => void | boolean | Promise<boolean>;
+  onSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
   onCitationClick: (memoryId: string) => void;
   onActionClick: (action: ChatAction) => void;
   addedActionIds: string[];
@@ -67,17 +88,13 @@ export interface ChatWorkspaceProps {
   onOpenSettingsTab?: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
   diagnostics?:ChatDiagnostics;
   isAdmin?: boolean;
+  showDeveloperFeatures?: boolean;
   isThinking?: boolean;
 }
 
-const STARTER_SUGGESTIONS = [
-  'What do you remember about me?',
-  "What's coming up this week?",
-  'Remember something important',
-];
-
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
-  account, live=false, intro, onSignIn, onUnavailable, pending=false, samples,
+  onImageOpen,
+  draftAttachments, showModelReasoning=false, speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples, documentsAvailable=false,
   memoriesCount,
   conversation,
   onSendMessage,
@@ -98,18 +115,35 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onOpenSettingsTab,
   diagnostics,
   isAdmin = true,
+  showDeveloperFeatures = true,
   isThinking = false,
 }) => {
+  const starterSuggestions=[tr('starterRememberMe',{ns:'chat'}),tr('starterUpcoming',{ns:'chat'}),tr('starterRemember',{ns:'chat'})];
   const [input, setInput] = useState('');
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [sampleAttachment, setAttachedFile] = useState<string | null>(null);
+  const [localFiles,setSelectedFiles]=useState<File[]>([]);
+  const selectedFiles=draftAttachments?draftAttachments.items.map(item=>item.file):localFiles;
+  const attachedFile=sampleAttachment;
+  const [localPreviews,setLocalPreviews]=useState<Map<File,string>>(new Map());
+  useEffect(()=>{const previews=new Map<File,string>();for(const file of localFiles)if(['image/png','image/jpeg','image/webp','image/gif'].includes(file.type))previews.set(file,URL.createObjectURL(file));setLocalPreviews(previews);return()=>{for(const url of previews.values())URL.revokeObjectURL(url);};},[localFiles]);
+  const [fileError,setFileError]=useState<string|null>(null);
+  const fileInput=useRef<HTMLInputElement>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [liveTranscript, setLiveTranscript] = useState('');
+  const isRecording = speech?.phase === 'recording';
+  const voiceBusy = !!speech && speech.phase !== 'idle';
+  const recordingSeconds = speech?.seconds ?? 0;
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [localThinking, setLocalThinking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const tasks = aiTasks?.tasks ?? [];
+  const completedToastTask = aiTasks?.completedTask&&!conversation?.messages.some(message=>
+    message.tasks?.some(task=>task.id===aiTasks.completedTask!.id)) ? aiTasks.completedTask : undefined;
+  const openTasks = () => aiTasks?.onOpen();
+  const activeTasksCount = tasks.filter(countsTowardTaskBadge).length;
+  const hasRunningTasks = tasks.some(t => t.status === 'running');
+
   const submission = useRef(false), draftRevision = useRef(0);
   const previousChat = useRef(conversation?.id ?? null);
 
@@ -120,20 +154,21 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     previousChat.current = id;
     if (!fromEmpty) {
       handleCancelRecording();
-      draftRevision.current++; setInput(''); setAttachedFile(null); setLocalThinking(false);
+      draftAttachments?.onClear();
+      draftRevision.current++; setInput(''); setAttachedFile(null); setSelectedFiles([]); setFileError(null); setLocalThinking(false);
     }
     setCopiedMessageId(null); setHeaderMenuOpen(false); setMobileUserMenuOpen(false);
   }, [conversation?.id]);
 
   const submitMessage = async (content: string, attachmentName?: string) => {
-    if (pending || submission.current) return;
+    if (pending || voiceBusy || submission.current) return;
     submission.current = true;
     const revision = draftRevision.current;
     setSubmitting(true); setLocalThinking(true);
     try {
-      const accepted = await onSendMessage(content, attachmentName);
+      const accepted = await onSendMessage(content, attachmentName, selectedFiles.length?selectedFiles:undefined);
       if (accepted === false) { setLocalThinking(false); return; }
-      if (revision === draftRevision.current) { setInput(''); setAttachedFile(null); }
+      if (revision === draftRevision.current) { setInput(''); setAttachedFile(null); setSelectedFiles([]); setFileError(null); }
     } catch {
       setLocalThinking(false);
     } finally { submission.current = false; setSubmitting(false); }
@@ -154,8 +189,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const timerIntervalRef = useRef<any>(null);
   const copyTimeoutRef = useRef<any>(null);
 
   const handleCopyMessage = (id: string, text: string) => {
@@ -184,7 +217,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
   const handleCopyAdminDiagnostics = (message:ChatMessage) => diagnostics?.onCopy(message);
 
-  const sampleVoicePhrases = samples?.voicePhrases ?? [];
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -192,117 +224,23 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const startRecording = () => {
-    if (onUnavailable) {onUnavailable();return;}
-    setIsRecording(true);
-    setRecordingSeconds(0);
-    setLiveTranscript('');
-
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-    timerIntervalRef.current = setInterval(() => {
-      setRecordingSeconds((prev) => prev + 1);
-    }, 1000);
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'ru-RU,en-US';
-
-        recognition.onresult = (event: any) => {
-          if (recognitionRef.current !== recognition) return;
-          let current = '';
-          for (let i = 0; i < event.results.length; i++) {
-            current += event.results[i][0].transcript;
-          }
-          if (current.trim()) {
-            setLiveTranscript(current);
-          }
-        };
-
-        recognition.onerror = () => {
-          // Keep graceful simulated transcription if permission blocked
-        };
-
-        recognition.start();
-        recognitionRef.current = recognition;
-      } catch (err) {
-        console.warn('SpeechRecognition init error:', err);
-      }
-    }
+    if (speech) { speech.onStart(); return; }
+    if (onSignIn) { onSignIn(); return; }
+    onUnavailable?.();
   };
-
-  const stopRecordingInternal = (): string => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-      recognitionRef.current = null;
-    }
-    setIsRecording(false);
-
-    const finalPhrase =
-      liveTranscript.trim() ||
-      sampleVoicePhrases[Math.floor(Math.random() * sampleVoicePhrases.length)];
-    setLiveTranscript('');
-    setRecordingSeconds(0);
-    return finalPhrase;
-  };
-
-  const handleStopAndInsertText = () => {
-    const text = stopRecordingInternal();
-    if (text) {
-      draftRevision.current++;
-      setInput((prev) => (prev ? `${prev} ${text}` : text));
-      textareaRef.current?.focus();
-    }
-  };
-
-  const handleStopAndSend = () => {
-    const text = stopRecordingInternal();
-    if (text.trim()) {
-      void submitMessage(text.trim());
-    }
-  };
-
-  const handleCancelRecording = () => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-    if (recognitionRef.current) {
-      const recognition = recognitionRef.current;
-      recognitionRef.current = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      try {
-        recognition.stop();
-      } catch (e) {}
-    }
-    setIsRecording(false);
-    setLiveTranscript('');
-    setRecordingSeconds(0);
-  };
+  const handleCancelRecording = () => speech?.onCancel();
+  const handleStopAndInsertText = () => speech?.onStop();
 
   useEffect(() => {
-    return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
-      }
-    };
+    if (!speech?.text) return;
+    draftRevision.current++;
+    setInput(previous => appendDictation(previous, speech.text!));
+    speech.onInserted();
+    textareaRef.current?.focus();
+  }, [speech?.text, speech?.onInserted]);
+
+  useEffect(() => () => {
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -337,9 +275,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = input.trim();
-    if (pending || (!trimmed && !attachedFile)) return;
+    if (pending || voiceBusy || (!trimmed && !attachedFile && !selectedFiles.length)) return;
     void submitMessage(
-      trimmed || `Shared attachment: ${attachedFile}`,
+      trimmed || (selectedFiles.length?tr('processAttachments',{ns:'chat'}):`Shared attachment: ${attachedFile}`),
       attachedFile || undefined
     );
   };
@@ -352,10 +290,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const handleStarterClick = (promptText: string) => {
-    if (promptText === 'Remember something important') {
+    if (promptText === tr('starterRemember',{ns:'chat'})) {
       draftRevision.current++;
       setInput(
-        samples?.memoryPrompt ?? 'Remember that '
+        samples?.memoryPrompt ?? tr('starterPromptInput',{ns:'chat'})
       );
       textareaRef.current?.focus();
     } else {
@@ -364,6 +302,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   };
 
   const handleAttachSample = () => {
+    if(documentsAvailable){fileInput.current?.click();return;}
     if (!samples) {onUnavailable?.();return;}
     draftRevision.current++;
     if (attachedFile) {
@@ -387,7 +326,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <button
               type="button"
               onClick={onOpenMobileMenu}
-              aria-label="Open navigation menu"
+              aria-label={tr('openNavigation',{ns:'common'})}
               className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer shrink-0"
             >
               <Menu className="w-5 h-5" />
@@ -397,7 +336,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               type="button"
               onClick={onNewChat}
               className="group flex items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
-              title="Mroya (бел. «мроя») — светлая мара, летуценне і памяць"
+              title={tr('brandMeaning',{ns:'common'})}
             >
               <BrandMark size="sm" glow />
               <div className="flex flex-col min-w-0">
@@ -405,7 +344,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   Mroya
                 </span>
                 <span className="text-[8.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-0.5 opacity-75 uppercase">
-                  мроя · dream & memory
+                  {tr('brandTagline',{ns:'common'})}
                 </span>
               </div>
             </button>
@@ -415,7 +354,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           <div className="hidden lg:flex items-center gap-2.5 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <h1 className="text-[15px] font-semibold text-[var(--mroya-text)] truncate">
-                {conversation ? conversation.title : 'New chat'}
+                {conversation ? conversation.title : tr('newChat',{ns:'chat'})}
               </h1>
               <span
                 className="text-[var(--mroya-text-muted)]"
@@ -424,7 +363,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 ·
               </span>
               <span className="text-[13px] text-[var(--mroya-text-muted)] whitespace-nowrap">
-                Personal space
+                {tr('personalWorkspace',{ns:'chat'})}
               </span>
             </div>
           </div>
@@ -432,13 +371,41 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {install?.showMobile && <button type="button" onClick={install.onInstall}
+            aria-label={tr('installApp',{ns:'common'})} title={tr('installApp',{ns:'common'})}
+            className="lg:hidden w-9 h-9 rounded-lg inline-flex items-center justify-center text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer">
+            <Download className="w-5 h-5"/>
+          </button>}
+          {/* Mobile AI Tasks Trigger Button */}
+          <button
+            type="button"
+            onClick={openTasks}
+            aria-label={tr('taskPanelTitle',{ns:'chat'})}
+            title={`${tr('taskPanelTitle',{ns:'chat'})} (${activeTasksCount})`}
+            className="relative lg:hidden w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
+          >
+            {hasRunningTasks ? (
+              <span className="relative flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500" />
+              </span>
+            ) : (
+              <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
+            )}
+            {activeTasksCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                {activeTasksCount}
+              </span>
+            )}
+          </button>
+
           {/* Mobile Right: User avatar with dropdown containing all menu options */}
           <div className="relative lg:hidden" ref={mobileUserMenuRef}>
             <button
               type="button"
               onClick={() => setMobileUserMenuOpen((prev) => !prev)}
               aria-expanded={mobileUserMenuOpen}
-              aria-label="User account and options"
+              aria-label={tr('accountOptions',{ns:'chat'})}
               className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[12px] font-bold text-[var(--mroya-primary)] hover:opacity-90 transition-opacity cursor-pointer shadow-2xs"
             >
               {account.initials}
@@ -447,7 +414,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {mobileUserMenuOpen && (
               <div
                 role="menu"
-                aria-label="Mobile user menu"
+                aria-label={tr('mobileUserMenu',{ns:'chat'})}
                 className="absolute right-0 mt-2 w-64 py-1 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-50 animate-in fade-in zoom-in-95 duration-100"
               >
                 {/* User Header */}
@@ -461,12 +428,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 </div>
 
                 {/* Plan Status & Upgrade */}
-                <div className="p-2 border-b border-[var(--mroya-divider)]">
+                {showDeveloperFeatures && <div className="p-2 border-b border-[var(--mroya-divider)]">
                   <div className="flex items-center justify-between px-2.5 py-1.5 rounded-[8px] bg-[var(--mroya-surface-muted)] text-[12px]">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
                       <span className="font-semibold text-[var(--mroya-text)] truncate">
-                        {live ? 'Personal workspace' : plan === 'premium' ? 'Mroya Premium' : 'Free Plan'}
+                        {live ? tr('personalWorkspace',{ns:'chat'}) : plan === 'premium' ? 'Mroya Premium' : tr('freePlan',{ns:'chat'})}
                       </span>
                     </div>
                     <button
@@ -477,11 +444,16 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       }}
                       className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)] transition-colors cursor-pointer shrink-0"
                     >
-                      {plan === 'premium' ? 'Manage' : 'Upgrade'}
+                      {plan === 'premium' ? tr('manage',{ns:'chat'}) : tr('upgrade',{ns:'chat'})}
                     </button>
                   </div>
-                </div>
+                </div>}
 
+                {install && !install.installed && <button type="button" role="menuitem"
+                  onClick={() => { setMobileUserMenuOpen(false); install.onInstall(); }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer">
+                  <Download className="w-4 h-4 text-[var(--mroya-primary)]"/><span>{tr('installApp',{ns:'common'})}</span>
+                </button>}
                 {/* All Menu Options inside mobile dropdown */}
                 <div className="py-1">
                   <button
@@ -493,7 +465,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                   >
                     <Plus className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-                    <span>New chat</span>
+                    <span>{tr('newChat',{ns:'chat'})}</span>
                   </button>
 
                   <button
@@ -506,10 +478,27 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   >
                     <span className="flex items-center gap-2.5">
                       <BookOpen className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-                      <span>Memory details</span>
+                      <span>{tr('memoryDetails',{ns:'chat'})}</span>
                     </span>
                     <span className="text-[11px] text-[var(--mroya-text-muted)] font-medium">
-                      {isContextPanelOpen ? 'Open' : 'Closed'}
+                      {isContextPanelOpen ? tr('open',{ns:'chat'}) : tr('closed',{ns:'chat'})}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileUserMenuOpen(false);
+                      openTasks();
+                    }}
+                    className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Sparkles className="w-4 h-4 text-[var(--mroya-brand-honey)]" />
+                      <span>Задачи AI</span>
+                    </span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mroya-surface-active)] text-[var(--mroya-text)]">
+                      {activeTasksCount}
                     </span>
                   </button>
 
@@ -526,10 +515,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       ) : (
                         <Sun className="w-4 h-4 text-[var(--mroya-text-muted)]" />
                       )}
-                      <span>Appearance</span>
+                      <span>{tr('appearance',{ns:'chat'})}</span>
                     </span>
                     <span className="text-[11px] text-[var(--mroya-text-muted)] capitalize font-medium">
-                      {theme} mode
+                      {tr('themeMode',{ns:'chat',theme})}
                     </span>
                   </button>
 
@@ -538,12 +527,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       type="button"
                       onClick={() => {
                         setMobileUserMenuOpen(false);
-                        onOpenSettingsTab('settings');
+                        onOpenSettingsTab(showDeveloperFeatures ? 'settings' : 'connections');
                       }}
                       className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                     >
                       <Settings className="w-4 h-4 text-[var(--mroya-text-muted)]" />
-                      <span>Settings & accounts</span>
+                      <span>{tr('settingsAccounts',{ns:'chat'})}</span>
                     </button>
                   )}
                 </div>
@@ -554,16 +543,16 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {/* Desktop Right Controls (hidden on mobile) */}
           <div className="hidden lg:flex items-center gap-2">
             {/* Subscription state indicator & demo switch */}
-            {plan === 'free' ? (
+            {showDeveloperFeatures && (plan === 'free' ? (
               <div className="flex items-center gap-1.5 text-[12px] text-[var(--mroya-text-muted)]">
-                <span>{live ? 'Account' : 'Free'}</span>
+                <span>{live ? tr('account',{ns:'chat'}) : tr('free',{ns:'chat'})}</span>
                 <span aria-hidden="true">·</span>
                 <button
                   type="button"
                   onClick={onOpenPlanModal}
                   className="px-2.5 py-1 rounded-full text-[12px] font-semibold text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  Upgrade
+                  {tr('upgrade',{ns:'chat'})}
                 </button>
               </div>
             ) : (
@@ -575,14 +564,14 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                 <span>Mroya Premium</span>
               </button>
-            )}
+            ))}
 
             {/* Theme Switcher */}
             <button
               type="button"
               onClick={onToggleTheme}
-              title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
-              aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+              title={theme === 'light' ? tr('switchDark',{ns:'chat'}) : tr('switchLight',{ns:'chat'})}
+              aria-label={theme === 'light' ? tr('switchDark',{ns:'chat'}) : tr('switchLight',{ns:'chat'})}
               className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
             >
               {theme === 'light' ? (
@@ -592,12 +581,36 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               )}
             </button>
 
+            {/* Background AI Tasks Trigger Button */}
+            <button
+              type="button"
+              onClick={openTasks}
+              title={`${tr('taskPanelTitle',{ns:'chat'})} (${activeTasksCount})`}
+              aria-label={tr('taskPanelTitle',{ns:'chat'})}
+              className="h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
+            >
+              {hasRunningTasks ? (
+                <span className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500" />
+                </span>
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
+              )}
+              <span>{tr('taskPanelTitle',{ns:'chat'})}</span>
+              {activeTasksCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10.5px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                  {activeTasksCount}
+                </span>
+              )}
+            </button>
+
             {/* Toggle Contextual Memory Panel */}
             <button
               type="button"
               onClick={onToggleContextPanel}
-              title={isContextPanelOpen ? 'Hide memory details' : 'Show memory details'}
-              aria-label="Toggle memory details panel"
+              title={isContextPanelOpen ? tr('hideMemoryDetails',{ns:'chat'}) : tr('showMemoryDetails',{ns:'chat'})}
+              aria-label={tr('toggleMemoryDetails',{ns:'chat'})}
               aria-pressed={isContextPanelOpen}
               className={`h-8 px-2.5 rounded-lg inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
                 isContextPanelOpen
@@ -606,7 +619,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               }`}
             >
               <PanelRight className="w-4 h-4" />
-              <span>Memory details</span>
+              <span>{tr('memoryDetails',{ns:'chat'})}</span>
             </button>
 
             {/* Contextual header menu */}
@@ -614,13 +627,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               <button
                 type="button"
                 onClick={() => setHeaderMenuOpen((v) => !v)}
-                aria-label="Conversation options"
+                aria-label={tr('conversationOptions',{ns:'chat'})}
                 className="w-8 h-8 rounded-lg inline-flex items-center justify-center text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
               {headerMenuOpen && (
-                <div className="absolute right-0 mt-1.5 w-48 py-1 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-40">
+                <div className="absolute right-0 mt-1.5 w-52 py-1 rounded-[10px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-40">
+                  {install && !install.installed && <button type="button"
+                    onClick={() => { setHeaderMenuOpen(false); install.onInstall(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer">
+                    <Download className="w-3.5 h-3.5 text-[var(--mroya-primary)]"/><span>{tr('installApp',{ns:'common'})}</span>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => {
@@ -630,7 +648,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-                    <span>Start new chat</span>
+                    <span>{tr('startNewChat',{ns:'chat'})}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      openTasks();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
+                    <span>{tr('taskPanelTitle',{ns:'chat'})} ({activeTasksCount})</span>
                   </button>
                   <button
                     type="button"
@@ -641,7 +670,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] text-left cursor-pointer"
                   >
                     <BookOpen className="w-3.5 h-3.5 text-[var(--mroya-text-muted)]" />
-                    <span>{isContextPanelOpen ? 'Hide' : 'Show'} related memories</span>
+                    <span>{isContextPanelOpen ? tr('hideRelatedMemories',{ns:'chat'}) : tr('showRelatedMemories',{ns:'chat'})}</span>
                   </button>
                   <button
                     type="button"
@@ -653,7 +682,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)]" />
                     <span>
-                      {live ? 'Subscription unavailable' : <>Switch to {plan === 'free' ? 'Premium' : 'Free'} preview</>}
+                      {live ? tr('subscriptionUnavailable',{ns:'chat'}) : tr('switchPlanPreview',{ns:'chat',plan:plan === 'free' ? tr('premium',{ns:'chat'}) : tr('free',{ns:'chat'})})}
                     </span>
                   </button>
                 </div>
@@ -670,14 +699,21 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {hasMessages ? (
             <div className="space-y-6 sm:space-y-8 pb-6">
               {conversation.messages.map((msg) => {
+                const generationPhase=imageGenerationPhase(msg);
+                const hasTaskCard=!!(live&&msg.tasks?.length);
+                const legacyMemoryReview=msg.tasks?.some(task=>task.target==='memory'&&!task.review?.length);
+                const taskOnlyAnswer=hasTaskCard&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
                 const actionState=diagnostics?.forMessage(msg);
                 const reporting=actionState?.reporting===true,reported=actionState?.reported===true,copied=actionState?.copied===true;
                 if (msg.sender === 'user') {
                   return (
                     <div key={msg.id} className="flex flex-col items-end">
-                      <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
-                        <AssistantMarkdown content={msg.content} variant="user" />
-                      </div>
+                      {!!msg.attachments?.length && <MessageAttachments files={msg.attachments} onImageOpen={onImageOpen}/>}
+                      {!!msg.content.trim() && (
+                        <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
+                          <AssistantMarkdown content={msg.content} variant="user" />
+                        </div>
+                      )}
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
                         {msg.timestamp}
                       </span>
@@ -706,10 +742,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-error)] shrink-0" />
                           )}
                           {msg.status === 'failed'
-                            ? 'Reply failed'
+                            ? tr('replyFailed',{ns:'chat'})
                             : msg.status === 'streaming'
-                            ? 'Receiving reply…'
-                            : 'Processing…'}
+                            ? tr('receivingReply',{ns:'chat'})
+                            : tr('processing',{ns:'chat'})}
                         </span>
                       )}
                     </div>
@@ -727,15 +763,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             }
                             className="font-semibold text-[var(--mroya-primary)] hover:underline cursor-pointer"
                           >
-                            Review
+                            {tr('review',{ns:'chat'})}
                           </button>
                         </div>
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
                       {msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={msg.timeline} isStreaming={msg.status==='streaming'}/>
-                      ) : msg.reasoning && (
+                        <ChatActivityTimeline entries={showModelReasoning?msg.timeline:msg.timeline.filter(entry=>entry.kind!=='tool'||entry.toolName!=='generate_image')} isStreaming={msg.status==='streaming'} technical={!!showModelReasoning} hideTaskRegistrations={hasTaskCard}/>
+                      ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
                           isStreaming={msg.status === 'streaming'}
@@ -743,8 +779,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         />
                       )}
 
+                      {taskOnlyAnswer&&generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
-                      <div className={`w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
+                      {!taskOnlyAnswer&&<div className={`mroya-assistant-response w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
                         msg.status === 'failed'
                           ? 'border-[var(--mroya-error)]/40'
                           : 'border-[var(--mroya-divider)]'
@@ -755,19 +792,19 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                               <AlertTriangle className="w-4 h-4 text-[var(--mroya-error)] shrink-0 mt-0.5" />
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                                  Reply failed
+                                  {tr('replyFailed',{ns:'chat'})}
                                 </div>
                                 <p className="text-[12.5px] leading-relaxed text-[var(--mroya-text-muted)] mt-0.5">
-                                  An error occurred while communicating with the assistant service or the model API is temporarily unreachable.
+                                  {msg.failureNotice || tr('assistantError',{ns:'chat'})}
                                 </p>
                               </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2.5 pl-6.5">
-                              <button
+                              {(!live || actionState?.available) && <button
                                 type="button"
                                 onClick={() => handleReportIssue(msg)}
                                 disabled={!actionState?.available || reporting || reported}
-                                aria-label="Report issue to backend"
+                                aria-label={tr('reportIssue',{ns:'chat'})}
                                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] text-[12px] font-medium transition-colors cursor-pointer select-none ${
                                   reported
                                     ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] cursor-default'
@@ -777,28 +814,28 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                 {reporting ? (
                                   <>
                                     <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
-                                    <span>Sending report…</span>
+                                    <span>{tr('sendingReport',{ns:'chat'})}</span>
                                   </>
                                 ) : reported ? (
                                   <>
                                     <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                                    <span>Report sent</span>
+                                    <span>{tr('reportSent',{ns:'chat'})}</span>
                                   </>
                                 ) : (
                                   <>
                                     <Flag className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
-                                    <span>Report issue</span>
+                                    <span>{tr('reportIssueLabel',{ns:'chat'})}</span>
                                   </>
                                 )}
-                              </button>
+                              </button>}
 
-                              {(live || isAdmin) && (
+                              {(isAdmin && (live ? actionState?.available : true)) && (
                                 <button
                                   type="button"
                                   onClick={() => handleCopyAdminDiagnostics(msg)}
                                   disabled={!actionState?.available || actionState.copying}
-                                  title="Admin only: Copy complete error diagnostics payload to clipboard"
-                                  aria-label="Copy Error For Admin Diagnostics"
+                                  title={tr('adminDiagnosticsTitle',{ns:'chat'})}
+                                  aria-label={tr('copyDiagnostics',{ns:'chat'})}
                                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] text-[12px] font-medium transition-colors cursor-pointer select-none ${
                                     copied
                                       ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] border border-[var(--mroya-divider)] cursor-default'
@@ -808,12 +845,12 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                   {copied ? (
                                     <>
                                       <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                                      <span>Diagnostics copied!</span>
+                                      <span>{tr('diagnosticsCopied',{ns:'chat'})}</span>
                                     </>
                                   ) : (
                                     <>
                                       <Terminal className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] shrink-0" />
-                                      <span>Copy Error For Admin Diagnostics</span>
+                                      <span>{tr('copyDiagnostics',{ns:'chat'})}</span>
                                     </>
                                   )}
                                 </button>
@@ -821,16 +858,17 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                               {reported && (
                                 <span className="text-[11px] text-[var(--mroya-text-muted)] animate-in fade-in duration-150">
-                                  Thank you. Error report sent to backend.
+                                  {tr('thankYouReport',{ns:'chat'})}
                                 </span>
                               )}
                             </div>
                           </div>
                         )}
 
-                        <AssistantMarkdown content={msg.content} />
+                        {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
+                        {!(msg.status==='failed' && msg.failureNotice) && <AssistantMarkdown content={msg.status==='failed'&&!isAdmin ? tr('assistantError',{ns:'chat'}) : msg.content} onImageOpen={onImageOpen}/>}
 
-                        {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">Sign in</button>}
+                        {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}
                         {msg.structuredPoints && msg.structuredPoints.length > 0 && (
                           <div className="pt-3 border-t border-[var(--mroya-divider)]/70 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
@@ -908,7 +946,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                                       )}
                                       <span>
                                         {isAdded && act.type === 'add-calendar'
-                                          ? 'Added to Oct 16 calendar'
+                                          ? tr('addedCalendarDate',{ns:'chat'})
                                           : act.label}
                                       </span>
                                     </button>
@@ -918,15 +956,33 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                             )}
                           </div>
                         )}
-                      </div>
+                      </div>}
+
+                      {/* Prepared task receipts bound to this answer (canonical server data only). */}
+                      {hasTaskCard && msg.tasks && (
+                        <AiTaskConfirmationCard
+                          tasks={msg.tasks}
+                          legacyReview={taskOnlyAnswer&&legacyMemoryReview?msg.content:undefined}
+                          compact={!showModelReasoning}
+                          beginReview={aiTasks?.beginReview}
+                          approveTask={aiTasks?.approveTask}
+                          revokeTask={aiTasks?.revokeTask}
+                          refreshTask={aiTasks?.refreshTask}
+                          onEditSubmit={(description, comment) =>
+                            onSendMessage(tr('taskEditMessageTemplate',{ns:'chat',description,comment}))
+                          }
+                        />
+                      )}
 
                       {/* Assistant message footer: Copy icon · Time */}
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
                         <button
                           type="button"
-                          onClick={() => handleCopyMessage(msg.id, msg.content)}
-                          aria-label={copiedMessageId === msg.id ? 'Copied' : 'Copy response'}
-                          title={copiedMessageId === msg.id ? 'Copied!' : 'Copy'}
+                          onClick={() => taskOnlyAnswer&&!legacyMemoryReview
+                            ? handleCopyMessage(msg.id, taskMessageText(msg.tasks!))
+                            : handleCopyMessage(msg.id, msg.content)}
+                          aria-label={copiedMessageId === msg.id ? tr('copied',{ns:'common'}) : tr('copyResponse',{ns:'chat'})}
+                          title={copiedMessageId === msg.id ? tr('copiedBang',{ns:'chat'}) : tr('copy',{ns:'chat'})}
                           className="inline-flex items-center justify-center p-1 -ml-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
                         >
                           {copiedMessageId === msg.id ? (
@@ -951,7 +1007,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </div>
 
                   <div className="w-fit min-w-[72px] px-4 py-3 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] flex items-center justify-center">
-                    <div role="status" aria-label="Mroya is thinking" className="flex items-center gap-1.5 py-0.5">
+                    <div role="status" aria-label={tr('thinking',{ns:'chat'})} className="flex items-center gap-1.5 py-0.5">
                       <span className="guest-dot" />
                       <span className="guest-dot" />
                       <span className="guest-dot" />
@@ -969,15 +1025,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 className="text-[24px] sm:text-[28px] font-semibold tracking-[-0.02em] text-[var(--mroya-text)] mb-2"
                 style={{ textWrap: 'balance' }}
               >
-                Good afternoon. What&apos;s on your mind?
+                {tr('goodAfternoon',{ns:'chat'})}
               </h2>
               <p className="text-[14px] text-[var(--mroya-text-muted)] max-w-md mb-8">
-                {live ? 'Ask about your conversations, or tell Mroya something to remember.' : 'Ask about past conversations, client agreements, upcoming deadlines, or tell Mroya something new to remember.'}
+                {live ? tr('askConversationsRemember',{ns:'chat'}) : tr('askPastConversations',{ns:'chat'})}
               </p>
 
               {/* 3 Subtle Starter Suggestions */}
               <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-xl">
-                {STARTER_SUGGESTIONS.map((suggestion) => (
+                {starterSuggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
@@ -1001,26 +1057,26 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             className="rounded-[12px] bg-[var(--mroya-surface)] border-0 border-none outline-none ring-0 focus-within:border-none focus-within:outline-none focus-within:ring-0 shadow-[var(--mroya-shadow-subtle)] transition-all"
           >
             {/* Optional attached document preview */}
-            {attachedFile && (
-              <div className="px-3.5 pt-3 pb-1 flex items-center gap-2">
-                <div className="inline-flex max-w-full items-center gap-2 px-2.5 py-1 rounded-[8px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] text-[var(--mroya-text)]">
-                  <FileText className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                  <span className="font-medium truncate min-w-0">{attachedFile}</span>
-                  <button
-                    type="button"
-                    onClick={() => setAttachedFile(null)}
-                    aria-label="Remove attachment"
-                    className="text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
+            <input type="file" multiple ref={fileInput} className="hidden" disabled={pending||submitting} aria-label={tr('attach',{ns:'chat'})}
+              onChange={event=>{
+                const files=Array.from(event.currentTarget.files??[]);event.currentTarget.value='';
+                if(files.length+selectedFiles.length>8||files.some(file=>file.size<1||file.size>25*1024*1024)){
+                  setFileError(tr('fileLimits',{ns:'chat'}));return;
+                }
+                draftRevision.current++;setFileError(null);
+                if(draftAttachments){try{draftAttachments.onAdd(files);}catch{setFileError(tr('fileLimits',{ns:'chat'}));}}else setSelectedFiles(previous=>[...previous,...files]);
+              }}/>
+            {fileError?<p role="alert" className="px-3.5 pt-3 text-sm text-red-500">{fileError}</p>:null}
+            {(attachedFile||selectedFiles.length>0) && <AttachmentPreviews
+              items={draftAttachments?.items??(selectedFiles.length?selectedFiles.map((file,index)=>({id:String(index),filename:file.name,previewUrl:localPreviews.get(file)??null,status:'ready' as const,progress:1,error:null})):[{id:'sample',filename:attachedFile!,previewUrl:null,status:'ready' as const,progress:1,error:null}])}
+              disabled={pending||submitting}
+              onRemove={id=>{draftRevision.current++;setFileError(null);if(draftAttachments)draftAttachments.onRemove(id);else if(id==='sample')setAttachedFile(null);else setSelectedFiles(previous=>previous.filter((_,index)=>index!==Number(id)));}}
+              onRetry={draftAttachments?.onRetry}
+            />}
 
             <div className="px-3.5 pt-3 pb-2">
               <label htmlFor="mroya-chat-composer" className="sr-only">
-                Message Mroya
+                {tr('messageLabel',{ns:'chat'})}
               </label>
               <textarea
                 id="mroya-chat-composer"
@@ -1029,15 +1085,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 value={input}
                 onChange={(e) => { draftRevision.current++; setInput(e.target.value); }}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Mroya anything..."
+                placeholder={tr('askPlaceholder',{ns:'chat'})}
                 className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border-0 border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 max-h-40"
               />
             </div>
 
             {isRecording ? (
-              /* Active Voice Recording State: Waveform animation + timer + Stop & Send actions */
+              /* Active Voice Recording State: Waveform animation + timer + Stop and Cancel actions */
               <div className="p-2.5 sm:p-3 bg-[var(--mroya-surface-active)]/50 rounded-b-[12px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]">
-                {/* Left: Recording indicator, timer, waveform, live speech preview */}
+                {/* Left: Recording indicator, timer and waveform */}
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="relative flex h-3 w-3">
@@ -1058,23 +1114,19 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-pulse h-3.5"></span>
                   </div>
 
-                  {/* Live speech preview */}
+                  {/* Recording hint */}
                   <div className="text-[12px] text-[var(--mroya-text)] truncate min-w-0">
-                    {liveTranscript ? (
-                      <span className="italic font-medium">&ldquo;{liveTranscript}&rdquo;</span>
-                    ) : (
-                      <span className="text-[var(--mroya-text-muted)]">Запись голоса... говорите сообщение</span>
-                    )}
+                    <span className="text-[var(--mroya-text-muted)]">{tr('voiceRecording',{ns:'chat'})}</span>
                   </div>
                 </div>
 
-                {/* Right: Actions (Cancel, Stop -> Insert text, Send -> Auto-send) */}
+                {/* Right: Cancel or stop and transcribe */}
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                   <button
                     type="button"
                     onClick={handleCancelRecording}
-                    title="Отменить запись"
-                    aria-label="Отменить запись"
+                    title={tr('cancelRecording',{ns:'chat'})}
+                    aria-label={tr('cancelRecording',{ns:'chat'})}
                     className="p-1.5 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
@@ -1084,24 +1136,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handleStopAndInsertText}
-                    title="Остановить запись и вставить текст в сообщение"
+                    title={tr('stopRecordingInsert',{ns:'chat'})}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
                   >
                     <Square className="w-3.5 h-3.5 text-[var(--mroya-primary)] fill-current" />
-                    <span>Остановить</span>
-                  </button>
-
-                  {/* Button: Отправить запись (голос в текст + авто-отправка) */}
-                  <button
-                    type="button"
-                    onClick={handleStopAndSend}
-                    title="Перевести голос в текст и сразу отправить"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12px] font-semibold transition-colors cursor-pointer shadow-xs whitespace-nowrap"
-                  >
-                    <ArrowUp className="w-3.5 h-3.5 stroke-[2.4]" />
-                    <span>Отправить</span>
+                    <span>{tr('stop',{ns:'chat'})}</span>
                   </button>
                 </div>
+              </div>
+            ) : voiceBusy ? (
+              <div role="status" className="flex items-center justify-between px-3 pb-3 text-[13px] text-[var(--mroya-text-muted)]">
+                <span className="animate-pulse">{tr(speech?.phase==='requesting'?'voiceRequesting':'voiceTranscribing',{ns:'chat'})}</span>
+                <button type="button" onClick={handleCancelRecording} className="p-2 rounded-lg hover:bg-[var(--mroya-surface-muted)]" aria-label={tr('cancelRecording',{ns:'chat'})}><X className="w-4 h-4" /></button>
               </div>
             ) : (
               /* Normal toolbar: Attach, Voice Mic, Recalling memory hint, Send */
@@ -1110,48 +1156,82 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={handleAttachSample}
-                    title="Attach note or document"
-                    aria-label="Attach note or document"
+                    disabled={pending||submitting||voiceBusy}
+                    title={tr('attachNote',{ns:'chat'})}
+                    aria-label={tr('attachNote',{ns:'chat'})}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors cursor-pointer ${
-                      attachedFile
+                      attachedFile||selectedFiles.length
                         ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]'
                         : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
                     }`}
                   >
                     <Paperclip className="w-4 h-4" />
-                    <span className="hidden sm:inline">Attach</span>
+                    <span className="hidden sm:inline">{tr('attach',{ns:'chat'})}</span>
                   </button>
 
                   {/* Voice recording button */}
                   <button
                     type="button"
                     onClick={startRecording}
-                    title="Записать голосовое сообщение (переводится в текст)"
-                    aria-label="Записать голосовое сообщение"
+                    disabled={pending || submitting || (!speech && !onSignIn && !onUnavailable)}
+                    title={tr('recordVoiceHelp',{ns:'chat'})}
+                    aria-label={tr('recordVoice',{ns:'chat'})}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
                   >
                     <Mic className="w-4 h-4 text-[var(--mroya-primary)]" />
-                    <span className="hidden sm:inline">Голос</span>
+                    <span className="hidden sm:inline">{tr('voice',{ns:'chat'})}</span>
                   </button>
 
                   <span className="text-[12px] text-[var(--mroya-text-muted)] hidden sm:inline pl-1">
-                    Recalling across {memoriesCount} saved memories · Enter to send
+                    {tr('recallingMemories',{ns:'chat',count:memoriesCount})}
                   </span>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={pending || submitting || (!input.trim() && !attachedFile)}
-                  aria-label="Send message"
+                  disabled={pending || submitting || voiceBusy || (!input.trim() && !attachedFile && !selectedFiles.length)}
+                  aria-label={tr('sendMessage',{ns:'chat'})}
                   className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 >
                   <ArrowUp className="w-4 h-4 stroke-[2.4]" />
                 </button>
               </div>
             )}
+            {speech?.error && <div role="alert" className="px-3 pb-3 text-[13px] text-[var(--mroya-text)]">
+              {tr(voiceErrorKey(speech.error),{ns:'chat'})}
+              <button type="button" onClick={startRecording} className="ml-2 underline text-[var(--mroya-primary)]">{tr('voiceRetry',{ns:'chat'})}</button>
+            </div>}
           </form>
         </div>
       </div>
+
+      {/* Floating notification when a background AI task finishes */}
+      {showModelReasoning && completedToastTask && (
+        <AiTaskCompletionToast
+          task={completedToastTask}
+          onOpenDetails={() => {
+            aiTasks?.onOpen(completedToastTask.id);
+            aiTasks?.onDetails(completedToastTask.id);
+            aiTasks?.onDismiss();
+          }}
+          onDismiss={() => aiTasks?.onDismiss()}
+        />
+      )}
+
+
     </div>
   );
 };
+
+function voiceErrorKey(code:string):string {
+  if(code==='unsupported')return 'voiceUnsupported';
+  if(code==='permission')return 'voicePermission';
+  if(code==='speech_rate_limited'||code==='speech_provider_busy')return 'voiceRateLimited';
+  if(code==='speech_timeout')return 'voiceTimeout';
+  if(code==='speech_empty')return 'voiceEmpty';
+  if(code==='audio_too_large'||code==='audio_too_long'||code==='request_too_large')return 'voiceLimit';
+  if(code==='speech_not_configured'||code==='http_error')return 'voiceUnavailable';
+  if(code==='authentication_required')return 'voiceSignIn';
+  if(code==='csrf_failed')return 'voiceCsrf';
+  return 'voiceError';
+}

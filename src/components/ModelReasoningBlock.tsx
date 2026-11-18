@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Brain, ChevronDown } from 'lucide-react';
 import type { ToolActivity, ReasoningTimelineItem } from '../types/toolActivity';
 import { ToolActivityAccordion } from './ToolActivityAccordion';
+import {tr} from '../i18n';
 
 export interface ModelReasoningBlockProps {
   /** Sequential text fragments or single reasoning text block */
@@ -58,12 +59,12 @@ export const ModelReasoningBlock: React.FC<ModelReasoningBlockProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           <Brain className="w-3.5 h-3.5 text-[var(--mroya-brand-honey)] shrink-0" />
           <span className="text-[12.5px] font-semibold text-[var(--mroya-text)]">
-            Model reasoning
+            {tr('modelReasoning',{ns:'chat'})}
           </span>
           {isStreaming && (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--mroya-brand-honey)] font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--mroya-brand-honey)] animate-ping shrink-0" />
-              Thinking…
+              {tr('thinking',{ns:'chat'})}
             </span>
           )}
         </div>
@@ -71,11 +72,11 @@ export const ModelReasoningBlock: React.FC<ModelReasoningBlockProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           {isIllustrativeExample && (
             <span className="text-[11px] text-[var(--mroya-text-muted)] italic">
-              Illustrative example
+              {tr('illustrativeExample',{ns:'chat'})}
             </span>
           )}
           <span className="text-[11px] text-[var(--mroya-text-muted)] hidden sm:inline">
-            {isExpanded ? 'Hide' : 'Show'}
+            {tr(isExpanded?'hide':'show',{ns:'chat'})}
           </span>
           <ChevronDown
             className={`w-3.5 h-3.5 text-[var(--mroya-text-muted)] transition-transform duration-200 ${
@@ -129,7 +130,7 @@ export const ModelReasoningBlock: React.FC<ModelReasoningBlockProps> = ({
           {isStreaming && (
             <div className="flex items-center gap-2 pt-1 text-[11.5px] text-[var(--mroya-text-muted)]">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--mroya-brand-honey)] animate-pulse" />
-              <span className="italic">Generating reasoning…</span>
+              <span className="italic">{tr('generatingReasoning',{ns:'chat'})}</span>
             </div>
           )}
         </div>

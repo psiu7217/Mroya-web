@@ -1,19 +1,215 @@
+import type {AiTask} from '../types/aiTasks';
+import {readTasksPayload,newerTask} from '../api/aiTasks.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {ChatTimelineEntry} from '../types/mroya.ts';
 import type {ConversationSummary,ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
-import {readReportContext} from '../api/reportContext.ts';
+import {readReportContext,reportAttemptKey} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
+import {tr} from '../i18n/index.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
+import {DocumentUploads} from './DocumentUploads.ts';
+import type {DocumentDto} from '../types/documents.ts';
 function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
  return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
 export interface LiveState {
+ decidingTaskId:string|null;cancellingTaskId:string|null;executingTaskId:string|null;agentTasks:AiTask[];tasksLoading:boolean;tasksError:string|null;tasksNext:number|null;completedTask:AiTask|null;
  loading:boolean;busy:boolean;uncertain:boolean;error:string|null;capabilities:Capabilities|null;
  conversations:ConversationSummary[];activeConversationId:string|null;conversationBusy:boolean;operationUncertain:boolean;
  history:HistoryResponse;memories:MemoriesResponse;map:MemoryMapResponse;
 }
 export class LiveWorkspaceController {
- private state:LiveState={conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
+ private uploads=new DocumentUploads();
+ private sentDocumentIds:string[]=[];
+ private state:LiveState={decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],tasksLoading:false,tasksError:null,tasksNext:null,completedTask:null,conversations:[],activeConversationId:null,conversationBusy:false,operationUncertain:false,loading:true,busy:false,uncertain:false,error:null,capabilities:null,history:{conversation_id:'',messages:[],next_before:null},memories:{memories:[],total:0},map:{nodes:[],edges:[]}};
+ reportTask=async(id:string)=>{
+  if(!this.source.reportAgentTask||this.taskAbort.signal.aborted)throw new Error('Report unavailable');
+  await this.source.reportAgentTask(id,this.taskAbort.signal);
+ };
+ private taskAbort=new AbortController();private taskGeneration=0;private taskPending=false;
+ private tasksOpen=false;private taskTimer:ReturnType<typeof setTimeout>|null=null;
+ private taskStatuses=new Map<string,AiTask['status']>();private taskPages=1;
+ private taskRefreshAgain=false;
+ private taskWake=()=>{if(typeof document==='undefined'||document.visibilityState!=='hidden')void this.refreshTasks();};
+ private scheduleTasks(){
+  if(this.taskTimer)clearTimeout(this.taskTimer);
+  this.taskTimer=null;
+  if(!this.taskAbort.signal.aborted&&this.source.agentTasks)
+   this.taskTimer=setTimeout(this.taskWake,this.state.executingTaskId?1000:10000);
+ }
+ private acceptTasks(tasks:AiTask[],next=this.state.tasksNext){
+  // A list request started before a POST response must not regress its newer DTO.
+  tasks=tasks.map(task=>{const current=this.state.agentTasks.find(t=>t.id===task.id);
+   return newerTask(current,task);});
+  let completedTask=this.state.completedTask;
+  for(const task of tasks){
+   const previous=this.taskStatuses.get(task.id);
+   if(previous&&previous!=='completed'&&task.status==='completed'){completedTask=task;if(task.target==='memory')void this.refreshMemory();}
+   this.taskStatuses.set(task.id,task.status);
+  }
+  const canonical=new Map(tasks.map(task=>[task.id,task]));
+  const history={...this.state.history,messages:this.state.history.messages.map(message=>message.tasks?.length?
+   {...message,tasks:message.tasks.map(task=>newerTask(task,canonical.get(task.id)??task))}:message)};
+  this.set({agentTasks:tasks,tasksNext:next,completedTask,history});
+ }
+ async refreshTasks(){
+  if(!this.source.agentTasks||this.taskAbort.signal.aborted)return;
+  if(this.taskPending){this.taskRefreshAgain=true;return;}
+  const generation=this.taskGeneration;this.taskPending=true;this.set({tasksLoading:true});
+  try{
+   let tasks:AiTask[]=[],offset=0,next:number|null=null;
+   for(let page=0;page<this.taskPages;page++){
+    const result=await this.source.agentTasks(offset,this.taskAbort.signal);
+    if(generation!==this.taskGeneration)return;
+    tasks.push(...result.tasks);next=result.nextOffset;
+    if(next===null)break;offset=next;
+   }
+   // Loaded active tasks can move beyond the loaded page window as new tasks arrive.
+   // Read those canonical IDs so polling never loses an unfinished task.
+   const ids=new Set(tasks.map(t=>t.id));
+   for(const task of [...this.state.agentTasks,...this.state.history.messages.flatMap(message=>message.tasks??[])]){
+    if(!ids.has(task.id)&&['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
+     tasks.push(await this.source.agentTask(task.id,this.taskAbort.signal));ids.add(task.id);
+     if(generation!==this.taskGeneration)return;
+    }
+   }
+   this.acceptTasks([...new Map(tasks.map(t=>[t.id,t])).values()],next);this.set({tasksError:null});
+  }catch(error){
+   if(generation!==this.taskGeneration)return;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
+   this.set({tasksError:error instanceof Error?error.message:'Не удалось загрузить задачи'});
+  }finally{
+   if(generation===this.taskGeneration){this.taskPending=false;this.set({tasksLoading:false});
+    if(this.taskRefreshAgain){this.taskRefreshAgain=false;void this.refreshTasks();}else this.scheduleTasks();
+   }
+  }
+ }
+ async executeTask(id:string){
+  if(!this.source.executeAgentTask||this.taskAbort.signal.aborted||this.state.executingTaskId
+   ||this.state.agentTasks.some(t=>t.status==='running')||this.state.agentTasks.find(t=>t.id===id)?.status!=='queued')return;
+  const generation=this.taskGeneration;
+  this.set({executingTaskId:id,tasksError:null});
+  void this.refreshTasks();
+  try{
+   const task=await this.source.executeAgentTask(id,this.taskAbort.signal);
+   if(generation!==this.taskGeneration)return;
+   this.acceptTasks(this.state.agentTasks.map(t=>t.id===id?task:t));
+  }catch(error){
+   if(generation!==this.taskGeneration)return;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
+   this.set({tasksError:'Не удалось получить подтверждение запуска. Проверяем состояние задачи; повторный запуск не отправляется.'});
+   await this.taskDetails(id);
+  }finally{
+   if(generation===this.taskGeneration){this.set({executingTaskId:null});void this.refreshTasks();}
+  }
+ }
+ async decideTask(id:string,action:'accept'|'reject'|'comment'|'retry',comment?:string):Promise<boolean>{
+  const task=this.state.agentTasks.find(row=>row.id===id);
+  if(!this.source.decideAiTask||this.taskAbort.signal.aborted||this.state.decidingTaskId||!task?.reviewVersion||!task.reviewActions?.includes(action))return false;
+  const generation=this.taskGeneration;this.set({decidingTaskId:id,tasksError:null});
+  try{
+   const result=await this.source.decideAiTask(id,action,task.reviewVersion,comment,this.taskAbort.signal);
+   if(generation!==this.taskGeneration)return false;
+   this.mergeTask(result);return true;
+  }catch(error){
+   if(generation!==this.taskGeneration)return false;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return false;}
+   try{await this.readTask(id);}catch{/* Keep last confirmed state; never replay a decision. */}
+   if(generation===this.taskGeneration)this.set({tasksError:tr('taskDecisionChanged',{ns:'chat'})});
+   return false;
+  }finally{if(generation===this.taskGeneration){this.set({decidingTaskId:null});this.scheduleTasks();}}
+ }
+ async cancelTask(id:string){
+  const current=this.state.agentTasks.find(t=>t.id===id);
+  if(!this.source.cancelAgentTask||this.taskAbort.signal.aborted||this.state.cancellingTaskId
+   ||this.state.executingTaskId===id||!current?.canCancel||!['queued','needs_clarification'].includes(current.status))return;
+  const generation=this.taskGeneration;
+  this.set({cancellingTaskId:id,tasksError:null});
+  try{
+   const task=await this.source.cancelAgentTask(id,this.taskAbort.signal);
+   if(generation!==this.taskGeneration)return;
+   this.mergeTask(task);
+   if(task.status!=='cancelled')this.set({tasksError:tr('taskCancelUnavailable',{ns:'chat'})});
+  }catch(error){
+   if(generation!==this.taskGeneration)return;
+   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
+   // A lost POST response may already have committed. Read once, never repeat POST.
+   try{
+    const task=await this.readTask(id);
+    if(generation===this.taskGeneration)this.set({tasksError:task.status==='cancelled'?null:tr('taskCancelUnavailable',{ns:'chat'})});
+   }catch{
+    if(generation===this.taskGeneration)this.set({tasksError:tr('taskCancelUnknown',{ns:'chat'})});
+   }
+  }finally{
+   if(generation===this.taskGeneration){this.set({cancellingTaskId:null});this.scheduleTasks();}
+  }
+ }
+ moreTasks=async()=>{if(this.taskPending||this.state.tasksNext===null)return;this.taskPages++;await this.refreshTasks();};
+ openTasks=()=>{this.tasksOpen=true;void this.refreshTasks();};
+ closeTasks=()=>{this.tasksOpen=false;this.scheduleTasks();};
+ dismissTask=()=>this.set({completedTask:null});
+ async taskDetails(id:string){
+  if(!this.source.agentTask||this.taskAbort.signal.aborted||this.taskPending)return;
+  const generation=this.taskGeneration;
+  try{const task=await this.source.agentTask(id,this.taskAbort.signal);if(generation===this.taskGeneration){
+   this.acceptTasks(this.state.agentTasks.map(t=>t.id===id?task:t));this.scheduleTasks();
+  }}catch(error){if(generation===this.taskGeneration){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();}else this.set({tasksError:error instanceof Error?error.message:'Не удалось загрузить задачу'});}}
+ }
+ private mergeTask(task:AiTask){
+  // Chat cards and drawer rows reconcile against the same canonical row.
+  const tasks=this.state.agentTasks.some(t=>t.id===task.id)?this.state.agentTasks.map(t=>t.id===task.id?task:t):[task,...this.state.agentTasks];
+  this.acceptTasks(tasks);this.scheduleTasks();
+ }
+ /** Called by a rendered card, never by model execution or background polling. */
+ beginPendingReview=async(id:string)=>{
+  if(!this.source.beginAgentTaskReview)throw new ApiError(400,'invalid_request','Review acknowledgement unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.beginAgentTaskReview(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
+ }
+ /** Canonical GET used by Chat confirmation cards; the response is the authority. */
+ readTask=async(id:string)=>{
+  if(!this.source.agentTask)throw new ApiError(400,'invalid_request','Task reads unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.agentTask(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
+ }
+ approvePendingTask=async(id:string)=>{
+  if(!this.source.approveAgentTask)throw new ApiError(400,'invalid_request','Task confirmation unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.approveAgentTask(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
+ }
+ revokePendingTask=async(id:string)=>{
+  if(!this.source.revokePendingAgentTask)throw new ApiError(400,'invalid_request','Task revocation unavailable');
+  const generation=this.taskGeneration;
+  try{
+   const task=await this.source.revokePendingAgentTask(id,this.taskAbort.signal);
+   if(generation===this.taskGeneration)this.mergeTask(task);
+   return task;
+  }catch(error){
+   if(generation===this.taskGeneration&&error instanceof ApiError&&error.status===401){this.stop();this.expired();}
+   throw error;
+  }
+ }
  private listeners=new Set<()=>void>();
  private abort=new AbortController();private epoch=0;private turnId:string|null=null;private replyId:string|null=null;
  // Reasoning is request-local. Canonical history has no reasoning field.
@@ -25,6 +221,8 @@ export class LiveWorkspaceController {
  private sendInProgress=false;
  private unconfirmedCreate=false;
  private historyWithReasoning(history:HistoryResponse):HistoryResponse{
+  history={...history,messages:history.messages.map(message=>message.tasks?.length?{...message,
+   tasks:message.tasks.map(task=>newerTask(this.state.agentTasks.find(current=>current.id===task.id),task))}:message)};
   const pending=this.state.history.messages.find(message=>message.id===this.replyId);
   // Bind only an unambiguous new, adjacent canonical user/assistant pair; never by list position alone.
   if((pending?.reasoning||pending?.timeline?.length)&&pending?.status==='completed'&&history.conversation_id===this.state.history.conversation_id){
@@ -32,7 +230,8 @@ export class LiveWorkspaceController {
     const user=history.messages[index-1];
     return message.role==='assistant'&&message.status==='completed'&&message.content===pending.content
      &&!this.sentHistoryIds.has(message.id)&&user?.role==='user'&&user.content===this.sentContent
-     &&!this.sentHistoryIds.has(user.id)&&message.sequence===user.sequence+1;
+     &&!this.sentHistoryIds.has(user.id)&&message.sequence===user.sequence+1
+     &&JSON.stringify(user.attachments?.map(file=>file.id)??[])===JSON.stringify(this.sentDocumentIds);
    });
    if(candidates.length===1){
     if(pending.reasoning)this.reasoningByMessage.set(candidates[0].id,pending.reasoning);
@@ -44,7 +243,7 @@ export class LiveWorkspaceController {
    if(context&&context.turn_id===this.turnId){
     const candidates=history.messages.filter(message=>{
      const candidate=readReportContext(message.report_context);
-     return message.role==='assistant'&&message.status==='failed'&&candidate?.turn_id===context.turn_id&&candidate.request_trace_id===context.request_trace_id;
+     return message.role==='assistant'&&message.status==='failed'&&candidate!==undefined&&reportAttemptKey(candidate)===reportAttemptKey(context);
     });
     if(candidates.length===1){
      const id=candidates[0].id;
@@ -64,7 +263,7 @@ export class LiveWorkspaceController {
   return {...history,messages:history.messages.map(message=>{
    const expected=this.failedAttemptsByMessage.get(message.id),actual=readReportContext(message.report_context);
    if(expected&&(message.role!=='assistant'||message.status!=='failed'||history.conversation_id!==this.state.history.conversation_id
-    ||actual?.turn_id!==expected.turn_id||actual.request_trace_id!==expected.request_trace_id)){
+    ||!actual||reportAttemptKey(actual)!==reportAttemptKey(expected))){
     this.failedAttemptsByMessage.delete(message.id);this.reasoningByMessage.delete(message.id);this.timelineByMessage.delete(message.id);
    }
    // Never accept reasoning/timeline supplied by history itself.
@@ -77,8 +276,19 @@ export class LiveWorkspaceController {
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private set(patch:Partial<LiveState>){this.state={...this.state,...patch};for(const fn of this.listeners)fn();}
  private failure(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}this.set({error:error instanceof Error?error.message:'Workspace unavailable'});}
- start(){if(this.abort.signal.aborted)this.abort=new AbortController();void this.load();}
- stop(){this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
+ start(){
+  if(this.taskAbort.signal.aborted)this.taskAbort=new AbortController();
+  if(typeof window!=='undefined')window.addEventListener('focus',this.taskWake);
+  if(typeof document!=='undefined')document.addEventListener('visibilitychange',this.taskWake);
+  void this.refreshTasks();
+  if(this.abort.signal.aborted)this.abort=new AbortController();void this.load();}
+ stop(){
+  this.taskAbort.abort();this.taskGeneration++;this.taskPending=false;this.taskRefreshAgain=false;this.tasksOpen=false;
+  if(this.taskTimer)clearTimeout(this.taskTimer);this.taskTimer=null;this.taskStatuses.clear();this.taskPages=1;
+  if(typeof window!=='undefined')window.removeEventListener('focus',this.taskWake);
+  if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.taskWake);
+  this.set({decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
+  this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  private get multi(){return !!this.source.conversations;}
  private resetChat(id:string|null){
   this.abort.abort();this.abort=new AbortController();this.epoch++;
@@ -208,30 +418,39 @@ export class LiveWorkspaceController {
   }catch(error){if(epoch===this.epoch&&!signal.aborted)this.failure(error);}
  }
  async moreMemories(){if(this.state.loading||this.state.busy||this.state.memories.memories.length>=this.state.memories.total)return;const epoch=this.epoch;this.set({loading:true});try{const page=await this.source.memories({limit:25,offset:this.state.memories.memories.length},this.abort.signal);if(epoch===this.epoch)this.set({memories:{...page,memories:[...this.state.memories.memories,...page.memories].filter((m,i,a)=>a.findIndex(x=>x.uuid===m.uuid)===i)}});}catch(error){if(epoch===this.epoch)this.failure(error);}finally{if(epoch===this.epoch)this.set({loading:false});}}
- async send(content:string,onReady?:()=>void):Promise<boolean>{
+ async send(content:string,onReady?:()=>void,files:File[]=[],preparedAttachments?:DocumentDto[]):Promise<boolean>{
   if(this.sendInProgress||this.state.busy||this.state.loading||this.state.uncertain||this.state.conversationBusy||this.state.operationUncertain)return false;
   if(this.state.capabilities?.chat!==true){this.set({error:'Chat is unavailable on this server.'});return false;}
+  if((files.length||preparedAttachments?.length)&&this.state.capabilities?.documents!==true){this.set({error:tr('filesUnavailable',{ns:'chat'})});return false;}
   if(!content.trim()||content.length>16000){this.set({error:'Messages must contain 1–16000 characters.'});return false;}
   if(this.multi&&!this.state.activeConversationId&&this.unconfirmedCreate){this.set({error:'Select a chat or use New chat after checking server status. The previous creation was not confirmed; nothing is automatically resent.'});return false;}
   this.sendInProgress=true;
+  let sendingEpoch=this.epoch;
   try{
    if(this.multi&&!this.state.activeConversationId){
     const epoch=this.epoch;
     if(!await this.manageConversation('create',undefined,undefined,true)||this.epoch!==epoch+1||this.abort.signal.aborted)return false;
    }
-   await this.sendActive(content,onReady);
-   return true;
-  }finally{this.sendInProgress=false;}
+   sendingEpoch=this.epoch;
+   if(files.length)this.set({busy:true,error:null});
+   const attachments=preparedAttachments??(files.length?await this.uploads.prepare(this.source,files,content,this.abort.signal):[]);
+   if(sendingEpoch!==this.epoch||this.abort.signal.aborted)return false;
+   return await this.sendActive(content,onReady,attachments);
+  }catch(error){if(sendingEpoch===this.epoch&&!this.abort.signal.aborted)this.failure(error);return false;}
+  finally{if(sendingEpoch===this.epoch)this.set({busy:false});this.sendInProgress=false;}
  }
  // The send lock spans CREATE and dispatch; only a confirmed conversation reaches here.
- private async sendActive(content:string,onReady?:()=>void){
+ private async sendActive(content:string,onReady?:()=>void,attachments:DocumentDto[]=[]){
   const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;this.replyId='reply:'+id;this.sentContent=content.trim();this.sentHistoryIds=new Set(this.state.history.messages.map(message=>message.id));
-  const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null}];
+  this.sentDocumentIds=attachments.map(file=>file.id);
+  const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null,...(attachments.length?{attachments}:{})}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
-  let answer='',reasoning='',failedActivity=false,completed=false;
+  let answer='',reasoning='',failedActivity=false,completed=false,replyTasks:AiTask[]=[];
+  let accepted=false;
+  const acknowledge=()=>{if(!accepted){accepted=true;onReady?.();}};
   let timeline:ChatTimelineEntry[]=[];let previousEvent='';const toolLifecycle=new ToolActivityLifecycle();
   try {
-   onReady?.();
+   if(!attachments.length)acknowledge();
    const send=this.multi?this.source.sendConversation?.bind(this.source,this.state.activeConversationId!):this.source.send.bind(this.source);
    if(!send)throw new Error('Conversation send unavailable');
    await send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
@@ -239,7 +458,7 @@ export class LiveWorkspaceController {
     if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
      failedActivity=true;
      const context=readReportContext(event.data.report_context);
-     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',...(reasoning?{reasoning}:{}),...(timeline.length?{timeline:settleFailedTimeline(timeline)}:{ }),created_at:now,completed_at:null,
+     this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:event.data.assistant_content,status:'failed',failure_notice:typeof event.data.failure_notice==='string'?event.data.failure_notice:undefined,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline:settleFailedTimeline(timeline)}:{ }),created_at:now,completed_at:null,
       ...(context&&(!this.turnId||context.turn_id===this.turnId)?{report_context:context}:{})}]}});
      return;
     }
@@ -273,45 +492,64 @@ export class LiveWorkspaceController {
     }
     if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
     if(event.event==='done')toolLifecycle.complete();
-    if(event.event==='done'||event.event==='replay')completed=true;
-    if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{})}]}});
-   },{signal:this.abort.signal,onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
+    if(event.event==='done'||event.event==='replay'){
+     acknowledge();
+     completed=true;
+     // Structured receipts ride the terminal frame; the card renders them verbatim.
+     replyTasks=readTasksPayload(event.data.tasks);
+     void this.refreshTasks();
+    }
+    if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{}),...(replyTasks.length?{tasks:replyTasks}:{})}]}});
+   },{signal:this.abort.signal,...(attachments.length?{documentIds:attachments.map(file=>file.id)}:{}),onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
      if(this.turnId&&this.turnId!==turnId)throw new ApiError(502,'invalid_stream','Chat turn changed during streaming');
      this.turnId=turnId;
+     acknowledge();
     }}});
    if(epoch===this.epoch){await this.load();this.set({uncertain:false});}
   }catch(error){
-   if(epoch!==this.epoch)return;
+   if(epoch!==this.epoch)return false;
    // Keep received activity as static failed context; discard any unconfirmed answer delta.
    this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>message.id===this.replyId?{...message,status:'failed',content:failedActivity?message.content:'',timeline:message.timeline?settleFailedTimeline(message.timeline):undefined}:message)}});
-   this.failure(error);if(epoch!==this.epoch)return;
+   this.failure(error);if(epoch!==this.epoch)return false;
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));
    this.set({uncertain,error:uncertain?'The reply was interrupted. Check server status before sending another message.':this.state.error});
+   if(uncertain&&this.turnId)await this.reconcileTurn();
    if(!uncertain){try{const history=await this.readHistory();if(epoch===this.epoch)this.set({history:this.historyWithReasoning(history)});}catch(e){if(epoch===this.epoch)this.failure(e);}}
-  }finally{if(epoch===this.epoch)this.set({busy:false});}
+  }finally{if(epoch===this.epoch){this.set({busy:false});void this.refreshTasks();}}
+  return accepted;
  }
  async recover(){
   if(this.sendInProgress||this.state.busy||this.state.conversationBusy)return;
+  await this.reconcileTurn();
+ }
+ private async reconcileTurn(){
   const epoch=this.epoch;
   try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='failed'){
     const context=readReportContext(turn.report_context);
     let messages=this.state.history.messages.map(message=>{
      if(message.id!==this.replyId)return message;
      const previous=readReportContext(message.report_context);
-     const sameAttempt=!previous||(context?.turn_id===previous.turn_id&&context.request_trace_id===previous.request_trace_id);
+     const sameAttempt=!previous||(context!==undefined&&reportAttemptKey(context)===reportAttemptKey(previous));
      const hasActivity=!!message.reasoning||!!message.timeline?.length;
      // GET follows a reused turn's current trace. It cannot prove an unknown original trace.
      const confirmedContext=context?.turn_id===this.turnId&&(previous||!hasActivity)?context:undefined;
      return {...message,status:'failed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,
       reasoning:sameAttempt?message.reasoning:undefined,timeline:sameAttempt&&message.timeline?settleFailedTimeline(message.timeline):undefined,
-      report_context:confirmedContext};
+      report_context:confirmedContext,failure_notice:typeof turn.failure_notice==='string'?turn.failure_notice:undefined};
     });
     const pending=messages.at(-1);
     if(this.replyId&&context?.turn_id===this.turnId&&typeof turn.assistant_content==='string'&&pending?.id==='pending:'+this.replyId.slice(6)){
-     messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context}];
+     messages=[...messages,{id:this.replyId,sequence:pending.sequence+1,role:'assistant',content:turn.assistant_content,status:'failed',created_at:pending.created_at,completed_at:null,report_context:context,failure_notice:typeof turn.failure_notice==='string'?turn.failure_notice:undefined}];
     }
     this.set({history:{...this.state.history,messages}});
+   }if(turn.turn_status==='completed'){
+    const confirmedTasks=readTasksPayload(turn.tasks);
+    // The authenticated ChatTurn wins over a local stream/parser failure.
+    // Clear the transient failed status before historyWithReasoning reconciles it.
+    this.set({error:null,history:{...this.state.history,messages:this.state.history.messages.map(message=>
+     message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined,failure_notice:undefined,...(confirmedTasks.length?{tasks:confirmedTasks}:{})}:message)}});
+    void this.refreshTasks();
    }if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
    await this.load();
    if(epoch===this.epoch&&this.state.uncertain)this.set({error:'The submission could not be confirmed. Review server history and reload the page before starting a new message; nothing is automatically resent.'});

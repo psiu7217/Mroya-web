@@ -1,4 +1,6 @@
 import { RecurrenceRule, CalendarEvent, ReminderItem } from '../types/mroya';
+import {tr} from '../i18n/index.ts';
+import {formatDate,weekdayName} from '../i18n/format.ts';
 
 export const WEEKDAYS = [
   { value: 1, short: 'Mon', full: 'Monday' },
@@ -62,6 +64,28 @@ export function formatRecurrence(rule?: RecurrenceRule | null): string {
   }
 
   return text;
+}
+
+/** Locale-only presentation. The persisted humanReadable/API representation remains unchanged. */
+export function localizedRecurrence(rule?:RecurrenceRule|null):string {
+ if(!rule)return tr('doesNotRepeat',{ns:'reminders'});
+ const count=Math.max(1,rule.interval||1);
+ const weekdayValues=(rule.weekdays??[]).slice().sort((a,b)=>((a===0?7:a)-(b===0?7:b))).map(day=>weekdayName((day+6)%7,'short'));
+ const weekdays=weekdayValues.length?tr('weekdayPrefix',{ns:'reminders',days:weekdayValues.join(', ')}):'';
+ let text='';
+ switch(rule.frequency){
+  case 'daily':text=count===1?tr('everyDay',{ns:'reminders'}):tr('everyDays',{ns:'reminders',count});break;
+  case 'weekly':text=count===1?tr('everyWeek',{ns:'reminders',days:weekdays}):tr('everyWeeks',{ns:'reminders',count,days:weekdays});break;
+  case 'monthly':text=count===1?tr('everyMonth',{ns:'reminders'}):tr('everyMonths',{ns:'reminders',count});break;
+  case 'yearly':text=count===1?tr('everyYear',{ns:'reminders'}):tr('everyYears',{ns:'reminders',count});break;
+  default:text=tr('recurring',{ns:'reminders'});
+ }
+ if(rule.endCondition==='on_date'&&rule.endDate){
+  const [year,month,day]=rule.endDate.split('-').map(Number);
+  const end=Number.isInteger(year)&&Number.isInteger(month)&&Number.isInteger(day)?formatDate(new Date(Date.UTC(year,month-1,day,12)),{year:'numeric',month:'short',day:'numeric'},'UTC'):rule.endDate;
+  text+=` ${tr('untilDate',{ns:'reminders',date:end})}`;
+ }else if(rule.endCondition==='after_count'&&rule.endCount){text+=` ${tr('occurrenceCount',{ns:'reminders',count:rule.endCount})}`;}
+ return text;
 }
 
 /**
@@ -187,7 +211,7 @@ export function formatRelativeDateLabel(
   todayStr: string = '2026-10-12'
 ): string {
   if (dateStr === todayStr) {
-    return `Today at ${timeStr}`;
+    return tr('todayAt',{ns:'reminders',time:timeStr});
   }
 
   const [tY, tM, tD] = todayStr.split('-').map(Number);
@@ -196,26 +220,16 @@ export function formatRelativeDateLabel(
   const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
 
   if (dateStr === tomorrowStr) {
-    return `Tomorrow at ${timeStr}`;
+    return tr('tomorrowAt',{ns:'reminders',time:timeStr});
   }
 
   try {
     const [y, m, d] = dateStr.split('-').map(Number);
-    const dateObj = new Date(y, m - 1, d);
-    const monthNames = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayName = dayNames[dateObj.getDay()];
-    const monthName = monthNames[m - 1];
-
-    if (y === 2026) {
-      return `${dayName}, ${monthName} ${d} at ${timeStr}`;
-    }
-    return `${monthName} ${d}, ${y} at ${timeStr}`;
+    const dateObj = new Date(Date.UTC(y,m-1,d,12));
+    const label=y===2026?formatDate(dateObj,{weekday:'short',month:'short',day:'numeric'},'UTC'):formatDate(dateObj,{month:'short',day:'numeric',year:'numeric'},'UTC');
+    return tr('dateAt',{ns:'reminders',date:label,time:timeStr});
   } catch {
-    return `${dateStr} at ${timeStr}`;
+    return tr('dateAt',{ns:'reminders',date:dateStr,time:timeStr});
   }
 }
 

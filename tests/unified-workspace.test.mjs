@@ -58,7 +58,7 @@ test('network error/loading never becomes Coming soon; retry retains loaded serv
  for(const patch of [{loading:true},{error:'Server unavailable',chatAvailable:false}]){
   const html=renderToStaticMarkup(React.createElement(WorkspaceView,{model:{...base,activeConversation:conversation,conversations:[conversation],activeSection:'chat',runtime:{...runtime,...patch}}}));
   assert.match(html,/<strong>Server answer<\/strong>/);assert.doesNotMatch(html,/Not available yet/);
-  if(patch.error){assert.match(html,/Server unavailable/);assert.match(html,/Check server status/);}
+  if(patch.error){assert.match(html,/couldn’t load your workspace/i);assert.match(html,/Check server status/);}
  }
 });
 test('canonical memory/map/context and pagination use the same shared components',()=>{
@@ -72,7 +72,7 @@ test('canonical memory/map/context and pagination use the same shared components
 });
 test('shared scaffolding retains mobile minimum widths and all sidebar sections',()=>{
  for(const mobileMenuOpen of [true,false])for(const isSidebarCollapsed of [true,false]){
-  const model={...base,mobileMenuOpen,isSidebarCollapsed,runtime,activeSection:'connections'};
+  const model={...base,mobileMenuOpen,isSidebarCollapsed,runtime:{...runtime,features:{reminders:true}},activeSection:'connections'};
   const html=renderToStaticMarkup(React.createElement(WorkspaceView,{model}));
   assert.match(html,/h-dvh w-full/);assert.match(html,/flex flex-1 min-w-0 min-h-0/);
   for(const label of ['Chat','Calendar','Reminders','Memory','Memory Map','Connections'])assert.ok(html.includes(label),label);

@@ -1,0 +1,6 @@
+{
+  "states": "Design states",
+  "scenario": "Scenario",
+  "scenarioLabel": "Design scenario",
+  "blockedOnProduction": "Design build cannot run on the production host. Use a reviewed Production build."
+}

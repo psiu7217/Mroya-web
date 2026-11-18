@@ -34,7 +34,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       {/* Left Navigation Sidebar */}
       <Sidebar
         account={account}
-        showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
+        showDeveloperFeatures={!runtime}
         showReminders={runtime ? !!runtime.features?.reminders : true}
         conversationLocked={runtime?.conversationLocked}
         live={!!runtime}
@@ -69,7 +69,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
         {feedback && (feedback.error || feedback.loading) && <div role={feedback.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
           {feedback.error ? tr('loadFailed',{ns:'workspace'}) : tr('loading',{ns:'workspace'})}
-          {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">{tr('checkServer',{ns:'workspace'})}</button>}
+          {feedback.error && <button disabled={feedback.busy||feedback.loading} onClick={feedback.onRetry} className="ml-3 underline">{tr('retry',{ns:'common'})}</button>}
         </div>}
         {runtime?.timezoneSettings?.status==='error'&&<div role="alert" className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
           {tr('timezoneError',{ns:'workspace'})}
@@ -82,7 +82,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         <div className="flex flex-1 min-w-0 min-h-0">
         {activeSection === 'chat' && (
           <>
-            <ChatWorkspace isAdmin={runtime ? !!runtime.features?.technicalDiagnostics : true} showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true} showModelReasoning={runtime?.showModelReasoning} install={model.install}
+            <ChatWorkspace install={model.install}
               speech={model.speech}
               onImageOpen={model.imageViewer?.onOpen}
               aiTasks={tasksPresentation}
@@ -206,8 +206,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           <MemoryMapView
             theme={model.appearance ?? (theme === 'dark' ? 'dark' : 'light')}
             displayName={account.displayName}
+            showDeveloperFeatures={!runtime}
             loading={feedback?.loading}
-            error={feedback?.error}
+            error={feedback?.error ? tr('renderFailedLoad',{ns:'memory'}) : null}
             nodes={nodes}
             edges={edges}
             selectedNodeId={selectedGraphNodeId}
@@ -223,7 +224,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
             memoryTransfer={model.memoryTransfer}
-            showDeveloperFeatures={runtime ? !!runtime.features?.experimentalFeatures : true}
             calendarAnalysis={model.calendarAnalysis}
             memoryReview={model.memoryReview}
             privacy={model.privacy}
@@ -262,8 +262,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             languageSave={runtime?.languageSave}
             language={model.language}
             onChangeLanguage={model.onChangeLanguage}
-            showModelReasoning={runtime?.showModelReasoning}
-            onToggleShowModelReasoning={runtime?.onToggleShowModelReasoning}
             onSaveNickname={runtime?.onSaveNickname ?? model.onSaveNickname}
             onClearNickname={runtime?.onClearNickname ?? model.onClearNickname}
         account={account}
@@ -300,7 +298,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
       </main>
 
       {/* Subscription Plan Preview Modal (Free vs Mroya Premium) */}
-      {planModalOpen && (
+      {!runtime && planModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
           <DialogFocus onClose={onClosePlanPreview} role="dialog" aria-modal="true" aria-labelledby="plan-preview-title" tabIndex={-1} className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-6 space-y-5">
             <div className="flex items-center justify-between">

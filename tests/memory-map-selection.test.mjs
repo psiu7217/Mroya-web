@@ -113,7 +113,7 @@ test('unmount before module load skips creation; unmount during init destroys la
 test('chunk, WebGL and application failures retain original diagnostics and distinct localized UI',async t=>{
  const diagnostics=t.mock.method(console,'error',()=>{});
  const gpu=new MapInitializationError(new Error('driver failure'),'webgl-unavailable',{width:390,height:844,creationStatus:'EGL_NO_CONFIG'});
- for(const [behavior,expected,absent,kind] of [[{moduleError:Error('synthetic chunk')},'could not be loaded','WebGL','chunk-load'],[{initError:Error('synthetic application failure')},'could not be initialized','WebGL','renderer-init'],[{initError:gpu},'WebGL is unavailable','could not be loaded','webgl-unavailable']]){
+ for(const [behavior,expected,absent,kind] of [[{moduleError:Error('synthetic chunk')},'could not be loaded','WebGL','chunk-load'],[{initError:Error('synthetic application failure')},'Couldn’t open the map','WebGL','renderer-init'],[{initError:gpu},'map is unavailable in this browser','WebGL','webgl-unavailable']]){
   const view=mount({nodes:[node('n')]},behavior);view.flush();await settle(view,()=>JSON.stringify(view.tree).includes(expected));assert.ok(!JSON.stringify(view.tree).includes(absent));view.unmount();
   const args=diagnostics.mock.calls.at(-1).arguments;
   assert.equal(args[1].kind,kind);assert.equal(args[2],behavior.moduleError??behavior.initError);

@@ -87,7 +87,7 @@ test('raw delivery statuses have truthful labels; Ready and no receipt never imp
   p.props.notifications={...blank,enabled:true,lastTestStatus:status,lastTest:{deliveries:[{status,error_code:null}]} };p.page.flush();assert.ok(text(p.page.value).includes(label));if(status!=='sent')assert.doesNotMatch(text(p.page.value),/Delivered to Telegram/);
  }
  p.props.notifications={...blank,enabled:true,deliveryReady:true,lastTestStatus:'sent',lastTest:null};p.page.flush();assert.match(text(p.page.value),/Ready · Bot connected/);assert.doesNotMatch(text(p.page.value),/Delivered to Telegram/);
- p.props.notifications={...blank,available:false};p.page.flush();assert.match(text(p.page.value),/Coming soon/);assert.equal(toggle(p.page.value).props.disabled,true);assert.equal(button(p.page.value,'Send test notification').props.disabled,true);p.close();
+ p.props.notifications={...blank,available:false};p.page.flush();assert.match(text(p.page.value),/Service unavailable/);assert.equal(toggle(p.page.value).props.disabled,true);assert.equal(button(p.page.value,'Send test notification').props.disabled,true);p.close();
 });
 
 test('404/409/429/503 errors are separate from delivery receipts; explicit Retry invokes exactly its callback',()=>{

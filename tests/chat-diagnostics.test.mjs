@@ -96,7 +96,7 @@ test('GET/Clipboard rejection and 404 never show copied or synthesize a substitu
 });
 test('Copy rejects another trace of a reused turn and cancels pending text after logout',async()=>{
  let writes=0;const mismatch=setup({getChatErrorReport:async()=>report(101)},async load=>{await load();writes++;});
- await mismatch.c.onCopy(message);assert.equal(writes,0);assert.equal(mismatch.c.forMessage(message).copied,false);assert.match(mismatch.notices[0],/changed/);mismatch.c.stop();
+ await mismatch.c.onCopy(message);assert.equal(writes,0);assert.equal(mismatch.c.forMessage(message).copied,false);assert.equal(mismatch.notices[0],'reportChanged');mismatch.c.stop();
  const pending=deferred(),cancelled=setup({getChatErrorReport:()=>pending.promise},async(load,current)=>{await load();if(current())writes++;});
  const copy=cancelled.c.onCopy(message);cancelled.c.stop();pending.resolve(report());await copy;assert.equal(writes,0);assert.equal(cancelled.c.forMessage(message).copied,false);assert.deepEqual(cancelled.notices,[]);
 });
@@ -142,20 +142,26 @@ const noop=()=>{};
 const account={displayName:'Synthetic account',initials:'SA',email:'',description:'',timezone:'UTC',spaceDescription:'Personal space'};
 const props={account,memoriesCount:0,conversation:{id:'synthetic',title:'Synthetic',group:'Today',updatedAt:'',relatedMemoryIds:[],messages:[message]},onSendMessage:noop,onCitationClick:noop,onActionClick:noop,addedActionIds:[],isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,isContextPanelOpen:false,onToggleContextPanel:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,onNewChat:noop};
 const markup=extra=>renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,...extra}));
-test('public chat retains useful tool progress without raw technical details',()=>{
+test('live chat renders the answer without the diagnostic timeline',()=>{
  const progress={kind:'tool',id:'progress',sequence:1,toolKind:'memory_search',title:'Memory search completed',status:'success',output:{text:JSON.stringify({facts:[{subject:'Alex',predicate:'likes',value:'music'}],error_code:'INTERNAL_TECHNICAL_DETAIL'}),format:'json'}};
  const conversation={...props.conversation,messages:[{...message,status:'completed',timeline:[progress]}]};
- const html=markup({live:true,isAdmin:false,showModelReasoning:false,conversation});
- assert.match(html,/Memory search completed/);assert.match(html,/Alex.*likes.*music/);assert.doesNotMatch(html,/INTERNAL_TECHNICAL_DETAIL/);
+ for(const showModelReasoning of [false,true]){
+  const html=markup({live:true,showModelReasoning,conversation});
+  assert.match(html,/Synthetic private answer/);
+  assert.doesNotMatch(html,/Memory search completed|Alex.*likes.*music|INTERNAL_TECHNICAL_DETAIL/);
+ }
 });
-test('failed live messages render the existing diagnostics controls',()=>{
+test('failed live messages offer reporting and hide diagnostic text and copying',()=>{
  const s=setup();
  try{
   const html=markup({live:true,diagnostics:s.c});
   assert.match(html,/Reply failed/);
   assert.match(html,/Report issue/);
-  assert.match(html,/Copy Error For Admin Diagnostics/);
-  const publicView=markup({live:true,diagnostics:s.c,isAdmin:false});assert.doesNotMatch(publicView,/Copy Error For Admin Diagnostics/);assert.match(publicView,/Report issue/);
+  assert.doesNotMatch(html,/Copy Error For Admin Diagnostics|Copy response|Synthetic private answer/);
+  const failedAttachment={...message,failureNotice:'File saved. It could not be linked to memory.'};
+  const attachment=markup({live:true,diagnostics:s.c,conversation:{...props.conversation,messages:[failedAttachment]}});
+  assert.match(attachment,/File saved\. It could not be linked to memory\./);
+  assert.doesNotMatch(attachment,/Synthetic private answer/);
  }finally{s.c.stop();}
 });
 test('only existing UI states are used, local failures hide backend report actions, and callbacks use the failed message',async()=>{

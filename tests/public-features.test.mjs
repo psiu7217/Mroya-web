@@ -9,7 +9,7 @@ const {WorkspaceView}=await vite.ssrLoadModule('/src/pages/WorkspaceView.tsx');
 after(()=>vite.close());
 const noop=()=>{};
 function render(section,allowed,extra={}){
- function Test(){const model=useDemoWorkspace('empty');return React.createElement(WorkspaceView,{model:{...model,activeSection:section,...extra.model, runtime:{features:{googleCalendar:extra.google??allowed,technicalDiagnostics:allowed,experimentalFeatures:allowed,reminders:extra.reminders??allowed}, pending:false,loading:false,busy:false,error:null,onRetry:noop,chatAvailable:true,memoryAvailable:true,calendarAvailable:true,remindersAvailable:false,memoriesTotal:0,hasOlder:false,onOlder:noop,hasMoreMemories:false,onMoreMemories:noop,truncated:false,notice:null,onCloseNotice:noop,onUnavailable:noop,onLogout:noop,preferenceSave:{status:'saved',error:null,onRetry:noop},onSaveNickname:noop,onClearNickname:noop}}});}
+ function Test(){const model=useDemoWorkspace('empty');return React.createElement(WorkspaceView,{model:{...model,activeSection:section,...extra.model, runtime:{features:{googleCalendar:extra.google??allowed,reminders:extra.reminders??allowed}, pending:false,loading:false,busy:false,error:null,onRetry:noop,chatAvailable:true,memoryAvailable:true,calendarAvailable:true,remindersAvailable:false,memoriesTotal:0,hasOlder:false,onOlder:noop,hasMoreMemories:false,onMoreMemories:noop,truncated:false,notice:null,onCloseNotice:noop,onUnavailable:noop,onLogout:noop,preferenceSave:{status:'saved',error:null,onRetry:noop},onSaveNickname:noop,onClearNickname:noop}}});}
  return renderToStaticMarkup(React.createElement(Test));
 }
 test('public calendar and connections omit unfinished integrations',()=>{

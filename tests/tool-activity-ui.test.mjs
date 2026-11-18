@@ -38,7 +38,7 @@ const message={id:'m',sender:'assistant',content:'Accepted final answer',status:
 const props={account,memoriesCount:0,conversation:{id:'c',title:'Synthetic',group:'Today',updatedAt:'',relatedMemoryIds:[],messages:[message]},onSendMessage:noop,onCitationClick:noop,onActionClick:noop,addedActionIds:[],isSidebarCollapsed:false,onExpandSidebar:noop,onOpenMobileMenu:noop,isContextPanelOpen:false,onToggleContextPanel:noop,plan:'free',onTogglePlan:noop,onOpenPlanModal:noop,theme:'light',onToggleTheme:noop,onNewChat:noop};
 test('chat displays timeline once above final card',()=>{
  const timeline=[{kind:'reasoning',id:'r1',sequence:1,turnNumber:1,text:'Before search'},tool,{kind:'reasoning',id:'r3',sequence:3,turnNumber:2,text:'After search'}];
- const html=renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,conversation:{...props.conversation,messages:[{...message,timeline}]}}));
+ const html=renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,showModelReasoning:true,conversation:{...props.conversation,messages:[{...message,timeline}]}}));
  assert.equal(html.match(/Before search/g)?.length,1);assert.equal(html.match(/Checked memory/g)?.length,1);assert.equal(html.match(/After search/g)?.length,1);
  assert.doesNotMatch(html,/Before searchAfter search/);assert.ok(html.indexOf('After search')<html.indexOf('Accepted final answer'));
 });
@@ -62,7 +62,7 @@ test('expanded null projections have a neutral omission notice, no Copy, and rea
  assert.match(failed,/Memory change not confirmed/);assert.match(failed,/Failed/);assert.match(failed,/0 ms/);assert.doesNotMatch(failed,/Success/);
 });
 
-test('failed reasoning/tool chronology is static above unchanged Reply failed diagnostics buttons',()=>{
+test('failed reasoning and tool chronology remain available in the offline preview',()=>{
  const context={turn_id:'00000000-0000-4000-8000-000000000001',request_trace_id:100,report_url:'/api/v1/chat/turns/00000000-0000-4000-8000-000000000001/report/'};
  const failed={...message,status:'failed',content:'Safe server failure',report_context:context,reasoning:'BeforeAfter',timeline:[
   {kind:'reasoning',id:'r1',sequence:1,turnNumber:1,text:'Before'},tool,
@@ -70,7 +70,7 @@ test('failed reasoning/tool chronology is static above unchanged Reply failed di
   {...tool,id:'tool:4',sequence:4,status:'interrupted'},
  ]};
  const diagnostics={forMessage:()=>({available:true,reporting:false,reported:false,copying:false,copied:false}),onCopy:noop,onReport:noop};
- const html=renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,live:true,diagnostics,conversation:{...props.conversation,messages:[failed]}}));
+ const html=renderToStaticMarkup(React.createElement(ChatWorkspace,{...props,showModelReasoning:true,diagnostics,conversation:{...props.conversation,messages:[failed]}}));
  assert.ok(html.indexOf('Before')<html.indexOf('Checked memory'));assert.ok(html.indexOf('Checked memory')<html.indexOf('After'));
  assert.ok(html.indexOf('After')<html.lastIndexOf('Reply failed'));assert.match(html,/Interrupted/);
  assert.match(html,/Report issue/);assert.match(html,/Copy Error For Admin Diagnostics/);

@@ -36,7 +36,7 @@ export interface NotificationPresentation {
     onSendTest:()=>Promise<void>; onRefresh:()=>Promise<void>; onRetry:()=>Promise<void>;
 }
 export interface WorkspaceRuntime {
-    features?: {googleCalendar:boolean;technicalDiagnostics:boolean;experimentalFeatures:boolean;reminders:boolean};
+    features?: {googleCalendar:boolean;reminders:boolean};
     notifications?:NotificationPresentation;
     timezoneSettings?:TimezonePresentation;
     diagnostics?:ChatDiagnostics;
@@ -49,7 +49,6 @@ export interface WorkspaceRuntime {
     truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
     preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
     languageSave?: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
-    showModelReasoning?:boolean; onToggleShowModelReasoning?:(enabled:boolean)=>void;
     onSaveNickname:(value:string)=>void; onClearNickname:()=>void;
     onChangeLanguage?:(language:AppLanguage)=>void;
 }

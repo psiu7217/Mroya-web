@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../types/mroya';
 import {tr} from '../i18n';
+import {formatDate} from '../i18n/format';
 import { defaults } from './memory-map/forceDefaults.js';
 import { reportMapFailure } from './memory-map/initialization.js';
 import { renderGraph } from './memory-map/mapModel';
@@ -39,12 +40,15 @@ interface MemoryMapViewProps {
   error?: string | null;
   theme?: 'light' | 'dark';
   displayName?: string;
+  showDeveloperFeatures?: boolean;
 }
 
 type Renderer = Awaited<ReturnType<(typeof import("./memory-map/renderer.js"))["createMemoryMapRenderer"]>>;
 
 const relation = (n: { predicate?: string; relationship?: string; polarity?: string }) =>
   `${n.polarity === 'negative' ? tr('not',{ns:'memory'})+' ' : ''}${n.predicate || n.relationship || ''}`;
+const mapDate = (value?: string | null) =>
+  value && Number.isFinite(Date.parse(value)) ? formatDate(value,{dateStyle:'medium'},'UTC') : null;
 const localizeMapHint=(value:string)=>{
   if(value==='Drag to explore · Scroll to zoom · Select to inspect')return tr('mapHint',{ns:'memory'});
   if(value==='Image export is unavailable in this browser.')return tr('exportUnavailable',{ns:'memory'});
@@ -69,6 +73,7 @@ export function MemoryMapView({
   error,
   theme = 'dark',
   displayName = '',
+  showDeveloperFeatures = false,
 }: MemoryMapViewProps) {
   const host = useRef<HTMLDivElement>(null);
   const renderer = useRef<Renderer | null>(null);
@@ -93,6 +98,10 @@ export function MemoryMapView({
     return {...filtered, nodes: filtered.nodes.map(node => ({...node, label: mapNodeLabel(node, displayName)}))};
   }, [graph, hideSelf, displayName]);
   const active = display.nodes.find((n) => n.id === selection);
+  const validFrom = mapDate(active?.valid_from);
+  const validTo = mapDate(active?.valid_to);
+  const learnedAt = mapDate(active?.learned_at);
+  const canHideSelf = graph.nodes.some(n => n.is_self);
 
   const callbacks = useRef({ onSelectNode });
   callbacks.current = { onSelectNode };
@@ -380,7 +389,7 @@ export function MemoryMapView({
                   matches.map((n) => (
                     <button type="button" key={n.id} onClick={() => choose(n.id)}>
                       <span>{n.label}</span>
-                      <small>{n.kind || n.predicate}</small>
+                      {(n.predicate || (showDeveloperFeatures && n.kind)) && <small>{n.predicate || n.kind}</small>}
                     </button>
                   ))
                 ) : (
@@ -389,15 +398,15 @@ export function MemoryMapView({
               </div>
             )}
 
-            <details className="map-force">
+            {(canHideSelf || showDeveloperFeatures) && <details className="map-force">
               <summary>
                 <span>{tr('graphSettings',{ns:'memory'})}</span>
                 <ChevronDown size={12} />
               </summary>
-              {graph.nodes.some((n) => n.is_self) && (
+              {canHideSelf && (
                 <label className="map-hide-self">
                   <span>
-                    {tr('hideSelf',{ns:'memory'})} <small>{tr('experimental',{ns:'memory'})}</small>
+                    {tr('hideSelf',{ns:'memory'})}{showDeveloperFeatures && <small> {tr('experimental',{ns:'memory'})}</small>}
                   </span>
                   <input
                     type="checkbox"
@@ -406,7 +415,7 @@ export function MemoryMapView({
                   />
                 </label>
               )}
-              {(
+              {showDeveloperFeatures && <>{(
                 [
                   ['repulsion', tr('repulsion',{ns:'memory'}), 80, 500],
                   ['linkDistance', tr('linkDistance',{ns:'memory'}), 60, 220],
@@ -427,8 +436,8 @@ export function MemoryMapView({
               ))}
               <button type="button" onClick={() => setForce({ ...defaults })}>
                 {tr('resetDefaults',{ns:'memory'})}
-              </button>
-            </details>
+              </button></>}
+            </details>}
           </div>
 
           {/* Export Controls (Top-Right) */}
@@ -477,7 +486,7 @@ export function MemoryMapView({
                 {active.type === 'entity' ? tr('entityCurrent',{ns:'memory'}) : tr('memoryClaim',{ns:'memory'})}
               </p>
               <h2>{active.type === 'entity' ? active.label : relation(active) || active.label}</h2>
-              <p className="map-detail-kind">{active.type === 'entity' ? active.kind : active.literal_type}</p>
+              {showDeveloperFeatures && <p className="map-detail-kind">{active.type === 'entity' ? active.kind : active.literal_type}</p>}
 
               {active.type === 'memory' && (
                 <>
@@ -497,19 +506,19 @@ export function MemoryMapView({
                 </>
               )}
 
-              {(active.valid_from ||
-                active.valid_to ||
-                active.learned_at ||
+              {(validFrom ||
+                validTo ||
+                learnedAt ||
                 active.evidence_count !== undefined) && (
                 <section className="map-detail-section">
                   <h3>{tr('context',{ns:'memory'})}</h3>
-                  {(active.valid_from || active.valid_to) && (
+                  {(validFrom || validTo) && (
                     <p className="map-detail-note">
-                      {tr('effective',{ns:'memory'})}: {active.valid_from || '…'} — {active.valid_to || '…'}
+                      {tr('effective',{ns:'memory'})}: {validFrom || '…'} — {validTo || '…'}
                     </p>
                   )}
-                  {active.learned_at && (
-                    <p className="map-detail-note">{tr('learned',{ns:'memory'})}: {active.learned_at}</p>
+                  {learnedAt && (
+                    <p className="map-detail-note">{tr('learned',{ns:'memory'})}: {learnedAt}</p>
                   )}
                   {active.evidence_count !== undefined && (
                     <p className="map-detail-note">{tr('sourceCount',{ns:'memory',count:active.evidence_count})}</p>

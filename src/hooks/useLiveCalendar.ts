@@ -13,7 +13,9 @@ export function consumeCalendarOAuthReturn(location:Pick<Location,'href'>,histor
  const url=new URL(location.href),hint=url.searchParams.get('calendar_google');
  if(hint===null)return null;
  url.searchParams.delete('calendar_google');history.replaceState(history.state,'',url.pathname+url.search+url.hash);
- return ({connected:'Google consent returned. Backend connection and sync status are verified separately below.',cancelled:'Google Calendar connection was cancelled.',expired:'Google Calendar authorization expired. Sign in and connect again.',error:'Google Calendar authorization failed. Try connecting again.'} as Record<string,string>)[hint]??'Checking Google Calendar connection.';
+ const keys:Record<string,string>={cancelled:'calendarConnectionCancelled',expired:'calendarConnectionExpired',error:'calendarConnectionFailed'};
+ const key=Object.hasOwn(keys,hint)?keys[hint]:'calendarConnectionChecking';
+ return tr(key,{ns:'connections'});
 }
 export class LiveCalendarController {
  private current:CalendarState={upcomingEvents:[],upcomingLoading:false,upcomingError:null,available:false,googleAvailable:false,events:[],connections:[],selectedConnectionId:null,loading:false,busy:false,mutationPending:false,error:null,googleError:null,googleBusy:false,oauthNotice:null};

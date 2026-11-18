@@ -32,9 +32,9 @@ export function usePrivacySettings(source:WorkspaceSource,ownerId:number,visible
   }),
   request:kind=>void run(async signal=>{
    if(!source.requestPrivacy||!source.privacySettings)throw new Error('Unavailable');
-   const receipt=await source.requestPrivacy(kind,signal);
+   await source.requestPrivacy(kind,signal);
    const updated=await source.privacySettings(signal);
-   if(!signal.aborted)setMessage(tr('privacyReceipt',{ns:'connections',id:receipt.id}));
+   if(!signal.aborted)setMessage(tr('privacyReceipt',{ns:'connections'}));
    return updated;
   })};
 }

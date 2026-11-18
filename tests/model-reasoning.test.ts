@@ -140,11 +140,7 @@ test('ambiguous canonical matches never transfer reasoning between messages',asy
  const c=new LiveWorkspaceController(source({history:async()=>({...history,messages:++reads===1?[]:duplicates}),send:async(_t,_id,emit)=>{emit(reasoning());emit({event:'delta',data:{text:'Accepted'}});emit({event:'done',data:{}});}}),()=>{},()=>turn);
  await c.load();await c.send('Question');assert.equal(c.snapshot().history.messages.some(m=>m.reasoning),false);c.stop();
 });
-test('reasoning display uses existing controlled props and no transport',()=>{
- const view=readFileSync('src/pages/WorkspaceView.tsx','utf8'),live=readFileSync('src/providers/LiveExperience.tsx','utf8');
- assert.match(view,/showModelReasoning=\{runtime\?\.showModelReasoning\}/);
- assert.match(view,/onToggleShowModelReasoning=\{runtime\?\.onToggleShowModelReasoning\}/);
- assert.match(live,/onToggleShowModelReasoning:preferences.setShowModelReasoning/);
+test('reasoning preview uses no transport',()=>{
  const block=readFileSync('src/components/ModelReasoningBlock.tsx','utf8');
  assert.doesNotMatch(block,/fetch\(|localStorage|sessionStorage|document\.cookie/);
 });

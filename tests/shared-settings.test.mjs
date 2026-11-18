@@ -39,10 +39,10 @@ test('localized account-menu handlers route Profile, Connected accounts, Setting
  for(const tab of ['profile','plan','settings','connections'])assert.match(s,new RegExp(`onOpenSettingsTab\\('${tab}'\\)`));
  assert.match(s,/onToggleTheme\(\);/);
  for(const key of ['profile','myPlan','settings','connectedAccounts','appearance'])assert.match(s,new RegExp(`tr\\('${key}',\\{ns:'sidebar'\\}\\)`));
- assert.equal((s.match(/if \(item.id === 'connections'\) onOpenSettingsTab\('connections'\)/g)||[]).length,2);
+ assert.equal((s.match(/if \(item.id === 'connections'\) onOpenSettingsTab\('connections'\)/g)||[]).length,1);
  const provider=fs.readFileSync('src/providers/LiveExperience.tsx','utf8');
  assert.equal((provider.match(/on(?:Sidebar|ChatWorkspace)OpenSettingsTab:openSettings/g)||[]).length,2);
- assert.match(provider,/select\('connections'\);setSettingsTab\(tab\)/);
+ assert.match(provider,/select\('connections'\);setSettingsTab\(!features.experimentalFeatures&&\(tab==='settings'\|\|tab==='plan'\)\?'connections':tab\)/);
 });
 test('live shows unavailable services/plan/memory controls without fake successes or demo accounts',()=>{
  const connections=markup({live:true});

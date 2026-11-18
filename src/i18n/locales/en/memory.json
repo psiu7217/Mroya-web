@@ -67,6 +67,7 @@
   "connectionsFrom": "Connections from",
   "connectedBy": "Connected by",
   "memoryConnectionsCount": "{{memories}} memories · {{connections}} connections",
+  "linkedFiles": "Linked files",
   "graphStats": "{{entities}} entities · {{memories}} memories · {{connections}} connections",
   "myMap": "My Memory Map",
   "showcaseStats": "{{entities}} ENTITIES · {{memories}} MEMORIES",

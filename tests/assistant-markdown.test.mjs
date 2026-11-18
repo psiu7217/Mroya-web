@@ -28,6 +28,15 @@ test('empty/plain/malformed and long strings remain safe',()=>{
  assert.match(render('Plain русский text'),/<p>Plain русский text<\/p>/);
  for(const input of ['**unfinished [link]((', 'a'.repeat(16000), 'https://example.com/'+ 'x'.repeat(2000)]) assert.ok(render(input).length>0);
 });
+
+test('assistant images display only private document originals with an exact owner-scoped URL',()=>{
+ const path='/api/v1/documents/10000000-0000-4000-8000-000000000001/original/';
+ assert.match(render('![Generated cat]('+path+')'),/<img[^>]*src="\/api\/v1\/documents\//);
+ assert.match(render('![Generated cat]('+path+')'),/alt="Generated cat"/);
+ for(const url of ['https://foreign.test/image.png','https://app.heymroya.com'+path,'//evil.test'+path,path+'?external=1',path+'#fragment','/api/v1/documents/invalid/original/','data:image/png;base64,AAAA'])
+  assert.doesNotMatch(render('![Blocked]('+url+')'),/<img/);
+ assert.doesNotMatch(render('![User link]('+path+')','user'),/<img/);
+});
 test('HTML, scripts, handlers, iframe and JSX are never executable elements',()=>{
  for(const variant of ['assistant','user']) {
  const html=render('<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n<iframe src="https://evil.test"></iframe>\n\n<div onclick="alert(1)">hello</div>\n\n<CustomComponent />',variant);
@@ -72,6 +81,27 @@ test('user paragraphs, soft breaks and GFM share identical markup in Design and 
   return user;
  });
  assert.equal(outputs[0],outputs[1]);
+});
+test('sent attachments appear above the user text with document links and private image previews',()=>{
+ const input=props('Reply');
+ input.onImageOpen=noop;
+ const pdfId='10000000-0000-4000-8000-000000000001';
+ const imageId='10000000-0000-4000-8000-000000000002';
+ const pdfUrl=`/api/v1/documents/${pdfId}/original/`;
+ const imageUrl=`/api/v1/documents/${imageId}/original/`;
+ const [message]=chatPresentation('c',[{id:'u',role:'user',content:'Save my attachments',status:'completed',
+  created_at:'2026-11-18T12:00:00Z',attachments:[
+   {id:pdfId,original_url:pdfUrl,filename:'report.pdf',mime_type:'application/pdf',searchable:false,status:'failed'},
+   {id:imageId,original_url:imageUrl,filename:'photo.png',mime_type:'image/png',status:'processing',category:{path:['Hidden folder']}},
+  ]}]).messages;
+ input.conversation.messages[0]=message;
+ const html=renderToStaticMarkup(React.createElement(ChatWorkspace,input));
+ assert.ok(html.indexOf('report.pdf')<html.indexOf('Save my attachments')&&html.includes('report.pdf'));
+ assert.ok(html.includes(`href="${pdfUrl}"`));
+ assert.match(html,/>PDF<\/span>/);
+ assert.ok(html.includes(`<img src="${imageUrl}"`));
+ assert.match(html,/aria-label="Open preview of photo.png"/);
+ assert.doesNotMatch(html,/Excluded from general search|could not finish reading|Hidden folder/);
 });
 test('user long text/code/table keep existing overflow guards and bubble typography',()=>{
  const long='x'.repeat(16000), html=render(long+'\n\n```json\n'+long+'\n```\n\n| Column |\n| --- |\n| '+long+' |','user');

@@ -17,12 +17,14 @@ import {
   LogOut,
   X,
   ChevronUp,
+  ChevronRight,
   Bell,
   MoreHorizontal,
   Pencil,
   Trash2,
   FileText,
   Inbox,
+  Folder,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import {tr} from '../i18n';
@@ -93,7 +95,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onCloseMobile,
   memoriesCount,
-  upcomingEventsCount,
   pendingRemindersCount,
   notesCount = 0,
   notesAvailable = false,
@@ -117,6 +118,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingConversation, setDeletingConversation] = useState<ConversationListItem | null>(null);
+  const isOtherSection = ['ai-tasks', 'memory', 'connections'].includes(activeSection);
+  const [otherOpen, setOtherOpen] = useState(isOtherSection);
+  useEffect(() => {
+    if (isOtherSection) setOtherOpen(true);
+  }, [activeSection]);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const convMenuRef = useRef<HTMLDivElement>(null);
@@ -221,11 +227,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     meta?: string;
   }[] = [
     { id: 'chat', label: tr('navChat',{ns:'sidebar'}), icon: MessageSquare },
+    { id: 'files', label: tr('navFiles',{ns:'sidebar'}), icon: Folder },
     {
       id: 'calendar',
       label: tr('navCalendar',{ns:'sidebar'}),
       icon: Calendar,
-      meta: upcomingEventsCount > 0 ? String(upcomingEventsCount) : undefined,
     },
     {
       id: 'reminders',
@@ -255,6 +261,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'connections', label: tr('navConnections',{ns:'sidebar'}), icon: Link2 },
   ];
   const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders));
+  const otherNavItems = ['ai-tasks', 'memory', 'connections'].map(id => visibleNavItems.find(item => item.id === id)!);
+  const primaryNavItems = visibleNavItems.filter(item => !otherNavItems.includes(item));
+
+  const renderNavItems = (items: typeof navItems, collapsed: boolean) => items.map(item => {
+    const Icon = item.icon;
+    const isActive = activeSection === item.id;
+    return <li key={item.id} className={collapsed ? 'w-full flex justify-center' : undefined}>
+      <button
+        type="button"
+        onClick={() => {
+          if (item.id === 'connections') onOpenSettingsTab('connections');
+          else onSelectSection(item.id);
+          onCloseMobile();
+        }}
+        title={collapsed ? item.label + (item.meta ? ` (${item.meta})` : '') : undefined}
+        aria-label={collapsed ? item.label : undefined}
+        aria-current={isActive ? 'page' : undefined}
+        className={collapsed
+          ? `relative w-10 h-9 rounded-[8px] flex items-center justify-center transition-all cursor-pointer ${isActive ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] font-semibold shadow-xs' : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/60'}`
+          : `w-full h-9 flex items-center justify-between px-3 rounded-[8px] text-[14px] transition-colors cursor-pointer ${isActive ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold' : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/60 font-medium'}`}
+      >
+        <span className="flex items-center gap-2.5 truncate">
+          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[var(--mroya-primary)]' : 'text-[var(--mroya-text-muted)]'}`}/>
+          {!collapsed && <span className="truncate">{item.label}</span>}
+        </span>
+        {item.meta && (collapsed
+          ? <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--mroya-brand-honey)] ring-2 ring-[var(--mroya-surface-muted)]" title={`${item.label}: ${item.meta}`}/>
+          : <span className="text-[12px] text-[var(--mroya-text-muted)] tabular-nums">{item.meta}</span>)}
+      </button>
+    </li>;
+  });
+
+  const renderNavigation = (collapsed: boolean) => <nav
+    aria-label={tr('mainSections',{ns:'sidebar'})}
+    className="px-2.5 pb-3 border-b border-[var(--mroya-divider)] w-full min-h-0 overflow-y-auto"
+  >
+    <ul className="space-y-1">
+      {renderNavItems(primaryNavItems, collapsed)}
+      <li className="pt-4">
+        <button
+          type="button"
+          aria-expanded={otherOpen}
+          aria-controls="mroya-sidebar-other-items"
+          aria-label={tr('navOther',{ns:'sidebar'})}
+          title={collapsed ? tr('navOther',{ns:'sidebar'}) : undefined}
+          onClick={() => setOtherOpen(open => !open)}
+          className={`relative h-9 rounded-[8px] flex items-center cursor-pointer transition-colors text-[14px] font-medium hover:bg-[var(--mroya-surface)]/60 ${collapsed ? 'w-10 mx-auto justify-center' : 'w-full justify-between px-3'} ${isOtherSection ? 'text-[var(--mroya-primary)]' : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)]'}`}
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <MoreHorizontal className="w-4 h-4 shrink-0"/>
+            {!collapsed && <span className="truncate">{tr('navOther',{ns:'sidebar'})}</span>}
+          </span>
+          <ChevronRight aria-hidden="true" className={`${collapsed ? 'absolute right-0.5 bottom-1 w-2.5 h-2.5' : 'w-3.5 h-3.5 shrink-0'} transition-transform ${otherOpen ? 'rotate-90' : ''}`}/>
+        </button>
+        <ul id="mroya-sidebar-other-items" hidden={!otherOpen} className={collapsed ? 'mt-1 space-y-1' : 'mt-1 ml-3 pl-2 border-l border-[var(--mroya-divider)] space-y-1'}>
+          {renderNavItems(otherNavItems, collapsed)}
+        </ul>
+      </li>
+    </ul>
+  </nav>;
 
   const renderAccountPopover = (isNarrow: boolean) => (
     <div
@@ -434,46 +500,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Primary Navigation Icons (aligned with expanded) */}
-          <nav aria-label={tr('mainSections',{ns:'sidebar'})} className="px-2.5 pb-3 border-b border-[var(--mroya-divider)] w-full shrink-0">
-            <ul className="space-y-1 flex flex-col items-center">
-              {visibleNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <li key={item.id} className="w-full flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (item.id === 'connections') onOpenSettingsTab('connections');
-                        else onSelectSection(item.id);
-                        onCloseMobile();
-                      }}
-                      title={item.label + (item.meta ? ` (${item.meta})` : '')}
-                      aria-label={item.label}
-                      className={`relative w-10 h-9 rounded-[8px] flex items-center justify-center transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)] font-semibold shadow-xs'
-                          : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/60'
-                      }`}
-                    >
-                      <Icon
-                        className={`w-4 h-4 shrink-0 ${
-                          isActive ? 'text-[var(--mroya-primary)]' : 'text-[var(--mroya-text-muted)]'
-                        }`}
-                      />
-                      {item.meta && (
-                        <span
-                          className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--mroya-brand-honey)] ring-2 ring-[var(--mroya-surface-muted)]"
-                          title={`${item.label}: ${item.meta}`}
-                        />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-
-            </ul>
-          </nav>
+          {renderNavigation(true)}
 
           {/* Empty clickable area between last nav item and user block to expand sidebar */}
           <div
@@ -615,46 +642,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Primary Navigation */}
-        <nav aria-label={tr('mainSections',{ns:'sidebar'})} className="px-2.5 pb-3 border-b border-[var(--mroya-divider)] shrink-0">
-          <ul className="space-y-1">
-            {visibleNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeSection === item.id;
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (item.id === 'connections') onOpenSettingsTab('connections');
-                        else onSelectSection(item.id);
-                      onCloseMobile();
-                    }}
-                    className={`w-full h-9 flex items-center justify-between px-3 rounded-[8px] text-[14px] transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold'
-                        : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/60 font-medium'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2.5 truncate">
-                      <Icon
-                        className={`w-4 h-4 shrink-0 ${
-                          isActive ? 'text-[var(--mroya-primary)]' : 'text-[var(--mroya-text-muted)]'
-                        }`}
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </span>
-                    {item.meta && (
-                      <span className="text-[12px] text-[var(--mroya-text-muted)] tabular-nums">
-                        {item.meta}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-
-          </ul>
-        </nav>
+        {renderNavigation(false)}
 
         {/* Recent Conversations History */}
         <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">

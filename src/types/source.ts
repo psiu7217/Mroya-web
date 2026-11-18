@@ -2,6 +2,13 @@ import type {MroyaApi} from '../api/client';
 import type {ConversationSummary,ConversationPage,ReportContext,IssueReportResponse,TelegramConnectionStatus,TelegramLinkResponse,TelegramDisconnectResponse,ApiUser,PreferencesPatch,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities,SendOptions,ChatStreamEvent,TurnResponse} from './api';
 export type SessionState = {status:'guest'} | {status:'authenticated';user:ApiUser};
 export interface WorkspaceSource {
+  documentImage?:MroyaApi['documentImage'];
+  uploadStagedDocument?:MroyaApi['uploadStagedDocument'];discardStagedUpload?:MroyaApi['discardStagedUpload'];
+  documents?:MroyaApi['documents'];documentDetail?:MroyaApi['documentDetail'];documentCategories?:MroyaApi['documentCategories'];
+  setDocumentCategorySearch?:MroyaApi['setDocumentCategorySearch'];createDocumentCategory?:MroyaApi['createDocumentCategory'];
+  saveDocument?:MroyaApi['saveDocument'];retryDocument?:MroyaApi['retryDocument'];deleteDocument?:MroyaApi['deleteDocument'];
+  uploadDocument?:MroyaApi['uploadDocument'];
+  document?:MroyaApi['document'];
   exportMemory?:MroyaApi['exportMemory'];
   memoryTransferStatus?:MroyaApi['memoryTransferStatus'];
   validateMemory?:MroyaApi['validateMemory'];

@@ -184,10 +184,6 @@ img.mroya-chat-image, .mroya-chat-image img {
     transparent 66%);
   animation: mroya-image-sweep 4.8s ease-in-out infinite alternate;
 }
-.mroya-image-generation[data-phase="finishing"] .mroya-image-generation-wave {
-  animation: none;
-  opacity: .4;
-}
 .mroya-image-generation-footer {
   background: linear-gradient(transparent, color-mix(in srgb, var(--mroya-surface-muted) 84%, transparent));
 }
@@ -198,6 +194,7 @@ img.mroya-chat-image, .mroya-chat-image img {
 @media (prefers-reduced-motion: reduce) {
   .mroya-image-generation-wave { animation: none; }
 }
+.mroya-chat-image:has(img[data-preview-error]), img.mroya-chat-image[data-preview-error] { display: none; }
 .mroya-markdown-user > * + * { margin-top: .6em; }
 .mroya-markdown-user :where(h1,h2,h3,h4,h5,h6) { margin-top: .8em; }
 .mroya-markdown-user > :first-child { margin-top: 0; }

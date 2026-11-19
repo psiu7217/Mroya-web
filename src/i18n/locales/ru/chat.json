@@ -238,7 +238,7 @@
   "imagePromptInstruction": "Создай изображение по описанию",
   "imagePromptRatio": "Соотношение сторон {{ratio}}",
   "imageProgressEstimate": "Примерно {{progress}}%",
-  "imageFinishing": "Изображение готово",
+  "imageRequestRetry": "Вернуть запрос в черновик",
   "imageAutoSaved": "Сохранится в «Сгенерированные Мроей»",
   "imageOpen": "Открыть изображение",
   "imageViewerTitle": "Изображение",

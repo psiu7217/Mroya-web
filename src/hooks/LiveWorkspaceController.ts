@@ -471,6 +471,7 @@ export class LiveWorkspaceController {
       const entry:ChatTimelineEntry={
        kind:'tool',id:previous?.id??'tool:'+activity.call_id,sequence:previous?.sequence??data.sequence,
        callId:activity.call_id,toolName:activity.tool_name,turnNumber:activity.turn_number,phase:activity.phase,
+       ...(activity.tool_name==='generate_image'?{replyKey:'reply:'+id}:{}),
        toolKind:activity.kind,title:activity.title,description:activity.tool_name,
        status:activity.status==='not_executed'?'skipped':activity.status,
        input:activity.input===null?previous?.input:{format:'json',text:JSON.stringify(activity.input,null,2)},

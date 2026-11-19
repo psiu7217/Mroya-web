@@ -5,7 +5,7 @@ import {ApiError} from '../src/api/errors.ts';
 import {ImageViewerController} from '../src/hooks/ImageViewerController.ts';
 import type {ImageSharing} from '../src/hooks/ImageViewerController.ts';
 import type {WorkspaceSource} from '../src/types/source.ts';
-import {estimateImageGenerationProgress,imageGenerationPhase} from '../src/utils/imageGeneration.ts';
+import {estimateImageGenerationProgress,imageGenerationPhase,latestImageGeneration} from '../src/utils/imageGeneration.ts';
 import {documentImageId} from '../src/utils/documentImage.ts';
 import type {ToolTimelineEntry} from '../src/types/mroya.ts';
 
@@ -14,7 +14,7 @@ const png=Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,0]);
 const file=()=>new File([png],'mroya-test.png',{type:'image/png'});
 const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
 
-test('the elapsed-time estimate advances and leaves the final percent for tool success',()=>{
+test('the elapsed-time estimate advances and stays below 100 percent',()=>{
  const progress=[0,5_000,20_000,45_000,180_000].map(estimateImageGenerationProgress);
  assert.equal(progress[0],8);
  for(let i=1;i<progress.length;i++)assert.ok(progress[i]>progress[i-1]);
@@ -91,12 +91,14 @@ test('session expiry clears image state; missing files can be explicitly reloade
 
 test('generation animation follows real tool lifecycle and never persists after errors or interruption',()=>{
  const activity:ToolTimelineEntry={kind:'tool',id:'t1-c1',sequence:1,toolKind:'tool',title:'Generating image',toolName:'generate_image',status:'running',phase:'started'};
- const message={status:'streaming',content:'',timeline:[activity]};
- assert.equal(imageGenerationPhase(message),'generating');
- assert.equal(imageGenerationPhase({...message,timeline:[{...activity,status:'success',phase:'finished'}]}),'finishing');
- assert.equal(imageGenerationPhase({...message,status:'failed'}),null);
- assert.equal(imageGenerationPhase({...message,timeline:[{...activity,status:'interrupted'}]}),null);
- assert.equal(imageGenerationPhase({...message,timeline:[{...activity,status:'failure'}]}),null);
- assert.equal(imageGenerationPhase({...message,status:'completed'}),null);
+ assert.equal(latestImageGeneration([activity,{...activity,status:'skipped'}]),activity);
+ assert.equal(imageGenerationPhase('streaming',activity),'generating');
+ const success={...activity,status:'success',phase:'finished'} as const;
+ assert.equal(imageGenerationPhase('streaming',success),'preview');
+ assert.equal(imageGenerationPhase('completed',success),'preview');
+ assert.equal(imageGenerationPhase('failed',success),null);
+ assert.equal(imageGenerationPhase('streaming',{...activity,status:'interrupted'}),null);
+ assert.equal(imageGenerationPhase('streaming',{...activity,status:'failure'}),null);
+ assert.equal(imageGenerationPhase('completed',activity),null);
  assert.equal(documentImageId(path),id);assert.equal(documentImageId('https://app.heymroya.com'+path),null);
 });

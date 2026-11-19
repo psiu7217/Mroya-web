@@ -40,8 +40,8 @@ import {
   Terminal,
 } from 'lucide-react';
 import { AssistantMarkdown } from './AssistantMarkdown';
-import { ImageGenerationCard } from './ImageGenerationCard';
-import {imageGenerationPhase} from '../utils/imageGeneration';
+import { GeneratedImageReply } from './GeneratedImageReply';
+import {imageGenerationPhase,latestImageGeneration} from '../utils/imageGeneration';
 import { BrandMark } from './BrandMark';
 import {tr} from '../i18n';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
@@ -799,14 +799,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
           {intro}
           {hasMessages ? (
             <div className="space-y-6 sm:space-y-8 pb-6">
-              {conversation.messages.map((msg) => {
-                const generationPhase=imageGenerationPhase(msg);
-                const showWaitingDots = msg.status === 'streaming' && !msg.content.trim() && !msg.timeline?.some(
-                  entry=>entry.kind==='tool'&&entry.toolName==='generate_image'&&entry.status!=='skipped'
-                );
+              {conversation.messages.map((msg,index) => {
+                const imageActivity=latestImageGeneration(msg.timeline);
+                const generationPhase=imageGenerationPhase(msg.status,imageActivity);
+                const streaming=msg.status==='streaming';
+                const showWaitingDots=streaming&&!msg.content.trim()&&!imageActivity;
+                const visibleTimeline=msg.timeline?.filter(entry=>entry.kind!=='tool'||entry.toolName!=='generate_image');
+                const sourceMessage=conversation.messages[index-1];
+                const repeatImageRequest=msg===lastMsg&&msg.status==='completed'&&imageActivity?.status==='failure'&&
+                  sourceMessage?.sender==='user'&&!sourceMessage.attachments?.length&&sourceMessage.content.trim();
                 const hasTaskCard=!!(live&&msg.tasks?.length);
                 const legacyMemoryReview=msg.tasks?.some(task=>task.target==='memory'&&!task.review?.length);
-                const taskOnlyAnswer=hasTaskCard&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
+                const taskOnlyAnswer=hasTaskCard&&!generationPhase&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
                 const actionState=diagnostics?.forMessage(msg);
                 const reporting=actionState?.reporting===true,reported=actionState?.reported===true,copied=actionState?.copied===true;
                 if (msg.sender === 'user') {
@@ -830,7 +834,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                 // Assistant message (Mroya): top header with icon + Mroya, full width response below
                 return (
-                  <div key={msg.id} className="w-full space-y-2.5 sm:space-y-3">
+                  <div key={imageActivity?.replyKey??msg.id} className="w-full space-y-2.5 sm:space-y-3">
                     <div className="flex items-center gap-2">
                       <BrandMark size="sm" />
                       <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
@@ -876,8 +880,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {!live && (msg.timeline?.some(entry=>entry.kind==='tool') ? (
-                        <ChatActivityTimeline entries={showModelReasoning?msg.timeline:msg.timeline.filter(entry=>entry.kind!=='tool'||entry.toolName!=='generate_image')} isStreaming={msg.status==='streaming'} technical={showModelReasoning}/>
+                      {!live && (visibleTimeline?.some(entry=>entry.kind==='tool') ? (
+                        <ChatActivityTimeline entries={visibleTimeline} isStreaming={streaming} technical={showModelReasoning}/>
                       ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
                           reasoning={msg.reasoning}
@@ -886,7 +890,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         />
                       ))}
 
-                      {taskOnlyAnswer&&generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       {!taskOnlyAnswer&&<div className={`mroya-assistant-response w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
                         msg.status === 'failed'
@@ -972,10 +975,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           </div>
                         )}
 
-                        {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
                         {showWaitingDots && <WaitingDots/>}
-                        {msg.content && (msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) &&
+                        {generationPhase ? (
+                          <GeneratedImageReply content={generationPhase==='preview'?msg.content:''} streaming={streaming} onImageOpen={onImageOpen}/>
+                        ) : msg.content && (msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) &&
                           <AssistantMarkdown content={msg.content} onImageOpen={onImageOpen}/>}
+                        {repeatImageRequest&&(
+                          <button type="button" disabled={pending||submitting||voiceBusy||!!input.trim()||!!selectedFiles.length||!!attachedFile}
+                            className="text-sm font-medium text-[var(--mroya-primary)] underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                            onClick={()=>{draftRevision.current++;setImageRatio(null);setInput(repeatImageRequest);textareaRef.current?.focus();}}>
+                            {tr('imageRequestRetry',{ns:'chat'})}
+                          </button>
+                        )}
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}
@@ -1085,7 +1096,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Assistant message footer: Copy icon · Time */}
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
-                        {!showWaitingDots && !generationPhase && (!live || msg.status !== 'failed') && <>
+                        {!showWaitingDots && !(streaming&&generationPhase) && (!live || msg.status !== 'failed') && <>
                         <button
                           type="button"
                           onClick={() => taskOnlyAnswer&&!legacyMemoryReview

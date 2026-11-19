@@ -7,14 +7,15 @@ Canonical API details: [Backend speech contract](https://github.com/psiu7217/Mro
 
 `MroyaApi.transcribeAudio` uses the existing session/CSRF transport for
 `POST /api/v1/chat/transcriptions/`, multipart `{file: Blob}`, returning
-`{"text":"..."}`. It sends neither language nor conversation context.
-No automatic retry or call to a send/Agent/Memory endpoint follows recognition.
+`{"text":"..."}`. The transcription request contains only the recorded audio.
 
 The provider's `useSpeechInput` owns the MediaRecorder controller, microphone,
 timers and request. Typed presentation state/actions pass through WorkspaceModel
-to the existing ChatWorkspace. UI only appends a successful result to the latest
-draft, retaining edits made while recognition was pending. The user must review
-and press ordinary Send. Enter/send are blocked while recording/transcribing.
+to the existing ChatWorkspace. An audio level meter uses samples from the
+microphone. Stop appends the result to the latest draft, including edits made
+during recognition. The arrow appends the result and submits that draft through
+the ordinary chat flow. The recording time limit works like Stop. The ordinary
+Send and Enter controls are disabled during recording and recognition.
 
 Browser capture selects an available MediaRecorder type: Opus WebM, MP4 (Safari),
 WebM or Opus OGG/OGG, falling back to the browser's recorder default. Audio bitrate
@@ -50,8 +51,8 @@ and a desktop browser over HTTPS:
 2. Speak Russian, English and Polish. Stop: microphone indicator disappears,
    recognition status appears, original-language text appends to an existing draft.
    Edit while recognition is pending and verify those edits are retained.
-3. Verify no chat message or Agent Run before explicitly pressing ordinary Send.
-   Then verify the ordinary text submission works once.
+3. Verify Stop leaves an editable draft. Record again and press the arrow.
+   Verify the latest draft and transcript are sent together exactly once.
 4. Cancel while recording, while permission is pending and during recognition.
    Switch chats/sections, close or background the PWA, and verify no active mic,
    stale insertion into another chat, or automatic submission.

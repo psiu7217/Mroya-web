@@ -95,7 +95,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               documentsAvailable={model.documentsAvailable}
               draftAttachments={model.chatAttachments}
               account={account}
-              memoriesCount={runtime?.memoriesTotal??memories.length}
               conversation={activeConversation}
               onSendMessage={handleSendMessage}
               onCitationClick={handleCitationClick}

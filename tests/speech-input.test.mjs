@@ -55,8 +55,30 @@ test('cancel during recording never uploads; late microphone permission is relea
 test('cancel/close during transcription aborts request and ignores a late result',async()=>{
   const device=recording(),reply=deferred();let signal;
   const c=new SpeechInputController(async(blob,s)=>{signal=s;return reply.promise;});
-  try{await c.start();c.stop();await settle();c.cancel();assert.equal(signal.aborted,true);reply.resolve('stale');await settle();assert.equal(c.snapshot().text,null);assert.equal(c.snapshot().phase,'idle');}
+  try{await c.start();c.stop(true);await settle();c.cancel();assert.equal(signal.aborted,true);reply.resolve('stale');await settle();assert.equal(c.snapshot().text,null);assert.equal(c.snapshot().sendOnInsert,false);assert.equal(c.snapshot().phase,'idle');}
   finally{c.cancel();device.restore();}
+});
+
+test('live levels use microphone samples and Send retains its intent until the transcript is consumed',async(t)=>{
+  t.mock.timers.enable({apis:['setInterval']});
+  const device=recording(),previous=globalThis.AudioContext;
+  let amplitude=0,closed=false;
+  globalThis.AudioContext=class {
+    resume(){return Promise.resolve();}
+    close(){closed=true;return Promise.resolve();}
+    createAnalyser(){return {fftSize:32,getFloatTimeDomainData:samples=>samples.fill(amplitude)};}
+    createMediaStreamSource(stream){assert.equal(stream,device.stream);return {connect(){}};}
+  };
+  const c=new SpeechInputController(async()=> 'Send this');
+  try{
+    await c.start();
+    t.mock.timers.tick(80);assert.equal(c.snapshot().level,0);
+    amplitude=0.25;t.mock.timers.tick(80);assert.ok(c.snapshot().level>0.7);
+    c.stop(true);await settle();
+    assert.equal(closed,true);assert.equal(c.snapshot().level,0);
+    assert.equal(c.snapshot().text,'Send this');assert.equal(c.snapshot().sendOnInsert,true);
+    c.inserted();assert.equal(c.snapshot().sendOnInsert,false);
+  }finally{c.cancel();device.restore();globalThis.AudioContext=previous;t.mock.timers.reset();}
 });
 
 test('permission failure and recorder failure release microphone and permit retry',async()=>{
@@ -73,7 +95,7 @@ test('two minute timer stops recording and starts only transcription',async(t)=>
   t.mock.timers.enable({apis:['setTimeout','setInterval','Date']});
   const device=recording();let uploads=0;
   const c=new SpeechInputController(async()=>{uploads++;return 'text';});
-  try{await c.start();t.mock.timers.tick(119500);await settle();assert.equal(uploads,1);assert.ok(device.stopped()>0);assert.equal(c.snapshot().text,'text');}
+  try{await c.start();t.mock.timers.tick(119500);await settle();assert.equal(uploads,1);assert.ok(device.stopped()>0);assert.equal(c.snapshot().text,'text');assert.equal(c.snapshot().sendOnInsert,false);}
   finally{c.cancel();device.restore();t.mock.timers.reset();}
 });
 
@@ -89,14 +111,14 @@ test('multipart uses existing session/CSRF client and never chat/send or a langu
   assert.equal(init.headers['Content-Type'],undefined);assert.ok(init.body instanceof FormData);assert.deepEqual([...init.body.keys()],['file']);
 });
 
-test('recording and recognition UI have cancel, localized status and no send control',()=>{
-  const noop=()=>{},base={account:{name:'Owner',email:'',isGuest:false},conversation:null,memoriesCount:0,onSendMessage:()=>{throw Error('must not send');},addedActionIds:[],plan:'free',theme:'light'};
-  for(const [language,status] of [['ru','Распознаём голос'],['en','Transcribing voice']]){
+test('recording has explicit stop and send actions and transcription allows cancellation',()=>{
+  const noop=()=>{},base={account:{name:'Owner',email:'',isGuest:false},conversation:null,onSendMessage:()=>{throw Error('must not send on render');},addedActionIds:[],plan:'free',theme:'light'};
+  for(const [language,status,send] of [['ru','Распознаём голос','Распознать голос и сразу отправить'],['en','Transcribing voice','Transcribe voice and send immediately']]){
     setAppLanguage(language);
-    const speech={phase:'transcribing',seconds:5,error:null,text:null,onStart:noop,onStop:noop,onCancel:noop,onInserted:noop};
+    const speech={phase:'transcribing',seconds:5,level:0.5,error:null,text:null,sendOnInsert:false,onStart:noop,onStop:noop,onCancel:noop,onInserted:noop};
     const processing=renderToStaticMarkup(React.createElement(ChatWorkspace,{...base,speech}));
     assert.ok(processing.includes(status));assert.ok(!processing.includes('type="submit"'));
     const active=renderToStaticMarkup(React.createElement(ChatWorkspace,{...base,speech:{...speech,phase:'recording'}}));
-    assert.ok(active.includes('0:05'));assert.ok(!active.includes('type="submit"'));assert.ok(!active.includes('transcribeSend'));
+    assert.ok(active.includes('0:05'));assert.ok(!active.includes('type="submit"'));assert.ok(active.includes(`aria-label="${send}"`));
   }
 });

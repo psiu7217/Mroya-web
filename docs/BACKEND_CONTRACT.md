@@ -556,6 +556,6 @@ The Backend uses Groq whisper-large-v3-turbo with automatic language detection;
 no translation. Limits: 120 seconds, 12 MiB, six requests/minute and 30/hour per
 user. WebM, audio-only MP4/M4A, OGG, WAV, FLAC and MP3 are verified server-side.
 Missing configuration returns 503; no anonymous transcription is enabled.
-This only inserts editable text into the composer. It creates no ChatTurn,
-Agent/Deep Analysis/Memory operation and never submits automatically.
+Stop inserts editable text into the composer. The recording toolbar's arrow
+inserts the text and submits the draft through the ordinary chat send endpoint.
 See [implementation and mobile acceptance](SPEECH-TO-TEXT.md).

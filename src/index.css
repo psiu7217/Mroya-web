@@ -177,36 +177,26 @@ img.mroya-chat-image, .mroya-chat-image img {
 }
 .mroya-image-generation-wave {
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 70% 125% at 18% 55%,
-    transparent 42%,
-    color-mix(in srgb, var(--mroya-primary) 9%, transparent) 55%,
-    color-mix(in srgb, var(--mroya-primary) 38%, transparent) 70%,
-    color-mix(in srgb, var(--mroya-primary) 16%, transparent) 83%,
-    transparent 100%);
-  animation: mroya-image-sweep 3.4s ease-in-out infinite;
+  inset: -30%;
+  background: radial-gradient(ellipse at center,
+    color-mix(in srgb, var(--mroya-primary) 28%, transparent),
+    color-mix(in srgb, var(--mroya-primary) 11%, transparent) 34%,
+    transparent 66%);
+  animation: mroya-image-sweep 4.8s ease-in-out infinite alternate;
 }
 .mroya-image-generation[data-phase="finishing"] .mroya-image-generation-wave {
   animation: none;
   opacity: .4;
 }
 .mroya-image-generation-footer {
-  background: linear-gradient(transparent, var(--mroya-surface-muted) 45%);
-}
-.mroya-image-generation-track {
-  background: color-mix(in srgb, var(--mroya-primary) 19%, var(--mroya-surface));
-}
-.mroya-image-generation-fill {
-  background: var(--mroya-primary);
-  transition: width .45s ease-out;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--mroya-surface-muted) 84%, transparent));
 }
 @keyframes mroya-image-sweep {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(124%); }
+  from { transform: translate(-18%, 10%) scale(.9); }
+  to { transform: translate(18%, -10%) scale(1.15); }
 }
 @media (prefers-reduced-motion: reduce) {
   .mroya-image-generation-wave { animation: none; }
-  .mroya-image-generation-fill { transition: none; }
 }
 .mroya-markdown-user > * + * { margin-top: .6em; }
 .mroya-markdown-user :where(h1,h2,h3,h4,h5,h6) { margin-top: .8em; }

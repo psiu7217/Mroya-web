@@ -797,7 +797,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <div className="space-y-6 sm:space-y-8 pb-6">
               {conversation.messages.map((msg) => {
                 const generationPhase=imageGenerationPhase(msg);
-                const waitingForText = msg.status === 'streaming' && !msg.content.trim();
+                const showWaitingDots = msg.status === 'streaming' && !msg.content.trim() && !msg.timeline?.some(
+                  entry=>entry.kind==='tool'&&entry.toolName==='generate_image'&&entry.status!=='skipped'
+                );
                 const hasTaskCard=!!(live&&msg.tasks?.length);
                 const legacyMemoryReview=msg.tasks?.some(task=>task.target==='memory'&&!task.review?.length);
                 const taskOnlyAnswer=hasTaskCard&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
@@ -830,7 +832,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
                         Mroya
                       </span>
-                      {msg.status && msg.status !== 'completed' && !waitingForText && (
+                      {msg.status && msg.status !== 'completed' && !showWaitingDots && !generationPhase && (
                         <span
                           role="status"
                           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
@@ -967,8 +969,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         )}
 
                         {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
-                        {waitingForText ? <WaitingDots/> :
-                          (msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) && <AssistantMarkdown content={msg.content} onImageOpen={onImageOpen}/>}
+                        {showWaitingDots && <WaitingDots/>}
+                        {msg.content && (msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) &&
+                          <AssistantMarkdown content={msg.content} onImageOpen={onImageOpen}/>}
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}
@@ -1078,7 +1081,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Assistant message footer: Copy icon · Time */}
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
-                        {!waitingForText && (!live || msg.status !== 'failed') && <>
+                        {!showWaitingDots && !generationPhase && (!live || msg.status !== 'failed') && <>
                         <button
                           type="button"
                           onClick={() => taskOnlyAnswer&&!legacyMemoryReview

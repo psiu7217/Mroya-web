@@ -7,6 +7,7 @@ import type {InstallPresentation} from '../types/install';
 import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
 import React, { useState, useRef, useEffect, useEffectEvent } from 'react';
 import {
+  Award,
   Menu,
   Download,
   PanelLeftOpen,
@@ -14,6 +15,7 @@ import {
   ArrowUp,
   Camera,
   Check,
+  ChevronDown,
   Copy,
   Calendar,
   FolderOpen,
@@ -60,6 +62,7 @@ import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 const imageRatios = ['', '1:1', '3:4', '4:3'] as const;
 type ImageRatio = typeof imageRatios[number];
 const maxImagePromptCharacters = 4000;
+const effortLevels = ['effortLow', 'effortMedium', 'effortHigh', 'effortMax'] as const;
 const composerButton = 'inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-muted)] hover:text-[var(--mroya-text)] disabled:opacity-40 disabled:cursor-default cursor-pointer';
 const sendButton = 'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:cursor-default cursor-pointer';
 const composerPopover = 'absolute bottom-full z-30 mb-2 w-48 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-1.5 shadow-lg';
@@ -140,6 +143,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const imageMode = imageRatio !== null;
   const imagePromptTooLong = imageMode && Array.from(input.trim()).length > maxImagePromptCharacters;
   const [composerMenu, setComposerMenu] = useState<'attachments' | 'effort' | null>(null);
+  const currentEffort = tr(effortLevels[0],{ns:'chat'});
   const [sampleAttachment, setAttachedFile] = useState<string | null>(null);
   const [localFiles,setSelectedFiles]=useState<File[]>([]);
   const selectedFiles=draftAttachments?draftAttachments.items.map(item=>item.file):localFiles;
@@ -299,7 +303,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setComposerMenu(null);
-      trigger.current?.focus();
+      trigger.current?.focus({preventScroll:true});
     };
     document.addEventListener('pointerdown', closeOutside);
     document.addEventListener('keydown', closeOnEscape);
@@ -1237,7 +1241,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <button type="button" onClick={handleCancelRecording} className={composerButton} aria-label={tr('cancelRecording',{ns:'chat'})}><X className="size-4" /></button>
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-2 px-3 pb-2.5 pt-1">
+              <div className="relative flex items-center justify-between gap-2 px-3 pb-2.5 pt-1">
                 <div className="flex items-center gap-1">
                   <div className="relative" ref={attachmentMenuRef}>
                     <button type="button" ref={attachmentButtonRef} onClick={()=>setComposerMenu(composerMenu==='attachments'?null:'attachments')}
@@ -1266,22 +1270,36 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <div className="relative" ref={effortMenuRef}>
+                  <div ref={effortMenuRef}>
                     <button type="button" ref={effortButtonRef} onClick={()=>setComposerMenu(composerMenu==='effort'?null:'effort')}
-                      className={composerButton} aria-label={tr('modelEffort',{ns:'chat'})} title={tr('modelEffort',{ns:'chat'})}
+                      onPointerDown={event=>{if(document.activeElement===textareaRef.current)event.preventDefault();}}
+                      className="inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-full bg-[var(--mroya-surface-muted)] px-2 text-xs font-medium text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] cursor-pointer sm:px-3 sm:text-sm"
+                      aria-label={tr('modelEffortCurrent',{ns:'chat',level:currentEffort})}
                       aria-expanded={composerMenu==='effort'} aria-controls={composerMenu==='effort'?'mroya-effort-options':undefined}>
-                      <Gauge className="size-[18px]"/>
+                      <Gauge aria-hidden="true" className="size-4"/>
+                      {currentEffort}
+                      <ChevronDown aria-hidden="true" className="size-3"/>
                     </button>
                     {composerMenu==='effort' && (
-                      <div id="mroya-effort-options" className={`${composerPopover} -right-12 text-[var(--mroya-text-muted)]`}>
-                        <ul className="text-sm">
-                          {['Low','Medium','High','Max'].map(level=>(
-                            <li key={level} className="flex items-center justify-between px-2.5 py-1.5">
-                              {level}<LockKeyhole aria-hidden="true" className="size-3.5"/>
+                      <div id="mroya-effort-options" data-workspace-swipe="ignore"
+                        className="absolute right-3 bottom-full z-30 mb-2 max-h-[calc(var(--workspace-height,100dvh)_-_5rem)] w-[min(17rem,calc(100%_-_1.5rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-3 shadow-[var(--mroya-shadow-elevated)]">
+                        <div className="flex items-center justify-between gap-2 text-sm font-medium">
+                          <p>{tr('modelEffort',{ns:'chat'})}</p>
+                          <LockKeyhole aria-hidden="true" className="size-4 shrink-0 text-[var(--mroya-text-muted)]"/>
+                        </div>
+                        <ul className="mt-2 grid grid-cols-[1fr_1fr_1fr_auto]">
+                          {effortLevels.map((level,index)=>(
+                            <li key={level} aria-current={index===0?'true':undefined}
+                              className={`relative grid grid-rows-[22px_auto] place-items-center gap-0.5 whitespace-nowrap px-0.5 text-[11px] before:absolute before:inset-x-0 before:top-[9px] before:h-1 before:bg-[var(--mroya-surface-active)] first:before:left-1/2 last:before:right-1/2 ${index===0?'font-semibold text-[var(--mroya-primary)]':'text-[var(--mroya-text-muted)]'}`}>
+                              <span aria-hidden="true" className={`relative rounded-full ${index===0?'size-4 bg-[var(--mroya-primary)]':'size-1 bg-[var(--mroya-text-muted)]'}`}/>
+                              {tr(level,{ns:'chat'})}
                             </li>
                           ))}
                         </ul>
-                        <p className="border-t border-[var(--mroya-divider)] px-2.5 py-2 text-xs">{tr('modelEffortUnavailable',{ns:'chat'})}</p>
+                        <button type="button" disabled className="ml-auto mt-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--mroya-text-muted)] opacity-60">
+                          <Award aria-hidden="true" className="size-4"/>
+                          {tr('buyPremium',{ns:'chat'})}
+                        </button>
                       </div>
                     )}
                   </div>

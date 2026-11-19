@@ -19,8 +19,8 @@ images only at this exact relative path; remote/data URLs remain omitted.
 Live `generate_image` activities have kind `tool` and null input/output, keeping
 prompts and base64 out of SSE activity. Deploy API before Web.
 
-The Chat image card follows that activity's running/finished lifecycle and shows
-an indeterminate circular indicator; no percentage is inferred. Opening an image
+The Chat image card follows that activity's running/finished lifecycle. It shows
+an estimate based on elapsed time until the server confirms success. Opening an image
 loads its existing authenticated original through the session client, with a
 25 MiB bound and raster MIME/signature checks. The viewer shares the actual File
 through the device share sheet. Without file sharing it copies a PNG when the

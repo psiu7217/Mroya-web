@@ -9,16 +9,43 @@ after(()=>vite.close());
 const {ImageGenerationCard}=await vite.ssrLoadModule('/src/components/ImageGenerationCard.tsx');
 const {ImageLightbox}=await vite.ssrLoadModule('/src/components/ImageLightbox.tsx');
 const {AssistantMarkdown}=await vite.ssrLoadModule('/src/components/AssistantMarkdown.tsx');
+const {ChatWorkspace}=await vite.ssrLoadModule('/src/components/ChatWorkspace.tsx');
 const noop=()=>{},path='/api/v1/documents/10000000-0000-4000-8000-000000000001/original/';
 
 test('generation shows a wave and labels its percentage as an estimate until the image is ready',()=>{
  const html=renderToStaticMarkup(React.createElement(ImageGenerationCard,{phase:'generating'}));
  assert.match(html,/role="progressbar"/);assert.match(html,/mroya-image-generation-wave/);
  assert.match(html,/Creating your image/);assert.match(html,/aria-valuetext="About 8%"/);
- assert.match(html,/>≈ 8%</);
+ assert.match(html,/>≈8%</);
+ assert.equal((html.match(/8%<\/span>/g)??[]).length,1);
  const complete=renderToStaticMarkup(React.createElement(ImageGenerationCard,{phase:'finishing'}));
  assert.match(complete,/data-phase="finishing"/);assert.match(complete,/Your image is ready/);
  assert.match(complete,/aria-valuenow="100"/);assert.match(complete,/>100%</);
+});
+
+test('chat shows either waiting dots, the image card, or the finished image during streaming',()=>{
+ const activity={kind:'tool',id:'t1-c1',toolName:'generate_image',status:'running',phase:'started'};
+ const message={id:'reply',sender:'assistant',status:'streaming',content:'',timestamp:''};
+ const render=patch=>renderToStaticMarkup(React.createElement(ChatWorkspace,{
+  account:{displayName:'Owner',initials:'O'},addedActionIds:[],live:true,onImageOpen:noop,
+  conversation:{id:'chat',messages:[{...message,...patch}]},theme:'light',plan:'free',
+ }));
+ const waiting=render({});
+ assert.equal((waiting.match(/class="guest-dot"/g)??[]).length,3);
+ assert.doesNotMatch(waiting,/role="progressbar"/);
+ for(const entry of [activity,{...activity,status:'success',phase:'finished'}]){
+  const image=render({timeline:[entry]});
+  assert.match(image,/role="progressbar"/);
+  assert.doesNotMatch(image,/class="guest-dot"/);
+ }
+ const done=render({timeline:[{...activity,status:'success',phase:'finished'}],content:`![Cat](${path})`});
+ assert.match(done,/aria-label="Open image"/);
+ assert.doesNotMatch(done,/role="progressbar"|class="guest-dot"/);
+ for(const settled of [
+  {status:'failed',timeline:[activity]},
+  {timeline:[{...activity,status:'failure',phase:'finished'}]},
+  {content:'Ordinary text'},
+ ])assert.doesNotMatch(render(settled),/role="progressbar"|class="guest-dot"/);
 });
 
 test('Chat image is an accessible button that opens the viewer',()=>{

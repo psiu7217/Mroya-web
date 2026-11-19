@@ -5,17 +5,21 @@ import {appendDictation} from '../utils/dictation';
 import type {SpeechPresentation} from '../types/speech';
 import type {InstallPresentation} from '../types/install';
 import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useEffectEvent } from 'react';
 import {
   Menu,
   Download,
   PanelLeftOpen,
   PanelRight,
-  Paperclip,
   ArrowUp,
+  Camera,
   Check,
   Copy,
   Calendar,
+  FolderOpen,
+  Gauge,
+  Image,
+  LockKeyhole,
   BookOpen,
   Share2,
   Sparkles,
@@ -53,6 +57,21 @@ import {taskMessageText} from '../utils/taskMessage';
 import type { AiTasksPresentation } from '../types/aiTasks';
 import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 
+const imageRatios = ['', '1:1', '3:4', '4:3'] as const;
+type ImageRatio = typeof imageRatios[number];
+const maxImagePromptCharacters = 4000;
+const composerButton = 'inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-muted)] hover:text-[var(--mroya-text)] disabled:opacity-40 disabled:cursor-default cursor-pointer';
+const sendButton = 'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:cursor-default cursor-pointer';
+const composerPopover = 'absolute bottom-full z-30 mb-2 w-48 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-1.5 shadow-lg';
+
+function WaitingDots() {
+  return (
+    <div role="status" aria-label={tr('thinking',{ns:'chat'})} className="flex items-center gap-1.5 py-0.5">
+      {[0,1,2].map(index=><span key={index} className="guest-dot" aria-hidden="true"/>)}
+    </div>
+  );
+}
+
 export interface ChatWorkspaceProps {
   onImageOpen?:(url:string,title:string)=>void;
   draftAttachments?:ChatAttachmentsPresentation;
@@ -68,7 +87,6 @@ export interface ChatWorkspaceProps {
   onUnavailable?: () => void;
   pending?: boolean;
   samples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
-  memoriesCount: number;
   conversation: Conversation | null;
   onSendMessage: (content: string, attachmentName?: string, files?:File[]) => void | boolean | Promise<boolean>;
   onCitationClick: (memoryId: string) => void;
@@ -94,7 +112,6 @@ export interface ChatWorkspaceProps {
 export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   onImageOpen,
   draftAttachments, showModelReasoning=false, speech, install, aiTasks, account, live=false, intro, onSignIn, onUnavailable, pending=false, samples, documentsAvailable=false,
-  memoriesCount,
   conversation,
   onSendMessage,
   onCitationClick,
@@ -119,6 +136,10 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const showDeveloperFeatures = !live;
   const starterSuggestions=[tr('starterRememberMe',{ns:'chat'}),tr('starterUpcoming',{ns:'chat'}),tr('starterRemember',{ns:'chat'})];
   const [input, setInput] = useState('');
+  const [imageRatio, setImageRatio] = useState<ImageRatio | null>(null);
+  const imageMode = imageRatio !== null;
+  const imagePromptTooLong = imageMode && Array.from(input.trim()).length > maxImagePromptCharacters;
+  const [composerMenu, setComposerMenu] = useState<'attachments' | 'effort' | null>(null);
   const [sampleAttachment, setAttachedFile] = useState<string | null>(null);
   const [localFiles,setSelectedFiles]=useState<File[]>([]);
   const selectedFiles=draftAttachments?draftAttachments.items.map(item=>item.file):localFiles;
@@ -127,11 +148,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   useEffect(()=>{const previews=new Map<File,string>();for(const file of localFiles)if(['image/png','image/jpeg','image/webp','image/gif'].includes(file.type))previews.set(file,URL.createObjectURL(file));setLocalPreviews(previews);return()=>{for(const url of previews.values())URL.revokeObjectURL(url);};},[localFiles]);
   const [fileError,setFileError]=useState<string|null>(null);
   const fileInput=useRef<HTMLInputElement>(null);
+  const photoInput=useRef<HTMLInputElement>(null);
+  const cameraInput=useRef<HTMLInputElement>(null);
+  const attachmentMenuRef=useRef<HTMLDivElement>(null);
+  const effortMenuRef=useRef<HTMLDivElement>(null);
+  const attachmentButtonRef=useRef<HTMLButtonElement>(null);
+  const effortButtonRef=useRef<HTMLButtonElement>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const isRecording = speech?.phase === 'recording';
   const voiceBusy = !!speech && speech.phase !== 'idle';
   const recordingSeconds = speech?.seconds ?? 0;
+  const recordingLevel = Math.ceil((speech?.level ?? 0) * 12);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [localThinking, setLocalThinking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -155,8 +183,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       handleCancelRecording();
       draftAttachments?.onClear();
       draftRevision.current++; setInput(''); setAttachedFile(null); setSelectedFiles([]); setFileError(null); setLocalThinking(false);
+      setImageRatio(null);
     }
-    setCopiedMessageId(null); setHeaderMenuOpen(false); setMobileUserMenuOpen(false);
+    setCopiedMessageId(null); setHeaderMenuOpen(false); setMobileUserMenuOpen(false); setComposerMenu(null);
   }, [conversation?.id]);
 
   const submitMessage = async (content: string, attachmentName?: string) => {
@@ -167,7 +196,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     try {
       const accepted = await onSendMessage(content, attachmentName, selectedFiles.length?selectedFiles:undefined);
       if (accepted === false) { setLocalThinking(false); return; }
-      if (revision === draftRevision.current) { setInput(''); setAttachedFile(null); setSelectedFiles([]); setFileError(null); }
+      if (revision === draftRevision.current) { setInput(''); setImageRatio(null); setAttachedFile(null); setSelectedFiles([]); setFileError(null); }
     } catch {
       setLocalThinking(false);
     } finally { submission.current = false; setSubmitting(false); }
@@ -228,15 +257,20 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     onUnavailable?.();
   };
   const handleCancelRecording = () => speech?.onCancel();
-  const handleStopAndInsertText = () => speech?.onStop();
+  const insertDictation = useEffectEvent((text: string, sendImmediately: boolean) => {
+    if (!text.trim()) return;
+    const draft = appendDictation(input, text);
+    draftRevision.current++;
+    setInput(draft);
+    if (sendImmediately) sendDraft(draft);
+    else textareaRef.current?.focus();
+  });
 
   useEffect(() => {
     if (!speech?.text) return;
-    draftRevision.current++;
-    setInput(previous => appendDictation(previous, speech.text!));
+    insertDictation(speech.text, speech.sendOnInsert);
     speech.onInserted();
-    textareaRef.current?.focus();
-  }, [speech?.text, speech?.onInserted]);
+  }, [speech?.text, speech?.sendOnInsert, speech?.onInserted]);
 
   useEffect(() => () => {
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -255,9 +289,28 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!composerMenu) return;
+    const menu = composerMenu === 'attachments' ? attachmentMenuRef : effortMenuRef;
+    const trigger = composerMenu === 'attachments' ? attachmentButtonRef : effortButtonRef;
+    const closeOutside = (event: PointerEvent) => {
+      if (!menu.current?.contains(event.target as Node)) setComposerMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setComposerMenu(null);
+      trigger.current?.focus();
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [composerMenu]);
+
   const lastMsg = conversation?.messages && conversation.messages.length > 0 ? conversation.messages[conversation.messages.length - 1] : undefined;
-  const isLastUser = lastMsg?.sender === 'user';
-  const showThinking = (isThinking || localThinking) && isLastUser;
+  const showThinking = (isThinking || (!live && localThinking)) && lastMsg?.sender === 'user';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -271,18 +324,30 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [input]);
 
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = input.trim();
-    if (pending || voiceBusy || (!trimmed && !attachedFile && !selectedFiles.length)) return;
+  const sendDraft = (draft: string) => {
+    const trimmed = draft.trim();
+    if (imageRatio !== null) {
+      if (!trimmed || Array.from(trimmed).length > maxImagePromptCharacters) return;
+      const instruction = tr('imagePromptInstruction',{ns:'chat'});
+      const ratio = imageRatio ? '\n'+tr('imagePromptRatio',{ns:'chat',ratio:imageRatio}) : '';
+      void submitMessage(`${instruction}\n${trimmed}${ratio}`, attachedFile || undefined);
+      return;
+    }
+    if (!trimmed && !attachedFile && !selectedFiles.length) return;
     void submitMessage(
       trimmed || (selectedFiles.length?tr('processAttachments',{ns:'chat'}):`Shared attachment: ${attachedFile}`),
       attachedFile || undefined
     );
   };
 
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setComposerMenu(null);
+    sendDraft(input);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSubmit();
     }
@@ -300,9 +365,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     }
   };
 
-  const handleAttachSample = () => {
-    if(documentsAvailable){fileInput.current?.click();return;}
-    if (!samples) {onUnavailable?.();return;}
+  const handlePickAttachment = (picker: React.RefObject<HTMLInputElement|null>) => {
+    setComposerMenu(null);
+    attachmentButtonRef.current?.focus();
+    if (documentsAvailable) {picker.current?.click();return;}
+    if (!samples || picker !== fileInput) {onUnavailable?.();return;}
     draftRevision.current++;
     if (attachedFile) {
       setAttachedFile(null);
@@ -312,6 +379,37 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     }
   };
 
+  const addAttachments = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    if (!files.length) return;
+    if (files.length+selectedFiles.length>8 || files.some(file=>file.size<1 || file.size>25*1024*1024)) {
+      setFileError(tr('fileLimits',{ns:'chat'}));
+      return;
+    }
+    draftRevision.current++;
+    setFileError(null);
+    if (!draftAttachments) {
+      setSelectedFiles(previous=>[...previous,...files]);
+      return;
+    }
+    try {draftAttachments.onAdd(files);}
+    catch {setFileError(tr('fileLimits',{ns:'chat'}));}
+  };
+
+  const toggleImageMode = () => {
+    setComposerMenu(null);
+    if (onSignIn) {onSignIn();return;}
+    draftRevision.current++;
+    setImageRatio(imageMode ? null : '');
+    textareaRef.current?.focus();
+  };
+
+  const attachmentOptions = [
+    {label:'attachmentCamera', icon:Camera, picker:cameraInput},
+    {label:'attachmentGallery', icon:Image, picker:photoInput},
+    {label:'attachmentFiles', icon:FolderOpen, picker:fileInput},
+  ];
   const hasMessages = conversation && conversation.messages.length > 0;
 
   return (
@@ -699,18 +797,22 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <div className="space-y-6 sm:space-y-8 pb-6">
               {conversation.messages.map((msg) => {
                 const generationPhase=imageGenerationPhase(msg);
+                const waitingForText = msg.status === 'streaming' && !msg.content.trim();
                 const hasTaskCard=!!(live&&msg.tasks?.length);
                 const legacyMemoryReview=msg.tasks?.some(task=>task.target==='memory'&&!task.review?.length);
                 const taskOnlyAnswer=hasTaskCard&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
                 const actionState=diagnostics?.forMessage(msg);
                 const reporting=actionState?.reporting===true,reported=actionState?.reported===true,copied=actionState?.copied===true;
                 if (msg.sender === 'user') {
+                  const imageInstruction = ['ru', 'en'].map(lng=>tr('imagePromptInstruction',{ns:'chat',lng})+'\n')
+                    .find(prefix=>msg.content.startsWith(prefix));
                   return (
                     <div key={msg.id} className="flex flex-col items-end">
                       {!!msg.attachments?.length && <MessageAttachments files={msg.attachments} onImageOpen={onImageOpen}/>}
                       {!!msg.content.trim() && (
                         <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
-                          <AssistantMarkdown content={msg.content} variant="user" />
+                          {imageInstruction && <div className="mb-1 text-xs font-medium text-[var(--mroya-primary)]">Mroya Images</div>}
+                          <AssistantMarkdown content={imageInstruction ? msg.content.slice(imageInstruction.length) : msg.content} variant="user" />
                         </div>
                       )}
                       <span className="mt-1 text-[11px] text-[var(--mroya-text-muted)] tabular-nums">
@@ -728,7 +830,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
                         Mroya
                       </span>
-                      {msg.status && msg.status !== 'completed' && (
+                      {msg.status && msg.status !== 'completed' && !waitingForText && (
                         <span
                           role="status"
                           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
@@ -865,7 +967,8 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         )}
 
                         {generationPhase&&<ImageGenerationCard phase={generationPhase}/>}
-                        {(msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) && <AssistantMarkdown content={msg.content} onImageOpen={onImageOpen}/>}
+                        {waitingForText ? <WaitingDots/> :
+                          (msg.status!=='failed'||(!live&&isAdmin&&!msg.failureNotice)) && <AssistantMarkdown content={msg.content} onImageOpen={onImageOpen}/>}
 
                         {msg.signInPrompt && onSignIn && <button type="button" onClick={onSignIn} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-sm font-medium">{tr('signIn',{ns:'chat'})}</button>}
                         {/* Structured recalled details if present */}
@@ -975,7 +1078,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
 
                       {/* Assistant message footer: Copy icon · Time */}
                       <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
-                        {(!live || msg.status !== 'failed') && <>
+                        {!waitingForText && (!live || msg.status !== 'failed') && <>
                         <button
                           type="button"
                           onClick={() => taskOnlyAnswer&&!legacyMemoryReview
@@ -1008,11 +1111,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </div>
 
                   <div className="w-fit min-w-[72px] px-4 py-3 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] flex items-center justify-center">
-                    <div role="status" aria-label={tr('thinking',{ns:'chat'})} className="flex items-center gap-1.5 py-0.5">
-                      <span className="guest-dot" />
-                      <span className="guest-dot" />
-                      <span className="guest-dot" />
-                    </div>
+                    <WaitingDots/>
                   </div>
                 </div>
               )}
@@ -1058,15 +1157,9 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             className="rounded-[12px] bg-[var(--mroya-surface)] border-0 border-none outline-none ring-0 focus-within:border-none focus-within:outline-none focus-within:ring-0 shadow-[var(--mroya-shadow-subtle)] transition-all"
           >
             {/* Optional attached document preview */}
-            <input type="file" multiple ref={fileInput} className="hidden" disabled={pending||submitting} aria-label={tr('attach',{ns:'chat'})}
-              onChange={event=>{
-                const files=Array.from(event.currentTarget.files??[]);event.currentTarget.value='';
-                if(files.length+selectedFiles.length>8||files.some(file=>file.size<1||file.size>25*1024*1024)){
-                  setFileError(tr('fileLimits',{ns:'chat'}));return;
-                }
-                draftRevision.current++;setFileError(null);
-                if(draftAttachments){try{draftAttachments.onAdd(files);}catch{setFileError(tr('fileLimits',{ns:'chat'}));}}else setSelectedFiles(previous=>[...previous,...files]);
-              }}/>
+            <input type="file" accept="image/*" capture="environment" ref={cameraInput} hidden disabled={pending||submitting||voiceBusy} aria-label={tr('attachmentCamera',{ns:'chat'})} onChange={addAttachments}/>
+            <input type="file" accept="image/*" multiple ref={photoInput} hidden disabled={pending||submitting||voiceBusy} aria-label={tr('attachmentGallery',{ns:'chat'})} onChange={addAttachments}/>
+            <input type="file" multiple ref={fileInput} hidden disabled={pending||submitting||voiceBusy} aria-label={tr('attachmentFiles',{ns:'chat'})} onChange={addAttachments}/>
             {fileError?<p role="alert" className="px-3.5 pt-3 text-sm text-red-500">{fileError}</p>:null}
             {(attachedFile||selectedFiles.length>0) && <AttachmentPreviews
               items={draftAttachments?.items??(selectedFiles.length?selectedFiles.map((file,index)=>({id:String(index),filename:file.name,previewUrl:localPreviews.get(file)??null,status:'ready' as const,progress:1,error:null})):[{id:'sample',filename:attachedFile!,previewUrl:null,status:'ready' as const,progress:1,error:null}])}
@@ -1074,6 +1167,25 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               onRemove={id=>{draftRevision.current++;setFileError(null);if(draftAttachments)draftAttachments.onRemove(id);else if(id==='sample')setAttachedFile(null);else setSelectedFiles(previous=>previous.filter((_,index)=>index!==Number(id)));}}
               onRetry={draftAttachments?.onRetry}
             />}
+
+            {imageMode && (
+              <div className="flex flex-wrap items-center gap-2 px-3.5 pt-3 text-xs">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--mroya-surface-active)] py-0.5 pl-2.5 pr-1 text-[var(--mroya-primary)]">
+                  <Image aria-hidden="true" className="size-3.5"/>
+                  <span>Mroya Images</span>
+                  <button type="button" onClick={toggleImageMode} disabled={pending||submitting}
+                    aria-label={tr('imageModeRemove',{ns:'chat'})} title={tr('imageModeRemove',{ns:'chat'})}
+                    className="grid size-7 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)] cursor-pointer">
+                    <X className="size-3.5"/>
+                  </button>
+                </div>
+                <select value={imageRatio} aria-label={tr('imageRatio',{ns:'chat'})} disabled={pending||submitting}
+                  onChange={event=>{draftRevision.current++;setImageRatio(event.target.value as ImageRatio);}}
+                  className="min-h-8 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] px-2 text-[var(--mroya-text)]">
+                  {imageRatios.map(ratio=><option key={ratio} value={ratio}>{ratio || tr('imageRatioAuto',{ns:'chat'})}</option>)}
+                </select>
+              </div>
+            )}
 
             <div className="px-3.5 pt-3 pb-2">
               <label htmlFor="mroya-chat-composer" className="sr-only">
@@ -1086,116 +1198,103 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 value={input}
                 onChange={(e) => { draftRevision.current++; setInput(e.target.value); }}
                 onKeyDown={handleKeyDown}
-                placeholder={tr('askPlaceholder',{ns:'chat'})}
+                placeholder={tr(imageMode?'imagePromptPlaceholder':'askPlaceholder',{ns:'chat'})}
+                aria-invalid={imagePromptTooLong || undefined}
+                aria-describedby={imagePromptTooLong ? 'mroya-image-prompt-limit' : undefined}
                 className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-[var(--mroya-text)] placeholder:text-[var(--mroya-text-muted)] border-0 border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 max-h-40"
               />
             </div>
+            {imagePromptTooLong && <p id="mroya-image-prompt-limit" className="px-3.5 pb-2 text-xs text-[var(--mroya-error)]">{tr('imagePromptLimit',{ns:'chat',count:maxImagePromptCharacters})}</p>}
 
             {isRecording ? (
-              /* Active Voice Recording State: Waveform animation + timer + Stop and Cancel actions */
-              <div className="p-2.5 sm:p-3 bg-[var(--mroya-surface-active)]/50 rounded-b-[12px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]">
-                {/* Left: Recording indicator, timer and waveform */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                    </span>
-                    <span className="text-[12px] font-semibold text-red-600 dark:text-red-400 tabular-nums font-mono">
-                      {formatTime(recordingSeconds)}
-                    </span>
-                  </div>
-
-                  {/* Animated sound wave bars */}
-                  <div className="flex items-center gap-1 h-5 shrink-0" aria-hidden="true">
-                    <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-pulse h-2.5"></span>
-                    <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-bounce h-4"></span>
-                    <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-pulse h-3"></span>
-                    <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-bounce h-5"></span>
-                    <span className="w-1 bg-[var(--mroya-primary)] rounded-full animate-pulse h-3.5"></span>
-                  </div>
-
-                  {/* Recording hint */}
-                  <div className="text-[12px] text-[var(--mroya-text)] truncate min-w-0">
-                    <span className="text-[var(--mroya-text-muted)]">{tr('voiceRecording',{ns:'chat'})}</span>
-                  </div>
+              <div className="flex items-center gap-2 rounded-b-xl border-t border-[var(--mroya-divider)] px-3 py-2">
+                <button type="button" onClick={handleCancelRecording} className={composerButton}
+                  aria-label={tr('cancelRecording',{ns:'chat'})} title={tr('cancelRecording',{ns:'chat'})}>
+                  <X className="size-4"/>
+                </button>
+                <div className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1" aria-hidden="true" data-voice-level={recordingLevel}>
+                  {Array.from({length:12},(_,index)=>(
+                    <span key={index} className={`h-3 w-full max-w-2 rounded-full transition-colors motion-reduce:transition-none ${
+                      index<recordingLevel?'bg-[var(--mroya-primary)]':'bg-[var(--mroya-divider)]'
+                    }`}/>
+                  ))}
                 </div>
-
-                {/* Right: Cancel or stop and transcribe */}
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={handleCancelRecording}
-                    title={tr('cancelRecording',{ns:'chat'})}
-                    aria-label={tr('cancelRecording',{ns:'chat'})}
-                    className="p-1.5 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-
-                  {/* Button: Остановить запись (голос в текст без отправки) */}
-                  <button
-                    type="button"
-                    onClick={handleStopAndInsertText}
-                    title={tr('stopRecordingInsert',{ns:'chat'})}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
-                  >
-                    <Square className="w-3.5 h-3.5 text-[var(--mroya-primary)] fill-current" />
-                    <span>{tr('stop',{ns:'chat'})}</span>
-                  </button>
-                </div>
+                <span aria-label={tr('voiceRecording',{ns:'chat'})} className="shrink-0 text-xs tabular-nums text-[var(--mroya-error)]">
+                  {formatTime(recordingSeconds)}
+                </span>
+                <button type="button" onClick={()=>speech?.onStop()} className={composerButton}
+                  aria-label={tr('stopRecordingInsert',{ns:'chat'})} title={tr('stopRecordingInsert',{ns:'chat'})}>
+                  <Square className="size-4 fill-current"/>
+                </button>
+                <button type="button" onClick={()=>speech?.onStop(true)} disabled={pending||submitting} className={sendButton}
+                  aria-label={tr('transcribeAndSend',{ns:'chat'})} title={tr('transcribeAndSend',{ns:'chat'})}>
+                  <ArrowUp className="size-4 stroke-[2.4]"/>
+                </button>
               </div>
             ) : voiceBusy ? (
               <div role="status" className="flex items-center justify-between px-3 pb-3 text-[13px] text-[var(--mroya-text-muted)]">
-                <span className="animate-pulse">{tr(speech?.phase==='requesting'?'voiceRequesting':'voiceTranscribing',{ns:'chat'})}</span>
-                <button type="button" onClick={handleCancelRecording} className="p-2 rounded-lg hover:bg-[var(--mroya-surface-muted)]" aria-label={tr('cancelRecording',{ns:'chat'})}><X className="w-4 h-4" /></button>
+                <span>{tr(speech?.phase==='requesting'?'voiceRequesting':'voiceTranscribing',{ns:'chat'})}</span>
+                <button type="button" onClick={handleCancelRecording} className={composerButton} aria-label={tr('cancelRecording',{ns:'chat'})}><X className="size-4" /></button>
               </div>
             ) : (
-              /* Normal toolbar: Attach, Voice Mic, Recalling memory hint, Send */
-              <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleAttachSample}
-                    disabled={pending||submitting||voiceBusy}
-                    title={tr('attachNote',{ns:'chat'})}
-                    aria-label={tr('attachNote',{ns:'chat'})}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors cursor-pointer ${
-                      attachedFile||selectedFiles.length
-                        ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]'
-                        : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]'
-                    }`}
-                  >
-                    <Paperclip className="w-4 h-4" />
-                    <span className="hidden sm:inline">{tr('attach',{ns:'chat'})}</span>
+              <div className="flex items-center justify-between gap-2 px-3 pb-2.5 pt-1">
+                <div className="flex items-center gap-1">
+                  <div className="relative" ref={attachmentMenuRef}>
+                    <button type="button" ref={attachmentButtonRef} onClick={()=>setComposerMenu(composerMenu==='attachments'?null:'attachments')}
+                      disabled={pending||submitting} className={composerButton}
+                      aria-label={tr('addAttachment',{ns:'chat'})} title={tr('addAttachment',{ns:'chat'})}
+                      aria-expanded={composerMenu==='attachments'} aria-controls={composerMenu==='attachments'?'mroya-attachment-options':undefined}>
+                      <Plus className="size-5"/>
+                    </button>
+                    {composerMenu==='attachments' && (
+                      <div id="mroya-attachment-options" className={`${composerPopover} left-0`}>
+                        {attachmentOptions.map(({label,icon:Icon,picker})=>(
+                          <button key={label} type="button" onClick={()=>handlePickAttachment(picker)} disabled={pending||submitting}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-[var(--mroya-surface-muted)] cursor-pointer">
+                            <Icon className="size-4 text-[var(--mroya-text-muted)]"/>
+                            {tr(label,{ns:'chat'})}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={toggleImageMode} disabled={pending||submitting} aria-pressed={imageMode}
+                    aria-label="Mroya Images" title="Mroya Images"
+                    className={`${composerButton} aria-pressed:bg-[var(--mroya-surface-active)] aria-pressed:text-[var(--mroya-primary)]`}>
+                    <Image className="size-[18px]"/>
                   </button>
-
-                  {/* Voice recording button */}
-                  <button
-                    type="button"
-                    onClick={startRecording}
-                    disabled={pending || submitting || (!speech && !onSignIn && !onUnavailable)}
-                    title={tr('recordVoiceHelp',{ns:'chat'})}
-                    aria-label={tr('recordVoice',{ns:'chat'})}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-                  >
-                    <Mic className="w-4 h-4 text-[var(--mroya-primary)]" />
-                    <span className="hidden sm:inline">{tr('voice',{ns:'chat'})}</span>
-                  </button>
-
-                  <span className="text-[12px] text-[var(--mroya-text-muted)] hidden sm:inline pl-1">
-                    {tr('recallingMemories',{ns:'chat',count:memoriesCount})}
-                  </span>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={pending || submitting || voiceBusy || (!input.trim() && !attachedFile && !selectedFiles.length)}
-                  aria-label={tr('sendMessage',{ns:'chat'})}
-                  className="w-9 h-9 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] disabled:opacity-35 disabled:pointer-events-none text-[var(--mroya-on-primary)] inline-flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                >
-                  <ArrowUp className="w-4 h-4 stroke-[2.4]" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <div className="relative" ref={effortMenuRef}>
+                    <button type="button" ref={effortButtonRef} onClick={()=>setComposerMenu(composerMenu==='effort'?null:'effort')}
+                      className={composerButton} aria-label={tr('modelEffort',{ns:'chat'})} title={tr('modelEffort',{ns:'chat'})}
+                      aria-expanded={composerMenu==='effort'} aria-controls={composerMenu==='effort'?'mroya-effort-options':undefined}>
+                      <Gauge className="size-[18px]"/>
+                    </button>
+                    {composerMenu==='effort' && (
+                      <div id="mroya-effort-options" className={`${composerPopover} -right-12 text-[var(--mroya-text-muted)]`}>
+                        <ul className="text-sm">
+                          {['Low','Medium','High','Max'].map(level=>(
+                            <li key={level} className="flex items-center justify-between px-2.5 py-1.5">
+                              {level}<LockKeyhole aria-hidden="true" className="size-3.5"/>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="border-t border-[var(--mroya-divider)] px-2.5 py-2 text-xs">{tr('modelEffortUnavailable',{ns:'chat'})}</p>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={()=>{setComposerMenu(null);startRecording();}}
+                    disabled={pending||submitting||(!speech&&!onSignIn&&!onUnavailable)}
+                    aria-label={tr('recordVoice',{ns:'chat'})} title={tr('recordVoiceHelp',{ns:'chat'})} className={composerButton}>
+                    <Mic className="size-[18px]"/>
+                  </button>
+                  <button type="submit" aria-label={tr('sendMessage',{ns:'chat'})} className={sendButton}
+                    disabled={pending||submitting||imagePromptTooLong||(!input.trim()&&(imageMode||(!attachedFile&&!selectedFiles.length)))}>
+                    <ArrowUp className="size-4 stroke-[2.4]"/>
+                  </button>
+                </div>
               </div>
             )}
             {speech?.error && <div role="alert" className="px-3 pb-3 text-[13px] text-[var(--mroya-text)]">

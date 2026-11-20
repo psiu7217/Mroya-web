@@ -22,7 +22,7 @@ import {conversationListPresentation} from '../hooks/conversationPresentation';
 import {useChatDiagnostics} from '../hooks/useChatDiagnostics';
 import {useUserPreferences} from '../hooks/useUserPreferences';
 import {setAppLanguage,tr} from '../i18n';
-import {currentLocale,formatDate} from '../i18n/format';
+import {currentLocale} from '../i18n/format';
 import type {AppLanguage} from '../i18n/language';
 import {accountPresentation,chatPresentation,memoryPresentation,graphPresentation} from '../hooks/liveAdapters';
 import type {ApiUser} from '../types/api';
@@ -144,11 +144,11 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   googleCalendarAvailable:calendar.state.googleAvailable,googleCalendarBusy:calendar.state.googleBusy,
   googleCalendarError:calendar.state.googleError,
   googleCalendarNotice:[calendar.state.oauthNotice,googleView.notice].filter(Boolean).join(' · '),
+  googleCalendarOAuthNotice:calendar.state.oauthNotice??undefined,
   googleConnections:calendar.state.connections,selectedGoogleConnectionId:calendar.state.selectedConnectionId,
   onSelectGoogleConnection:calendar.controller.selectConnection,onRefreshGoogleCalendar:()=>void calendar.controller.loadConnections(),
   onConnectAnotherGoogleCalendar:()=>void calendar.controller.connect(true),
   gcalSyncState:googleView.state,autoSync:google?.sync_enabled??false,
-  lastSyncedTime:google?.last_synced_at?formatDate(google.last_synced_at,{dateStyle:'medium',timeStyle:'short'}):'',syncSummary:null,
   googleCalendarEmail:google?.email??'',importedCalendars:google?.calendars.filter(c=>c.selected).map(c=>c.id)??[],
   exportCalendar:google?.calendars.find(c=>c.export_destination)?.id??'',
   onConnectGoogleCalendar:()=>void calendar.controller.connect(),onDisconnectGoogleCalendar:()=>void calendar.controller.disconnect(),

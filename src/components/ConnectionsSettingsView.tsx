@@ -62,8 +62,8 @@ const notificationScenarioLabel=(id:string)=>{
   return tr(keys[id]??id,{ns:'connections'});
 };
 export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
-  'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
-  'gcalSyncState'|'autoSync'|'lastSyncedTime'|'syncSummary'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
+  'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarOAuthNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
+  'gcalSyncState'|'autoSync'|'googleCalendarEmail'|'importedCalendars'|'exportCalendar'|
   'onConnectGoogleCalendar'|'onDisconnectGoogleCalendar'|'onSyncNowGoogleCalendar'|'onToggleAutoSyncGoogleCalendar'|'onSetGcalSyncState'|'onChangeImportedCalendars'|'onChangeExportCalendar'> {
   privacy?:import('../types/privacy').PrivacyPresentation;
   memoryReview?:import('../types/memoryReview').ReviewPresentation;
@@ -101,9 +101,9 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
 export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = ({
   memoryTransfer,
   calendarAnalysis,memoryReview,privacy,live=false,showGoogleCalendar=true,connectionSamples,timezoneSettings,notifications,notificationPreview,
-  googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
+  googleCalendarAvailable=false,googleCalendarBusy=false,googleCalendarOAuthNotice,googleCalendarError,googleConnections=[],selectedGoogleConnectionId,
   onSelectGoogleConnection,onRefreshGoogleCalendar,onConnectAnotherGoogleCalendar,
-  gcalSyncState='disconnected',autoSync=false,lastSyncedTime='',syncSummary=null,googleCalendarEmail='',
+  gcalSyncState='disconnected',autoSync=false,googleCalendarEmail='',
   importedCalendars=[],exportCalendar='',onChangeImportedCalendars,onChangeExportCalendar,
   onConnectGoogleCalendar:handleConnectGcal,onDisconnectGoogleCalendar:handleDisconnectGcal,
   onSyncNowGoogleCalendar:handleSyncNow,onToggleAutoSyncGoogleCalendar:handleToggleAutoSync,onSetGcalSyncState,
@@ -277,18 +277,34 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
 
                   // Shared Google Calendar card: demo props or confirmed backend data.
                   if (isGoogleCalendar) {
-                    const isConnected = gcalSyncState !== 'disconnected';
-                    const canSync = !googleCalendarBusy&&['connected_auto_off','connected_auto_on'].includes(gcalSyncState);
-                    const selectedConnection=googleConnections.find(item=>item.id===selectedGoogleConnectionId);
-                    const canConfigure=!googleCalendarBusy&&(canSync||live&&gcalSyncState==='sync_error');
+                    const selectedConnection = googleConnections.find(account => account.id === selectedGoogleConnectionId);
+                    const needsReconnect = gcalSyncState === 'reconnect_required';
+                    const isConnecting = gcalSyncState === 'connecting';
+                    const isSyncing = gcalSyncState === 'initial_syncing' || gcalSyncState === 'syncing';
+                    const isConnected = live
+                      ? selectedConnection?.status === 'connected'
+                      : !['disconnected', 'connecting', 'reconnect_required'].includes(gcalSyncState);
+                    const idle = ['connected_auto_off', 'connected_auto_on'].includes(gcalSyncState);
+                    const syncHasError = gcalSyncState === 'sync_error';
+                    const canSync = isConnected && !googleCalendarBusy && (idle || syncHasError);
+                    const canConfigure = isConnected && !googleCalendarBusy && (idle || (live && syncHasError));
+                    let extraStatus: string | null = null;
+                    if (isSyncing) extraStatus = 'googleSyncPending';
+                    if (gcalSyncState === 'conflict') extraStatus = 'googleSyncActionRequired';
+                    if (syncHasError) {
+                      const status = selectedConnection?.sync_status;
+                      extraStatus = status === 'partial' ? 'googleSyncPartial'
+                        : status === 'needs_destination' ? 'googleSyncChooseExport'
+                        : 'googleSyncActionRequired';
+                    }
                     const calendars=live?(selectedConnection?.calendars??[]):(connectionSamples?.calendars??[]);
 
                     return (
-                      <div
+                      <section
                         key={conn.id}
-                        className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                        aria-label={conn.name}
+                        className="p-5 space-y-4 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)]"
                       >
-                        <div className="w-full space-y-4">
                         {/* Design Mode State Switcher Toolbar */}
                         {!live&&connectionSamples&&<div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/70 border border-[var(--mroya-divider)] space-y-2">
                           <div className="flex items-center justify-between">
@@ -318,264 +334,77 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                           </div>
                         </div>}
 
-                        {/* Card Header & Status */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--mroya-divider)]/60">
-                          <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-start gap-3">
                             <div className="w-10 h-10 rounded-[10px] bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] flex items-center justify-center shrink-0">
-                              <CalendarIcon className="w-5 h-5 text-[var(--mroya-primary)]" />
+                              <CalendarIcon aria-hidden="true" className="w-5 h-5 text-[var(--mroya-primary)]" />
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="text-[16px] font-bold text-[var(--mroya-text)]">
-                              {conn.name}
-                                </h3>
-                                <span className="text-[12px] text-[var(--mroya-text-muted)]">
-                              · {category}
-                                </span>
+                            <div className="min-w-0 space-y-1">
+                              <h3 className="text-[16px] font-bold text-[var(--mroya-text)]">{conn.name}</h3>
+                              {(isConnected || needsReconnect) && googleConnections.length <= 1 && googleCalendarEmail && (
+                                <p className="text-[12px] text-[var(--mroya-text-muted)] break-all">{googleCalendarEmail}</p>
+                              )}
+                              <div role="status" className="text-[12.5px] text-[var(--mroya-text-muted)]">
+                                {isConnected && tr(autoSync ? 'connectedSyncOn' : 'connectedSyncOff', {ns:'connections'})}
+                                {isConnecting && tr('connecting', {ns:'connections'})}
+                                {needsReconnect && tr('reconnectRequired', {ns:'connections'})}
+                                {extraStatus && (
+                                  <p className={isSyncing ? '' : 'text-amber-700 dark:text-amber-300'}>
+                                    {tr(extraStatus, {ns:'connections'})}
+                                  </p>
+                                )}
                               </div>
-                              <p className="text-[12.5px] text-[var(--mroya-text-muted)]">
-                                Two-way schedule synchronization with Mroya calendar
-                              </p>
                             </div>
                           </div>
-
-                          {/* Top Status Pill */}
-                          <div className="shrink-0">
-                            {gcalSyncState === 'disconnected' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-medium bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]">
-                                <span className="w-2 h-2 rounded-full bg-[var(--mroya-text-muted)]" />
-                              <span>{tr('disconnected',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'connecting' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                                <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
-                              <span>{tr('connecting',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'initial_syncing' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                                <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
-                              <span>{tr('initialSync',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'connected_auto_off' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{tr('connectedSyncOff',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'connected_auto_on' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{tr('connectedSyncOn',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'syncing' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                                <RefreshCw className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
-                              <span>{tr('synchronizing',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'sync_error' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                              <span>{tr('syncError',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'conflict' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                                <AlertCircle className="w-3.5 h-3.5" />
-                              <span>{tr('conflictDetected',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                            {gcalSyncState === 'reconnect_required' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                              <span>{tr('reconnectRequired',{ns:'connections'})}</span>
-                              </span>
-                            )}
-                          </div>
+                          {!isConnected && !isConnecting && (
+                            <button
+                              type="button"
+                              onClick={handleConnectGcal}
+                              disabled={googleCalendarBusy}
+                              className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold disabled:opacity-60"
+                            >
+                              {tr(googleCalendarBusy ? 'connecting' : needsReconnect ? 'googleReconnectAction' : 'googleConnectAction', {ns:'connections'})}
+                            </button>
+                          )}
                         </div>
 
-                        {/* DISCONNECTED STATE VIEW */}
-                        {gcalSyncState === 'disconnected' && (
-                          <div className="space-y-4 pt-1 animate-in fade-in duration-150">
-                            <p className="text-[13px] text-[var(--mroya-text-muted)] leading-[21px]">
-                              {tr('connectGoogleDescription',{ns:'connections'})}
-                            </p>
-                            <ul className="space-y-1.5">
-                              {conn.capabilities.map((cap, i) => (
-                                <li
-                                  key={i}
-                                  className="text-[12.5px] text-[var(--mroya-text)] flex items-center gap-2"
-                                >
-                                  <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)] shrink-0" />
-                                  <span>{localizedConnectionCapability(conn,cap)}</span>
-                                </li>
-                              ))}
-                            </ul>
-                            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]/40">
-                              <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                {tr('localEventsRemain',{ns:'connections'})}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={handleConnectGcal}
+                        {live && (googleConnections.length > 1 || isConnected) && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {googleConnections.length > 1 && (
+                              <select
+                                aria-label={tr('googleAccount', {ns:'connections'})}
+                                value={selectedGoogleConnectionId ?? ''}
                                 disabled={googleCalendarBusy}
-                                className="px-5 py-2.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap shadow-xs shrink-0 self-start sm:self-center"
+                                onChange={e => onSelectGoogleConnection?.(e.target.value)}
+                                className="min-w-0 max-w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]"
                               >
-                                {tr('connectGoogleCalendar',{ns:'connections'})}
+                                {googleConnections.map(account => (
+                                  <option key={account.id} value={account.id}>{account.email || tr('googleAccountName', {ns:'connections'})}</option>
+                                ))}
+                              </select>
+                            )}
+                            {isConnected && (
+                              <button type="button" disabled={googleCalendarBusy} onClick={onConnectAnotherGoogleCalendar} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline disabled:opacity-60">
+                                {tr('connectGoogleAccount', {ns:'connections'})}
                               </button>
-                            </div>
+                            )}
                           </div>
                         )}
 
-                        {live&&<div className="space-y-2">
-                          {googleConnections.length>0&&<select aria-label={tr('googleAccount',{ns:'connections'})} value={selectedGoogleConnectionId??''} disabled={googleCalendarBusy} onChange={e=>onSelectGoogleConnection?.(e.target.value)} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]">
-                            {googleConnections.map(account=><option key={account.id} value={account.id}>{account.email||tr('googleAccountName',{ns:'connections'})} · {tr(account.status==='connected'?'googleStatusConnected':account.status==='reconnect'?'googleStatusReconnect':'googleStatusDisconnected',{ns:'connections'})}</option>)}
-                          </select>}
-                          {googleConnections.length>0&&<button disabled={googleCalendarBusy} onClick={onConnectAnotherGoogleCalendar} className="text-[12px] font-semibold text-[var(--mroya-primary)] hover:underline">{tr('connectGoogleAccount',{ns:'connections'})}</button>}
-                          {(googleCalendarBusy||googleCalendarError||googleCalendarNotice)&&<p role={googleCalendarError?'alert':'status'} className="text-[12px] text-[var(--mroya-text-muted)]">
-                            {googleCalendarError?tr('requestFailed',{ns:'common'}):(googleCalendarBusy?tr('awaitingBackend',{ns:'connections'}):googleCalendarNotice)}
-                            <button disabled={googleCalendarBusy} onClick={onRefreshGoogleCalendar} className="ml-3 underline">{tr('checkStatus',{ns:'connections'})}</button>
-                          </p>}
-                        </div>}
-
-                        {/* CONNECTING STATE VIEW */}
-                        {gcalSyncState === 'connecting' && (
-                          <div className="py-6 flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in">
-                            <RefreshCw className="w-7 h-7 text-[var(--mroya-primary)] animate-spin" />
-                            <div className="space-y-1">
-                              <h4 className="text-[14px] font-semibold text-[var(--mroya-text)]">
-                                {tr('connectingGoogleCalendar',{ns:'connections'})}
-                              </h4>
-                              <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                                {tr('authorizingGoogleAccount',{ns:'connections',email:googleCalendarEmail})}
-                              </p>
-                            </div>
+                        {googleCalendarOAuthNotice && <p role="status" className="text-[12px] text-[var(--mroya-text-muted)]">{googleCalendarOAuthNotice}</p>}
+                        {googleCalendarError && (
+                          <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]">
+                            <p role="alert">{tr('requestFailed', {ns:'common'})}</p>
+                            <button type="button" disabled={googleCalendarBusy} onClick={onRefreshGoogleCalendar} className="underline">{tr('checkStatus', {ns:'connections'})}</button>
                           </div>
                         )}
 
-                        {/* INITIAL SYNCING STATE VIEW */}
-                        {gcalSyncState === 'initial_syncing' && (
-                          <div className="p-4 rounded-[12px] bg-blue-500/10 border border-blue-500/25 space-y-2.5 animate-in fade-in">
-                            <div className="flex items-center gap-2.5 text-blue-700 dark:text-blue-300">
-                              <RefreshCw className="w-4.5 h-4.5 animate-spin shrink-0 text-blue-600 dark:text-blue-400" />
-                              <h4 className="text-[14px] font-bold">
-                                {tr('initialSynchronization',{ns:'connections'})}
-                              </h4>
-                            </div>
-                            <p className="text-[13px] text-blue-800 dark:text-blue-200 leading-[19px]">
-                              {tr('initialSynchronizationDescription',{ns:'connections'})}
-                            </p>
-                            <p className="text-[11.5px] text-[var(--mroya-text-muted)] pt-1 border-t border-blue-500/20">
-                              {tr('initialSynchronizationNote',{ns:'connections'})}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* CONNECTED & SUB-STATES (Auto-off, Auto-on, Syncing, Error, Conflict, Reconnect) */}
-                        {isConnected && gcalSyncState !== 'connecting' && (
-                          <div className="space-y-4 pt-1">
-                            <p className="text-xs text-[var(--mroya-text-muted)] leading-relaxed">{tr('calendarStudyNotice',{ns:'connections'})}</p>
-                            {/* Connected Account & Last Synced Display */}
-                            <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] flex items-center justify-center font-bold text-[12px] text-[var(--mroya-primary)] shrink-0">
-                                  G
-                                </div>
-                                <div>
-                                  <div className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                                    {googleCalendarEmail}
-                                  </div>
-                                  <div className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                    {tr('connectedGoogleAccount',{ns:'connections'})}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-[12px] text-[var(--mroya-text-muted)] sm:text-right">
-                                <span className="font-medium text-[var(--mroya-text)]">{tr('lastSynced',{ns:'connections'})}</span> {lastSyncedTime||tr('notYet',{ns:'connections'})}
-                              </div>
-                            </div>
-
-                            {/* SPECIAL NOTICES & BANNERS */}
-                            {gcalSyncState === 'sync_error' && (
-                              <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
-                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-                                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[13px] font-bold">{tr('syncErrorTitle',{ns:'connections'})}</span>
-                                </div>
-                                <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  {live?(googleCalendarNotice||tr('syncProblemFallback',{ns:'connections'})):tr('calendarNetworkErrorFallback',{ns:'connections'})}
-                                </p>
-                                <div className="pt-1 flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={handleSyncNow}
-                                    disabled={googleCalendarBusy}
-                                    className="px-3 py-1.5 rounded-[6px] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] text-[12px] font-semibold text-[var(--mroya-text)] cursor-pointer"
-                                  >
-                                    {tr('retrySync',{ns:'connections'})}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {gcalSyncState === 'conflict' && (
-                              <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
-                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-                                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[13px] font-bold">{tr('syncConflictTitle',{ns:'connections'})}</span>
-                                </div>
-                                <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                                  {tr('conflictingChangesDescription',{ns:'connections'})}
-                                </p>
-                              </div>
-                            )}
-
-                            {gcalSyncState === 'reconnect_required' && (
-                              <div className="p-3.5 rounded-[10px] bg-amber-500/10 border border-amber-500/25 space-y-2 animate-in fade-in">
-                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-                                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[13px] font-bold">{tr('reconnectRequired',{ns:'connections'})}</span>
-                                </div>
-                                <p className="text-[12.5px] text-amber-800/90 dark:text-amber-300/90 leading-[18px]">
-                              {tr('googleAuthorizationExpired',{ns:'connections'})}
-                                </p>
-                                <div className="pt-1">
-                                  <button
-                                    type="button"
-                                    onClick={handleConnectGcal}
-                                disabled={googleCalendarBusy}
-                                    className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-white text-[12.5px] font-semibold cursor-pointer"
-                                  >
-                                    {tr('reconnectGoogleCalendar',{ns:'connections'})}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Sync Result Summary (After completion) */}
-                            {syncSummary && canSync && (
-                              <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
-                                <div className="flex items-center gap-2 text-[var(--mroya-text)]">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                  <span>
-                                    <strong>{syncSummary.imported}</strong> {tr('eventsImported',{ns:'connections'})} · <strong>{syncSummary.exported}</strong> {tr('eventsExported',{ns:'connections'})}
-                                  </span>
-                                </div>
-                                <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                  {tr('lastSyncedValue',{ns:'connections',date:syncSummary.lastSynced})}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* 3. LIST OF GOOGLE CALENDARS FOR IMPORT */}
-                            <div className="space-y-2">
-                              <label className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
+                        {isConnected && (
+                          <div className="space-y-4 pt-4 border-t border-[var(--mroya-divider)]/60">
+                            <fieldset className="min-w-0">
+                              <legend className="mb-2 text-[12.5px] font-semibold text-[var(--mroya-text)]">
                                 {tr('googleCalendarsToImport',{ns:'connections'})}
-                              </label>
+                              </legend>
                               <div className="space-y-1.5">
                                 {calendars.map((cal) => (
                                   <label
@@ -611,14 +440,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                   </label>
                                 ))}
                               </div>
-                            </div>
+                            </fieldset>
 
-                            {/* 4. CALENDAR SELECTION FOR EXPORTING MROYA EVENTS */}
                             <div className="space-y-1.5">
-                              <label className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
+                              <label htmlFor="google-calendar-export" className="block text-[12.5px] font-semibold text-[var(--mroya-text)]">
                                 {tr('exportMroyaEventsTo',{ns:'connections'})}
                               </label>
                               <select
+                                id="google-calendar-export"
                                 value={exportCalendar}
                                 disabled={!canConfigure}
                                 onChange={(e) => onChangeExportCalendar?.(e.target.value)}
@@ -632,75 +461,47 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                               </p>
                             </div>
 
-                            {/* 5. AUTOMATIC SYNC TOGGLE SWITCH (ON / OFF, default OFF) */}
-                            <div className="p-3.5 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex items-center justify-between gap-4">
-                              <div className="space-y-0.5">
-                                <div className="text-[13px] font-semibold text-[var(--mroya-text)] flex items-center gap-2">
-                                  <span>{tr('automaticSync',{ns:'connections'})}</span>
-                                  <span
-                                    className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
-                                      autoSync
-                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                                        : 'bg-[var(--mroya-surface-muted)] text-[var(--mroya-text-muted)] border border-[var(--mroya-divider)]'
-                                    }`}
-                                  >
-                                      {autoSync ? tr('on',{ns:'common'}) : tr('off',{ns:'common'})}
-                                  </span>
-                                </div>
-                                <p className="text-[12px] text-[var(--mroya-text-muted)] leading-[17px]">
-                                  {tr('automaticSyncDescription',{ns:'connections'})}
-                                </p>
-                              </div>
+                            <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/50 border border-[var(--mroya-divider)] flex items-center justify-between gap-3 text-[13px] font-semibold text-[var(--mroya-text)]">
+                              <span id="google-calendar-auto-sync">{tr('automaticSync', {ns:'connections'})}</span>
                               <button
                                 type="button"
                                 role="switch"
+                                aria-labelledby="google-calendar-auto-sync"
                                 aria-checked={autoSync}
-                                disabled={googleCalendarBusy||(live?selectedConnection?.status!=='connected':!canSync)}
+                                disabled={googleCalendarBusy || (!live && !idle)}
                                 onClick={handleToggleAutoSync}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                  autoSync ? 'bg-[var(--mroya-primary)]' : 'bg-[var(--mroya-divider)]'
-                                }`}
+                                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors disabled:opacity-60 ${autoSync ? 'bg-[var(--mroya-primary)]' : 'bg-[var(--mroya-divider)]'}`}
                               >
-                                <span
-                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                                    autoSync ? 'translate-x-5' : 'translate-x-0'
-                                  }`}
-                                />
+                                <span aria-hidden="true" className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${autoSync ? 'translate-x-5' : 'translate-x-0'}`} />
                               </button>
                             </div>
 
-                            {/* 6. SYNC NOW & 8. DISCONNECT ACTION BUTTONS */}
-                            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--mroya-divider)]/60">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={!canSync}
-                                  onClick={handleSyncNow}
-                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors cursor-pointer disabled:opacity-60"
-                                >
-                                  <RefreshCw className={`w-3.5 h-3.5 ${gcalSyncState === 'syncing' ? 'animate-spin text-[var(--mroya-primary)]' : ''}`} />
-                                  <span>{gcalSyncState === 'syncing' ? tr('syncingNow',{ns:'connections'}) : tr('syncNow',{ns:'connections'})}</span>
-                                </button>
-                                <span className="text-[11.5px] text-[var(--mroya-text-muted)]">
-                                  {lastSyncedTime||tr('notYet',{ns:'connections'})}
-                                </span>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={handleDisconnectGcal}
-                                disabled={googleCalendarBusy}
-                                className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer self-start sm:self-center"
-                              >
-                                {tr('disconnect',{ns:'connections'})}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              disabled={!canSync}
+                              onClick={handleSyncNow}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[var(--mroya-surface-muted)] hover:bg-[var(--mroya-surface-active)] text-[13px] font-semibold text-[var(--mroya-text)] border border-[var(--mroya-divider)] transition-colors disabled:opacity-60"
+                            >
+                              <RefreshCw aria-hidden="true" className={`w-3.5 h-3.5 ${isSyncing ? 'motion-safe:animate-spin' : ''}`} />
+                              {tr('syncNow', {ns:'connections'})}
+                            </button>
                             <CalendarAnalysisPanel analysis={calendarAnalysis}/>
                             {memoryReview&&<MemoryReviewPanel review={memoryReview}/>}
                           </div>
                         )}
-                        </div>
-                      </div>
+                        {(isConnected || needsReconnect) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(tr('googleDisconnectConfirm', {ns:'connections'}))) handleDisconnectGcal?.();
+                            }}
+                            disabled={googleCalendarBusy}
+                            className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-60"
+                          >
+                            {tr('disconnect', {ns:'connections'})}
+                          </button>
+                        )}
+                      </section>
                     );
                   }
 

@@ -133,6 +133,7 @@ export interface WorkspaceModel {
     googleCalendarAvailable?:boolean;
     googleCalendarBusy?:boolean;
     googleCalendarNotice?:string;
+    googleCalendarOAuthNotice?:string;
     googleCalendarError?:string|null;
     googleConnections?:import('./calendarApi').GoogleConnectionDto[];
     selectedGoogleConnectionId?:string|null;

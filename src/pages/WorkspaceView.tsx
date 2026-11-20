@@ -234,7 +234,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarBusy={model.googleCalendarBusy}
-            googleCalendarNotice={model.googleCalendarNotice}
+            googleCalendarOAuthNotice={model.googleCalendarOAuthNotice}
             googleCalendarError={model.googleCalendarError}
             googleConnections={model.googleConnections}
             selectedGoogleConnectionId={model.selectedGoogleConnectionId}
@@ -243,8 +243,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onConnectAnotherGoogleCalendar={model.onConnectAnotherGoogleCalendar}
             gcalSyncState={runtime&&!model.googleCalendarAvailable?undefined:model.gcalSyncState}
             autoSync={runtime&&!model.googleCalendarAvailable?undefined:model.autoSync}
-            lastSyncedTime={runtime&&!model.googleCalendarAvailable?undefined:model.lastSyncedTime}
-            syncSummary={runtime&&!model.googleCalendarAvailable?undefined:model.syncSummary}
             googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
             importedCalendars={runtime&&!model.googleCalendarAvailable?undefined:model.importedCalendars}
             exportCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.exportCalendar}

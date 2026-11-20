@@ -2,6 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {ArrowLeft,ChevronRight,Download,FileText,Folder,FolderPlus,Image,LayoutGrid,List,LoaderCircle,Menu,PanelLeft,Pencil,RefreshCw,Search,SearchX,Trash2,Upload,X} from 'lucide-react';
 import type {DocumentDto,DocumentDetail,DocumentCategoryDto,FilesPresentation} from '../types/documents';
 import {tr} from '../i18n';
+import {DocumentImage} from './DocumentImage';
 import {formatDate} from '../i18n/format';
 import {isPreviewableDocumentImage} from '../utils/documentImage';
 
@@ -38,8 +39,8 @@ function FilePreview({file, showImage, className, iconClassName, thumbnail = fal
  const [failed, setFailed] = useState(false);
  return <div className={`flex items-center justify-center overflow-hidden bg-[var(--mroya-surface-muted)] text-[var(--mroya-primary)] ${className}`}>
   {showImage && !failed
-   ? <img src={file.original_url} alt={thumbnail ? '' : file.title}
-       loading={thumbnail ? 'lazy' : 'eager'} decoding="async" onError={() => setFailed(true)}
+   ? <DocumentImage src={file.original_url} alt={thumbnail ? '' : file.title}
+       loading={thumbnail ? 'lazy' : 'eager'} decoding="async" onFailure={() => setFailed(true)}
        className={`h-full w-full ${thumbnail ? 'object-cover' : 'object-contain'}`}/>
    : <FileIcon file={file} className={iconClassName}/>}
  </div>;

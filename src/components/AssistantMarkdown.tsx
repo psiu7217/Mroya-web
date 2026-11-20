@@ -3,6 +3,7 @@ import Markdown, {defaultUrlTransform, type Components} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import {tr} from '../i18n';
+import {DocumentImage} from './DocumentImage';
 import {documentImageId} from '../utils/documentImage';
 import {removeImageDownloadLinks} from '../utils/removeImageDownloadLinks';
 
@@ -42,9 +43,9 @@ export function AssistantMarkdown({content, variant = 'assistant', onImageOpen, 
     return onImageOpen ? (
       <button type="button" data-image-url={src} onClick={() => onImageOpen(src, alt || '')}
         aria-label={tr('imageOpen',{ns:'chat'})} className="mroya-chat-image cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--mroya-primary)]">
-        <img src={src} alt={label} loading={loading} referrerPolicy="no-referrer" />
+        <DocumentImage src={src} alt={label} loading={loading} referrerPolicy="no-referrer" />
       </button>
-    ) : <img className="mroya-chat-image" src={src} alt={label} loading={loading} referrerPolicy="no-referrer" />;
+    ) : <DocumentImage className="mroya-chat-image" src={src} alt={label} loading={loading} referrerPolicy="no-referrer" />;
   }, [variant,onImageOpen,eagerImages]);
 
   return <div className={variant === 'user'

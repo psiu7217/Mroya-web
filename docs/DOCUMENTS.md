@@ -25,8 +25,8 @@ upload behavior; there is no speculative pre-upload without the capability.
 
 ## File library
 
-Files is the second primary navigation item, immediately after Chat. Its list
-and grid include every owned file, including excluded screenshots, unclassified
+Files is the second primary navigation item, immediately after Chat. Its grid
+includes every owned file, including excluded screenshots, unclassified
 uploads and failed processing. Folder cards and breadcrumbs browse the owner's
 category tree. Library search filters names, descriptions and keywords without
 applying the Agent's search exclusions. Pagination and sorting are server-owned.
@@ -37,11 +37,12 @@ pages. Images use their same authenticated original URL for a detail preview.
 The user can correct title/description/keywords and move a file to an existing
 folder. Corrections carry `analysis_version`; conflicts and ambiguous writes
 reconcile through GET, never an automatic repeated PATCH. Originals stay intact.
-New folders are created explicitly; the per-folder search checkbox uses the
-existing versioned category policy API and shows inherited exclusion.
+Existing folders remain browsable. The filters and sorting menu includes the
+per-folder search control, which uses the versioned category policy API and
+shows inherited exclusion. Attach files through Chat.
 
-`FilesController` and `useFiles` own cancellable account-local reads, deliberate
-uploads and corrections, refresh and bounded polling while processing is visible.
+`FilesController` and `useFiles` own cancellable account-local reads and
+corrections, refresh and bounded polling while processing is visible.
 `FilesView` only receives presentation state and emits actions. It performs no
 API or storage operations. Logout discards state and cancels outstanding work.
 Offline Design has separate example files and never downloads originals or calls

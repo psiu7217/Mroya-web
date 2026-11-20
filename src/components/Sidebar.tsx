@@ -1,3 +1,4 @@
+import {trapDialogFocus} from '../utils/dialogFocus';
 import type { AccountPresentation } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -123,6 +124,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     if (isOtherSection) setOtherOpen(true);
   }, [activeSection]);
+
+  const drawerRef=useRef<HTMLDivElement>(null);
+  const closeDrawer=useRef(onCloseMobile);
+  closeDrawer.current=onCloseMobile;
+  useEffect(()=>{
+    if(!mobileOpen||!mobileViewport)return;
+    const previous=document.activeElement;
+    const release=trapDialogFocus(drawerRef.current,()=>closeDrawer.current());
+    return ()=>{
+      release?.();
+      if(!previous?.isConnected)document.querySelector<HTMLElement>('main [data-workspace-menu-trigger]')?.focus({preventScroll:true});
+    };
+  },[mobileOpen,mobileViewport]);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const convMenuRef = useRef<HTMLDivElement>(null);
@@ -271,8 +285,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <button
         type="button"
         onClick={() => {
-          if (item.id === 'connections') onOpenSettingsTab('connections');
-          else onSelectSection(item.id);
+          if(!isActive){
+            if (item.id === 'connections') onOpenSettingsTab('connections');
+            else onSelectSection(item.id);
+          }
           onCloseMobile();
         }}
         title={collapsed ? item.label + (item.meta ? ` (${item.meta})` : '') : undefined}
@@ -866,7 +882,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Mobile Navigation Drawer (always full width when open) */}
-      {mobileViewport && <div className="mroya-mobile-drawer fixed inset-0 z-50 lg:hidden flex" data-open={mobileOpen} inert={!mobileOpen} aria-hidden={!mobileOpen}>
+      {mobileViewport && <div ref={drawerRef} id="mroya-mobile-navigation" className="mroya-mobile-drawer fixed inset-0 z-50 lg:hidden flex" data-open={mobileOpen} inert={!mobileOpen} aria-hidden={!mobileOpen}
+          role="dialog" aria-modal={mobileOpen||undefined} aria-label={tr('mainSections',{ns:'sidebar'})} tabIndex={-1}>
           <div
             className="mroya-mobile-backdrop fixed inset-0 bg-black/40 backdrop-blur-[1px]"
             onClick={onCloseMobile}

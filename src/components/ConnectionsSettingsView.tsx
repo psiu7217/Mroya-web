@@ -1,3 +1,4 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {PrivacyControls} from './PrivacyControls';
 import {MemoryReviewPanel} from './MemoryReviewPanel';
 import {CalendarAnalysisPanel} from './CalendarAnalysisPanel';
@@ -18,7 +19,6 @@ import {
   Check,
   User,
   Shield,
-  Menu,
   ChevronDown,
   Brain,
   Calendar as CalendarIcon,
@@ -90,7 +90,6 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   onChangeTab: (tab: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings') => void;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
   onSaveNickname?: (nickname: string) => void;
   onClearNickname?: () => void;
   onChangeTimezone?: (timezone: string) => void;
@@ -121,7 +120,6 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   onChangeTab,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
   onSaveNickname,
   onClearNickname,
   onChangeTimezone,
@@ -217,14 +215,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
       {/* Header */}
       <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label={tr('openNavigation',{ns:'connections'})}
-            className="lg:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)]"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <WorkspaceMenuButton/>
           <h1 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
             {tr('header',{ns:'connections'})}
           </h1>

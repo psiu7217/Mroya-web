@@ -1,3 +1,4 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {AttachmentPreviews} from './AttachmentPreviews';
 import {MessageAttachments} from './MessageAttachments';
 import type {ChatAttachmentsPresentation} from '../types/chatAttachments';
@@ -8,7 +9,6 @@ import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
 import React, { useState, useRef, useEffect, useEffectEvent } from 'react';
 import {
   Award,
-  Menu,
   Download,
   PanelLeftOpen,
   PanelRight,
@@ -97,7 +97,6 @@ export interface ChatWorkspaceProps {
   addedActionIds: string[];
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
   isContextPanelOpen: boolean;
   onToggleContextPanel: () => void;
   plan: SubscriptionPlan;
@@ -122,7 +121,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   addedActionIds,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
   isContextPanelOpen,
   onToggleContextPanel,
   plan,
@@ -424,14 +422,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Mobile Left: Burger + Mroya Logo right next to it */}
           <div className="flex lg:hidden items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onOpenMobileMenu}
-              aria-label={tr('openNavigation',{ns:'common'})}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer shrink-0"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            <WorkspaceMenuButton/>
 
             <button
               type="button"

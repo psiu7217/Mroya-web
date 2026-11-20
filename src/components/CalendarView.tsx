@@ -1,3 +1,4 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {MemoryLinks} from './MemoryLinks';
 import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
 import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
@@ -12,7 +13,6 @@ import {
   Link2,
   Check,
   X,
-  Menu,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -66,7 +66,6 @@ interface CalendarViewProps {
   googleCalendarEmail?: string;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -89,7 +88,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   gcalSyncState='disconnected',googleCalendarEmail='',autoSync=false,googleCalendarConnected=false,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
 }) => {
   const monthNames=Array.from({length:12},(_,index)=>monthName(index));
   const shortMonthNames=Array.from({length:12},(_,index)=>monthName(index,'short'));
@@ -532,14 +530,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-2.5 shrink-0 bg-[var(--mroya-surface)] shadow-xs sticky top-0 z-20">
         {/* Left Side: Mobile Menu or Desktop Sidebar toggle + iOS Back/Zoom Breadcrumb */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label={tr('openMenu',{ns:'calendar'})}
-            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <WorkspaceMenuButton/>
 
           {/* Shared year breadcrumb: vibrant pill button */}
           <button

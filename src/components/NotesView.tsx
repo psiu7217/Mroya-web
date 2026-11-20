@@ -1,10 +1,10 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {MemoryLinks} from './MemoryLinks';
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   FileText,
   Search,
   X,
-  Menu,
   PanelLeft,
   ArrowLeft,
   Calendar,
@@ -48,7 +48,6 @@ export interface NotesViewProps {
   memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
   isSidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
-  onOpenMobileMenu?: () => void;
 }
 
 export const NotesView: React.FC<NotesViewProps> = ({
@@ -57,7 +56,6 @@ export const NotesView: React.FC<NotesViewProps> = ({
   runtime,memoryLinksNavigation,
   isSidebarCollapsed = false,
   onExpandSidebar,
-  onOpenMobileMenu,
 }) => {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -262,14 +260,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
         {/* Detail Header */}
         <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20">
           <div className="flex items-center gap-2 min-w-0">
-            <button
-              type="button"
-              onClick={onOpenMobileMenu}
-              aria-label={tr('openNavigation',{ns:'common'})}
-              className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            <WorkspaceMenuButton/>
 
             {isSidebarCollapsed && onExpandSidebar && (
               <button
@@ -446,14 +437,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
       {/* Primary Header */}
       <header className={`${designPreview ? 'h-auto min-h-[58px] py-2 flex-wrap' : 'h-[58px]'} px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20`}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label={tr('openNavigation',{ns:'common'})}
-            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <WorkspaceMenuButton/>
 
           {isSidebarCollapsed && onExpandSidebar && (
             <button

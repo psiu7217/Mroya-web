@@ -1,6 +1,6 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Menu,
   PanelLeftOpen,
   Search,
   X,
@@ -35,7 +35,6 @@ interface MemoryMapViewProps {
   onAskAboutNode: (node: GraphNode) => void;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
   loading?: boolean;
   error?: string | null;
   theme?: 'light' | 'dark';
@@ -68,7 +67,6 @@ export function MemoryMapView({
   onAskAboutNode,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
   loading,
   error,
   theme = 'dark',
@@ -266,14 +264,7 @@ export function MemoryMapView({
     >
       <header className="map-heading">
         <div className="map-heading-title">
-          <button
-            type="button"
-            className="map-nav-button map-mobile-menu"
-            aria-label={tr('openNavigation',{ns:'common'})}
-            onClick={onOpenMobileMenu}
-          >
-            <Menu size={18} />
-          </button>
+          <WorkspaceMenuButton/>
           {isSidebarCollapsed && (
             <button
               type="button"

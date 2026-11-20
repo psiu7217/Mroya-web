@@ -26,11 +26,11 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const closeTasks=()=>{setTasksOpen(false);model.aiTasks?.onClose();};
  const tasksPresentation=model.aiTasks?{...model.aiTasks,onOpen:openTasks,onClose:closeTasks}:undefined;
  const feedback=model.feedback??runtime;
- const {account, activeSection:requestedSection, isSidebarCollapsed, mobileMenuOpen, theme, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation, focusedMemory, relatedMemoriesForActiveChat, upcomingRelatedEvent, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onChatWorkspaceOpenMobileMenu, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onCalendarViewOpenMobileMenu, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onRemindersViewOpenMobileMenu, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryViewOpenMobileMenu, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onMemoryMapViewOpenMobileMenu, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onConnectionsSettingsViewOpenMobileMenu, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose}=model;
+ const {account, activeSection:requestedSection, isSidebarCollapsed, mobileMenuOpen, theme, plan, planModalOpen, conversations, activeConversationId, memories, events, nodes, connections, reminders, reminderModalOpen, editingReminder, reminderPreselectedEventId, handleAddOrUpdateReminder, handleDeleteReminder, handleToggleCompleteReminder, handleTogglePauseReminder, handleUnlinkReminder, handleSimulateGoogleSync, isContextPanelOpen, selectedMemoryViewId, selectedGraphNodeId, selectedCalendarEventId, settingsTab, addedActionIds, activeConversation, focusedMemory, relatedMemoriesForActiveChat, upcomingRelatedEvent, handleNewChat, handleSendMessage, handleCitationClick, handleChatActionClick, googleCalendarConnected, edges, onSidebarSelectSection, onSidebarSelectConversation, onSidebarTogglePlan, onSidebarOpenPlanModal, onSidebarToggleTheme, onSidebarToggleCollapse, onSidebarCloseMobile, onSidebarOpenSettingsTab, onChatWorkspaceExpandSidebar, onWorkspaceOpenMobile, onChatWorkspaceToggleContextPanel, onChatWorkspaceTogglePlan, onChatWorkspaceOpenPlanModal, onChatWorkspaceToggleTheme, onChatWorkspaceOpenSettingsTab, onMemoryContextPanelClose, onMemoryContextPanelSelectMemory, onMemoryContextPanelOpenInMemoryView, onMemoryContextPanelOpenInMemoryMap, onMemoryContextPanelOpenInCalendar, onCalendarViewAddEvent, onCalendarViewOpenMemory, onCalendarViewOpenConnections, onCalendarViewAddReminder, onCalendarViewNavigateToReminders, onCalendarViewExpandSidebar, onRemindersViewUpdateReminder, onRemindersViewOpenCalendarEvent, onRemindersViewOpenNewReminderModal, onRemindersViewOpenEditReminderModal, onRemindersViewExpandSidebar, onMemoryViewSelectMemory, onMemoryViewUpdateMemory, onMemoryViewForgetMemory, onMemoryViewAddMemory, onMemoryViewExploreInMap, onMemoryViewAskMroyaAbout, onMemoryViewExpandSidebar, onMemoryMapViewSelectNode, onMemoryMapViewOpenMemory, onMemoryMapViewAskAboutNode, onMemoryMapViewExpandSidebar, onConnectionsSettingsViewToggleConnection, onConnectionsSettingsViewSelectPlan, onConnectionsSettingsViewSelectTheme, onConnectionsSettingsViewChangeTab, onConnectionsSettingsViewExpandSidebar, onClosePlanPreview, onPreviewFreePlan, onPreviewPremiumPlan, onReminderEditorModalClose}=model;
  const notesAvailable=model.notesAvailable===true;
  const activeSection=requestedSection==='notes'&&!notesAvailable?'chat':requestedSection;
  return (
-    <WorkspaceSurface mobileOpen={mobileMenuOpen} onOpenMobile={onChatWorkspaceOpenMobileMenu} onCloseMobile={onSidebarCloseMobile}>
+    <WorkspaceSurface mobileOpen={mobileMenuOpen} onOpenMobile={onWorkspaceOpenMobile} onCloseMobile={onSidebarCloseMobile}>
       {/* Left Navigation Sidebar */}
       <Sidebar
         account={account}
@@ -102,7 +102,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
               addedActionIds={addedActionIds}
               isSidebarCollapsed={isSidebarCollapsed}
               onExpandSidebar={onChatWorkspaceExpandSidebar}
-              onOpenMobileMenu={onChatWorkspaceOpenMobileMenu}
               isContextPanelOpen={isContextPanelOpen}
               onToggleContextPanel={onChatWorkspaceToggleContextPanel}
               plan={plan}
@@ -158,7 +157,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onCalendarViewExpandSidebar}
-            onOpenMobileMenu={onCalendarViewOpenMobileMenu}
           />
         )}
 
@@ -179,7 +177,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onOpenEditReminderModal={onRemindersViewOpenEditReminderModal}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onRemindersViewExpandSidebar}
-            onOpenMobileMenu={onRemindersViewOpenMobileMenu}
           />
         )}
 
@@ -197,7 +194,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onAskMroyaAbout={onMemoryViewAskMroyaAbout}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onMemoryViewExpandSidebar}
-            onOpenMobileMenu={onMemoryViewOpenMobileMenu}
           />
         )}
 
@@ -216,7 +212,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onAskAboutNode={onMemoryMapViewAskAboutNode}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onMemoryMapViewExpandSidebar}
-            onOpenMobileMenu={onMemoryMapViewOpenMobileMenu}
           />
         )}
 
@@ -274,11 +269,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onChangeTab={onConnectionsSettingsViewChangeTab}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onConnectionsSettingsViewExpandSidebar}
-            onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}
           />
         )}
 
-        {activeSection === 'files' && <FilesView runtime={model.files} onImageOpen={model.imageViewer?.onOpen} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar} onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}/> }
+        {activeSection === 'files' && <FilesView runtime={model.files} onImageOpen={model.imageViewer?.onOpen} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar}/> }
 
         {activeSection === 'notes' && notesAvailable && (
           <NotesView
@@ -289,7 +283,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             designPreview={!runtime}
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onConnectionsSettingsViewExpandSidebar}
-            onOpenMobileMenu={onConnectionsSettingsViewOpenMobileMenu}
           />
         )}
         </div>

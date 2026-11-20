@@ -1,3 +1,4 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import React, { useState } from 'react';
 import {
   Bell,
@@ -17,7 +18,6 @@ import {
   Filter,
   Check,
   Sparkles,
-  Menu,
   PanelLeftOpen,
   RefreshCw,
   ExternalLink,
@@ -51,7 +51,6 @@ interface RemindersViewProps {
   onOpenEditReminderModal: (reminder: ReminderItem) => void;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
 }
 
 export const RemindersView: React.FC<RemindersViewProps> = ({
@@ -71,7 +70,6 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   onOpenEditReminderModal,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
 }) => {
   const formatCivilDate=(value:string)=>{const [y,m,d]=value.split('-').map(Number);return Number.isInteger(y)&&Number.isInteger(m)&&Number.isInteger(d)?formatDate(new Date(Date.UTC(y,m-1,d,12)),{year:'numeric',month:'short',day:'numeric'},'UTC'):value;};
   const formatCivilTime=(value:string)=>{const [h,m]=value.split(':').map(Number);return Number.isInteger(h)&&Number.isInteger(m)?formatTime(new Date(Date.UTC(2000,0,1,h,m)),{},'UTC'):value;};
@@ -163,14 +161,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
       {/* Header */}
       <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] shadow-xs sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label={tr('openNavigation',{ns:'common'})}
-            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <WorkspaceMenuButton/>
 
           <div>
             <h1 className="text-[17px] sm:text-[18px] font-bold text-[var(--mroya-text)] flex items-center gap-2">

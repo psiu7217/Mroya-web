@@ -446,8 +446,20 @@ alone is not production-readiness confirmation. This frontend PR performs no dep
 
 ## Calendar and Google Calendar
 
-The existing shared Calendar/Connections UI now has a capability-gated live adapter for Backend PR #28 (`e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac`). See [CALENDAR_INTEGRATION](CALENDAR_INTEGRATION.md) for the exact routes, DTO/recurrence mapping, mutation replay, Google state rules and first live check. The [pinned Backend contract](https://github.com/psiu7217/Mroya-api/blob/e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac/docs/CALENDAR-API.md) remains authoritative. Calendar availability depends on installed capabilities, not this documentation or the OAuth return hint. Reminders are still unavailable.
+The existing shared Calendar/Connections UI now has a capability-gated live adapter for Backend PR #28 (`e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac`). See [CALENDAR_INTEGRATION](CALENDAR_INTEGRATION.md) for the exact routes, DTO/recurrence mapping, mutation replay, Google state rules and first live check. The [pinned Backend contract](https://github.com/psiu7217/Mroya-api/blob/e0fcc38738e83fdfb4a84ff69ff42dc4c8d773ac/docs/CALENDAR-API.md) remains authoritative. Calendar availability depends on installed capabilities, not this documentation or the OAuth return hint.
 
+
+## Personal reminders
+
+The live Reminders section requires `capabilities.reminders: true` and the companion
+[API reminder contract](https://github.com/psiu7217/Mroya-api/blob/7855e234e22cbb64cc8048967ce13f69f46d46a2/docs/REMINDERS.md).
+List, create, edit and cancel use the shared session and CSRF transport under
+`/api/v1/reminders/`. Use the same submission UUID when retrying a create, and
+use the confirmed record version to edit or cancel. The API supplies the next
+occurrence in UTC and preserves the reminder's zone. The Web editor uses the
+confirmed profile timezone for new reminders. Delivery uses the existing Telegram
+notification settings and worker. A finished schedule reflects scheduling state.
+The capability permits the Web release to coexist with older API versions.
 
 ## Profile timezone
 

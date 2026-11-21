@@ -10,6 +10,7 @@ import { ImageLightbox } from '../components/ImageLightbox';
 import { MemoryContextPanel } from '../components/MemoryContextPanel';
 import { CalendarView } from '../components/CalendarView';
 import { RemindersView } from '../components/RemindersView';
+import { LiveRemindersView } from '../components/LiveRemindersView';
 import { ReminderEditorModal } from '../components/ReminderEditorModal';
 import { MemoryView } from '../components/MemoryView';
 import { MemoryMapView } from '../components/MemoryMapView';
@@ -60,7 +61,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         onCloseMobile={onSidebarCloseMobile}
         memoriesCount={runtime?.memoriesTotal??memories.length}
         upcomingEventsCount={events.length}
-        pendingRemindersCount={reminders.filter((r) => r.status === 'scheduled').length}
+        pendingRemindersCount={(model.liveReminders?.rows ?? reminders).filter(r => r.status === 'scheduled').length}
         notesAvailable={notesAvailable}
         notesCount={notesAvailable?(model.notes ?? []).length:0}
         aiTasksCount={model.aiTasks?.tasks.filter(countsTowardTaskBadge).length}
@@ -140,7 +141,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             live={!!runtime}
             calendar={model.calendar}
             showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
-            showReminders={runtime ? !!runtime.features?.reminders : true}
+            showReminders={!runtime}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarNotice={model.googleCalendarNotice}
             events={events}
@@ -166,7 +167,18 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           </div>
         )}
 
-        {activeSection === 'reminders' && (
+        {activeSection === 'reminders' && runtime && model.liveReminders && (
+          <LiveRemindersView
+            reminders={model.liveReminders}
+            showTelegramSetup={model.notifications?.available===true && !model.notifications.loading
+              && (!model.notifications.enabled || !model.notifications.connected)}
+            onOpenConnections={() => settings?.open('notifications')}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onExpandSidebar={onRemindersViewExpandSidebar}
+          />
+        )}
+
+        {activeSection === 'reminders' && (!runtime || !model.liveReminders) && (
           <RemindersView
             readOnly={!!runtime}
             reminders={reminders}

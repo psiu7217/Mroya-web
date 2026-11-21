@@ -36,6 +36,8 @@ export interface WorkspaceSource {
   decideAiTask?:MroyaApi['decideAiTask'];
   notes?:MroyaApi['notes'];
   note?:MroyaApi['note'];
+  reminders?:MroyaApi['reminders'];
+  changeReminder?:MroyaApi['changeReminder'];
   notificationSettings?:MroyaApi['notificationSettings'];
   saveNotificationSettings?:MroyaApi['saveNotificationSettings'];
   testNotification?:MroyaApi['testNotification'];

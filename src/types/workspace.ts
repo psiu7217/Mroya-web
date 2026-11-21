@@ -45,7 +45,7 @@ export interface WorkspaceRuntime {
     conversationRenameLocked?:boolean;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
-    calendarAvailable:boolean; remindersAvailable:false;
+    calendarAvailable:boolean; remindersAvailable:boolean;
     memoriesTotal:number; hasOlder:boolean; onOlder:()=>void; hasMoreMemories:boolean; onMoreMemories:()=>void;
     truncated:boolean; notice:string|null; onCloseNotice:()=>void; onUnavailable:()=>void; onLogout:()=>void;
     preferenceSave: {status:'saved'|'saving'|'unsaved';error:string|null;onRetry:()=>void};
@@ -117,6 +117,7 @@ export interface WorkspaceModel {
     reminders: ReminderItem[];
     notes?: NoteItem[];
     notesRuntime?: import('./notes').NotesPresentation;
+    liveReminders?: import('./reminders').RemindersPresentation;
     /** Set only by a configured Notes source; absence does not mean an empty loaded list. */
     notesAvailable?: boolean;
     reminderModalOpen: boolean;

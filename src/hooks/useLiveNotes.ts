@@ -1,9 +1,10 @@
+import {WorkspaceListCache} from './workspaceListCache.ts';
 import {useEffect,useMemo,useRef,useSyncExternalStore} from 'react';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {NotesPresentation} from '../types/notes.ts';
 import {LiveNotesController,notePresentation,notesSourceAvailable} from './LiveNotesController.ts';
 export function useLiveNotes(source:WorkspaceSource,userId:number,capable:boolean,visible:boolean,chatBusy:boolean,onExpired:()=>void){
- const controller=useMemo(()=>new LiveNotesController(source,onExpired),[source,userId,onExpired]);
+ const controller=useMemo(()=>new LiveNotesController(source,onExpired,new WorkspaceListCache(userId)),[source,userId,onExpired]);
  const state=useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
  const available=notesSourceAvailable(source,capable);
  useEffect(()=>{if(available)controller.start();return()=>controller.stop();},[controller,available]);

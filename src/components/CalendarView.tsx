@@ -1,3 +1,5 @@
+import {MobileCalendar} from './MobileCalendar';
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {MemoryLinks} from './MemoryLinks';
 import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
 import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
@@ -12,7 +14,6 @@ import {
   Link2,
   Check,
   X,
-  Menu,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -41,6 +42,7 @@ interface CalendarViewProps {
   memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
   readOnly?:boolean;
   live?:boolean;
+  active?:boolean;
   calendar?:CalendarPresentation;
   showGoogleCalendar?:boolean;
   showReminders?:boolean;
@@ -66,12 +68,11 @@ interface CalendarViewProps {
   googleCalendarEmail?: string;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   memoryLinksNavigation,
-  readOnly=false,live=false,calendar,showGoogleCalendar=true,showReminders=true,googleCalendarAvailable=false,googleCalendarNotice,
+  readOnly=false,live=false,active=true,calendar,showGoogleCalendar=true,showReminders=true,googleCalendarAvailable=false,googleCalendarNotice,
   samples,
   events,
   memories,
@@ -89,7 +90,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   gcalSyncState='disconnected',googleCalendarEmail='',autoSync=false,googleCalendarConnected=false,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
 }) => {
   const monthNames=Array.from({length:12},(_,index)=>monthName(index));
   const shortMonthNames=Array.from({length:12},(_,index)=>monthName(index,'short'));
@@ -102,6 +102,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }[gcalSyncState];
   const googleStatusLabel=googleStatus+(!readOnly&&googleCalendarEmail&&!['disconnected','connecting'].includes(gcalSyncState)?` (${googleCalendarEmail})`:'');
   const today=live||readOnly?(()=>{const [y,m,d]=dateInTimezone(new Date(),calendar?.timezone??'').split('-').map(Number);return calendarDate(y,m-1,d);})():new Date(2026,9,12);
+  const [narrow,setNarrow]=useState(()=>typeof window!=='undefined'&&window.matchMedia?.('(max-width: 1023px)')?.matches===true);
+  useEffect(()=>{
+    const query=window.matchMedia?.('(max-width: 1023px)');
+    if(!query)return;
+    const update=()=>setNarrow(query.matches);
+    query.addEventListener?.('change',update);
+    return ()=>query.removeEventListener?.('change',update);
+  },[]);
+  const mobile=live&&narrow;
   const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
   const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(today.getMonth());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'week'>('month');
@@ -164,11 +173,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const mutationRef=useRef(false),editEpoch=useRef(0),mounted=useRef(true);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;editEpoch.current++;};},[]);
   useEffect(()=>{
+    if(!active)return;
+    if(calendar?.onYearChange){calendar.onYearChange(currentYear);return;}
     if(!calendar?.onRangeChange)return;
     const start=viewMode==='year'?calendarDate(currentYear,0,1):calendarWeek(calendarDate(currentYear,currentMonthIndex,1))[0];
     const end=viewMode==='year'?calendarDate(currentYear,11,31):calendarWeek(new Date(currentYear,currentMonthIndex+1,0,12))[6];
     calendar.onRangeChange(calendarKey(start),calendarKey(end));
-  },[calendar?.onRangeChange,currentYear,currentMonthIndex,viewMode]);
+  },[active,calendar?.onRangeChange,calendar?.onYearChange,currentYear,currentMonthIndex,viewMode]);
   const validDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T12:00:00Z'))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;
   const occurs=(event:CalendarEvent,date:string)=>{
     if(!live)return doesEventOccurOnDate(event,date);
@@ -460,6 +471,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Touch gestures: swipe left/right to change month/year
   const handleTouchStart = (e: React.TouchEvent) => {
+    if(mobile)return;
     touchStartXRef.current = null;
     touchStartYRef.current = null;
     // Reserve the inner left edge for Workspace navigation; Safari owns the outer 16px.
@@ -510,7 +522,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const formattedDayTitle = formatCivilDate(currentYear,currentMonthIndex,selectedDay,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
   const selectedDate=calendarDate(currentYear,currentMonthIndex,selectedDay);
-  useEffect(()=>{calendar?.upcoming?.onStartChange(calendarKey(selectedDate));},[calendar?.upcoming?.onStartChange,currentYear,currentMonthIndex,selectedDay]);
+  const upcomingStart=calendarKey(mobile?today:selectedDate);
+  useEffect(()=>{if(active)calendar?.upcoming?.onStartChange(upcomingStart);},[active,calendar?.upcoming?.onStartChange,upcomingStart]);
   const upcoming=live?upcomingCalendarEvents(calendar?.upcoming?.events??[],calendarKey(selectedDate),calendar?.timezone??'',new Date()):designUpcomingCalendarEvents(events,calendarKey(selectedDate),today,doesEventOccurOnDate);
   const showGoogleBanner=!(googleCalendarConnected&&autoSync&&!['disconnected','connecting','sync_error','conflict','reconnect_required'].includes(gcalSyncState));
   const weekDays=calendarWeek(selectedDate);
@@ -528,18 +541,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* HEADER: iPhone iOS Calendar Inspired Navigation Bar */}
+      {mobile ? <MobileCalendar today={today} events={events} calendar={calendar}
+        active={active} readOnly={readOnly} showGoogle={showGoogleCalendar} googleStatus={googleStatusLabel}
+        onYearChange={year=>{setCurrentYear(year);calendar?.onYearChange?.(year);}}
+        onNew={date=>{setNewDate(calendarKey(date));setNewTimeError(null);setIsNewModalOpen(true);}}
+        onEvent={setViewingEvent} onGoogle={onOpenConnections}/> : <>
+      {/* Calendar navigation */}
       <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-2.5 shrink-0 bg-[var(--mroya-surface)] shadow-xs sticky top-0 z-20">
         {/* Left Side: Mobile Menu or Desktop Sidebar toggle + iOS Back/Zoom Breadcrumb */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label={tr('openMenu',{ns:'calendar'})}
-            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer shrink-0 transition-colors"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <WorkspaceMenuButton/>
 
           {/* Shared year breadcrumb: vibrant pill button */}
           <button
@@ -1848,8 +1859,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       </div>
 
+      </>}
       {!isNewModalOpen&&!editingEvent&&!deletingEvent&&calendarStatus}
-      {showGoogleCalendar&&googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
+      {!mobile&&showGoogleCalendar&&googleCalendarNotice&&<p role="status" className="px-4 py-2 text-sm text-[var(--mroya-text-muted)]">{googleCalendarNotice}</p>}
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
         <DialogFocus onClose={closeNewEvent} role="dialog" aria-modal="true" aria-labelledby="new-event-title" tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">

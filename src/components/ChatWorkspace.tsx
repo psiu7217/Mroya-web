@@ -1,3 +1,4 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {AttachmentPreviews} from './AttachmentPreviews';
 import {MessageAttachments} from './MessageAttachments';
 import type {ChatAttachmentsPresentation} from '../types/chatAttachments';
@@ -8,7 +9,6 @@ import type { AccountPresentation, ChatDiagnostics } from '../types/workspace';
 import React, { useState, useRef, useEffect, useEffectEvent } from 'react';
 import {
   Award,
-  Menu,
   Download,
   PanelLeftOpen,
   PanelRight,
@@ -97,7 +97,6 @@ export interface ChatWorkspaceProps {
   addedActionIds: string[];
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
   isContextPanelOpen: boolean;
   onToggleContextPanel: () => void;
   plan: SubscriptionPlan;
@@ -122,7 +121,6 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   addedActionIds,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
   isContextPanelOpen,
   onToggleContextPanel,
   plan,
@@ -423,32 +421,27 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         {/* Left: Mobile Burger + Mroya Brand Logo | Desktop Sidebar toggles + Conversation title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Mobile Left: Burger + Mroya Logo right next to it */}
-          <div className="flex lg:hidden items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onOpenMobileMenu}
-              aria-label={tr('openNavigation',{ns:'common'})}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer shrink-0"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+          <div className="flex lg:hidden items-center gap-2 min-w-0">
+            <WorkspaceMenuButton/>
 
             <button
               type="button"
               onClick={onNewChat}
-              className="group flex items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
+              className="group flex shrink-0 items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
+              aria-label={live&&conversation?tr('newChat',{ns:'chat'}):undefined}
               title={tr('brandMeaning',{ns:'common'})}
             >
               <BrandMark size="sm" glow />
-              <div className="flex flex-col min-w-0">
+              {(!live||!conversation)&&<div className="flex flex-col min-w-0">
                 <span className="text-[16px] font-bold tracking-[-0.02em] text-[var(--mroya-text)] leading-none group-hover:text-[var(--mroya-primary)] transition-colors">
                   Mroya
                 </span>
                 <span className="text-[8.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-0.5 opacity-75 uppercase">
                   {tr('brandTagline',{ns:'common'})}
                 </span>
-              </div>
+              </div>}
             </button>
+            {live&&conversation&&<h1 className="min-w-0 truncate text-sm font-semibold">{conversation.title}</h1>}
           </div>
 
           {/* Desktop Left: Conversation title + Personal space indicator */}
@@ -880,7 +873,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {!live && (visibleTimeline?.some(entry=>entry.kind==='tool') ? (
+                      {!live && visibleTimeline?.some(entry=>entry.kind==='tool') ? (
                         <ChatActivityTimeline entries={visibleTimeline} isStreaming={streaming} technical={showModelReasoning}/>
                       ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
@@ -888,7 +881,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           isStreaming={msg.status === 'streaming'}
                           defaultExpanded={true}
                         />
-                      ))}
+                      )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       {!taskOnlyAnswer&&<div className={`mroya-assistant-response w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${

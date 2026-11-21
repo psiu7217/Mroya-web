@@ -1,3 +1,4 @@
+import {trapDialogFocus} from '../utils/dialogFocus';
 import type { AccountPresentation } from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -51,6 +52,7 @@ export interface SidebarProps {
   onRenameConversation?: (id: string, newTitle: string) => void | boolean | Promise<boolean>;
   onDeleteConversation?: (id: string) => void | boolean | Promise<boolean>;
   conversationLocked?: boolean;
+  conversationRenameLocked?: boolean;
   plan: SubscriptionPlan;
   onTogglePlan: () => void;
   onOpenPlanModal: () => void;
@@ -85,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRenameConversation,
   onDeleteConversation,
   conversationLocked = false,
+  conversationRenameLocked = conversationLocked,
   plan,
   onTogglePlan,
   onOpenPlanModal,
@@ -118,11 +121,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingConversation, setDeletingConversation] = useState<ConversationListItem | null>(null);
-  const isOtherSection = ['ai-tasks', 'memory', 'connections'].includes(activeSection);
+  const isOtherSection = (live ? ['ai-tasks'] : ['ai-tasks', 'memory', 'connections']).includes(activeSection);
   const [otherOpen, setOtherOpen] = useState(isOtherSection);
   useEffect(() => {
     if (isOtherSection) setOtherOpen(true);
   }, [activeSection]);
+
+  const drawerRef=useRef<HTMLDivElement>(null);
+  const closeDrawer=useRef(onCloseMobile);
+  closeDrawer.current=onCloseMobile;
+  useEffect(()=>{
+    if(!mobileOpen||!mobileViewport)return;
+    const previous=document.activeElement;
+    const release=trapDialogFocus(drawerRef.current,()=>closeDrawer.current());
+    return ()=>{
+      release?.();
+      if(!previous?.isConnected)document.querySelector<HTMLElement>('main [data-workspace-menu-trigger]')?.focus({preventScroll:true});
+    };
+  },[mobileOpen,mobileViewport]);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const convMenuRef = useRef<HTMLDivElement>(null);
@@ -185,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleSaveRename = async (id: string) => {
-    if (actionPending.current || conversationLocked || !editingTitle.trim()) return;
+    if (actionPending.current || conversationRenameLocked || !editingTitle.trim()) return;
     actionPending.current = true;setSaving(true);
     try {
       if(!onRenameConversation)return;
@@ -258,10 +274,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       meta: aiTasksCount !== undefined && aiTasksCount > 0 ? String(aiTasksCount) : undefined,
     },
     { id: 'memory-map', label: tr('navMemoryMap',{ns:'sidebar'}), icon: Share2 },
-    { id: 'connections', label: tr('navConnections',{ns:'sidebar'}), icon: Link2 },
+    { id: 'connections', label: live ? tr('settings',{ns:'sidebar'}) : tr('navConnections',{ns:'sidebar'}), icon: live ? Settings : Link2 },
   ];
-  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders));
-  const otherNavItems = ['ai-tasks', 'memory', 'connections'].map(id => visibleNavItems.find(item => item.id === id)!);
+  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders) && (!live || item.id !== 'memory'));
+  const otherNavItems = visibleNavItems.filter(item => (live ? ['ai-tasks'] : ['ai-tasks', 'memory', 'connections']).includes(item.id));
   const primaryNavItems = visibleNavItems.filter(item => !otherNavItems.includes(item));
 
   const renderNavItems = (items: typeof navItems, collapsed: boolean) => items.map(item => {
@@ -271,8 +287,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <button
         type="button"
         onClick={() => {
-          if (item.id === 'connections') onOpenSettingsTab('connections');
-          else onSelectSection(item.id);
+          if(!isActive){
+            if (item.id === 'connections') onOpenSettingsTab(live ? 'settings' : 'connections');
+            else onSelectSection(item.id);
+          }
           onCloseMobile();
         }}
         title={collapsed ? item.label + (item.meta ? ` (${item.meta})` : '') : undefined}
@@ -375,7 +393,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </button>}
 
-        {showDeveloperFeatures && <button
+        {(live || showDeveloperFeatures) && <button
           type="button"
           role="menuitem"
           onClick={() => {
@@ -389,7 +407,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>{tr('settings',{ns:'sidebar'})}</span>
         </button>}
 
-        <button
+        {!live && <button
           type="button"
           role="menuitem"
           onClick={() => {
@@ -401,7 +419,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Link2 className="w-4 h-4 text-[var(--mroya-text-muted)]" />
           <span>{tr('connectedAccounts',{ns:'sidebar'})}</span>
-        </button>
+        </button>}
 
         <button
           type="button"
@@ -700,7 +718,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               </button>
                               <button
                                 type="submit"
-                                disabled={saving || conversationLocked || !editingTitle.trim()}
+                                disabled={saving || conversationRenameLocked || !editingTitle.trim()}
                                 className="h-6 px-2.5 rounded-[5px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[11.5px] font-semibold transition-colors cursor-pointer disabled:opacity-40"
                               >
                                   {saving ? tr('saving',{ns:'sidebar'}) : tr('save',{ns:'sidebar'})}
@@ -770,7 +788,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   role="menuitem"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if(!conversationLocked)handleStartRename(conv);
+                                    if(!conversationRenameLocked)handleStartRename(conv);
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                                 >
@@ -866,7 +884,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Mobile Navigation Drawer (always full width when open) */}
-      {mobileViewport && <div className="mroya-mobile-drawer fixed inset-0 z-50 lg:hidden flex" data-open={mobileOpen} inert={!mobileOpen} aria-hidden={!mobileOpen}>
+      {mobileViewport && <div ref={drawerRef} id="mroya-mobile-navigation" className="mroya-mobile-drawer fixed inset-0 z-50 lg:hidden flex" data-open={mobileOpen} inert={!mobileOpen} aria-hidden={!mobileOpen}
+          role="dialog" aria-modal={mobileOpen||undefined} aria-label={tr('mainSections',{ns:'sidebar'})} tabIndex={-1}>
           <div
             className="mroya-mobile-backdrop fixed inset-0 bg-black/40 backdrop-blur-[1px]"
             onClick={onCloseMobile}

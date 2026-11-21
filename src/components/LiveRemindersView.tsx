@@ -1,8 +1,9 @@
 import {useState, type FormEvent} from 'react';
-import {Bell, Menu, PanelLeftOpen, Plus} from 'lucide-react';
+import {Bell, PanelLeftOpen, Plus} from 'lucide-react';
 import {tr} from '../i18n';
 import {formatDate} from '../i18n/format';
 import {reminderRepeats, type ReminderInput, type ReminderRecord, type RemindersPresentation} from '../types/reminders';
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 
 type Editor =
   | {kind: 'create'; submissionId: string; input: ReminderInput}
@@ -14,7 +15,6 @@ interface Props {
   onOpenConnections: () => void;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
 }
 
 const repeatLabels = {
@@ -25,7 +25,7 @@ const primary = 'inline-flex items-center justify-center gap-2 rounded-lg px-3 p
 const inputStyle = 'w-full min-w-0 rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3 py-2 text-sm text-[var(--mroya-text)]';
 
 export function LiveRemindersView({reminders, showTelegramSetup, onOpenConnections,
-                                   isSidebarCollapsed, onExpandSidebar, onOpenMobileMenu}: Props) {
+                                   isSidebarCollapsed, onExpandSidebar}: Props) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [confirm, setConfirm] = useState<ReminderRecord | null>(null);
   const locked = reminders.busy || reminders.loading;
@@ -56,8 +56,7 @@ export function LiveRemindersView({reminders, showTelegramSetup, onOpenConnectio
 
   return <section className="flex min-h-0 flex-1 flex-col">
     <header className="flex shrink-0 items-center gap-3 border-b border-[var(--mroya-divider)] px-4 py-3 sm:px-6">
-      <button type="button" onClick={onOpenMobileMenu} aria-label={tr('openNavigation', {ns: 'common'})}
-        className="rounded-lg p-2 lg:hidden"><Menu size={19}/></button>
+      <WorkspaceMenuButton/>
       {isSidebarCollapsed && <button type="button" onClick={onExpandSidebar} aria-label={tr('expandSidebar', {ns: 'common'})}
         className="hidden rounded-lg p-2 lg:inline-flex"><PanelLeftOpen size={19}/></button>}
       <Bell size={19} className="hidden shrink-0 sm:block" aria-hidden="true"/>

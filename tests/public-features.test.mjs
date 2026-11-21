@@ -24,7 +24,7 @@ test('imported event cards remain readable, neutral, and hide reminder controls'
  assert.match(html,/Imported appointment/);assert.match(html,/External/);
  assert.doesNotMatch(html,/Google Calendar|Google Contacts|Add reminder|Add Reminder|Coming soon|Synced|Edit commitment|Delete commitment/i);
  const admin=render('calendar',true,{model:{events:[event]}});
- assert.match(admin,/Google Calendar/);assert.match(admin,/Add reminder/i);
+ assert.match(admin,/Google Calendar/);assert.doesNotMatch(admin,/Add reminder/i);
 });
 test('Google feature can be enabled without enabling reminder controls',()=>{
  const now=new Date(),date=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');

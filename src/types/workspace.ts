@@ -19,7 +19,7 @@ export interface ChatDiagnostics {
 export interface CalendarPresentation {
     upcoming?:{events:CalendarEvent[];loading:boolean;error:string|null;onStartChange:(date:string)=>void;onRetry:()=>void};
     loading:boolean;busy:boolean;mutationPending:boolean;error:string|null;timezone:string;
-    onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;
+    onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;onYearChange?:(year:number)=>void;
     onLoadEventForEdit:(event:CalendarEvent)=>Promise<CalendarEvent|null>;
 }
 export interface TimezonePresentation {
@@ -42,6 +42,7 @@ export interface WorkspaceRuntime {
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
     conversationLocked?:boolean;
+    conversationRenameLocked?:boolean;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
     calendarAvailable:boolean; remindersAvailable:boolean;
@@ -60,6 +61,15 @@ export interface ConnectionSamples {
 }
 export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
+}
+export type SettingsPage = 'home'|'profile'|'name'|'timezone'|'plan'|'appearance'|'language'|'chat'|'notifications'|'connections'|'telegram'|'google'|'calendar-selection'|'memory-transfer'|'privacy';
+export interface SettingsNavigation {
+ page:SettingsPage;
+ open:(page:SettingsPage)=>void;
+ back:()=>void;
+ showReasoning:boolean;
+ showPrivacy:boolean;
+ toggleReasoning:(enabled:boolean)=>void;
 }
 export interface WorkspaceModel {
     imageViewer?:import('./imageViewer').ImageViewerPresentation;
@@ -88,6 +98,10 @@ export interface WorkspaceModel {
     calendarSamples?: {person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
     composerSamples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
     activeSection: NavSection;
+    settingsNavigation?: SettingsNavigation;
+    onRefreshMap?:()=>void;
+    retainCalendar?:boolean;
+    retainNotes?:boolean;
     isSidebarCollapsed: boolean;
     mobileMenuOpen: boolean;
     theme: ThemeMode;
@@ -134,6 +148,7 @@ export interface WorkspaceModel {
     googleCalendarAvailable?:boolean;
     googleCalendarBusy?:boolean;
     googleCalendarNotice?:string;
+    googleCalendarOAuthNotice?:string;
     googleCalendarError?:string|null;
     googleConnections?:import('./calendarApi').GoogleConnectionDto[];
     selectedGoogleConnectionId?:string|null;
@@ -168,10 +183,10 @@ export interface WorkspaceModel {
     onSidebarOpenPlanModal: () => void;
     onSidebarToggleTheme: () => void;
     onSidebarToggleCollapse: () => void;
+    onWorkspaceOpenMobile: () => void;
     onSidebarCloseMobile: () => void;
     onSidebarOpenSettingsTab: (tab: 'profile' | 'plan' | 'connections' | 'appearance' | 'settings') => void;
     onChatWorkspaceExpandSidebar: () => void;
-    onChatWorkspaceOpenMobileMenu: () => void;
     onChatWorkspaceToggleContextPanel: () => void;
     onChatWorkspaceTogglePlan: () => void;
     onChatWorkspaceOpenPlanModal: () => void;
@@ -190,13 +205,11 @@ export interface WorkspaceModel {
     onCalendarViewAddReminder: (reminder: Omit<ReminderItem, 'id' | 'createdAt'>) => void;
     onCalendarViewNavigateToReminders: () => void;
     onCalendarViewExpandSidebar: () => void;
-    onCalendarViewOpenMobileMenu: () => void;
     onRemindersViewUpdateReminder: (reminder: ReminderItem) => void;
     onRemindersViewOpenCalendarEvent: (eventId: string) => void;
     onRemindersViewOpenNewReminderModal: () => void;
     onRemindersViewOpenEditReminderModal: (reminder: ReminderItem) => void;
     onRemindersViewExpandSidebar: () => void;
-    onRemindersViewOpenMobileMenu: () => void;
     onMemoryViewSelectMemory: (id: string) => void;
     onMemoryViewUpdateMemory: (updated: MemoryItem) => void;
     onMemoryViewForgetMemory: (id: string) => void;
@@ -204,18 +217,15 @@ export interface WorkspaceModel {
     onMemoryViewExploreInMap: (nodeId: string) => void;
     onMemoryViewAskMroyaAbout: (memory: MemoryItem) => void;
     onMemoryViewExpandSidebar: () => void;
-    onMemoryViewOpenMobileMenu: () => void;
     onMemoryMapViewSelectNode: (nodeId: string | null) => void;
     onMemoryMapViewOpenMemory: (memoryId: string) => void;
     onMemoryMapViewAskAboutNode: (node: GraphNode) => void;
     onMemoryMapViewExpandSidebar: () => void;
-    onMemoryMapViewOpenMobileMenu: () => void;
     onConnectionsSettingsViewToggleConnection: (id: string) => void;
     onConnectionsSettingsViewSelectPlan: (plan: SubscriptionPlan) => void;
     onConnectionsSettingsViewSelectTheme: (theme: ThemeMode) => void;
     onConnectionsSettingsViewChangeTab: (tab: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings') => void;
     onConnectionsSettingsViewExpandSidebar: () => void;
-    onConnectionsSettingsViewOpenMobileMenu: () => void;
     onClosePlanPreview: () => void;
     onPreviewFreePlan: React.MouseEventHandler<HTMLButtonElement>;
     onPreviewPremiumPlan: React.MouseEventHandler<HTMLButtonElement>;

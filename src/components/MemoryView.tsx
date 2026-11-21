@@ -1,3 +1,4 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import React, { useState } from 'react';
 import { DialogFocus } from './DialogFocus';
 import {
@@ -8,7 +9,6 @@ import {
   FileText,
   Check,
   X,
-  Menu,
   MessageSquare,
 } from 'lucide-react';
 import { MemoryItem, MemoryCategory } from '../types/mroya';
@@ -27,7 +27,6 @@ export interface MemoryViewProps {
   onAskMroyaAbout: (memory: MemoryItem) => void;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
 }
 
 const CATEGORIES: ('All' | MemoryCategory)[] = [
@@ -57,7 +56,6 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   onAskMroyaAbout,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
 }) => {
   const language=currentLocale();
   const localizedMemoryDate=(value:string)=>{
@@ -140,7 +138,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Saved memories */}
       <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-2"><button type="button" onClick={onOpenMobileMenu} aria-label={tr('openNavigation',{ns:'common'})} className="lg:hidden p-2"><Menu className="w-4 h-4" /></button><h1 className="font-semibold">{tr("savedMemories",{ns:"memory"})}</h1></div>
+        <div className="flex items-center gap-2"><WorkspaceMenuButton/><h1 className="font-semibold">{tr("savedMemories",{ns:"memory"})}</h1></div>
         <button type="button" disabled={readOnly} onClick={()=>setIsAddModalOpen(true)} className="px-3 py-1.5 rounded-full bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] disabled:opacity-40">{tr("addMemory",{ns:"memory"})}</button>
       </header>
 

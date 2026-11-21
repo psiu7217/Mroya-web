@@ -20,14 +20,22 @@ Live `generate_image` activities have kind `tool` and null input/output, keeping
 prompts and base64 out of SSE activity. Deploy API before Web.
 
 The Chat image card starts with the running activity. The elapsed-time estimate
-stays visible until the reply supplies an image and the browser decodes it. Opening an image
-loads its existing authenticated original through the session client, with a
-25 MiB bound and raster MIME/signature checks. The viewer shares the actual File
+stays visible until the reply supplies an image and the browser decodes it. Chat,
+Files and the viewer share the existing authenticated original loader. It checks
+raster MIME/signature and the 25 MiB limit. The browser keeps validated originals
+in a 64 MiB IndexedDB cache for up to seven days, keyed by the confirmed account
+and document. Sign-out and account changes cancel outstanding loads and purge
+the former account. Confirmed deletion removes the cached original.
+The viewer shares the actual File
 through the device share sheet. Without file sharing it copies a PNG when the
 clipboard permits, or offers download. Private original URLs are never presented
 as publicly shareable links. Bytes/object URLs are disposed on close, conversation
 change and logout. File preloading happens before the Share click, retaining the
 browser's required transient user activation.
+
+The PWA service worker only handles navigation. Hashed bundles and font files
+use their existing HTTP caching headers. Session, CSRF and other API responses
+stay outside the image cache.
 
 Memory-transfer version 2 accepts optional `object_merges` (`from` → `into` UUIDs)
 and a non-executable `editing_guide`. New exports include both fields; the client
@@ -369,6 +377,7 @@ same-origin `/api/v1/chat/`; Django session and CSRF remain unchanged.
 | --- | --- |
 | GET conversations/?offset=0&limit=100 | 200 `{conversations: ConversationSummary[], next_offset: number|null}` |
 | POST conversations/ with `{}` | 201 `{conversation: ConversationSummary}`; truly empty chat |
+| GET conversations/{uuid}/ | 200 `{conversation: ConversationSummary}`; metadata only |
 | PATCH conversations/{uuid}/ with `{title}` | 200 `{conversation: ConversationSummary}` |
 | DELETE conversations/{uuid}/ with no body | 204 with no JSON; permanent deletion |
 | GET conversations/{uuid}/messages/?before=... | Existing history DTO, matching conversation_id |
@@ -377,8 +386,9 @@ same-origin `/api/v1/chat/`; Django session and CSRF remain unchanged.
 ConversationSummary contains only `id` (UUID), `title`, `created_at`, `updated_at`
 (ISO8601); there is no public manual-title flag or messages array in list items.
 List order is updated_at DESC, created_at DESC, id ASC. Limit is 1..100; offset
-0..100000. Follow next_offset, deduplicate UUIDs, refresh the list after sends and
-when a write outcome is unknown. Web loads summary pages, never all transcripts.
+0..100000. Follow next_offset and deduplicate UUIDs. Refresh the list for older
+servers without the title snapshot or detail GET, and to reconcile unconfirmed
+chat creation or deletion. Web loads summary pages, never all transcripts.
 The selected chat is session-local; a reload selects the first server-listed chat.
 Sidebar searches loaded titles only and groups server dates in the profile timezone.
 
@@ -386,6 +396,13 @@ Initial empty title is displayed as New chat. The first send may auto-title; man
 Rename is trimmed, 1..100 Unicode code points, rejects angle brackets/internal C0
 and DEL. Rename does not change activity order and future sends retain manual titles.
 Only server-confirmed names replace local metadata.
+
+[Automatic chat titles](https://github.com/psiu7217/Mroya-api/blob/17fd9d0daf0434b12e93104d4ba8a34623aa697c/docs/CHAT-AUTO-TITLES.md)
+describes the optional `conversation` snapshot in the SSE `done` and completed
+JSON replay. Merge it into the submitted UUID. After a send failure read that
+UUID's metadata independently of the selected history. A confirmed manual
+rename takes priority over a concurrent send snapshot, even when the activity
+timestamps are identical.
 
 History retains per-chat before/next_before pagination, ascending message sequences,
 including empty histories. Send body remains `{content, submission_id, retry?, timezone?}`;
@@ -409,7 +426,8 @@ errors; 401 authentication_required; 403 csrf_failed; 5xx/network/schema failure
 unknown outcomes. 404/unknown results trigger list/history reconciliation before a
 new deliberate write; failed/unknown DELETE is never announced as confirmed success.
 
-The controller blocks chat management during busy/uncertain sends and pins requests,
+The controller permits manual renaming while the reply streams and blocks
+switching, creation and deletion during busy/uncertain sends. It pins requests,
 cursors, submission/turn/reply IDs and transient activity to the selected UUID. Switching
 aborts read requests, advances the request epoch and clears reasoning/timeline/failed
 attempt maps. Late callbacks cannot attach to another chat. Composer clears drafts

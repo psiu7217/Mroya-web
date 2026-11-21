@@ -1,6 +1,6 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Menu,
   PanelLeftOpen,
   Search,
   X,
@@ -15,6 +15,9 @@ import {
   Download,
   Sparkles,
   ChevronDown,
+  RefreshCw,
+  GitBranch,
+  Network,
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../types/mroya';
 import {tr} from '../i18n';
@@ -28,6 +31,7 @@ import './memory-map/memory-map.css';
 
 interface MemoryMapViewProps {
   nodes: GraphNode[];
+  onRefresh?:()=>void;
   edges: GraphEdge[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
@@ -35,7 +39,6 @@ interface MemoryMapViewProps {
   onAskAboutNode: (node: GraphNode) => void;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
-  onOpenMobileMenu: () => void;
   loading?: boolean;
   error?: string | null;
   theme?: 'light' | 'dark';
@@ -61,14 +64,13 @@ const localizeMapHint=(value:string)=>{
 /** One Pixi scene for offline Studio and live Mroya; only typed props/actions cross this boundary. */
 export function MemoryMapView({
   nodes,
-  edges,
+  edges,onRefresh,
   selectedNodeId,
   onSelectNode,
   onOpenMemory,
   onAskAboutNode,
   isSidebarCollapsed,
   onExpandSidebar,
-  onOpenMobileMenu,
   loading,
   error,
   theme = 'dark',
@@ -266,14 +268,7 @@ export function MemoryMapView({
     >
       <header className="map-heading">
         <div className="map-heading-title">
-          <button
-            type="button"
-            className="map-nav-button map-mobile-menu"
-            aria-label={tr('openNavigation',{ns:'common'})}
-            onClick={onOpenMobileMenu}
-          >
-            <Menu size={18} />
-          </button>
+          <WorkspaceMenuButton/>
           {isSidebarCollapsed && (
             <button
               type="button"
@@ -318,8 +313,6 @@ export function MemoryMapView({
               ))}
             </ul>
           </div>
-          <div className="map-halo map-halo-one" aria-hidden="true" />
-          <div className="map-halo map-halo-two" aria-hidden="true" />
 
           {/* Map Toolbar (Top-Left) */}
           <div className="map-toolbar" aria-label={tr('mapControls',{ns:'memory'})}>
@@ -330,7 +323,7 @@ export function MemoryMapView({
               <span className="map-visible-count">{tr('nodeCount',{ns:'memory',count})}</span>
             </div>
 
-            <div className="map-mode" role="group" aria-label={tr('graphMode',{ns:'memory'})}>
+            {showDeveloperFeatures&&<div className="map-mode" role="group" aria-label={tr('graphMode',{ns:'memory'})}>
               <button
                 type="button"
                 className={mode === 'global' ? 'active' : ''}
@@ -364,7 +357,7 @@ export function MemoryMapView({
                 <option value={1}>{tr('hops',{ns:'memory',count:1})}</option>
                 <option value={2}>{tr('hops',{ns:'memory',count:2})}</option>
               </select>
-            </div>
+            </div>}
 
             <label className="map-search-wrap">
               <span className="map-search-icon">
@@ -398,7 +391,7 @@ export function MemoryMapView({
               </div>
             )}
 
-            {(canHideSelf || showDeveloperFeatures) && <details className="map-force">
+            {(canHideSelf || showDeveloperFeatures || onRefresh) && <details className="map-force">
               <summary>
                 <span>{tr('graphSettings',{ns:'memory'})}</span>
                 <ChevronDown size={12} />
@@ -415,6 +408,7 @@ export function MemoryMapView({
                   />
                 </label>
               )}
+              {onRefresh&&<button type="button" onClick={onRefresh} className="map-refresh"><RefreshCw aria-hidden="true" size={14}/>{tr('refreshMap',{ns:'memory'})}</button>}
               {showDeveloperFeatures && <>{(
                 [
                   ['repulsion', tr('repulsion',{ns:'memory'}), 80, 500],
@@ -537,10 +531,10 @@ export function MemoryMapView({
                   <MessageSquare size={13} />
                   <span>{tr('askInChat',{ns:'memory'})}</span>
                 </button>
-                <button type="button" onClick={() => renderer.current?.select(active.id, true)}>
+                {showDeveloperFeatures&&<button type="button" onClick={() => renderer.current?.select(active.id, true)}>
                   <Crosshair size={13} />
                   <span>{tr('centerNode',{ns:'memory'})}</span>
-                </button>
+                </button>}
               </div>
 
               {section(tr('currentFacts',{ns:'memory'}), facts)}
@@ -579,7 +573,7 @@ export function MemoryMapView({
 
           {/* Bottom Right Zoom & Fit Controls */}
           <div className="map-bottom-right">
-            <button
+            {showDeveloperFeatures&&<>            <button
               type="button"
               aria-label={tr('zoomIn',{ns:'memory'})}
               onClick={() => renderer.current?.zoom(1.2)}
@@ -593,13 +587,21 @@ export function MemoryMapView({
             >
               <Minus size={14} />
             </button>
+            </>}
+            {active&&!showDeveloperFeatures&&<>
+              <button type="button" aria-label={tr('hops',{ns:'memory',count:1})} aria-pressed={mode==='local'&&depth===1} onClick={()=>{setDepth(1);setMode('local');}}><GitBranch aria-hidden="true" size={16}/></button>
+              <button type="button" aria-label={tr('hops',{ns:'memory',count:2})} aria-pressed={mode==='local'&&depth===2} onClick={()=>{setDepth(2);setMode('local');}}><Network aria-hidden="true" size={16}/></button>
+              <button type="button" aria-label={tr('centerNode',{ns:'memory'})} onClick={()=>renderer.current?.select(active.id,true)}><Crosshair aria-hidden="true" size={16}/></button>
+              <button type="button" aria-label={tr('global',{ns:'memory'})} onClick={close}><X aria-hidden="true" size={16}/></button>
+            </>}
+            {(!active||showDeveloperFeatures)&&
             <button
               type="button"
               aria-label={tr('fitGraph',{ns:'memory'})}
               onClick={() => renderer.current?.fit()}
             >
-              <Scan size={14} />
-            </button>
+              <Scan size={16} />
+            </button>}
           </div>
 
           {tooltip && (

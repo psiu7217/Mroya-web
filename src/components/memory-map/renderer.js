@@ -1,7 +1,7 @@
 // Ported from psiu7217/Personal-Memory-OS @ 38892fa5e25e30c908e0c8ad5c2032d02d248d36.
 import { Application, Circle, Container, Graphics, Text } from "pixi.js";
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY } from "d3-force";
-import { localIds, nodeRadius, pngDimensions, presentationGraph } from "./graph.js";
+import { layoutTargets, localIds, nodeRadius, pngDimensions, presentationGraph } from "./graph.js";
 import { mapPalettes, mapNodeLabel, colorHex, paletteForTheme } from "./palette.js";
 import { defaults } from "./forceDefaults.js";
 import { initializeMapApplication } from "./initialization.js";
@@ -24,7 +24,7 @@ const state = { graph: null, displayGraph: null, hideSelf: false, nodeById: new 
   labelBand: 0, force: { ...defaults }, positions: new Map(), exportUrl: null, exportRevision: 0 };
 
 
-let disposed = false, cameraFrame = null, showcase = false;
+let disposed = false, cameraFrame = null, renderFrame = null, showcase = false;
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 const app = new Application();
 await initializeMapApplication(app, host, signal);
@@ -139,17 +139,34 @@ function setVisible() {
   if (state.mode === "local" && state.selected) {
     selectedIds = localIds(all, state.displayGraph.edges, state.selected, state.depth);
   }
-  state.visible = all.filter((node) => selectedIds.has(node.id)).map((node, index) => {
-    const prior = state.positions.get(node.id);
-    const angle = index * 2.399963229728653;
-    const distance = 35 * Math.sqrt(index + 1);
-    return { ...node, x: prior?.x ?? Math.cos(angle) * distance,
-      y: prior?.y ?? Math.sin(angle) * distance };
-  });
+  const visible = all.filter(node => selectedIds.has(node.id));
   state.links = state.displayGraph.edges.filter((edge) => {
     const [source, target] = edgeEnds(edge);
     return selectedIds.has(source) && selectedIds.has(target);
   }).map((edge) => ({ ...edge }));
+  const root = state.mode === "local" ? state.selected : null;
+  const positions = layoutTargets(visible, state.links, root);
+  const pairs = new Map();
+  for (const edge of state.links) {
+    const key = edgeEnds(edge).sort().join("\0");
+    const group = pairs.get(key) ?? [];
+    group.push(edge);
+    pairs.set(key, group);
+  }
+  for (const group of pairs.values()) {
+    group.forEach((edge,index) => {
+      const [source,target] = edgeEnds(edge);
+      edge.curve = (index-(group.length-1)/2)*18*(source<target?1:-1);
+    });
+  }
+  state.visible = visible.map((node, index) => {
+    const goal = positions.get(node.id) ?? {x:0,y:0};
+    const prior = root ? undefined : state.positions.get(node.id);
+    const angle = index * 2.399963229728653;
+    const distance = 18 * Math.sqrt(index + 1);
+    return {...node, layoutX:goal.x, layoutY:goal.y, x:prior?.x ?? goal.x+Math.cos(angle)*distance,
+      y:prior?.y ?? goal.y+Math.sin(angle)*distance};
+  });
   for (const node of state.visible) {
     const view = new Graphics(); view.eventMode = "static"; view.cursor = "pointer";
     view.hitArea = new Circle(0, 0, radius(node) + 12);
@@ -172,8 +189,8 @@ function setVisible() {
     .force("links", forceLink(state.links).id((node) => node.id).distance((edge) => edge.type === "memory" ? state.force.linkDistance * 0.55 : state.force.linkDistance).strength((edge) => edge.type === "memory" ? 0.5 : 0.35))
     .force("charge", forceManyBody().strength((node) => node.type === "memory" ? -state.force.repulsion * 0.33 : -state.force.repulsion))
     .force("collision", forceCollide((node) => radius(node) + (node.type === "entity" ? 13 : 7)).iterations(2))
-    .force("x", forceX(0).strength(state.force.center / 1000))
-    .force("y", forceY(0).strength(state.force.center / 1000))
+    .force("x", forceX(node => node.layoutX).strength(Math.max(0.045,state.force.center / 650)))
+    .force("y", forceY(node => node.layoutY).strength(Math.max(0.045,state.force.center / 650)))
     .velocityDecay(0.36).alphaDecay(0.035);
   state.simulation = sim;
   const settleTicks = Math.max(35, Math.min(180, Math.floor(9000 / Math.max(1, state.visible.length))));
@@ -254,8 +271,24 @@ function screenPoint(x, y) {
     y: state.layer.position.y + y * state.layer.scale.y };
 }
 
+let starPosition = "";
 function draw() {
   if (!state.app) return;
+  const {x,y} = state.layer.position;
+  const scaleValue = state.layer.scale.x;
+  if (!reduced.matches) {
+    const position = `${x}:${y}:${scaleValue}`;
+    if (position !== starPosition) {
+      const style = host.parentElement?.style;
+      style?.setProperty("--map-far-x", `${x*.08}px`);
+      style?.setProperty("--map-far-y", `${y*.08}px`);
+      style?.setProperty("--map-near-x", `${x*.18+12}px`);
+      style?.setProperty("--map-near-y", `${y*.18+12}px`);
+      style?.setProperty("--map-far-size", `${49+scaleValue*2}px`);
+      style?.setProperty("--map-near-size", `${89+scaleValue*4}px`);
+      starPosition = position;
+    }
+  }
   advanceVisuals(performance.now());
   const neighbors = neighborhood();
   const focus = state.hovered || state.selected;
@@ -266,9 +299,15 @@ function draw() {
     const source = edge.source, target = edge.target;
     if (!source || !target || typeof source !== "object" || typeof target !== "object") continue;
     const visual = state.edgeVisuals.get(edge.id);
-    state.edges.moveTo(source.x, source.y).lineTo(target.x, target.y).stroke({
+    state.edges.moveTo(source.x, source.y);
+    const dx=target.x-source.x,dy=target.y-source.y,length=Math.hypot(dx,dy);
+    if(edge.curve&&length){
+      state.edges.quadraticCurveTo((source.x+target.x)/2-dy/length*edge.curve,
+        (source.y+target.y)/2+dx/length*edge.curve,target.x,target.y);
+    }else state.edges.lineTo(target.x,target.y);
+    state.edges.stroke({
       color: mixColor(edge.type === "memory" ? palette.memoryEdge : palette.edge, palette.accent, visual.emphasis),
-      width: (edge.type === "memory" ? 0.75 : 1) + visual.emphasis * 0.75, alpha: Math.min(1, visual.alpha * palette.edgeAlpha),
+      width: (edge.type === "memory" ? 0.75 : 1) + visual.emphasis * 0.75, alpha: Math.min(1, visual.alpha * palette.edgeAlpha * (focus ? 1 : Math.min(1,Math.max(0.12,(scale-0.3)*1.2)))),
     });
   }
   for (const node of state.visible) {
@@ -306,6 +345,11 @@ function draw() {
   }
   layoutLabels(neighbors);
   drawEdgeLabels(focus);
+  if(reduced.matches)app.render();
+  else if(renderFrame===null)renderFrame=requestAnimationFrame(()=>{
+    renderFrame=null;
+    if(!disposed)app.render();
+  });
 }
 
 function layoutLabels(neighbors) {
@@ -501,6 +545,7 @@ return {
   fit, zoom:changeZoom, exportImage,
   destroy(){if(disposed)return;disposed=true;state.exportRevision++;state.simulation?.stop();
     if(state.visualFrame!=null)cancelAnimationFrame(state.visualFrame);if(cameraFrame!=null)cancelAnimationFrame(cameraFrame);
+    if(renderFrame!==null)cancelAnimationFrame(renderFrame);
     events.abort();observer.disconnect();pointers.clear();state.positions.clear();
     host.style.removeProperty('cursor');
     if(state.exportUrl)URL.revokeObjectURL(state.exportUrl);

@@ -1,6 +1,9 @@
+import {retainWorkspaceLists} from '../hooks/workspaceListCache';
 import React,{useEffect,useLayoutEffect,useMemo,useState} from 'react';
 import {createLiveSource} from './liveSource';
 import {useSession} from '../hooks/useSession';
+import {useDocumentImageCache} from '../hooks/useDocumentImageCache';
+import {DocumentImagesContext} from '../components/DocumentImage';
 import {BrandMark} from '../components/BrandMark';
 import {LoginDialog} from '../components/LoginDialog';
 import {GuestExperience} from './GuestExperience';
@@ -21,11 +24,13 @@ export default function ProductionRoot(){
 function ProductionSession({install}:{install:InstallPresentation}){
  const source=useMemo(()=>createLiveSource(),[]);
  const {session,pending,error,setError,login,logout,refresh,startGoogleAuth,googleAvailable}=useSession(source);
+ const {cache,workspaceSource,revoke}=useDocumentImageCache(source,session,refresh);
  const [loginOpen,setLoginOpen]=useState(false);
  // Retain the return notice across session loading/errors and refresh attempts.
  const [oauthError,setOAuthError]=useState<string|null>(null);
  const sessionLanguage=session.status==='authenticated'?session.user.preferences.language:undefined;
  const sessionUserId=session.status==='authenticated'?session.user.id:null;
+ useLayoutEffect(()=>{if(session.status==='authenticated'||session.status==='guest')retainWorkspaceLists(sessionUserId);},[session.status,sessionUserId]);
  useLayoutEffect(()=>{
    const next=session.status==='authenticated'?supportedLanguage(sessionLanguage)??initialGuestLanguage:session.status==='guest'?initialGuestLanguage:null;
    if(next)setAppLanguage(next);
@@ -43,6 +48,6 @@ function ProductionSession({install}:{install:InstallPresentation}){
  };
  const authNotice=oauthError&&<aside role="alert" className="fixed top-4 right-4 left-4 sm:left-auto z-50 max-w-md rounded-[14px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] text-[var(--mroya-text)] p-4 shadow-[var(--mroya-shadow-subtle)]"><p>{authMessages[oauthError]??tr('googleFailed',{ns:'auth'})}</p><button type="button" onClick={()=>setOAuthError(null)} className="mt-2 text-sm text-[var(--mroya-primary)]">{tr('dismiss',{ns:'auth'})}</button></aside>;
  if(session.status==='loading'||session.status==='error')return <>{authNotice}<main className="min-h-dvh flex items-center justify-center bg-[var(--mroya-bg)] text-[var(--mroya-text)] p-6"><section className="max-w-md space-y-4"><BrandMark size="lg"/>{session.status==='loading'?<p role="status">{tr('checkingSession',{ns:'auth'})}</p>:<><p role="alert">{tr('sessionCheckFailed',{ns:'auth',message:tr('sessionUnavailable',{ns:'auth'})})}</p><button onClick={refresh} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)]">{tr('retry',{ns:'common'})}</button></>}</section></main></>;
- if(session.status==='authenticated')return <>{authNotice}<LiveExperience install={install} key={session.user.id} source={source} user={session.user} onExpired={refresh} onLogout={()=>{setLoginOpen(false);void logout();}}/></>;
+ if(session.status==='authenticated')return <>{authNotice}<DocumentImagesContext.Provider value={cache}><LiveExperience install={install} key={session.user.id} source={workspaceSource} user={session.user} onExpired={refresh} onLogout={()=>{revoke();retainWorkspaceLists(null);setLoginOpen(false);void logout();}}/></DocumentImagesContext.Provider></>;
  return <><GuestExperience install={install} onSignIn={()=>setLoginOpen(true)}/>{loginOpen&&<LoginDialog pending={pending} error={error??oauthError} onSubmit={async(username,password)=>{setOAuthError(null);await login(username,password);}} onGoogleSignIn={googleAvailable?async()=>{setOAuthError(null);await startGoogleAuth();}:undefined} onClose={()=>{setLoginOpen(false);setError(null);setOAuthError(null);}}/>}</>;
 }

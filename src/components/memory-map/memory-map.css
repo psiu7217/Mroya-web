@@ -6,15 +6,6 @@
   0%, 100% { opacity: 0.6; transform: scale(0.95); }
   50% { opacity: 1; transform: scale(1.1); }
 }
-@keyframes mroya-map-halo-breathe {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.08; }
-  50% { transform: translate(6px, 4px) scale(1.03); opacity: 0.12; }
-}
-@keyframes mroya-map-halo-drift {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.06; }
-  50% { transform: translate(-6px, -4px) scale(1.02); opacity: 0.09; }
-}
-
 .mroya-memory-map {
   flex: 1;
   min-width: 0;
@@ -23,7 +14,7 @@
   flex-direction: column;
   background-color: var(--mroya-bg);
   color: var(--mroya-text);
-  font-family: "Plus Jakarta Sans", "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Manrope", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   height: 100%;
   position: relative;
 
@@ -171,7 +162,7 @@
   .map-workspace {
     flex: 1;
     height: 100%;
-    min-height: 480px;
+    min-height: 0;
     position: relative;
     overflow: clip;
     border: 1px solid var(--mroya-divider);
@@ -181,42 +172,24 @@
     isolation: isolate;
   }
 
-  /* Subtle warm dot grid */
-  .map-workspace::before {
+  .map-workspace::before,
+  .map-workspace::after {
     content: "";
     position: absolute;
     inset: 0;
     pointer-events: none;
-    opacity: 0.22;
-    background-image: radial-gradient(var(--map-dot, rgba(236, 198, 130, 0.25)) 0.75px, transparent 0.75px);
-    background-size: 28px 28px;
-    mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
   }
 
-  /* Ambient warm glows */
-  .map-halo {
-    position: absolute;
-    width: 38vw;
-    height: 38vw;
-    max-width: 600px;
-    max-height: 600px;
-    border-radius: 50%;
-    pointer-events: none;
-    filter: blur(80px);
+  .map-workspace::before {
+    background-image: radial-gradient(rgba(235, 216, 177, .18) .7px, transparent 1px);
+    background-size: var(--map-far-size, 49px) var(--map-far-size, 49px);
+    background-position: var(--map-far-x, 0px) var(--map-far-y, 0px);
   }
 
-  .map-halo-one {
-    background: #ecc682;
-    top: -25%;
-    left: 20%;
-    animation: mroya-map-halo-breathe 32s ease-in-out infinite alternate;
-  }
-
-  .map-halo-two {
-    background: #b88536;
-    right: -15%;
-    bottom: -35%;
-    animation: mroya-map-halo-drift 40s ease-in-out infinite alternate;
+  .map-workspace::after {
+    background-image: radial-gradient(rgba(253, 231, 195, .27) .8px, transparent 1.2px);
+    background-size: var(--map-near-size, 89px) var(--map-near-size, 89px);
+    background-position: var(--map-near-x, 12px) var(--map-near-y, 12px);
   }
 
   /* Canvas element */
@@ -680,6 +653,20 @@
     background: var(--map-hover, rgba(255, 255, 255, 0.08));
   }
 
+  .map-bottom-right button[aria-pressed="true"] {
+    color: var(--map-text, #f4efea);
+    background: var(--map-hover, rgba(255,255,255,.08));
+  }
+
+  .map-force .map-refresh {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    text-align: left;
+    padding: 8px 0;
+  }
+
   /* Detail Sidebar (Selected node inspector) */
   .map-sidebar {
     right: 16px;
@@ -1066,9 +1053,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .map-workspace::before,
-    .map-halo-one,
-    .map-halo-two,
+    .map-workspace::before, .map-workspace::after {
+      background-position: 0 0;
+      background-size: 59px 71px;
+    }
+
     .map-live-dot,
     .map-loader {
       animation: none;

@@ -1,4 +1,9 @@
 {
+  "upcomingCommitments": "Upcoming events",
+  "previousYear": "Previous year",
+  "nextYear": "Next year",
+  "calendarLoading": "Loading calendar…",
+  "hasEvents": "Has events",
   "calendar": "Calendar",
   "openMenu": "Open menu",
   "previousMonth": "Previous month",

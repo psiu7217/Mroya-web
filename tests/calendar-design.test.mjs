@@ -53,8 +53,13 @@ function finish(view){const [id,callback]=timers.entries().next().value??[];asse
 
 test('Connections disconnect updates Calendar; connect runs initial sync with auto OFF and no HTTP',()=>{
  const view=workspace();let props=settings(view.value),panel=mount(()=>ConnectionsSettingsView(props));panel.flush();
+ const disconnect=button(panel.value,'Disconnect');
+ globalThis.window.confirm=()=>false;
+ disconnect.props.onClick();view.flush();assert.equal(calendar(view.value).gcalSyncState,'connected_auto_off');
+ globalThis.window.confirm=()=>true;
  button(panel.value,'Disconnect').props.onClick();view.flush();assert.equal(calendar(view.value).gcalSyncState,'disconnected');
- props=settings(view.value);panel.flush();button(panel.value,'Connect Google Calendar').props.onClick();view.flush();
+ delete globalThis.window.confirm;
+ props=settings(view.value);panel.flush();button(panel.value,'Connect').props.onClick();view.flush();
  assert.equal(view.value.gcalSyncState,'connecting');assert.equal(view.value.syncSummary,null);assert.equal(view.value.lastSyncedTime,'');
  finish(view);assert.equal(view.value.gcalSyncState,'initial_syncing');assert.equal(view.value.autoSync,false);assert.equal(view.value.syncSummary,null);
  finish(view);assert.equal(view.value.gcalSyncState,'connected_auto_off');assert.equal(view.value.autoSync,false);assert.ok(view.value.syncSummary);assert.ok(Date.parse(view.value.lastSyncedTime));
@@ -86,7 +91,7 @@ test('conflict cancels sync without resolving or duplicating events; reconnect b
  const view=workspace();call(view,'onCalendarViewAddEvent',event);call(view,'onSyncNowGoogleCalendar');const late=[...timers.values()];
  call(view,'onSetGcalSyncState','conflict');late.forEach(callback=>callback());call(view,'onToggleAutoSyncGoogleCalendar');call(view,'onSyncNowGoogleCalendar');
  assert.equal(view.value.gcalSyncState,'conflict');assert.equal(view.value.events.length,1);assert.equal(view.value.events[0].syncStatus,'local_only');assert.equal(view.value.syncSummary,null);
- const page=mount(()=>ConnectionsSettingsView(settings(view.value)));page.flush();assert.doesNotMatch(text(page.value),/Acknowledge & keep both|Both versions have been preserved/);assert.match(text(page.value),/No duplicate events/);page.unmount();
+ const page=mount(()=>ConnectionsSettingsView(settings(view.value)));page.flush();assert.doesNotMatch(text(page.value),/Acknowledge & keep both|Both versions have been preserved|No duplicate events/);assert.match(text(page.value),/Sync needs attention/);assert.equal(button(page.value,'Sync now').props.disabled,true);page.unmount();
  call(view,'onSetGcalSyncState','reconnect_required');call(view,'onSyncNowGoogleCalendar');assert.equal(view.value.gcalSyncState,'reconnect_required');assert.equal(timers.size,0);
  call(view,'onConnectGoogleCalendar');const stale=[...timers.values()];view.unmount();assert.equal(timers.size,0);stale.forEach(callback=>callback());assert.equal(timers.size,0);
 });
@@ -140,11 +145,12 @@ test('Calendar create emits local_only even when connected; every shared status 
 
 test('live Connections uses the same Google card with real calendars, controlled ON/OFF and no scenario switcher',()=>{
  const view=workspace();let toggles=0;
- const account={id:'account-real',email:'owner@calendar.test',status:'connected',sync_enabled:false,calendars:[{id:'calendar-real',name:'Actual calendar',selected:true,available:true,read_only:false,is_primary:true,export_destination:true}]};
- const model={...view.value,runtime:{calendarAvailable:true},googleCalendarAvailable:true,googleConnections:[account],selectedGoogleConnectionId:account.id,
-  googleCalendarEmail:account.email,importedCalendars:['calendar-real'],exportCalendar:'calendar-real',onToggleAutoSyncGoogleCalendar:()=>toggles++};
+ const account={id:'account-real',email:'owner@calendar.test',status:'connected',sync_enabled:false,sync_status:'partial',calendars:[{id:'calendar-real',name:'Actual calendar',selected:true,available:true,read_only:false,is_primary:true,export_destination:true}]};
+ const model={...view.value,runtime:{calendarAvailable:true,features:{googleCalendar:true}},googleCalendarAvailable:true,googleConnections:[account],selectedGoogleConnectionId:account.id,
+  gcalSyncState:'sync_error',googleCalendarEmail:account.email,importedCalendars:['calendar-real'],exportCalendar:'calendar-real',onToggleAutoSyncGoogleCalendar:()=>toggles++};
  const props=settings(model),page=mount(()=>ConnectionsSettingsView(props));page.flush();
  assert.match(text(page.value),/owner@calendar.test/);assert.match(text(page.value),/Actual calendar/);assert.doesNotMatch(text(page.value),/Design Mode ·|Harbor Labs|demo.calendar/);
+ assert.match(text(page.value),/Connected · Auto-sync OFF/);assert.match(text(page.value),/Partial synchronization/);
  find(page.value,node=>node.type==='button'&&node.props.role==='switch').props.onClick();assert.equal(toggles,1);
  assert.ok(all(page.value,node=>node.type==='option'&&node.props.value==='calendar-real').length);page.unmount();view.unmount();
 });

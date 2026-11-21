@@ -1,3 +1,4 @@
+import type {WorkspaceListCache} from './workspaceListCache.ts';
 import {ApiError} from '../api/errors.ts';
 import {formatDate} from '../i18n/format.ts';
 import {tr} from '../i18n/index.ts';
@@ -24,17 +25,23 @@ export class LiveNotesController {
  private state=initial();private listeners=new Set<()=>void>();private active=false;private visible=false;
  private listAbort:AbortController|null=null;private detailAbort:AbortController|null=null;private epoch=0;private detailEpoch=0;
  readonly scopeKey='notes-'+crypto.randomUUID();
- private source:WorkspaceSource;private expired:()=>void;
- constructor(source:WorkspaceSource,expired:()=>void){this.source=source;this.expired=expired;}
+ private cache?:WorkspaceListCache;private source:WorkspaceSource;private expired:()=>void;
+ constructor(source:WorkspaceSource,expired:()=>void,cache?:WorkspaceListCache){this.cache=cache;this.source=source;this.expired=expired;}
  snapshot=()=>this.state;
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private emit(patch:Partial<NotesState>){if(!this.active)return;this.state={...this.state,...patch};this.listeners.forEach(fn=>fn());}
- start=()=>{this.active=true;};
+ start=()=>{
+  this.active=true;
+  if(!this.cache)return;
+  const page=this.cache.read('notes');
+  if(page&&Array.isArray(page.notes))this.emit({rows:sorted(page.notes),loaded:true,next:page.has_more?page.limit:null});
+  void this.load(false,true);
+ };
  stop=()=>{this.active=false;this.visible=false;this.cancel();this.state=initial();this.listeners.forEach(fn=>fn());};
  private cancel(){this.epoch++;this.detailEpoch++;this.listAbort?.abort();this.detailAbort?.abort();this.listAbort=null;this.detailAbort=null;}
  setVisible=(visible:boolean)=>{
   if(this.visible===visible)return;this.visible=visible;
-  if(visible)void this.refresh();
+  if(visible){if(!this.listAbort)void this.refresh();}
   else {this.cancel();this.emit({loading:false,loadingMore:false,selectedId:null,selectedSummary:null,detail:null,detailLoading:false,detailError:null});}
  };
  private message(error:unknown){
@@ -45,8 +52,8 @@ export class LiveNotesController {
  private failure(error:unknown){if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return true;}return false;}
  refresh=()=>this.load(false);
  more=()=>this.load(true);
- private async load(more:boolean){
-  if(!this.active||!this.visible||!this.source.notes||this.source.kind!=='live')return;
+ private async load(more:boolean,preload=false){
+  if(!this.active||(!this.visible&&!preload)||!this.source.notes||this.source.kind!=='live')return;
   if(more&&(this.state.loading||this.state.loadingMore||this.state.next===null))return;
   const offset=more?this.state.next!:0;
   if(offset>10000){this.emit({error:tr('paginationLimit',{ns:'notes'}),next:null});return;}
@@ -54,11 +61,13 @@ export class LiveNotesController {
   this.emit({loading:!more,loadingMore:more,error:null});
   try {
    const page=await this.source.notes(offset,abort.signal);
-   if(!this.active||!this.visible||abort.signal.aborted||epoch!==this.epoch)return;
+   if(!this.active||abort.signal.aborted||epoch!==this.epoch)return;
+   if(!more)this.cache?.write('notes',page);
    const rows=more?[...new Map([...this.state.rows,...page.notes].map(n=>[n.id,n])).values()]:page.notes;
    sorted(rows);
    this.emit({rows,loaded:true,loading:false,loadingMore:false,error:null,next:page.has_more?offset+page.limit:null});
-  }catch(error){if(!this.active||abort.signal.aborted||epoch!==this.epoch)return;if(this.failure(error))return;this.emit({loading:false,loadingMore:false,error:this.message(error)});}
+  }catch(error){if(!this.active||abort.signal.aborted||epoch!==this.epoch)return;if(this.failure(error))return;if(error instanceof ApiError&&error.status===403){this.cache?.forget('notes');this.emit(initial());}this.emit({loading:false,loadingMore:false,error:this.message(error)});}
+  finally{if(this.listAbort===abort)this.listAbort=null;}
  }
  select=(id:string|null)=>{
   if(!this.active||!this.visible)return;
@@ -78,6 +87,6 @@ export class LiveNotesController {
    // Detail is authoritative even if the list's metadata predates an Agent update.
    const {content:_,memory_links:__,...brief}=note;
    this.emit({selectedSummary:brief,detail:note,detailLoading:false,detailError:null,rows:sorted(this.state.rows.map(n=>n.id===id?brief:n))});
-  }catch(error){if(!this.active||abort.signal.aborted||epoch!==this.detailEpoch)return;if(this.failure(error))return;this.emit({detailLoading:false,detailError:this.message(error)});}
+  }catch(error){if(!this.active||abort.signal.aborted||epoch!==this.detailEpoch)return;if(this.failure(error))return;if(error instanceof ApiError&&[403,404].includes(error.status))this.cache?.forget('notes');this.emit({detailLoading:false,detailError:this.message(error)});}
  }
 }

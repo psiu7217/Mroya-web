@@ -1,10 +1,10 @@
+import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {MemoryLinks} from './MemoryLinks';
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   FileText,
   Search,
   X,
-  Menu,
   PanelLeft,
   ArrowLeft,
   Calendar,
@@ -48,7 +48,6 @@ export interface NotesViewProps {
   memoryLinksNavigation?:import('../types/memoryLinks').MemoryLinksNavigation;
   isSidebarCollapsed?: boolean;
   onExpandSidebar?: () => void;
-  onOpenMobileMenu?: () => void;
 }
 
 export const NotesView: React.FC<NotesViewProps> = ({
@@ -57,7 +56,6 @@ export const NotesView: React.FC<NotesViewProps> = ({
   runtime,memoryLinksNavigation,
   isSidebarCollapsed = false,
   onExpandSidebar,
-  onOpenMobileMenu,
 }) => {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -253,6 +251,73 @@ export const NotesView: React.FC<NotesViewProps> = ({
     } catch {if (revision === copyRevision.current) setCopied(false);}
   };
 
+  if (runtime && !designPreview) {
+    const year=new Date().getFullYear();
+    const groups=new Map<string,NoteItem[]>();
+    for (const note of filteredNotes) {
+      const updated=new Date(note.updatedAtRaw??note.createdAt??note.updatedAt);
+      const label=!Number.isFinite(updated.valueOf())?note.updatedAt:updated.getFullYear()===year
+        ? formatDate(updated,{month:'long'})
+        : formatDate(updated,{year:'numeric'});
+      const group=groups.get(label);
+      if(group)group.push(note);
+      else groups.set(label,[note]);
+    }
+    return <div className="flex h-full min-w-0 flex-1 flex-col bg-[var(--mroya-bg)]">
+      <header className="flex min-h-14 shrink-0 items-center gap-2 px-3 sm:px-6">
+        <WorkspaceMenuButton/>
+        {isSidebarCollapsed&&onExpandSidebar&&<button type="button" onClick={onExpandSidebar} aria-label={tr('expandSidebar',{ns:'common'})} className="hidden size-9 place-items-center lg:grid"><PanelLeft aria-hidden="true" className="size-5"/></button>}
+        {activeNote&&<button type="button" aria-label={tr('backToNotes',{ns:'notes'})} onClick={()=>selectNote(null)} className="grid size-9 place-items-center rounded-lg hover:bg-[var(--mroya-surface-muted)]"><ArrowLeft aria-hidden="true" className="size-5"/></button>}
+        {activeNote&&<button type="button" aria-label={tr('copy',{ns:'notes'})}
+          disabled={!detailReady} onClick={()=>handleCopyNote(activeNote.title+'\n\n'+activeContent)} className="ml-auto grid size-9 place-items-center rounded-lg hover:bg-[var(--mroya-surface-muted)] disabled:opacity-50">
+          {copied?<Check aria-hidden="true" className="size-4"/>:<Copy aria-hidden="true" className="size-4"/>}
+        </button>}
+      </header>
+      {activeNote&&<article className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 sm:px-8">
+        <div className="mx-auto max-w-3xl space-y-5">
+          <h1 className="break-words text-2xl font-bold sm:text-3xl">{activeNote.title}</h1>
+          {runtime.detailLoading&&<p role="status" className="text-sm text-[var(--mroya-text-muted)]">{tr('loadingNote',{ns:'notes'})}</p>}
+          {runtime.detailError&&<p role="alert" className="text-sm">{tr('loadFailed',{ns:'common'})} <button type="button" onClick={runtime.onRetryDetail} className="underline">{tr('retry',{ns:'common'})}</button></p>}
+          {detailReady&&renderNoteMarkdown(activeContent)}
+          {detailReady&&memoryLinksNavigation&&!!activeNote.memoryLinks?.length&&<MemoryLinks links={activeNote.memoryLinks} navigation={memoryLinksNavigation}/>}
+        </div>
+      </article>}
+      <div className={activeNote?'hidden':'flex min-h-0 flex-1 flex-col'}>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-8">
+          <div className="mx-auto max-w-3xl">
+            <h1 className="text-3xl font-bold">{tr('notesTitle',{ns:'notes'})}</h1>
+            <p className="mb-5 mt-1 text-sm text-[var(--mroya-text-muted)]">{tr('allNotes',{ns:'notes',count:notes.length})}</p>
+            {!runtime.loaded&&!runtime.error&&<p role="status" className="text-sm">{tr('loadingNotes',{ns:'notes'})}</p>}
+            {runtime.error&&<p role="alert" className="text-sm">{tr('loadFailed',{ns:'common'})} <button type="button" onClick={runtime.onRetry} className="underline">{tr('retry',{ns:'common'})}</button></p>}
+            {runtime.loaded&&!groups.size&&!runtime.error&&<p className="text-sm text-[var(--mroya-text-muted)]">{tr(searchQuery?'emptyResults':'emptyTitle',{ns:'notes'})}</p>}
+            {[...groups].map(([label,items])=><section key={label} className="mb-5">
+              <h2 className="mb-1 text-sm font-semibold capitalize text-[var(--mroya-text-muted)]">{label}</h2>
+              <ul className="divide-y divide-[var(--mroya-divider)]">
+                {items.map(note=><li key={note.id}>
+                  <button aria-label={`${tr('openNote',{ns:'notes'})}: ${note.title}`} type="button" onClick={()=>selectNote(note.id)} className="block w-full min-w-0 rounded-lg px-2 py-3 text-left hover:bg-[var(--mroya-surface-muted)]">
+                    <span className="block truncate font-semibold">{note.title}</span>
+                    <span className="block truncate text-sm text-[var(--mroya-text-muted)]">{noteDate(note)}{note.summary&&` · ${note.summary}`}</span>
+                  </button>
+                </li>)}
+              </ul>
+            </section>)}
+            {runtime.hasMore&&<button type="button" onClick={runtime.onMore} disabled={runtime.loadingMore} className="mb-2 text-sm font-medium text-[var(--mroya-primary)] underline">{tr(runtime.loadingMore?'loadingNotes':'loadMore',{ns:'notes'})}</button>}
+          </div>
+        </div>
+        <div className="shrink-0 border-t border-[var(--mroya-divider)] px-4 pt-3 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:px-8">
+          <div className="mx-auto max-w-3xl">
+            <label className="flex items-center gap-2 rounded-xl bg-[var(--mroya-surface-muted)] px-3 py-2 text-[var(--mroya-text-muted)]">
+              <Search aria-hidden="true" className="size-5 shrink-0"/>
+              <input type="search" aria-label={tr('searchNotes',{ns:'notes'})} value={searchQuery} onChange={event=>setSearchQuery(event.target.value)}
+                placeholder={tr('searchNotes',{ns:'notes'})} aria-describedby={runtime.hasMore?'notes-search-scope':undefined} className="min-w-0 flex-1 bg-transparent text-base text-[var(--mroya-text)]"/>
+            </label>
+            {runtime.hasMore&&<p id="notes-search-scope" className="mt-1 text-xs text-[var(--mroya-text-muted)]">{tr('searchScope',{ns:'notes'})}</p>}
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
   /* ------------------------------------------------------------- */
   /* SCREEN 2 — NOTE READING VIEW                                  */
   /* ------------------------------------------------------------- */
@@ -262,14 +327,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
         {/* Detail Header */}
         <header className="h-[58px] px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20">
           <div className="flex items-center gap-2 min-w-0">
-            <button
-              type="button"
-              onClick={onOpenMobileMenu}
-              aria-label={tr('openNavigation',{ns:'common'})}
-              className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            <WorkspaceMenuButton/>
 
             {isSidebarCollapsed && onExpandSidebar && (
               <button
@@ -446,14 +504,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
       {/* Primary Header */}
       <header className={`${designPreview ? 'h-auto min-h-[58px] py-2 flex-wrap' : 'h-[58px]'} px-3.5 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-3 shrink-0 bg-[var(--mroya-surface)] sticky top-0 z-20`}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            aria-label={tr('openNavigation',{ns:'common'})}
-            className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <WorkspaceMenuButton/>
 
           {isSidebarCollapsed && onExpandSidebar && (
             <button

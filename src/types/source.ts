@@ -60,6 +60,7 @@ export interface WorkspaceSource {
   savePreferences?(changes:PreferencesPatch,signal?:AbortSignal):Promise<ApiUser>;
   refreshCsrf?(signal?:AbortSignal):Promise<string>;
   conversations?(offset?:number,signal?:AbortSignal):Promise<ConversationPage>;
+  conversation?(id:string,signal?:AbortSignal):Promise<ConversationSummary>;
   createConversation?(signal?:AbortSignal):Promise<ConversationSummary>;
   renameConversation?(id:string,title:string,signal?:AbortSignal):Promise<ConversationSummary>;
   deleteConversation?(id:string,signal?:AbortSignal):Promise<void>;

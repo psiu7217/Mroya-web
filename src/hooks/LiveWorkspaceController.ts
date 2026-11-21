@@ -5,6 +5,7 @@ import type {ChatTimelineEntry} from '../types/mroya.ts';
 import type {ConversationSummary,ReportContext,HistoryResponse,MemoriesResponse,MemoryMapResponse,Capabilities} from '../types/api.ts';
 import {readReportContext,reportAttemptKey} from '../api/reportContext.ts';
 import {ApiError} from '../api/errors.ts';
+import {readCompletionConversation} from '../api/conversations.ts';
 import {tr} from '../i18n/index.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
 import {DocumentUploads} from './DocumentUploads.ts';
@@ -213,6 +214,10 @@ export class LiveWorkspaceController {
  }
  private listeners=new Set<()=>void>();
  private abort=new AbortController();private epoch=0;private turnId:string|null=null;private replyId:string|null=null;
+ private accountAbort=new AbortController();
+ private conversationRevisions=new Map<string,symbol>();
+ private renameAttempt:{id:string;reconcileOnFailure:boolean;recoverAfterSendError:boolean}|null=null;
+ private sentTitle:{id:string;renameConfirmed:boolean}|null=null;
  // Reasoning is request-local. Canonical history has no reasoning field.
  private reasoningByMessage=new Map<string,string>();
  private timelineByMessage=new Map<string,ChatTimelineEntry[]>();
@@ -282,6 +287,7 @@ export class LiveWorkspaceController {
   if(typeof window!=='undefined')window.addEventListener('focus',this.taskWake);
   if(typeof document!=='undefined')document.addEventListener('visibilitychange',this.taskWake);
   void this.refreshTasks();
+  if(this.accountAbort.signal.aborted)this.accountAbort=new AbortController();
   if(this.abort.signal.aborted)this.abort=new AbortController();void this.load();}
  stop(){
   this.taskAbort.abort();this.taskGeneration++;this.taskPending=false;this.taskRefreshAgain=false;this.tasksOpen=false;
@@ -289,6 +295,7 @@ export class LiveWorkspaceController {
   if(typeof window!=='undefined')window.removeEventListener('focus',this.taskWake);
   if(typeof document!=='undefined')document.removeEventListener('visibilitychange',this.taskWake);
   this.set({decidingTaskId:null,cancellingTaskId:null,executingTaskId:null,agentTasks:[],completedTask:null,tasksNext:null,tasksError:null,tasksLoading:false});
+  this.accountAbort.abort();this.conversationRevisions.clear();this.renameAttempt=null;this.sentTitle=null;
   this.abort.abort();this.epoch++;this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();this.set({history:{...this.state.history,messages:this.state.history.messages.map(message=>({...message,reasoning:undefined,timeline:undefined}))}});}
  private get multi(){return !!this.source.conversations;}
  private resetChat(id:string|null){
@@ -306,11 +313,11 @@ export class LiveWorkspaceController {
    if(history.conversation_id!==id)throw new ApiError(502,'invalid_response','History belongs to another conversation');return history;
   });
  }
- private async refreshConversations(epoch=this.epoch,selectFallback=!this.unconfirmedCreate){
+ private async readConversationList(signal:AbortSignal){
   if(!this.source.conversations)return;
   let all:ConversationSummary[]=[];let offset=0;
   while(true){
-   const page=await this.source.conversations(offset,this.abort.signal);if(epoch!==this.epoch)return;
+   const page=await this.source.conversations(offset,signal);if(signal.aborted)return;
    for(const item of page.conversations)if(!all.some(c=>c.id===item.id))all.push(item);
    if(page.next_offset===null)break;
    if(page.next_offset<=offset||page.next_offset>100000)throw new ApiError(502,'invalid_response','Invalid conversation cursor');
@@ -319,11 +326,67 @@ export class LiveWorkspaceController {
   // Offset pages can shift during concurrent activity. Refresh the head once,
   // keeping its current metadata/order ahead of the deduplicated older pages.
   if(offset>0){
-   const first=await this.source.conversations(0,this.abort.signal);if(epoch!==this.epoch)return;
+   const first=await this.source.conversations(0,signal);if(signal.aborted)return;
    const head=first.conversations.filter((item,index,items)=>items.findIndex(c=>c.id===item.id)===index);
    all=first.next_offset===null?head:[...head,...all.filter(item=>!head.some(c=>c.id===item.id))];
   }
-  this.set({conversations:all,operationUncertain:false});
+  return all;
+ }
+ private reviseConversation(id:string){
+  const revision=Symbol();
+  this.conversationRevisions.set(id,revision);
+  return revision;
+ }
+ private updateConversation(row:ConversationSummary){
+  const previous=this.state.conversations.find(item=>item.id===row.id);
+  if(!previous)return;
+  this.reviseConversation(row.id);
+  const conversations=this.state.conversations.map(item=>item.id===row.id?row:item);
+  if(previous.updated_at!==row.updated_at){
+   conversations.sort((a,b)=>Date.parse(b.updated_at)-Date.parse(a.updated_at)
+    ||Date.parse(b.created_at)-Date.parse(a.created_at)||a.id.localeCompare(b.id));
+  }
+  this.set({conversations});
+ }
+ private async reconcileConversationMetadata(id:string,duringRename=false){
+  const signal=this.accountAbort.signal;
+  if(signal.aborted)return;
+  if(!duringRename&&this.renameAttempt?.id===id){this.renameAttempt.recoverAfterSendError=true;return;}
+  const revision=this.reviseConversation(id);
+  const current=()=>!signal.aborted&&this.conversationRevisions.get(id)===revision;
+  let row:ConversationSummary|undefined;
+  try{
+   row=await this.source.conversation?.(id,signal);
+  }catch(error){
+   if(!current())return;
+   if(error instanceof ApiError&&error.status===401){this.failure(error);return;}
+  }
+  if(!current())return;
+  if(row?.id!==id){
+   try{row=(await this.readConversationList(signal))?.find(item=>item.id===id);}
+   catch(error){if(current()&&error instanceof ApiError&&error.status===401)this.failure(error);return;}
+  }
+  if(!current()||!row)return;
+  // Title recovery can outlive navigation, but a newer write or send invalidates it.
+  this.updateConversation(row);
+  return row;
+ }
+ private async refreshConversations(epoch=this.epoch,selectFallback=!this.unconfirmedCreate,keepTitleOf?:string){
+  const revisions=new Map(this.conversationRevisions);
+  const rows=await this.readConversationList(this.abort.signal);
+  if(epoch!==this.epoch||!rows)return;
+  const existing=new Map(this.state.conversations.map(row=>[row.id,row]));
+  const all=rows.map(row=>{
+   const previous=existing.get(row.id);
+   if(previous&&(this.renameAttempt?.id===row.id||revisions.get(row.id)!==this.conversationRevisions.get(row.id)))return previous;
+   return previous&&row.id===keepTitleOf?{...row,title:previous.title}:row;
+  });
+  for(const row of all){
+   const previous=existing.get(row.id);
+   if(previous&&(previous.title!==row.title||previous.created_at!==row.created_at||previous.updated_at!==row.updated_at))
+    this.reviseConversation(row.id);
+  }
+  this.set({conversations:all,operationUncertain:this.renameAttempt!==null&&this.state.operationUncertain});
   if(!this.state.activeConversationId||!all.some(c=>c.id===this.state.activeConversationId)){
    this.reasoningByMessage.clear();this.timelineByMessage.clear();this.failedAttemptsByMessage.clear();this.sentHistoryIds.clear();
    this.turnId=null;this.replyId=null;this.sentContent='';
@@ -360,17 +423,31 @@ export class LiveWorkspaceController {
  renameConversation=(id:string,title:string)=>this.manageConversation('rename',id,title);
  deleteConversation=(id:string)=>this.manageConversation('delete',id);
  private async manageConversation(action:'create'|'rename'|'delete',id?:string,title?:string,forSend=false):Promise<boolean>{
-  if(!this.multi||(!forSend&&this.chatLocked())||this.state.loading)return false;
+  if(!this.multi||this.state.loading)return false;
+  if(action==='rename'){
+   if(this.state.uncertain||this.state.conversationBusy||!this.state.conversations.some(row=>row.id===id))return false;
+  }else if(!forSend&&this.chatLocked())return false;
   if(this.state.operationUncertain){this.set({error:'Check server status before repeating a chat change.'});return false;}
+  const rename=action==='rename'?{id:id!,reconcileOnFailure:false,recoverAfterSendError:false}:null;
+  if(rename){this.renameAttempt=rename;this.reviseConversation(rename.id);}
   const epoch=this.epoch;this.set({conversationBusy:true,error:null});
+  let renamed=false;
   try{
    let created:ConversationSummary|undefined;
    if(action==='create'){if(!this.source.createConversation)throw new Error('Create unavailable');created=await this.source.createConversation(this.abort.signal);}
-   if(action==='rename'){if(!this.source.renameConversation)throw new Error('Rename unavailable');const updated=await this.source.renameConversation(id!,title!,this.abort.signal);if(epoch!==this.epoch)return false;this.set({conversations:this.state.conversations.map(c=>c.id===id?updated:c)});}
+   if(rename){
+    if(!this.source.renameConversation)throw new Error('Rename unavailable');
+    const updated=await this.source.renameConversation(rename.id,title!,this.abort.signal);
+    if(epoch!==this.epoch)return false;
+    if(updated.id!==rename.id)throw new ApiError(502,'invalid_response','Conversation changed during rename');
+    this.updateConversation(updated);renamed=true;
+    if(this.sentTitle?.id===rename.id)this.sentTitle.renameConfirmed=true;
+   }
    if(action==='delete'){if(!this.source.deleteConversation)throw new Error('Delete unavailable');await this.source.deleteConversation(id!,this.abort.signal);}
    if(epoch!==this.epoch)return false;
    if(created){this.unconfirmedCreate=false;this.resetChat(created.id);this.set({conversations:[created,...this.state.conversations],conversationBusy:false});return true;}
    if(action==='delete'){
+    this.conversationRevisions.delete(id!);
     this.set({conversations:this.state.conversations.filter(c=>c.id!==id)});
     if(id===this.state.activeConversationId){this.resetChat(this.state.conversations[0]?.id??null);const current=this.epoch;this.set({loading:true,conversationBusy:false});try{const history=await this.readHistory();if(current===this.epoch)this.set({history:this.historyWithReasoning(history)});}catch(error){if(current===this.epoch)this.failure(error);}finally{if(current===this.epoch)this.set({loading:false});}return true;}
    }
@@ -381,24 +458,42 @@ export class LiveWorkspaceController {
    if(!(error instanceof ApiError)||error.status>=500||error.status===404){
     if(action==='create')this.unconfirmedCreate=true;
     this.set({operationUncertain:true});
+    if(rename&&(this.sendInProgress||this.state.uncertain)){
+     const row=await this.reconcileConversationMetadata(rename.id,true);
+     if(epoch!==this.epoch||!row)return false;
+     if(this.sentTitle?.id===rename.id)this.sentTitle.renameConfirmed=true;
+     renamed=row.title===title!.trim();
+     this.set({operationUncertain:false,error:renamed?null:'The chat change was not confirmed. Review the refreshed server list before trying again.'});
+     return renamed;
+    }
+    if(rename){this.renameAttempt=null;this.reviseConversation(rename.id);}
     const confirmed=await this.reconcileMissing(epoch,action==='create'||this.unconfirmedCreate);if(epoch!==this.epoch)return false;
     if(action==='create')this.set({operationUncertain:true,error:'The new chat could not be confirmed. Check server status, then select a chat or use New chat. Your message was not sent.'});
     const row=confirmed?.conversations.find(c=>c.id===id);
     if(confirmed&&(action==='delete'&&!row||action==='rename'&&row?.title===title!.trim())){
+     renamed=action==='rename';
      if(confirmed.historyLoaded)this.set({error:null});
      return true;
     }
     if(action!=='create'&&confirmed?.historyLoaded)this.set({error:'The chat change was not confirmed. Review the refreshed server list before trying again.'});
    }
    return false;
-  }finally{if(epoch===this.epoch)this.set({conversationBusy:false});}
+  }finally{
+   if(epoch===this.epoch){
+    if(rename){
+     this.renameAttempt=null;
+     if(rename.recoverAfterSendError||!renamed&&rename.reconcileOnFailure)void this.reconcileConversationMetadata(rename.id);
+    }
+    this.set({conversationBusy:false});
+   }
+  }
  }
- async load(){
+ async load(refreshList=true,keepTitleOf?:string){
   const epoch=this.epoch;this.set({loading:true,error:null});
   try {
    const capabilities=await this.source.capabilities(this.abort.signal);if(epoch!==this.epoch)return;
    this.set({capabilities});
-   const results=await Promise.allSettled([capabilities.chat===true?(async()=>{await this.refreshConversations(epoch);if(epoch!==this.epoch)return this.state.history;return this.readHistory();})():Promise.resolve(this.state.history),capabilities.memory_read===true?this.source.memories({limit:25},this.abort.signal):Promise.resolve(this.state.memories),capabilities.memory_read===true?this.source.map(this.abort.signal):Promise.resolve(this.state.map)]);
+   const results=await Promise.allSettled([capabilities.chat===true?(async()=>{if(refreshList)await this.refreshConversations(epoch,!this.unconfirmedCreate,keepTitleOf);if(epoch!==this.epoch)return this.state.history;return this.readHistory();})():Promise.resolve(this.state.history),capabilities.memory_read===true?this.source.memories({limit:25},this.abort.signal):Promise.resolve(this.state.memories),capabilities.memory_read===true?this.source.map(this.abort.signal):Promise.resolve(this.state.map)]);
    if(epoch!==this.epoch)return;
    for(const result of results)if(result.status==='rejected'&&result.reason instanceof ApiError&&result.reason.status===401){this.failure(result.reason);return;}
    if(results[0].status==='fulfilled')this.set({history:this.historyWithReasoning(results[0].value)});
@@ -442,19 +537,35 @@ export class LiveWorkspaceController {
  }
  // The send lock spans CREATE and dispatch; only a confirmed conversation reaches here.
  private async sendActive(content:string,onReady?:()=>void,attachments:DocumentDto[]=[]){
+  const conversationId=this.state.activeConversationId,accountSignal=this.accountAbort.signal;
+  const sentTitle=conversationId?{id:conversationId,renameConfirmed:false}:null;
+  this.sentTitle=sentTitle;
+  if(conversationId)this.reviseConversation(conversationId);
   const epoch=this.epoch,id=this.uuid(),now=new Date().toISOString();this.turnId=null;this.replyId='reply:'+id;this.sentContent=content.trim();this.sentHistoryIds=new Set(this.state.history.messages.map(message=>message.id));
   this.sentDocumentIds=attachments.map(file=>file.id);
   const messages=[...this.state.history.messages,{id:'pending:'+id,sequence:(this.state.history.messages.at(-1)?.sequence??0)+1,role:'user' as const,content,status:'pending',created_at:now,completed_at:null,...(attachments.length?{attachments}:{})}];
   this.set({busy:true,error:null,history:{...this.state.history,messages}});
-  let answer='',reasoning='',failedActivity=false,completed=false,replyTasks:AiTask[]=[];
+  let answer='',reasoning='',failedActivity=false,completed=false,hasServerTitle=false,replyTasks:AiTask[]=[];
   let accepted=false;
   const acknowledge=()=>{if(!accepted){accepted=true;onReady?.();}};
   let timeline:ChatTimelineEntry[]=[];let previousEvent='';const toolLifecycle=new ToolActivityLifecycle();
   try {
    if(!attachments.length)acknowledge();
-   const send=this.multi?this.source.sendConversation?.bind(this.source,this.state.activeConversationId!):this.source.send.bind(this.source);
+   const send=this.multi?this.source.sendConversation?.bind(this.source,conversationId!):this.source.send.bind(this.source);
    if(!send)throw new Error('Conversation send unavailable');
-   await send(content,id,event=>{if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
+   await send(content,id,event=>{
+    if(accountSignal.aborted)return;
+    const terminal=event.event==='done'||event.event==='replay';
+    // Metadata belongs to the submitted UUID, independently of the displayed history.
+    if(terminal&&sentTitle&&this.sentTitle===sentTitle&&!hasServerTitle){
+     const row=readCompletionConversation(event.data.conversation,sentTitle.id);
+     if(row){
+      hasServerTitle=true;
+      if(this.renameAttempt?.id===row.id)this.renameAttempt.reconcileOnFailure=true;
+      else if(!sentTitle.renameConfirmed)this.updateConversation(row);
+     }
+    }
+    if(epoch!==this.epoch||this.replyId!=='reply:'+id)return;
     const adjacentReasoning=previousEvent==='reasoning_delta';previousEvent=event.event;
     if(event.event==='trace'&&event.data.turn_status==='failed'&&typeof event.data.assistant_content==='string'){
      failedActivity=true;
@@ -494,7 +605,7 @@ export class LiveWorkspaceController {
     }
     if(event.event==='delta'&&typeof event.data.text==='string')answer+=event.data.text;else if(event.event==='replay'&&typeof event.data.content==='string')answer=event.data.content;
     if(event.event==='done')toolLifecycle.complete();
-    if(event.event==='done'||event.event==='replay'){
+    if(terminal){
      acknowledge();
      completed=true;
      // Structured receipts ride the terminal frame; the card renders them verbatim.
@@ -502,12 +613,17 @@ export class LiveWorkspaceController {
      void this.refreshTasks();
     }
     if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{}),...(replyTasks.length?{tasks:replyTasks}:{})}]}});
-   },{signal:this.abort.signal,...(attachments.length?{documentIds:attachments.map(file=>file.id)}:{}),onTurn:turnId=>{if(epoch===this.epoch&&this.replyId==='reply:'+id){
+   },{signal:this.abort.signal,...(attachments.length?{documentIds:attachments.map(file=>file.id)}:{}),onTurn:turnId=>{if(!accountSignal.aborted&&epoch===this.epoch&&this.replyId==='reply:'+id){
      if(this.turnId&&this.turnId!==turnId)throw new ApiError(502,'invalid_stream','Chat turn changed during streaming');
      this.turnId=turnId;
      acknowledge();
     }}});
-   if(epoch===this.epoch){await this.load();this.set({uncertain:false});}
+   if(epoch===this.epoch){
+    const keepTitleOf=conversationId&&(sentTitle?.renameConfirmed||this.renameAttempt?.id===conversationId)?conversationId:undefined;
+    if(!hasServerTitle&&keepTitleOf&&this.renameAttempt?.id===keepTitleOf)this.renameAttempt.reconcileOnFailure=true;
+    await this.load(!hasServerTitle,keepTitleOf);
+    if(epoch===this.epoch)this.set({uncertain:false});
+   }
   }catch(error){
    if(epoch!==this.epoch)return false;
    // Keep received activity as static failed context; discard any unconfirmed answer delta.
@@ -516,17 +632,23 @@ export class LiveWorkspaceController {
    // A known HTTP rejection/terminal error did not leave an ambiguous running turn.
    const uncertain=!(error instanceof ApiError&&(error.status<500||error.code==='chat_failed'));
    this.set({uncertain,error:uncertain?'The reply was interrupted. Check server status before sending another message.':this.state.error});
-   if(uncertain&&this.turnId)await this.reconcileTurn();
+   if(conversationId)void this.reconcileConversationMetadata(conversationId);
+   if(uncertain&&this.turnId)await this.reconcileTurn(false);
    if(!uncertain){try{const history=await this.readHistory();if(epoch===this.epoch)this.set({history:this.historyWithReasoning(history)});}catch(e){if(epoch===this.epoch)this.failure(e);}}
-  }finally{if(epoch===this.epoch){this.set({busy:false});void this.refreshTasks();}}
+  }finally{
+   if(this.sentTitle===sentTitle)this.sentTitle=null;
+   if(epoch===this.epoch){this.set({busy:false});void this.refreshTasks();}
+  }
   return accepted;
  }
  async recover(){
   if(this.sendInProgress||this.state.busy||this.state.conversationBusy)return;
   await this.reconcileTurn();
  }
- private async reconcileTurn(){
+ private async reconcileTurn(reconcileMetadata=true){
   const epoch=this.epoch;
+  const conversationId=this.state.uncertain?this.state.activeConversationId:null;
+  if(reconcileMetadata&&conversationId)void this.reconcileConversationMetadata(conversationId);
   try{if(this.state.uncertain&&this.turnId){const turn=await this.source.turn(this.turnId,this.abort.signal);if(epoch!==this.epoch)return;if(turn.turn_status==='failed'){
     const context=readReportContext(turn.report_context);
     let messages=this.state.history.messages.map(message=>{
@@ -553,7 +675,7 @@ export class LiveWorkspaceController {
      message.id===this.replyId?{...message,status:'completed',content:typeof turn.assistant_content==='string'?turn.assistant_content:message.content,report_context:undefined,failure_notice:undefined,...(confirmedTasks.length?{tasks:confirmedTasks}:{})}:message)}});
     void this.refreshTasks();
    }if(turn.turn_status==='running'){this.set({error:'The server is still processing this message. Check status again shortly.'});return;}this.set({uncertain:false});}
-   await this.load();
+   await this.load(!conversationId);
    if(epoch===this.epoch&&this.state.uncertain)this.set({error:'The submission could not be confirmed. Review server history and reload the page before starting a new message; nothing is automatically resent.'});
   }catch(error){if(epoch===this.epoch)this.failure(error);}
  }

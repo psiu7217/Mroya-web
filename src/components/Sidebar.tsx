@@ -52,6 +52,7 @@ export interface SidebarProps {
   onRenameConversation?: (id: string, newTitle: string) => void | boolean | Promise<boolean>;
   onDeleteConversation?: (id: string) => void | boolean | Promise<boolean>;
   conversationLocked?: boolean;
+  conversationRenameLocked?: boolean;
   plan: SubscriptionPlan;
   onTogglePlan: () => void;
   onOpenPlanModal: () => void;
@@ -86,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRenameConversation,
   onDeleteConversation,
   conversationLocked = false,
+  conversationRenameLocked = conversationLocked,
   plan,
   onTogglePlan,
   onOpenPlanModal,
@@ -199,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleSaveRename = async (id: string) => {
-    if (actionPending.current || conversationLocked || !editingTitle.trim()) return;
+    if (actionPending.current || conversationRenameLocked || !editingTitle.trim()) return;
     actionPending.current = true;setSaving(true);
     try {
       if(!onRenameConversation)return;
@@ -716,7 +718,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               </button>
                               <button
                                 type="submit"
-                                disabled={saving || conversationLocked || !editingTitle.trim()}
+                                disabled={saving || conversationRenameLocked || !editingTitle.trim()}
                                 className="h-6 px-2.5 rounded-[5px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[11.5px] font-semibold transition-colors cursor-pointer disabled:opacity-40"
                               >
                                   {saving ? tr('saving',{ns:'sidebar'}) : tr('save',{ns:'sidebar'})}
@@ -786,7 +788,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   role="menuitem"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if(!conversationLocked)handleStartRename(conv);
+                                    if(!conversationRenameLocked)handleStartRename(conv);
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors text-left cursor-pointer"
                                 >

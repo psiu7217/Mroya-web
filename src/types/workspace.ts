@@ -42,6 +42,7 @@ export interface WorkspaceRuntime {
     diagnostics?:ChatDiagnostics;
     telegram?:TelegramPresentation;
     conversationLocked?:boolean;
+    conversationRenameLocked?:boolean;
     pending:boolean; loading:boolean; busy:boolean; error:string|null; onRetry:()=>void;
     chatAvailable:boolean; memoryAvailable:boolean;
     calendarAvailable:boolean; remindersAvailable:false;

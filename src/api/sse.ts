@@ -1,6 +1,7 @@
 import type { ChatStreamEvent } from '../types/api.ts';
 import {readToolActivity,ToolActivityLifecycle} from './toolActivity.ts';
 import {ApiError, StreamInterruptedError} from './errors.ts';
+import {readCompletionConversation} from './conversations.ts';
 export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(event:ChatStreamEvent)=>void):Promise<void> {
   const reader=body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});
   let buffer='',terminal=false,sequence=0,turnNumber=0;
@@ -41,7 +42,10 @@ export async function readChatStream(body:ReadableStream<Uint8Array>,onEvent:(ev
     if(event==='delta'&&typeof payload.text!=='string')throw new ApiError(502,'invalid_stream','Invalid answer event');
     const item={event,data:value} as ChatStreamEvent;
     if(terminal)throw new ApiError(502,'invalid_stream','Events after terminal frame');
-    if(event==='done')tools.complete();
+    if(event==='done'){
+      tools.complete();
+      if(payload.conversation!==undefined)payload.conversation=readCompletionConversation(payload.conversation);
+    }
     onEvent(item);
     if(event==='error') { terminal=true;throw new ApiError(502,'chat_failed',typeof item.data.message==='string'?item.data.message:'Chat failed'); }
     if(event==='done')terminal=true;

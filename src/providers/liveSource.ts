@@ -59,6 +59,7 @@ export function createLiveSource(api=new MroyaApi()):WorkspaceSource {
     syncCalendarGoogle:(id,signal)=>api.syncCalendarGoogle(id,signal),
     disconnectCalendarGoogle:(id,signal)=>api.disconnectCalendarGoogle(id,signal),
     conversations:(offset,signal)=>api.conversations(offset,signal),
+    conversation:(id,signal)=>api.conversation(id,signal),
     createConversation:signal=>api.createConversation(signal),
     renameConversation:(id,title,signal)=>api.renameConversation(id,title,signal),
     deleteConversation:(id,signal)=>api.deleteConversation(id,signal),

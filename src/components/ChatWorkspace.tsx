@@ -421,25 +421,27 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         {/* Left: Mobile Burger + Mroya Brand Logo | Desktop Sidebar toggles + Conversation title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Mobile Left: Burger + Mroya Logo right next to it */}
-          <div className="flex lg:hidden items-center gap-2 shrink-0">
+          <div className="flex lg:hidden items-center gap-2 min-w-0">
             <WorkspaceMenuButton/>
 
             <button
               type="button"
               onClick={onNewChat}
-              className="group flex items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
+              className="group flex shrink-0 items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
+              aria-label={live&&conversation?tr('newChat',{ns:'chat'}):undefined}
               title={tr('brandMeaning',{ns:'common'})}
             >
               <BrandMark size="sm" glow />
-              <div className="flex flex-col min-w-0">
+              {(!live||!conversation)&&<div className="flex flex-col min-w-0">
                 <span className="text-[16px] font-bold tracking-[-0.02em] text-[var(--mroya-text)] leading-none group-hover:text-[var(--mroya-primary)] transition-colors">
                   Mroya
                 </span>
                 <span className="text-[8.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-0.5 opacity-75 uppercase">
                   {tr('brandTagline',{ns:'common'})}
                 </span>
-              </div>
+              </div>}
             </button>
+            {live&&conversation&&<h1 className="min-w-0 truncate text-sm font-semibold">{conversation.title}</h1>}
           </div>
 
           {/* Desktop Left: Conversation title + Personal space indicator */}

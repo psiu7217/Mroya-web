@@ -81,7 +81,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
- if(conversation&&metadata)conversation.title=metadata.title||tr('newChat',{ns:'chat'});
+ if(conversation&&metadata?.id===conversation.id)conversation.title=metadata.title.trim()?metadata.title:tr('newChat',{ns:'chat'});
  const memories=state.memories.memories.map(m=>memoryPresentation(m,state.map));
  const graph=useMemo(()=>graphPresentation(state.map),[state.map]);
  const unavailable=()=>setNotice('unavailable');
@@ -142,6 +142,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   notifications:notifications.presentation,
   runtime:{features,notifications:notifications.presentation,timezoneSettings:timezone,diagnostics,telegram,pending:state.busy||state.loading||state.uncertain||state.conversationBusy||state.operationUncertain||state.capabilities?.chat!==true,
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
+   conversationRenameLocked:state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
    calendarAvailable:calendar.state.available,remindersAvailable:false,memoriesTotal:state.memories.total,

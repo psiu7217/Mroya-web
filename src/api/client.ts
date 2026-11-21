@@ -9,7 +9,7 @@ import type {ReportContext,IssueReportResponse,TelegramConnectionStatus,Telegram
 import {readReportContext,isTurnUuid} from './reportContext.ts';
 import {readPrivacy,readPrivacyReceipt,type PrivacyKind} from './privacy.ts';
 import {ApiError} from './errors.ts';
-import {conversationId,conversationTitle,readConversation,readConversationPage,readConversationHistory} from './conversations.ts';
+import {conversationId,conversationTitle,readConversation,readCompletionConversation,readConversationPage,readConversationHistory} from './conversations.ts';
 import {readChatStream} from './sse.ts';
 import {readDocument,readDocumentPage,readDocumentCategories,readDocumentCategory,readDocumentDetail,readDocumentDeletion} from './documents.ts';
 import type {DocumentCorrection,DocumentLibraryQuery} from '../types/documents.ts';
@@ -455,9 +455,13 @@ export class MroyaApi {
     const data=await this.json<{conversation:unknown}>('chat/conversations/',{},signal,'POST',status=>{if(status!==201)throw new ApiError(502,'invalid_response','Invalid create status');});
     return readConversation(data?.conversation);
   }
+  async conversation(id:string,signal?:AbortSignal){
+    const data=await this.json<{conversation:unknown}>('chat/conversations/'+conversationId(id)+'/',undefined,signal,'POST',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Invalid conversation status');});
+    return readConversation(data?.conversation,id);
+  }
   async renameConversation(id:string,title:string,signal?:AbortSignal){
     const data=await this.json<{conversation:unknown}>('chat/conversations/'+conversationId(id)+'/',{title:conversationTitle(title)},signal,'PATCH',status=>{if(status!==200)throw new ApiError(502,'invalid_response','Invalid rename status');});
-    const confirmed=readConversation(data?.conversation);if(confirmed.id!==id)throw new ApiError(502,'invalid_response','Conversation changed during rename');return confirmed;
+    return readConversation(data?.conversation,id);
   }
   async deleteConversation(id:string,signal?:AbortSignal):Promise<void>{
     const path='chat/conversations/'+conversationId(id)+'/';
@@ -488,7 +492,13 @@ export class MroyaApi {
       body:JSON.stringify({content,submission_id:submissionId,...(options.documentIds?.length?{document_ids:options.documentIds}:{}),...(options.retry===undefined?{}:{retry:options.retry}),...(options.timezone===undefined?{}:{timezone:options.timezone})})});
     await this.check(response);
     const turn=response.headers.get('X-Chat-Turn-ID');if(turn)options.onTurn?.(turn);
-    if(response.headers.get('Content-Type')?.includes('application/json')){const data=await response.json();if(data.state!=='completed'||typeof data.content!=='string')throw new ApiError(502,'invalid_response','Invalid completed replay');onEvent({event:'replay',data});return;}
+    if(response.headers.get('Content-Type')?.includes('application/json')){
+      const data=await response.json();
+      if(!data||data.state!=='completed'||typeof data.content!=='string')throw new ApiError(502,'invalid_response','Invalid completed replay');
+      if(data.conversation!==undefined)data.conversation=readCompletionConversation(data.conversation);
+      onEvent({event:'replay',data});
+      return;
+    }
     if(!response.headers.get('Content-Type')?.includes('text/event-stream')||!response.body)throw new ApiError(502,'invalid_response','Expected chat event stream');
     await readChatStream(response.body,onEvent);
   }

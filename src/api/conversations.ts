@@ -12,15 +12,21 @@ export function conversationTitle(title:string):string{
  if(!trimmed||Array.from(trimmed).length>100||/[<>\u0000-\u001f\u007f]/.test(trimmed))throw new ApiError(400,'invalid_title','Title must contain 1–100 characters, without angle brackets or control characters.');
  return trimmed;
 }
-export function readConversation(value:unknown):ConversationSummary{
+export function readConversation(value:unknown,expectedId?:string):ConversationSummary{
  if(!object(value)||!isTurnUuid(value.id)||typeof value.title!=='string'||Array.from(value.title).length>100
-  ||!date(value.created_at)||!date(value.updated_at))invalid();
+  ||!date(value.created_at)||!date(value.updated_at)||(expectedId!==undefined&&value.id!==expectedId))invalid();
  return {id:value.id,title:value.title,created_at:value.created_at,updated_at:value.updated_at} as ConversationSummary;
+}
+// An unavailable or invalid title snapshot must not turn a completed answer into a failed one.
+export function readCompletionConversation(value:unknown,expectedId?:string):ConversationSummary|undefined{
+ if(value===undefined)return;
+ try{return readConversation(value,expectedId);}
+ catch(error){if(!(error instanceof ApiError))throw error;}
 }
 export function readConversationPage(value:unknown,offset:number):ConversationPage{
  if(!object(value)||!Array.isArray(value.conversations)||value.conversations.length>100
   ||value.next_offset!==null&&(!Number.isSafeInteger(value.next_offset)||(value.next_offset as number)<=offset||(value.next_offset as number)>100000))invalid();
- return {conversations:value.conversations.map(readConversation),next_offset:value.next_offset as number|null};
+ return {conversations:value.conversations.map(row=>readConversation(row)),next_offset:value.next_offset as number|null};
 }
 export function readConversationHistory(value:unknown,id:string):HistoryResponse{
  if(!object(value)||value.conversation_id!==id||!Array.isArray(value.messages)||value.messages.length>200

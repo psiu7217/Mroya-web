@@ -1,3 +1,4 @@
+import {useLiveReminders} from '../hooks/useLiveReminders';
 import {useChatAttachments} from '../hooks/useChatAttachments';
 import {hasFeature} from '../utils/accountRoles';
 import {useMemoryTransfer} from '../hooks/useMemoryTransfer';
@@ -32,7 +33,6 @@ import type {WorkspaceModel} from '../types/workspace';
 import type {NavSection} from '../types/mroya';
 
 export function LiveExperience({install,source,user,onExpired,onLogout}:{install?:InstallPresentation;source:WorkspaceSource;user:ApiUser;onExpired:()=>void;onLogout:()=>void}) {
- const features={googleCalendar:hasFeature(user.role,'google_calendar'),reminders:hasFeature(user.role,'reminders')};
  const {state,controller}=useLiveWorkspace(source,onExpired,user.id);
  const memoryTransfer=useMemoryTransfer(source,()=>void controller.refreshMemory(),user.role==='admin');
  const [language,setLanguage]=useState<AppLanguage>(currentLocale);
@@ -43,6 +43,8 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
 
  const layout=useWorkspaceLayout({theme:preferences.theme,onThemeChange:preferences.setTheme});
  const [section,setSection]=useState<NavSection>('chat'),[notice,setNotice]=useState<string|null>(null);
+ const reminderList=useLiveReminders(source,user.id,state.capabilities?.reminders===true,section==='reminders',confirmedUser.timezone,onExpired);
+ const features={googleCalendar:hasFeature(user.role,'google_calendar'),reminders:reminderList.available};
  const speech=useSpeechInput(source,user.id,section+':'+(state.activeConversationId??''),onExpired);
  const [selectedMemory,setSelectedMemory]=useState<string|null>(null),[selectedNode,setSelectedNode]=useState<string|null>(null);
  const [contextOpen,setContextOpen]=useState(false),[focusedMemoryId,setFocusedMemoryId]=useState<string|null>(null);
@@ -61,7 +63,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
  const privacy=usePrivacySettings(source,user.id,state.capabilities?.google_data_privacy===true&&section==='connections'&&settingsTab==='connections',onExpired);
  const googleView=googleSyncPresentation(google);
  const diagnostics=useChatDiagnostics(source,user.id,onExpired,setNotice,state.activeConversationId);
- const logout=()=>{images.controller.stop();attachments.controller.stop();files.controller.stop();analysis.controller.stop();memoryReview.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
+ const logout=()=>{reminderList.stop();images.controller.stop();attachments.controller.stop();files.controller.stop();analysis.controller.stop();memoryReview.stop();notes.controller.stop();notifications.controller.stop();controller.stop();calendar.controller.stop();timezone.stop();diagnostics.stop();telegram.stop();preferences.stop();onLogout();};
  const account=accountPresentation({...confirmedUser,nickname:preferences.nickname});
  const metadata=state.conversations.find(c=>c.id===state.activeConversationId);
  const conversation=state.history.conversation_id?chatPresentation(state.history.conversation_id,state.history.messages):null;
@@ -121,7 +123,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
    conversationLocked:state.busy||state.uncertain||state.conversationBusy||state.loading||state.operationUncertain,
    loading:state.loading,busy:state.busy,error:state.error,onRetry:()=>void controller.recover(),
    chatAvailable:state.capabilities?.chat===true,memoryAvailable:state.capabilities?.memory_read===true,
-   calendarAvailable:calendar.state.available,remindersAvailable:false,memoriesTotal:state.memories.total,
+   calendarAvailable:calendar.state.available,remindersAvailable:reminderList.available,memoriesTotal:state.memories.total,
    hasOlder:state.history.next_before!==null,onOlder:()=>void controller.older(),
    hasMoreMemories:memories.length<state.memories.total,onMoreMemories:()=>void controller.moreMemories(),
    truncated:state.map.truncated===true||state.map.stats?.truncated===true,notice,onCloseNotice:()=>setNotice(null),
@@ -134,7 +136,7 @@ export function LiveExperience({install,source,user,onExpired,onLogout}:{install
   theme:preferences.theme,appearance:layout.appearance,plan:'free',planModalOpen:false,
   language:preferences.language,onChangeLanguage:preferences.setLanguage,
   conversations:conversationListPresentation(state.conversations,user.timezone),activeConversationId:state.activeConversationId,activeConversation:conversation,
-  memories,nodes:graph.nodes,edges:graph.edges,events:calendar.state.events,reminders:[],notesAvailable:notes.available,notes:notes.notes,notesRuntime:notes.presentation,connections:[],
+  memories,nodes:graph.nodes,edges:graph.edges,events:calendar.state.events,reminders:[],liveReminders:reminderList.presentation,notesAvailable:notes.available,notes:notes.notes,notesRuntime:notes.presentation,connections:[],
   reminderModalOpen:false,editingReminder:null,reminderPreselectedEventId:undefined,
   isContextPanelOpen:contextOpen,selectedMemoryViewId:selectedMemory,selectedGraphNodeId:selectedNode,selectedCalendarEventId:null,
   focusedMemory:memories.find(m=>m.id===focusedMemoryId)??null,

@@ -1,3 +1,5 @@
+import {readReminder,readRemindersPage} from './reminders.ts';
+import type {ReminderChange} from '../types/reminders.ts';
 import {readReviewPage,readReviewJob,readReviewReceipt} from './memoryReview.ts';
 import {readCalendarAnalyses,readCalendarAnalysis,readAnalysisEvents} from './calendarAnalysis.ts';
 import {readAiTask,readAiTasksPage,readTasksPayload} from './aiTasks.ts';
@@ -283,6 +285,25 @@ export class MroyaApi {
     return readNoteDetail(await this.json('notes/'+id+'/',undefined,signal),id);
   }
 
+  async reminders(offset=0,signal?:AbortSignal){
+    if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid reminders offset');
+    return readRemindersPage(await this.json('reminders/?offset='+offset,undefined,signal),offset);
+  }
+  async changeReminder(change:ReminderChange,signal?:AbortSignal){
+    if(change.kind==='create'){
+      if(!calendarUuid(change.submissionId))throw new ApiError(400,'invalid_request','Invalid reminder submission');
+      const data=await this.json<{reminder:unknown}>('reminders/',{submission_id:change.submissionId,reminder:change.input},signal);
+      return readReminder(data?.reminder);
+    }
+    if(!calendarUuid(change.id)||!Number.isSafeInteger(change.version)||change.version<1)
+      throw new ApiError(400,'invalid_request','Invalid reminder identity');
+    const method=change.kind==='edit'?'PATCH':'DELETE';
+    const body=change.kind==='edit'?{version:change.version,reminder:change.input}:{version:change.version};
+    const data=await this.json<{reminder:unknown}>('reminders/'+change.id+'/',body,signal,method);
+    const result=readReminder(data?.reminder,change.id);
+    if((result.status==='cancelled')!==(method==='DELETE'))throw new ApiError(502,'invalid_response','Unexpected reminder status');
+    return result;
+  }
   async notificationSettings(signal?:AbortSignal){return readNotificationSettings(await this.json('me/notifications/settings/',undefined,signal));}
   async saveNotificationSettings(enabled:boolean,signal?:AbortSignal){
     if(typeof enabled!=='boolean')throw new Error('Expected notification boolean');

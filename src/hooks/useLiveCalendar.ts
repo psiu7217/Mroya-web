@@ -25,7 +25,7 @@ export class LiveCalendarController {
  private range={start:new Date().getFullYear()+'-01-01',end:new Date().getFullYear()+'-12-31'};
  private currentYear:number|null=null;
  private annual=new Map<number,CalendarEvent[]>();
- private annualReads=new Map<number,Promise<void>>();
+ private annualReads=new Map<number,{request:AbortController;promise:Promise<void>}>();
  private upcomingReady=false;
  private upcomingRead:AbortController|null=null;private upcomingStart='';
  private source:WorkspaceSource;private timezone:string;private expired:()=>void;private navigate:(url:string)=>void;
@@ -37,6 +37,10 @@ export class LiveCalendarController {
  start=(available:boolean,googleAvailable:boolean)=>{this.active=true;this.emit({available,googleAvailable});};
  stop=()=>{this.active=false;this.generation++;for(const request of this.reads)request.abort();this.reads.clear();this.operation=null;this.writing=false;this.googleWriting=false;this.eventRead=null;this.googleRead=null;this.upcomingRead=null;this.upcomingStart='';this.annual.clear();this.annualReads.clear();this.upcomingReady=false;this.current={...this.current,upcomingEvents:[],upcomingLoading:false,upcomingError:null,events:[],connections:[],selectedConnectionId:null,busy:false,mutationPending:false,googleBusy:false,loading:false};};
  private cancelUpcoming(){this.upcomingRead?.abort();this.upcomingRead=null;}
+ private cancelAnnualReads(){
+  for(const {request} of this.annualReads.values())request.abort();
+  this.annualReads.clear();
+ }
  private request(){const abort=new AbortController();this.reads.add(abort);return abort;}
  private fail(error:unknown,google=false){
   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return;}
@@ -62,7 +66,7 @@ export class LiveCalendarController {
   if(!this.annual.has(year))this.emit({loading:true});
   const read=(target:number)=>{
    const current=this.annualReads.get(target);
-   if(current)return current;
+   if(current)return current.promise;
    if(!refresh&&this.annual.has(target))return Promise.resolve();
    const request=this.request(),generation=this.generation;
    const operation=(async()=>{
@@ -89,10 +93,10 @@ export class LiveCalendarController {
      }
     }finally{
      this.reads.delete(request);
-     if(generation===this.generation)this.annualReads.delete(target);
+     if(this.annualReads.get(target)?.request===request)this.annualReads.delete(target);
     }
    })();
-   this.annualReads.set(target,operation);
+   this.annualReads.set(target,{request,promise:operation});
    return operation;
   };
   await Promise.all([read(year),read(year-1),read(year+1)]);
@@ -185,7 +189,7 @@ export class LiveCalendarController {
    const result=await this.source.mutateCalendar(op.method,op.id,op.body,abort.signal);
    if(!this.active||abort.signal.aborted||generation!==this.generation)return false;
    if(op.id&&result.events[0].id!==op.id)throw new Error('Calendar mutation returned a different event.');
-   this.operation=null;this.emit({mutationPending:false});this.cancelUpcoming();await this.loadEvents();void this.loadConnections();return true;
+   this.operation=null;this.emit({mutationPending:false});this.cancelUpcoming();this.cancelAnnualReads();await this.loadEvents();void this.loadConnections();return true;
   }catch(error){
    if(!this.active||abort.signal.aborted||generation!==this.generation)return false;
    const uncertain=!(error instanceof ApiError)||error.status>=500;

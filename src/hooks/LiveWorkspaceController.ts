@@ -9,6 +9,7 @@ import {tr} from '../i18n/index.ts';
 import {readToolActivity,ToolActivityLifecycle} from '../api/toolActivity.ts';
 import {DocumentUploads} from './DocumentUploads.ts';
 import type {DocumentDto} from '../types/documents.ts';
+const isChatTask=(task:AiTask)=>task.taskKind===undefined||task.taskKind==='chat';
 function settleFailedTimeline(timeline:ChatTimelineEntry[]):ChatTimelineEntry[]{
  return timeline.map(entry=>entry.kind==='tool'&&entry.status==='running'?{...entry,status:'interrupted' as const}:entry);
 }
@@ -39,7 +40,7 @@ export class LiveWorkspaceController {
  }
  private acceptTasks(tasks:AiTask[],next=this.state.tasksNext){
   // A list request started before a POST response must not regress its newer DTO.
-  tasks=tasks.map(task=>{const current=this.state.agentTasks.find(t=>t.id===task.id);
+  tasks=tasks.filter(isChatTask).map(task=>{const current=this.state.agentTasks.find(t=>t.id===task.id);
    return newerTask(current,task);});
   let completedTask=this.state.completedTask;
   for(const task of tasks){
@@ -49,7 +50,7 @@ export class LiveWorkspaceController {
   }
   const canonical=new Map(tasks.map(task=>[task.id,task]));
   const history={...this.state.history,messages:this.state.history.messages.map(message=>message.tasks?.length?
-   {...message,tasks:message.tasks.map(task=>newerTask(task,canonical.get(task.id)??task))}:message)};
+   {...message,tasks:message.tasks.filter(isChatTask).map(task=>newerTask(task,canonical.get(task.id)??task))}:message)};
   this.set({agentTasks:tasks,tasksNext:next,completedTask,history});
  }
  async refreshTasks(){
@@ -61,14 +62,14 @@ export class LiveWorkspaceController {
    for(let page=0;page<this.taskPages;page++){
     const result=await this.source.agentTasks(offset,this.taskAbort.signal);
     if(generation!==this.taskGeneration)return;
-    tasks.push(...result.tasks);next=result.nextOffset;
+    tasks.push(...result.tasks.filter(isChatTask));next=result.nextOffset;
     if(next===null)break;offset=next;
    }
    // Loaded active tasks can move beyond the loaded page window as new tasks arrive.
    // Read those canonical IDs so polling never loses an unfinished task.
    const ids=new Set(tasks.map(t=>t.id));
    for(const task of [...this.state.agentTasks,...this.state.history.messages.flatMap(message=>message.tasks??[])]){
-    if(!ids.has(task.id)&&['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
+    if(isChatTask(task)&&!ids.has(task.id)&&['awaiting_review','pending_confirmation','queued','running','needs_clarification'].includes(task.status)&&this.source.agentTask){
      tasks.push(await this.source.agentTask(task.id,this.taskAbort.signal));ids.add(task.id);
      if(generation!==this.taskGeneration)return;
     }
@@ -222,7 +223,7 @@ export class LiveWorkspaceController {
  private unconfirmedCreate=false;
  private historyWithReasoning(history:HistoryResponse):HistoryResponse{
   history={...history,messages:history.messages.map(message=>message.tasks?.length?{...message,
-   tasks:message.tasks.map(task=>newerTask(this.state.agentTasks.find(current=>current.id===task.id),task))}:message)};
+   tasks:message.tasks.filter(isChatTask).map(task=>newerTask(this.state.agentTasks.find(current=>current.id===task.id),task))}:message)};
   const pending=this.state.history.messages.find(message=>message.id===this.replyId);
   // Bind only an unambiguous new, adjacent canonical user/assistant pair; never by list position alone.
   if((pending?.reasoning||pending?.timeline?.length)&&pending?.status==='completed'&&history.conversation_id===this.state.history.conversation_id){
@@ -497,7 +498,7 @@ export class LiveWorkspaceController {
      acknowledge();
      completed=true;
      // Structured receipts ride the terminal frame; the card renders them verbatim.
-     replyTasks=readTasksPayload(event.data.tasks);
+     replyTasks=readTasksPayload(event.data.tasks).filter(isChatTask);
      void this.refreshTasks();
     }
     if((answer||reasoning||timeline.length)&&!failedActivity)this.set({history:{...this.state.history,messages:[...messages,{id:'reply:'+id,sequence:messages.at(-1)!.sequence+1,role:'assistant',content:answer,status:completed?'completed':'streaming',created_at:now,completed_at:null,...(reasoning?{reasoning}:{}),...(timeline.length?{timeline}:{}),...(replyTasks.length?{tasks:replyTasks}:{})}]}});
@@ -545,7 +546,7 @@ export class LiveWorkspaceController {
     }
     this.set({history:{...this.state.history,messages}});
    }if(turn.turn_status==='completed'){
-    const confirmedTasks=readTasksPayload(turn.tasks);
+    const confirmedTasks=readTasksPayload(turn.tasks).filter(isChatTask);
     // The authenticated ChatTurn wins over a local stream/parser failure.
     // Clear the transient failed status before historyWithReasoning reconciles it.
     this.set({error:null,history:{...this.state.history,messages:this.state.history.messages.map(message=>

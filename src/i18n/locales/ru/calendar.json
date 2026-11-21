@@ -1,4 +1,9 @@
 {
+  "upcomingCommitments": "Ближайшие события",
+  "previousYear": "Предыдущий год",
+  "nextYear": "Следующий год",
+  "calendarLoading": "Загружаем календарь…",
+  "hasEvents": "Есть события",
   "calendar": "Календарь",
   "openMenu": "Открыть меню",
   "previousMonth": "Предыдущий месяц",

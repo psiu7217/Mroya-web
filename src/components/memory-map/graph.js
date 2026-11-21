@@ -61,3 +61,55 @@ export function pngDimensions(header) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
+
+// Related components attract to distinct centers. A focused neighborhood is
+// laid out by the first hop so several branches can expand from the same node.
+export function layoutTargets(nodes, edges, root) {
+  const neighbors = new Map(nodes.map(node => [node.id, new Set()]));
+  for (const {source, target} of edges) {
+    neighbors.get(source)?.add(target);
+    neighbors.get(target)?.add(source);
+  }
+  const targets = new Map();
+  const seen = new Set();
+  if (root && neighbors.has(root)) {
+    const branches = [...neighbors.get(root)].filter(id => id !== root).sort();
+    const distance = Math.max(138, branches.length * 15);
+    targets.set(root, {x:0, y:0});
+    const queue = branches.map((id, branch) => ({id, branch, depth:1}));
+    seen.add(root);
+    for (const id of branches) seen.add(id);
+    for (let index = 0; index < queue.length; index++) {
+      const {id, branch, depth} = queue[index];
+      const angle = branch * 2 * Math.PI / branches.length;
+      targets.set(id, {x:Math.cos(angle)*distance*depth, y:Math.sin(angle)*distance*depth});
+      for (const child of neighbors.get(id) ?? []) {
+        if (seen.has(child)) continue;
+        seen.add(child); queue.push({id:child, branch, depth:depth+1});
+      }
+    }
+    return targets;
+  }
+  const clusters = [];
+  for (const {id} of nodes) {
+    if (seen.has(id)) continue;
+    const cluster = [id];
+    seen.add(id);
+    for (let index = 0; index < cluster.length; index++) {
+      for (const neighbor of neighbors.get(cluster[index]) ?? []) {
+        if (seen.has(neighbor)) continue;
+        seen.add(neighbor);cluster.push(neighbor);
+      }
+    }
+    clusters.push(cluster);
+  }
+  clusters.sort((a,b) => b.length-a.length);
+  const stride = Math.max(100, Math.sqrt(nodes.length) * 18);
+  for (const [index, cluster] of clusters.entries()) {
+    const angle = index * 2.399963229728653;
+    const distance = stride * Math.sqrt(index);
+    const point = {x:Math.cos(angle)*distance, y:Math.sin(angle)*distance};
+    for (const id of cluster) targets.set(id,point);
+  }
+  return targets;
+}

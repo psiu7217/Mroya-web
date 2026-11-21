@@ -102,7 +102,7 @@ test('live selected note shows only confirmed detail, preserves local checklists
  const original='- [ ] Canonical task',brief={...note('remote',''),category:undefined,noteType:undefined};
  let selected,detailRetries=0;
  const runtime={scopeKey:'live-scope',loaded:true,loading:false,loadingMore:false,error:null,hasMore:false,selectedId:null,detail:null,detailLoading:false,detailError:null,onSelect(id){selected=id;},onRetry(){},onMore(){},onRetryDetail(){detailRetries++;}};
- const view=mount({notes:[brief],designPreview:false,runtime});view.open('remote');assert.equal(selected,'remote');
+ const view=mount({notes:[brief],designPreview:false,runtime});view.open('Open note: remote');assert.equal(selected,'remote');
  runtime.selectedId='remote';runtime.detailLoading=true;view.update({runtime:{...runtime}});assert.match(view.html,/Loading note/);assert.equal(button(view,'Copy note text').props.disabled,true);assert.equal(view.tasks.length,0);
  runtime.detailLoading=false;runtime.detailError='Note unavailable';view.update({runtime:{...runtime}});assert.match(view.html,/Could not load this information/);view.open('Try again');assert.equal(detailRetries,1);
  runtime.detailError=null;runtime.detail={...brief,content:original};view.update({runtime:{...runtime}});assert.equal(view.tasks.length,1);click(view.tasks[0]);view.flush();assert.equal(view.tasks[0].props['aria-checked'],true);

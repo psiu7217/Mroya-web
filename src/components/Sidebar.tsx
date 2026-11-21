@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingConversation, setDeletingConversation] = useState<ConversationListItem | null>(null);
-  const isOtherSection = ['ai-tasks', 'memory', 'connections'].includes(activeSection);
+  const isOtherSection = (live ? ['ai-tasks'] : ['ai-tasks', 'memory', 'connections']).includes(activeSection);
   const [otherOpen, setOtherOpen] = useState(isOtherSection);
   useEffect(() => {
     if (isOtherSection) setOtherOpen(true);
@@ -272,10 +272,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       meta: aiTasksCount !== undefined && aiTasksCount > 0 ? String(aiTasksCount) : undefined,
     },
     { id: 'memory-map', label: tr('navMemoryMap',{ns:'sidebar'}), icon: Share2 },
-    { id: 'connections', label: tr('navConnections',{ns:'sidebar'}), icon: Link2 },
+    { id: 'connections', label: live ? tr('settings',{ns:'sidebar'}) : tr('navConnections',{ns:'sidebar'}), icon: live ? Settings : Link2 },
   ];
-  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders));
-  const otherNavItems = ['ai-tasks', 'memory', 'connections'].map(id => visibleNavItems.find(item => item.id === id)!);
+  const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders) && (!live || item.id !== 'memory'));
+  const otherNavItems = visibleNavItems.filter(item => (live ? ['ai-tasks'] : ['ai-tasks', 'memory', 'connections']).includes(item.id));
   const primaryNavItems = visibleNavItems.filter(item => !otherNavItems.includes(item));
 
   const renderNavItems = (items: typeof navItems, collapsed: boolean) => items.map(item => {
@@ -286,7 +286,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         type="button"
         onClick={() => {
           if(!isActive){
-            if (item.id === 'connections') onOpenSettingsTab('connections');
+            if (item.id === 'connections') onOpenSettingsTab(live ? 'settings' : 'connections');
             else onSelectSection(item.id);
           }
           onCloseMobile();
@@ -391,7 +391,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </button>}
 
-        {showDeveloperFeatures && <button
+        {(live || showDeveloperFeatures) && <button
           type="button"
           role="menuitem"
           onClick={() => {
@@ -405,7 +405,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>{tr('settings',{ns:'sidebar'})}</span>
         </button>}
 
-        <button
+        {!live && <button
           type="button"
           role="menuitem"
           onClick={() => {
@@ -417,7 +417,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Link2 className="w-4 h-4 text-[var(--mroya-text-muted)]" />
           <span>{tr('connectedAccounts',{ns:'sidebar'})}</span>
-        </button>
+        </button>}
 
         <button
           type="button"

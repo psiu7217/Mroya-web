@@ -871,7 +871,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       )}
 
                       {/* Optional model reasoning block when model provides reasoning */}
-                      {!live && (visibleTimeline?.some(entry=>entry.kind==='tool') ? (
+                      {!live && visibleTimeline?.some(entry=>entry.kind==='tool') ? (
                         <ChatActivityTimeline entries={visibleTimeline} isStreaming={streaming} technical={showModelReasoning}/>
                       ) : showModelReasoning && msg.reasoning && (
                         <ModelReasoningBlock
@@ -879,7 +879,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                           isStreaming={msg.status === 'streaming'}
                           defaultExpanded={true}
                         />
-                      ))}
+                      )}
 
                       {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
                       {!taskOnlyAnswer&&<div className={`mroya-assistant-response w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${

@@ -23,6 +23,10 @@ export class LiveCalendarController {
  private reads=new Set<AbortController>();private eventRead:AbortController|null=null;private googleRead:AbortController|null=null;
  private operation:Operation|null=null;private writing=false;private googleWriting=false;
  private range={start:new Date().getFullYear()+'-01-01',end:new Date().getFullYear()+'-12-31'};
+ private currentYear:number|null=null;
+ private annual=new Map<number,CalendarEvent[]>();
+ private annualReads=new Map<number,Promise<void>>();
+ private upcomingReady=false;
  private upcomingRead:AbortController|null=null;private upcomingStart='';
  private source:WorkspaceSource;private timezone:string;private expired:()=>void;private navigate:(url:string)=>void;
  constructor(source:WorkspaceSource,timezone:string,expired:()=>void,navigate:(url:string)=>void=url=>window.location.assign(url)){this.source=source;this.timezone=timezone;this.expired=expired;this.navigate=navigate;}
@@ -31,7 +35,7 @@ export class LiveCalendarController {
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private emit(patch:Partial<CalendarState>){if(!this.active)return;this.current={...this.current,...patch};this.listeners.forEach(fn=>fn());}
  start=(available:boolean,googleAvailable:boolean)=>{this.active=true;this.emit({available,googleAvailable});};
- stop=()=>{this.active=false;this.generation++;for(const request of this.reads)request.abort();this.reads.clear();this.operation=null;this.writing=false;this.googleWriting=false;this.eventRead=null;this.googleRead=null;this.upcomingRead=null;this.upcomingStart='';this.current={...this.current,upcomingEvents:[],upcomingLoading:false,upcomingError:null,events:[],connections:[],selectedConnectionId:null,busy:false,mutationPending:false,googleBusy:false,loading:false};};
+ stop=()=>{this.active=false;this.generation++;for(const request of this.reads)request.abort();this.reads.clear();this.operation=null;this.writing=false;this.googleWriting=false;this.eventRead=null;this.googleRead=null;this.upcomingRead=null;this.upcomingStart='';this.annual.clear();this.annualReads.clear();this.upcomingReady=false;this.current={...this.current,upcomingEvents:[],upcomingLoading:false,upcomingError:null,events:[],connections:[],selectedConnectionId:null,busy:false,mutationPending:false,googleBusy:false,loading:false};};
  private cancelUpcoming(){this.upcomingRead?.abort();this.upcomingRead=null;}
  private request(){const abort=new AbortController();this.reads.add(abort);return abort;}
  private fail(error:unknown,google=false){
@@ -40,9 +44,63 @@ export class LiveCalendarController {
   this.emit(google?{googleError:message}:{error:message});
  }
  setRange=(start:string,end:string)=>{if(start===this.range.start&&end===this.range.end)return;this.range={start,end};void this.loadEvents();};
+ setYear=(year:number)=>{
+  if(year===this.currentYear)return;
+  this.currentYear=year;
+  this.publishAnnual();
+  void this.loadAnnual(false);
+ };
+ private publishAnnual(){
+  if(this.currentYear===null)return;
+  const years=[this.currentYear-1,this.currentYear,this.currentYear+1];
+  const events=[...new Map(years.flatMap(year=>this.annual.get(year)??[]).map(event=>[event.id,event])).values()];
+  this.emit({events,loading:!this.annual.has(this.currentYear),error:this.operation||!this.annual.has(this.currentYear)?this.current.error:null});
+ }
+ private loadAnnual=async(refresh:boolean)=>{
+  if(!this.active||!this.current.available||!this.source.calendarEvents||this.currentYear===null)return;
+  const year=this.currentYear;
+  if(!this.annual.has(year))this.emit({loading:true});
+  const read=(target:number)=>{
+   const current=this.annualReads.get(target);
+   if(current)return current;
+   if(!refresh&&this.annual.has(target))return Promise.resolve();
+   const request=this.request(),generation=this.generation;
+   const operation=(async()=>{
+    try {
+     const rows:CalendarEvent[]=[];
+     for(let offset=0;offset<5000;offset+=100){
+      const page=await this.source.calendarEvents!(target+'-01-01',target+'-12-31',offset,request.signal);
+      if(!this.active||request.signal.aborted||generation!==this.generation)return;
+      if(page.offset!==offset||page.limit!==100)throw new Error('Invalid calendar pagination.');
+      rows.push(...page.events.map(calendarPresentation));
+      if(page.events.length<page.limit){
+       this.annual.delete(target);this.annual.set(target,rows);
+       if(this.annual.size>7)this.annual.delete(this.annual.keys().next().value!);
+       if(this.currentYear!==null&&Math.abs(target-this.currentYear)<=1)this.publishAnnual();
+       return;
+      }
+     }
+     throw new Error('Too many events in this calendar year.');
+    }catch(error){
+     if(this.active&&!request.signal.aborted&&generation===this.generation){
+      if(error instanceof ApiError&&error.status===401||target===this.currentYear&&!this.annual.has(target)){
+       this.emit({loading:false});this.fail(error);
+      }
+     }
+    }finally{
+     this.reads.delete(request);
+     if(generation===this.generation)this.annualReads.delete(target);
+    }
+   })();
+   this.annualReads.set(target,operation);
+   return operation;
+  };
+  await Promise.all([read(year),read(year-1),read(year+1)]);
+ };
  loadEvents=async()=>{
   if(!this.active||!this.current.available||!this.source.calendarEvents)return;
   void this.loadUpcoming();
+  if(this.currentYear!==null)return this.loadAnnual(true);
   this.eventRead?.abort();const abort=this.request(),generation=this.generation;this.eventRead=abort;
   this.emit({loading:true});
   try{
@@ -60,14 +118,14 @@ export class LiveCalendarController {
  };
  setUpcomingStart=(date:string)=>{
   if(date===this.upcomingStart)return;
-  this.upcomingStart=date;this.cancelUpcoming();
+  this.upcomingStart=date;this.cancelUpcoming();this.upcomingReady=false;
   this.emit({upcomingEvents:[]});void this.loadUpcoming();
  };
  loadUpcoming=async()=>{
   if(!this.active||!this.current.available||!this.source.calendarEvents||this.upcomingRead)return;
   const abort=this.request(),generation=this.generation;this.upcomingRead=abort;
   const now=new Date(),today=dateInTimezone(now,this.timezone),start=this.upcomingStart>today?this.upcomingStart:today;
-  this.emit({upcomingLoading:true,upcomingError:null});
+  this.emit({upcomingLoading:!this.upcomingReady,upcomingError:null});
   try{
    const [year,month,day]=start.split('-').map(Number),rows:CalendarEvent[]=[];
    // <=366 civil days including two days of timezone overlap; at most 5,000 occurrences.
@@ -77,7 +135,7 @@ export class LiveCalendarController {
     if(!this.active||abort.signal.aborted||generation!==this.generation)return;
     if(result.offset!==offset||result.limit!==100)throw new Error('Invalid upcoming calendar pagination.');
     rows.push(...result.events.map(calendarPresentation));
-    if(result.events.length<result.limit){this.emit({upcomingEvents:upcomingCalendarEvents(rows,start,this.timezone,new Date())});return;}
+    if(result.events.length<result.limit){this.upcomingReady=true;this.emit({upcomingEvents:upcomingCalendarEvents(rows,start,this.timezone,new Date())});return;}
    }
    throw new Error('Upcoming calendar range is too large (5,000 occurrences). Select a later date and retry.');
   }catch(error){
@@ -169,7 +227,7 @@ export class LiveCalendarController {
   }
  }
 }
-export function useLiveCalendar(source:WorkspaceSource,userId:number,timezone:string,available:boolean,googleAvailable:boolean,visible:boolean,onExpired:()=>void){
+export function useLiveCalendar(source:WorkspaceSource,userId:number,timezone:string,available:boolean,googleAvailable:boolean,visible:boolean,onExpired:()=>void,refreshMs=10000){
  const expired=useRef(onExpired);expired.current=onExpired;
  const controller=useMemo(()=>new LiveCalendarController(source,timezone,()=>expired.current()),[source,userId]);
  const state=useSyncExternalStore(controller.subscribe,controller.snapshot,controller.snapshot);
@@ -181,8 +239,8 @@ export function useLiveCalendar(source:WorkspaceSource,userId:number,timezone:st
   const refresh=()=>{if(document.visibilityState==='visible'){void controller.loadConnections();void controller.loadEvents();}};
   void controller.loadEvents();void controller.loadConnections();
   window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
-  const timer=setInterval(refresh,10000);
+  const timer=setInterval(refresh,refreshMs);
   return()=>{clearInterval(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
- },[controller,visible,available,googleAvailable]);
+ },[controller,visible,available,googleAvailable,refreshMs]);
  return {state,controller};
 }

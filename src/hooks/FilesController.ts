@@ -1,3 +1,4 @@
+import type {WorkspaceListCache} from './workspaceListCache.ts';
 import type {WorkspaceSource} from '../types/source.ts';
 import type {DocumentDto,DocumentDetail,DocumentCategoryDto,DocumentCorrection,FilesPresentation} from '../types/documents.ts';
 import {ApiError} from '../api/errors.ts';
@@ -15,17 +16,27 @@ export const filesAvailable=(source:WorkspaceSource,capable:boolean)=>capable&&!
 /** Account-local, cancellable library. Presentation never performs transport work. */
 export class FilesController {
  private state=initial();private listeners=new Set<()=>void>();private active=false;private visible=false;
- private listAbort?:AbortController;private detailAbort?:AbortController;private mutationAbort?:AbortController;
+ private listAbort?:AbortController;private pageAbort?:AbortController;private listReading=false;private detailAbort?:AbortController;private mutationAbort?:AbortController;
  private poll?:ReturnType<typeof setTimeout>;private epoch=0;private uploads=new WeakMap<File,string>();
- private source:WorkspaceSource;private expired:()=>void;private uuid:()=>string;
- constructor(source:WorkspaceSource,expired:()=>void,uuid:()=>string=()=>crypto.randomUUID()){this.source=source;this.expired=expired;this.uuid=uuid;}
+ private cache?:WorkspaceListCache;private source:WorkspaceSource;private expired:()=>void;private uuid:()=>string;
+ constructor(source:WorkspaceSource,expired:()=>void,uuid:()=>string=()=>crypto.randomUUID(),cache?:WorkspaceListCache){this.cache=cache;this.source=source;this.expired=expired;this.uuid=uuid;}
  snapshot=()=>this.state;
  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
  private emit(patch:Partial<State>){this.state={...this.state,...patch};this.listeners.forEach(fn=>fn());}
- start=()=>{this.active=true;};
- stop=()=>{this.active=false;this.visible=false;this.epoch++;this.listAbort?.abort();this.detailAbort?.abort();this.mutationAbort?.abort();clearTimeout(this.poll);this.state=initial();};
+ start=()=>{
+  this.active=true;
+  if(!this.cache)return;
+  const page=this.cache.read('files');
+  const categories=this.cache.read('folders');
+  this.emit({
+   ...(page&&Array.isArray(page.documents)?{rows:page.documents,total:page.total,next:page.next_offset}:{}),
+   ...(Array.isArray(categories)?{categories}:{}),
+  });
+  void this.refresh(true);
+ };
+ stop=()=>{this.active=false;this.visible=false;this.epoch++;this.listAbort?.abort();this.pageAbort?.abort();this.detailAbort?.abort();this.mutationAbort?.abort();clearTimeout(this.poll);this.state=initial();};
  setVisible=(visible:boolean)=>{if(this.visible===visible)return;this.visible=visible;clearTimeout(this.poll);
-  if(visible&&this.active)void this.refresh();else{this.epoch++;this.listAbort?.abort();this.detailAbort?.abort();this.emit({loading:false,loadingMore:false,detailLoading:false});}};
+  if(visible&&this.active){if(!this.listAbort||this.listAbort.signal.aborted)void this.refresh();}else{this.epoch++;this.listAbort?.abort();this.pageAbort?.abort();this.detailAbort?.abort();this.emit({loading:false,loadingMore:false,detailLoading:false});}};
  private message(error:unknown){
   if(error instanceof ApiError&&error.status===401){this.stop();this.expired();return '';}
   if(error instanceof ApiError&&error.status===409)return tr('conflict',{ns:'files'});
@@ -34,25 +45,45 @@ export class FilesController {
  }
  private schedule(){clearTimeout(this.poll);if(this.active&&this.visible&&this.state.rows.some(d=>['queued','processing'].includes(d.status)))
   this.poll=setTimeout(()=>void this.refresh(),4000);}
- refresh=async()=>{
-  if(!this.active||!this.visible||this.state.mutating||!this.source.documents||!this.source.documentCategories)return;
-  this.listAbort?.abort();const abort=this.listAbort=new AbortController(),epoch=++this.epoch;
-  this.emit({loading:true,loadingMore:false,error:null});
-  try{
-   const [page,categories]=await Promise.all([this.source.documents({category:this.state.category,q:this.state.query,order:this.state.order},abort.signal),this.source.documentCategories(abort.signal)]);
-   if(!this.active||!this.visible||abort.signal.aborted||epoch!==this.epoch)return;
-   this.emit({rows:page.documents,total:page.total,next:page.next_offset,categories,loading:false});
-   if(this.state.selectedId)void this.readDetail(this.state.selectedId,false);
-   this.schedule();
-  }catch(error){if(this.active&&!abort.signal.aborted&&epoch===this.epoch){const message=this.message(error);if(this.active)this.emit({loading:false,error:message});}}
+ refresh=async(preload=false)=>{
+  if(!this.active||!this.visible&&!preload||this.state.mutating||!this.source.documents||!this.source.documentCategories)return;
+  this.listAbort?.abort();this.pageAbort?.abort();const abort=this.listAbort=new AbortController(),epoch=++this.epoch;
+  const current=()=>this.active&&!abort.signal.aborted&&epoch===this.epoch;
+  const query={category:this.state.category,q:this.state.query,order:this.state.order};
+  this.listReading=true;
+  this.emit({loading:!this.state.rows.length,loadingMore:false,error:null});
+  const fail=(error:unknown,from:'files'|'folders')=>{
+   if(!current())return;
+   if(error instanceof ApiError&&error.status===403){
+    this.cache?.forget(from);
+    this.emit(from==='files'?{rows:[],total:0,next:null,selectedId:null,detail:null}:{categories:[]});
+   }
+   const message=this.message(error);
+   if(this.active)this.emit({error:message});
+  };
+  await Promise.allSettled([
+   this.source.documents(query,abort.signal).then(page=>{
+    if(!current())return;
+    if(!query.category&&!query.q&&query.order==='newest')this.cache?.write('files',page);
+    this.emit({rows:page.documents,total:page.total,next:page.next_offset,loading:false});
+    if(this.state.selectedId)void this.readDetail(this.state.selectedId,false);
+    this.schedule();
+   }).catch(error=>{fail(error,'files');if(current())this.emit({loading:false});}).finally(()=>{if(current())this.listReading=false;}),
+   this.source.documentCategories(abort.signal).then(categories=>{
+    if(!current())return;
+    this.cache?.write('folders',categories);this.emit({categories});
+   }).catch(error=>fail(error,'folders')),
+  ]);
+  if(this.listAbort===abort)this.listAbort=undefined;
  };
  more=async()=>{
-  if(!this.active||!this.visible||this.state.loading||this.state.loadingMore||this.state.next===null||!this.source.documents)return;
-  const abort=this.listAbort=new AbortController(),epoch=this.epoch;this.emit({loadingMore:true});
+  if(!this.active||!this.visible||this.listReading||this.state.loading||this.state.loadingMore||this.state.next===null||!this.source.documents)return;
+  const abort=this.pageAbort=new AbortController(),epoch=this.epoch;this.emit({loadingMore:true});
   try{const page=await this.source.documents({category:this.state.category,q:this.state.query,order:this.state.order,offset:this.state.next},abort.signal);
    if(!this.active||!this.visible||abort.signal.aborted||epoch!==this.epoch)return;
    const ids=new Set(this.state.rows.map(d=>d.id));this.emit({rows:[...this.state.rows,...page.documents.filter(d=>!ids.has(d.id))],total:page.total,next:page.next_offset,loadingMore:false});this.schedule();
   }catch(error){if(this.active&&!abort.signal.aborted&&epoch===this.epoch){const message=this.message(error);if(this.active)this.emit({loadingMore:false,error:message});}}
+  finally{if(this.pageAbort===abort)this.pageAbort=undefined;}
  };
  category=(category:string)=>{this.select(null);this.emit({category,rows:[],next:null,total:0});void this.refresh();};
  search=(query:string)=>{this.emit({query:query.slice(0,200),rows:[],next:null,total:0});void this.refresh();};
@@ -66,7 +97,10 @@ export class FilesController {
   try{const detail=await this.source.documentDetail(id,abort.signal);
    if(!this.active||!this.visible||abort.signal.aborted||id!==this.state.selectedId)return;
    this.emit({detail,detailLoading:false,detailError:null});
-  }catch(error){if(this.active&&!abort.signal.aborted&&this.state.selectedId===id){const message=this.message(error);if(this.active)this.emit({detailLoading:false,detailError:message});}}
+  }catch(error){if(this.active&&!abort.signal.aborted&&this.state.selectedId===id){const message=this.message(error);if(this.active){
+    if(error instanceof ApiError&&[403,404].includes(error.status)){this.cache?.forget('files');this.emit({rows:this.state.rows.filter(row=>row.id!==id),detail:null});}
+    this.emit({detailLoading:false,detailError:message});
+   }}}
  }
  private async mutate(action:(signal:AbortSignal)=>Promise<unknown>,detail=false):Promise<boolean>{
   if(!this.active||this.state.mutating||this.state.uploading)return false;
@@ -86,7 +120,7 @@ export class FilesController {
  deleteSelected=async():Promise<boolean>=>{
   const id=this.state.selectedId;
   if(!this.active||!id||!this.source.deleteDocument||this.state.mutating||this.state.uploading)return false;
-  clearTimeout(this.poll);this.listAbort?.abort();this.detailAbort?.abort();this.epoch++;
+  clearTimeout(this.poll);this.listAbort?.abort();this.pageAbort?.abort();this.detailAbort?.abort();this.epoch++;
   const abort=this.mutationAbort=new AbortController();
   this.emit({mutating:true,loading:false,loadingMore:false,detailLoading:false,error:null,detailError:null});
   let removed:string[]=[];
@@ -113,7 +147,7 @@ export class FilesController {
    }
   }
   if(!this.active||abort.signal.aborted)return false;
-  this.listAbort?.abort();this.detailAbort?.abort();this.epoch++;
+  this.listAbort?.abort();this.pageAbort?.abort();this.detailAbort?.abort();this.epoch++;
   const removedIds=new Set(removed),before=this.state.categories;
   let category=this.state.category;
   while(removedIds.has(category)){category=before.find(folder=>folder.id===category)?.parent_id??'';}

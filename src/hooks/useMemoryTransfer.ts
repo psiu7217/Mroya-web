@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import type {WorkspaceSource} from '../types/source';
-import type {MemoryTransferPresentation} from '../types/memoryTransfer';
+import {MEMORY_SNAPSHOT_MAX_BYTES, type MemoryTransferPresentation} from '../types/memoryTransfer';
 import {tr} from '../i18n';
 import {ApiError} from '../api/errors';
 import {memoryExportErrorKey} from './memoryExportError';
@@ -50,7 +50,7 @@ export function useMemoryTransfer(source:WorkspaceSource,onChanged:()=>void,enab
     const current=++validationId.current;
     setError(null);
     setSuccess(false);setRestored(false);setFileValidated(false);documentRef.current=null;
-    if(file.size>16*1024*1024){setError(tr('memoryFileTooLarge',{ns:'connections'}));return false;}
+    if(file.size>MEMORY_SNAPSHOT_MAX_BYTES){setError(tr('memoryFileTooLarge',{ns:'connections'}));return false;}
     if(!source.validateMemory){setError(tr('memoryValidationFailed',{ns:'connections'}));return false;}
     try {
       const text=await file.text();

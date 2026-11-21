@@ -33,7 +33,7 @@ export async function initializeMapApplication(app, host, signal) {
   };
   try {
     await app.init({canvas, width, height, preference:['webgl'], antialias:true,
-      backgroundAlpha:0, resolution:Math.min(window.devicePixelRatio || 1, 2), autoDensity:true});
+      backgroundAlpha:0, autoStart:false, resolution:Math.min(window.devicePixelRatio || 1, 2), autoDensity:true});
     signal?.throwIfAborted();
   } catch (error) {
     try {

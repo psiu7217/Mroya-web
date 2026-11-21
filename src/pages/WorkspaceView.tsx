@@ -21,6 +21,7 @@ import {tr} from '../i18n';
 import {countsTowardTaskBadge} from '../hooks/aiTaskPresentation';
 export function WorkspaceView({model}: {model:WorkspaceModel}) {
  const runtime=model.runtime;
+ const settings=model.settingsNavigation;
  const [tasksOpen,setTasksOpen]=useState(false),[taskHighlight,setTaskHighlight]=useState<string|null>(null);
  const openTasks=(id?:string)=>{setTaskHighlight(id??null);setTasksOpen(true);model.aiTasks?.onOpen();model.onSidebarCloseMobile();};
  const closeTasks=()=>{setTasksOpen(false);model.aiTasks?.onClose();};
@@ -83,6 +84,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         {activeSection === 'chat' && (
           <>
             <ChatWorkspace install={model.install}
+              showModelReasoning={settings?.showReasoning}
               speech={model.speech}
               onImageOpen={model.imageViewer?.onOpen}
               aiTasks={tasksPresentation}
@@ -127,8 +129,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
           </>
         )}
 
-        {activeSection === 'calendar' && (
+        {(activeSection === 'calendar' || model.retainCalendar) && (
+          <div className={activeSection==='calendar'?'flex flex-1 min-w-0 min-h-0':'hidden'}>
           <CalendarView
+            active={activeSection==='calendar'}
             memoryLinksNavigation={model.memoryLinksNavigation}
             samples={model.calendarSamples}
             readOnly={!!runtime&&!runtime.calendarAvailable}
@@ -158,6 +162,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onCalendarViewExpandSidebar}
           />
+          </div>
         )}
 
         {activeSection === 'reminders' && (
@@ -199,7 +204,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'memory-map' && (
           <MemoryMapView
-            theme={model.appearance ?? (theme === 'dark' ? 'dark' : 'light')}
+            theme={runtime?'dark':model.appearance ?? (theme === 'dark' ? 'dark' : 'light')}
+            onRefresh={model.onRefreshMap}
             displayName={account.displayName}
             showDeveloperFeatures={!runtime}
             loading={feedback?.loading}
@@ -217,6 +223,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'connections' && (
           <ConnectionsSettingsView
+            settingsNavigation={settings}
+            onLogout={runtime?.onLogout}
+            showModelReasoning={settings?.showReasoning}
+            onToggleShowModelReasoning={settings?.toggleReasoning}
             memoryTransfer={model.memoryTransfer}
             calendarAnalysis={model.calendarAnalysis}
             memoryReview={model.memoryReview}
@@ -229,7 +239,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             showGoogleCalendar={runtime ? !!runtime.features?.googleCalendar : true}
             googleCalendarAvailable={model.googleCalendarAvailable}
             googleCalendarBusy={model.googleCalendarBusy}
-            googleCalendarNotice={model.googleCalendarNotice}
+            googleCalendarOAuthNotice={model.googleCalendarOAuthNotice}
             googleCalendarError={model.googleCalendarError}
             googleConnections={model.googleConnections}
             selectedGoogleConnectionId={model.selectedGoogleConnectionId}
@@ -238,8 +248,6 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             onConnectAnotherGoogleCalendar={model.onConnectAnotherGoogleCalendar}
             gcalSyncState={runtime&&!model.googleCalendarAvailable?undefined:model.gcalSyncState}
             autoSync={runtime&&!model.googleCalendarAvailable?undefined:model.autoSync}
-            lastSyncedTime={runtime&&!model.googleCalendarAvailable?undefined:model.lastSyncedTime}
-            syncSummary={runtime&&!model.googleCalendarAvailable?undefined:model.syncSummary}
             googleCalendarEmail={runtime&&!model.googleCalendarAvailable?undefined:model.googleCalendarEmail}
             importedCalendars={runtime&&!model.googleCalendarAvailable?undefined:model.importedCalendars}
             exportCalendar={runtime&&!model.googleCalendarAvailable?undefined:model.exportCalendar}
@@ -274,7 +282,8 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
 
         {activeSection === 'files' && <FilesView runtime={model.files} onImageOpen={model.imageViewer?.onOpen} isSidebarCollapsed={isSidebarCollapsed} onExpandSidebar={onConnectionsSettingsViewExpandSidebar}/> }
 
-        {activeSection === 'notes' && notesAvailable && (
+        {notesAvailable && (activeSection==='notes' || model.retainNotes) && (
+          <div className={activeSection==='notes'?'flex flex-1 min-w-0 min-h-0':'hidden'}>
           <NotesView
             memoryLinksNavigation={model.memoryLinksNavigation}
             key={model.notesRuntime?.scopeKey}
@@ -284,6 +293,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             isSidebarCollapsed={isSidebarCollapsed}
             onExpandSidebar={onConnectionsSettingsViewExpandSidebar}
           />
+          </div>
         )}
         </div>
         {runtime?.notice && <div className="absolute top-16 left-3 right-3 z-40 max-w-md mx-auto"><AccessNotice message={tr(runtime.notice,{ns:'workspace'})} onClose={runtime.onCloseNotice}/></div>}

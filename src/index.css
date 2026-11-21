@@ -61,7 +61,7 @@ body,
   margin: 0;
   background-color: var(--mroya-bg);
   color: var(--mroya-text);
-  font-family: "Plus Jakarta Sans", "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Manrope", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -226,4 +226,26 @@ img.mroya-chat-image, .mroya-chat-image img {
 .mroya-memory-progress-paused { width: 32%; transform: translateX(105%); opacity: .45; }
 @media (prefers-reduced-motion: reduce) {
   .mroya-memory-progress { animation: none; transform: translateX(105%); }
+}
+
+.mroya-files-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+}
+@media (min-width: 50rem) {
+  .mroya-files-grid {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+  }
+}
+
+.mroya-web-sources {
+  margin-block-start: .85rem;
+  padding-block-start: .65rem;
+  border-block-start: 1px solid var(--mroya-divider);
+  font-size: .875rem;
+}
+.mroya-web-sources > summary {
+  width: fit-content;
+  padding: .25rem .35rem;
+  cursor: pointer;
+  font-weight: 600;
 }

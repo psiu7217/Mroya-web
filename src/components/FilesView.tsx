@@ -3,6 +3,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {ArrowLeft,Check,ChevronRight,Download,FileAudio,FileText,FileVideo,Folder,Image,LoaderCircle,MoreHorizontal,PanelLeft,Pencil,RefreshCw,Search,SearchX,SlidersHorizontal,Trash2,X} from 'lucide-react';
 import type {DocumentDto,DocumentDetail,DocumentCategoryDto,FilesPresentation} from '../types/documents';
 import {tr} from '../i18n';
+import {DocumentImage} from './DocumentImage';
 import {formatDate} from '../i18n/format';
 import {isPreviewableDocumentImage} from '../utils/documentImage';
 
@@ -65,8 +66,8 @@ function FilePreview({file, showImage, className, iconClassName, thumbnail = fal
  const [failed, setFailed] = useState(false);
  return <div className={`flex items-center justify-center overflow-hidden bg-[var(--mroya-surface-muted)] text-[var(--mroya-primary)] ${className}`}>
   {showImage && !failed
-   ? <img src={file.original_url} alt={thumbnail ? '' : file.title}
-       loading={thumbnail ? 'lazy' : 'eager'} decoding="async" onError={() => setFailed(true)}
+   ? <DocumentImage src={file.original_url} alt={thumbnail ? '' : file.title}
+       loading={thumbnail ? 'lazy' : 'eager'} decoding="async" onFailure={() => setFailed(true)}
        className={`h-full w-full ${thumbnail ? 'object-cover' : 'object-contain'}`}/>
    : <FileIcon file={file} className={iconClassName}/>}
  </div>;
@@ -228,11 +229,11 @@ export function FilesView({runtime,isSidebarCollapsed,onExpandSidebar,onImageOpe
     </div>
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6" aria-busy={runtime.loading}>
      {runtime.error&&<div role="alert" className="mb-4 rounded-xl bg-red-500/10 p-3 text-sm"><p>{runtime.error}</p><button className={`${button} mt-2`} onClick={runtime.onRefresh}>{t('refresh')}</button></div>}
-     {!runtime.query&&!['uncategorized','generated'].includes(runtime.category)&&folders.length>0&&<section className="mb-7"><h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--mroya-text-muted)]">{t('folders')}</h2><div className="grid grid-cols-2 gap-3 xl:grid-cols-3">{folders.map(folder=><button key={folder.id} onClick={()=>runtime.onCategory(folder.id)} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--mroya-divider)] px-3 py-4 text-left hover:bg-[var(--mroya-surface-muted)]"><Folder className="h-7 w-7 shrink-0 fill-blue-500/10 text-blue-500"/><div className="min-w-0"><p className="truncate text-sm font-medium">{folder.name}</p></div></button>)}</div></section>}
+     {!runtime.query&&!['uncategorized','generated'].includes(runtime.category)&&folders.length>0&&<section className="mb-7"><h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--mroya-text-muted)]">{t('folders')}</h2><div className="mroya-files-grid grid gap-3">{folders.map(folder=><button key={folder.id} onClick={()=>runtime.onCategory(folder.id)} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--mroya-divider)] px-3 py-4 text-left hover:bg-[var(--mroya-surface-muted)]"><Folder className="h-7 w-7 shrink-0 fill-blue-500/10 text-blue-500"/><div className="min-w-0"><p className="truncate text-sm font-medium">{folder.name}</p></div></button>)}</div></section>}
      <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-xs font-medium uppercase tracking-wide text-[var(--mroya-text-muted)]">{t('filesCount',{count:runtime.total})}</h2>{runtime.category&&<button className="flex items-center gap-1 text-xs text-[var(--mroya-text-muted)]" onClick={()=>runtime.onCategory(category?.parent_id??'')}><ArrowLeft className="h-3 w-3"/>{t('back')}</button>}</div>
      {!runtime.loading&&runtime.rows.length===0&&!runtime.error&&<div className="rounded-2xl border border-dashed border-[var(--mroya-divider)] py-14 px-5 text-center"><Folder className="mx-auto mb-4 h-11 w-11 text-[var(--mroya-text-muted)]"/><h3 className="font-medium">{t(runtime.query?'noResults':'emptyTitle')}</h3><p className="mx-auto mt-2 max-w-sm text-sm text-[var(--mroya-text-muted)]">{t(runtime.query?'noResultsHint':runtime.category==='generated'?'generatedEmptyHint':'emptyHint')}</p></div>}
      {runtime.loading&&runtime.rows.length===0&&<p role="status" className="py-10 text-center text-sm text-[var(--mroya-text-muted)]">{t('loading')}</p>}
-     {!!runtime.rows.length && <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))] gap-3">
+     {!!runtime.rows.length && <div className="mroya-files-grid grid gap-3">
       {runtime.rows.map(file => (
        <button type="button" key={file.id} onClick={event=>{selectedTile.current=event.currentTarget;runtime.onSelect(file.id);}} aria-pressed={runtime.selectedId===file.id}
         className={`min-w-0 self-start rounded-xl border p-2 text-left hover:bg-[var(--mroya-surface-muted)] sm:p-3 ${runtime.selectedId===file.id?'border-[var(--mroya-primary)]':'border-[var(--mroya-divider)]'}`}>

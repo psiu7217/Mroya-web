@@ -229,7 +229,7 @@ export class MroyaApi {
   }
   async agentTasks(offset=0,signal?:AbortSignal){
     if(!Number.isSafeInteger(offset)||offset<0||offset>10000)throw new ApiError(400,'invalid_request','Invalid tasks offset');
-    return readAiTasksPage(await this.json('ai-tasks/?limit=50&offset='+offset,undefined,signal),offset);
+    return readAiTasksPage(await this.json('agent-tasks/?limit=50&offset='+offset,undefined,signal),offset);
   }
   async reportAgentTask(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
@@ -263,7 +263,7 @@ export class MroyaApi {
   }
   async agentTask(id:string,signal?:AbortSignal){
     if(!isTurnUuid(id))throw new ApiError(400,'invalid_request','Invalid task UUID');
-    const data=await this.json<{task:unknown}>('ai-tasks/'+id+'/',undefined,signal);
+    const data=await this.json<{task:unknown}>('agent-tasks/'+id+'/',undefined,signal);
     return readAiTask(data.task,id);
   }
   async decideAiTask(id:string,action:'accept'|'reject'|'comment'|'retry',version:number,comment?:string,signal?:AbortSignal){

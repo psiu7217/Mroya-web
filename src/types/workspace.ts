@@ -19,7 +19,7 @@ export interface ChatDiagnostics {
 export interface CalendarPresentation {
     upcoming?:{events:CalendarEvent[];loading:boolean;error:string|null;onStartChange:(date:string)=>void;onRetry:()=>void};
     loading:boolean;busy:boolean;mutationPending:boolean;error:string|null;timezone:string;
-    onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;
+    onRetry:()=>boolean|Promise<boolean>;onRangeChange:(start:string,end:string)=>void;onYearChange?:(year:number)=>void;
     onLoadEventForEdit:(event:CalendarEvent)=>Promise<CalendarEvent|null>;
 }
 export interface TimezonePresentation {
@@ -61,6 +61,15 @@ export interface ConnectionSamples {
 export interface NotificationPreview {
     scenarios:{id:string;label:string}[];selected:string;onSelect:(id:string)=>void;
 }
+export type SettingsPage = 'home'|'profile'|'name'|'timezone'|'plan'|'appearance'|'language'|'chat'|'notifications'|'connections'|'telegram'|'google'|'calendar-selection'|'memory-transfer'|'privacy';
+export interface SettingsNavigation {
+ page:SettingsPage;
+ open:(page:SettingsPage)=>void;
+ back:()=>void;
+ showReasoning:boolean;
+ showPrivacy:boolean;
+ toggleReasoning:(enabled:boolean)=>void;
+}
 export interface WorkspaceModel {
     imageViewer?:import('./imageViewer').ImageViewerPresentation;
     chatAttachments?:import('./chatAttachments').ChatAttachmentsPresentation;
@@ -88,6 +97,10 @@ export interface WorkspaceModel {
     calendarSamples?: {person:string;titlePlaceholder:string;personPlaceholder:string;accountLabel:string};
     composerSamples?: {memoryPrompt:string;attachmentName:string;voicePhrases:string[]};
     activeSection: NavSection;
+    settingsNavigation?: SettingsNavigation;
+    onRefreshMap?:()=>void;
+    retainCalendar?:boolean;
+    retainNotes?:boolean;
     isSidebarCollapsed: boolean;
     mobileMenuOpen: boolean;
     theme: ThemeMode;
@@ -133,6 +146,7 @@ export interface WorkspaceModel {
     googleCalendarAvailable?:boolean;
     googleCalendarBusy?:boolean;
     googleCalendarNotice?:string;
+    googleCalendarOAuthNotice?:string;
     googleCalendarError?:string|null;
     googleConnections?:import('./calendarApi').GoogleConnectionDto[];
     selectedGoogleConnectionId?:string|null;

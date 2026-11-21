@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {FileText} from 'lucide-react';
 import {tr} from '../i18n';
+import {DocumentImage} from './DocumentImage';
 import type {ChatMessageAttachment} from '../types/chatAttachments';
 import {isPreviewableDocumentImage} from '../utils/documentImage';
 
@@ -12,8 +13,8 @@ function AttachmentCard({file, onImageOpen}: {file: ChatMessageAttachment; onIma
  const frame = 'w-full overflow-hidden rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)] hover:border-[var(--mroya-primary)] focus-visible:outline-2 focus-visible:outline-[var(--mroya-primary)]';
 
  if (canPreview) {
-  const image = <img src={file.originalUrl} alt="" loading="lazy" decoding="async"
-   className="aspect-square w-full object-cover" onError={() => setPreviewFailed(true)}/>;
+  const image = <DocumentImage src={file.originalUrl} alt="" loading="lazy" decoding="async"
+   className="aspect-square w-full object-cover" onFailure={() => setPreviewFailed(true)}/>;
   return <li className="w-32 max-w-full sm:w-40">
    {onImageOpen
     ? <button type="button" className={`${frame} block cursor-zoom-in`} data-image-url={file.originalUrl}

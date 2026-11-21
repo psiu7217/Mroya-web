@@ -212,3 +212,157 @@ test('logout during implicit CREATE ignores its late confirmation and never disp
  const sending=ctrl.send('Old account draft');ctrl.stop();pending.resolve(summary(c,''));assert.equal(await sending,false);
  assert.equal(ctrl.snapshot().activeConversationId,null);assert.ok(!s.calls.some(call=>call.kind==='send'));
 });
+
+test('detail GET and both send transports read validated metadata without making it a requirement',async()=>{
+ const auto=summary(a,'Server title');
+ let mode:'detail'|'wrong-id'|'sse'|'replay'|'bad-optional'='detail';
+ const api=new MroyaApi((async(input,init)=>{
+  const url=String(input);
+  if(url.endsWith('/auth/csrf/'))return json({csrf_token:'fixture'});
+  if(mode==='detail'||mode==='wrong-id'){
+   assert.equal(url,'/api/v1/chat/conversations/'+a+'/');
+   assert.equal(init?.method,'GET');
+   assert.equal(init?.credentials,'same-origin');
+   return json({conversation:mode==='detail'?auto:summary(b)});
+  }
+  if(mode==='replay')return json({state:'completed',content:'Replay',conversation:auto});
+  const payload={model:'fixture',conversation:mode==='bad-optional'?{id:a,title:3}:auto};
+  return new Response('event: done\ndata: '+JSON.stringify(payload)+'\n\n',{headers:{'Content-Type':'text/event-stream'}});
+ }) as typeof fetch);
+ assert.deepEqual(await api.conversation(a),auto);
+ mode='wrong-id';await assert.rejects(api.conversation(a),ApiError);
+ for(const transport of ['sse','replay','bad-optional'] as const){
+  mode=transport;
+  const received:ChatStreamEvent[]=[];
+  await api.sendConversation(a,'Message',c,event=>received.push(event),{retry:transport==='replay'});
+  assert.equal(received[0].event,transport==='replay'?'replay':'done');
+  assert.deepEqual(received[0].data.conversation,transport==='bad-optional'?undefined:auto);
+ }
+});
+
+test('done and replay update the original title before refreshing history, at the same activity time',async()=>{
+ for(const event of ['done','replay'] as const){
+  const s=server();const finished=gate<void>();
+  s.source.sendConversation=async(id,_text,_uuid,emit)=>{
+   assert.equal(id,a);
+   emit({event,data:{content:'Answer',conversation:summary(a,'Server '+event)}});
+   await finished.promise;
+  };
+  const controller=new LiveWorkspaceController(s.source,()=>{},()=>c);
+  try{
+   await controller.load();
+   const sending=controller.send('Question');
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Server '+event);
+   assert.equal(controller.snapshot().history.conversation_id,a);
+   finished.resolve();await sending;
+   assert.equal(s.calls.filter(call=>call.kind==='list').length,1);
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Server '+event);
+  }finally{controller.stop();}
+ }
+});
+
+test('an interrupted stream recovers metadata by submitted UUID across a switch and discards it after account stop',async()=>{
+ for(const stop of [false,true]){
+  const s=server(),request=gate<ConversationSummary>();
+  let detailSignal:AbortSignal|undefined;
+  s.source.conversation=(id,signal)=>{assert.equal(id,a);detailSignal=signal;return request.promise;};
+  s.source.sendConversation=async(_id,_text,_uuid,_emit,options)=>{options?.onTurn?.(c);throw new StreamInterruptedError();};
+  s.source.turn=async()=>({turn_status:'completed',summary:'',events:[]});
+  const controller=new LiveWorkspaceController(s.source,()=>{},()=>c);
+  try{
+   await controller.load();await controller.send('Question');
+   assert.equal(controller.snapshot().uncertain,false);
+   assert.equal(await controller.selectConversation(b),true);
+   if(stop)controller.stop();
+   assert.equal(detailSignal?.aborted,stop);
+   request.resolve(summary(a,'Recovered A'));
+   await request.promise;
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,stop?'Chat A':'Recovered A');
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===b)?.title,'Chat B');
+   assert.equal(controller.snapshot().history.conversation_id,b);
+  }finally{controller.stop();}
+ }
+});
+
+test('an older API falls back to the list if metadata GET or the terminal snapshot is missing',async()=>{
+ for(const failed of [false,true]){
+  const s=server();let reads=0,details=0;
+  s.source.conversations=async()=>({conversations:[summary(a,++reads===1?'Old title':'Title from list'),summary(b)],next_offset:null});
+  s.source.conversation=async()=>{details++;throw new ApiError(404,'not_found','Old API');};
+  s.source.sendConversation=async(_id,_text,_uuid,emit)=>{
+   if(failed)throw new ApiError(502,'chat_failed','Tool failure');
+   emit({event:'done',data:{conversation:summary(b,'Wrong UUID')}});
+  };
+  const controller=new LiveWorkspaceController(s.source,()=>{},()=>c);
+  try{
+   await controller.load();await controller.send('Question');
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Title from list');
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===b)?.title,b);
+   assert.equal(reads,2);
+   assert.equal(details,Number(failed));
+  }finally{controller.stop();}
+ }
+});
+
+test('a confirmed manual rename wins regardless of terminal frame order and timestamp equality',async()=>{
+ for(const patchFirst of [false,true]){
+  const s=server(),patch=gate<ConversationSummary>(),finish=gate<void>();
+  s.source.renameConversation=()=>patch.promise;
+  s.source.sendConversation=async(_id,_text,_uuid,emit)=>{
+   await finish.promise;
+   emit({event:'done',data:{conversation:summary(a,'Prior automatic title')}});
+  };
+  const controller=new LiveWorkspaceController(s.source,()=>{},()=>c);
+  try{
+   await controller.load();
+   const sending=controller.send('Question');
+   const renaming=controller.renameConversation(a,'Manual title');
+   if(patchFirst){patch.resolve(summary(a,'Manual title'));assert.equal(await renaming,true);}
+   finish.resolve();await sending;
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,patchFirst?'Manual title':'Chat A');
+   if(!patchFirst){patch.resolve(summary(a,'Manual title'));assert.equal(await renaming,true);}
+   assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Manual title');
+  }finally{controller.stop();}
+ }
+});
+
+test('a delayed recovery read cannot overwrite a subsequent confirmed PATCH with the same timestamp',async()=>{
+ const s=server(),read=gate<ConversationSummary>();
+ s.source.conversation=()=>read.promise;
+ s.source.sendConversation=async()=>{throw new ApiError(502,'chat_failed','Tool failure');};
+ const controller=new LiveWorkspaceController(s.source,()=>{},()=>c);
+ try{
+  await controller.load();await controller.send('Question');
+  assert.equal(await controller.renameConversation(a,'Manual title'),true);
+  read.resolve(summary(a,'Late title'));
+  await read.promise;
+  assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Manual title');
+ }finally{controller.stop();}
+});
+
+test('a rejected overlapping rename reconciles the title without retrying PATCH',async()=>{
+ const s=server(),finish=gate<void>(),reject=gate<void>();
+ let patches=0,reads=0;
+ s.source.renameConversation=async()=>{
+  patches++;
+  await reject.promise;
+  throw new ApiError(409,'conversation_busy','Rename rejected');
+ };
+ s.source.conversation=async id=>{assert.equal(id,a);reads++;return summary(a,'Current server title');};
+ s.source.sendConversation=async(_id,_text,_uuid,emit)=>{
+  await finish.promise;
+  emit({event:'done',data:{conversation:summary(a,'Earlier terminal title')}});
+ };
+ const controller=new LiveWorkspaceController(s.source,()=>{},()=>c);
+ try{
+  await controller.load();
+  const sending=controller.send('Question');
+  const renaming=controller.renameConversation(a,'Rejected title');
+  finish.resolve();await sending;
+  assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Chat A');
+  reject.resolve();assert.equal(await renaming,false);
+  assert.equal(controller.snapshot().conversations.find(row=>row.id===a)?.title,'Current server title');
+  assert.equal(patches,1);
+  assert.equal(reads,1);
+ }finally{controller.stop();}
+});

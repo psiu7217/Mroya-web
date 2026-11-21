@@ -38,6 +38,7 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         showDeveloperFeatures={!runtime}
         showReminders={runtime ? !!runtime.features?.reminders : true}
         conversationLocked={runtime?.conversationLocked}
+        conversationRenameLocked={runtime?.conversationRenameLocked}
         live={!!runtime}
         onLogout={runtime?.onLogout}
         activeSection={activeSection}

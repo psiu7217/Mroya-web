@@ -345,7 +345,8 @@ function draw() {
   }
   layoutLabels(neighbors);
   drawEdgeLabels(focus);
-  if(renderFrame===null)renderFrame=requestAnimationFrame(()=>{
+  if(reduced.matches)app.render();
+  else if(renderFrame===null)renderFrame=requestAnimationFrame(()=>{
     renderFrame=null;
     if(!disposed)app.render();
   });

@@ -44,7 +44,10 @@ class Application {
  stage=new Container();screen={width:1000,height:700};canvas={};
  renderer={resize:(width,height)=>{this.screen={width,height};}};
  constructor(){environment.apps.push(this);}
- async init(){await environment.initGate;}destroy(){this.destroyed=true;}
+ renderCount=0;
+ async init(){await environment.initGate;}
+ render(){this.renderCount++;}
+ destroy(){this.destroyed=true;}
 }
 environment.pixi={Application,Circle:class {},Container,Graphics,Text};
 globalThis[key]=environment;
@@ -76,6 +79,7 @@ test('theme/name redraw preserves Pixi instance, simulation, positions, zoom, pa
  try {
   api.setGraph(graph);api.select('own');api.zoom(1.6,350,290);
   const app=environment.apps[0],layer=app.stage.children[0],labels=app.stage.children[1];
+  assert.ok(app.renderCount>0);
   for(const [type,clientX,clientY] of [['pointerdown',5,690],['pointermove',70,680],['pointerup',70,680]])host.dispatchEvent(Object.assign(new Event(type),{button:0,pointerId:1,clientX,clientY}));
   const ownPosition=layer.children[1].position;
   host.dispatchEvent(Object.assign(new Event('pointermove'),{pointerId:2,clientX:layer.x+ownPosition.x*layer.scale.x,clientY:layer.y+ownPosition.y*layer.scale.y}));

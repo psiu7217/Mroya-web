@@ -1,23 +1,30 @@
 import {useEffect,useRef,useState} from 'react';
 import type {NavSection} from '../types/mroya';
 import type {SettingsPage} from '../types/workspace';
+import {isTelegramEntry} from '../utils/telegramEntry';
 
 interface Route {section:NavSection;settings?:SettingsPage;detail?:string}
 const start:Route={section:'chat'};
 
 export function useWorkspaceNavigation(onBack:()=>void) {
- const [route,setRoute]=useState<Route>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).has('calendar_google')
-  ?{section:'connections',settings:'google'}:start);
+ const [route,setRoute]=useState<Route>(()=>{
+  if(typeof window==='undefined')return start;
+  if(new URLSearchParams(window.location.search).has('calendar_google'))return {section:'connections',settings:'google'};
+  if(isTelegramEntry(window.location.pathname))return {section:'connections',settings:'telegram'};
+  return start;
+ });
  const current=useRef(route);
  const [scope]=useState(()=>crypto.randomUUID());
  const backCallback=useRef(onBack);
  backCallback.current=onBack;
  useEffect(()=>{
   const entry=(route:Route)=>({...window.history.state,mroyaWorkspace:{scope,route}});
-  if(current.current.settings==='google'&&new URLSearchParams(window.location.search).has('calendar_google')){
+  const telegram=current.current.settings==='telegram'&&isTelegramEntry(window.location.pathname);
+  if(telegram||(current.current.settings==='google'&&new URLSearchParams(window.location.search).has('calendar_google'))){
    const returnUrl=new URL(window.location.href);
    const url=new URL(returnUrl);
-   url.searchParams.delete('calendar_google');
+   if(telegram)url.pathname='/';
+   else url.searchParams.delete('calendar_google');
    window.history.replaceState(entry({section:'connections',settings:'connections'}),'',url);
    window.history.pushState(entry(current.current),'',returnUrl);
   }else window.history.replaceState(entry(current.current),'');
@@ -33,7 +40,9 @@ export function useWorkspaceNavigation(onBack:()=>void) {
  },[scope]);
  const navigate=(next:Route)=>{
   if(next.section===current.current.section&&next.settings===current.current.settings&&next.detail===current.current.detail)return;
-  window.history.pushState({...window.history.state,mroyaWorkspace:{scope:scope,route:next}},'');
+  const url=new URL(window.location.href);
+  if(isTelegramEntry(url.pathname))url.pathname='/';
+  window.history.pushState({...window.history.state,mroyaWorkspace:{scope:scope,route:next}},'',url);
   current.current=next;
   setRoute(next);
  };

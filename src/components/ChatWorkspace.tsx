@@ -39,7 +39,7 @@ import {
   Flag,
   Terminal,
 } from 'lucide-react';
-import { AssistantMarkdown } from './AssistantMarkdown';
+import { AssistantMarkdown, MobileSourcesTarget } from './AssistantMarkdown';
 import { GeneratedImageReply } from './GeneratedImageReply';
 import {imageGenerationPhase,latestImageGeneration} from '../utils/imageGeneration';
 import { BrandMark } from './BrandMark';
@@ -73,6 +73,21 @@ function WaitingDots() {
       {[0,1,2].map(index=><span key={index} className="guest-dot" aria-hidden="true"/>)}
     </div>
   );
+}
+
+function ChatReply({children,actions,timestamp}:{children:React.ReactNode;actions:React.ReactNode;timestamp:string}) {
+  const [sourcesTarget,setSourcesTarget] = useState<HTMLDivElement|null>(null);
+
+  return <MobileSourcesTarget.Provider value={sourcesTarget}>
+    <div className="w-full space-y-1.5 sm:space-y-3">
+      {children}
+      <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-[var(--mroya-text-muted)]">
+        {actions}
+        <div ref={setSourcesTarget} className="empty:hidden sm:hidden"/>
+        <span className="tabular-nums">{timestamp}</span>
+      </div>
+    </div>
+  </MobileSourcesTarget.Provider>;
 }
 
 export interface ChatWorkspaceProps {
@@ -163,6 +178,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   const recordingSeconds = speech?.seconds ?? 0;
   const recordingLevel = Math.ceil((speech?.level ?? 0) * 12);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [shareErrorId, setShareErrorId] = useState<string | null>(null);
   const [localThinking, setLocalThinking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -243,6 +259,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     copyTimeoutRef.current = setTimeout(() => {
       setCopiedMessageId(null);
     }, 2000);
+  };
+
+  const shareReply = async (id: string, text: string) => {
+    setShareErrorId(null);
+    try {
+      await navigator.share({text});
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setShareErrorId(id);
+    }
   };
 
   const handleCopyAdminDiagnostics = (message:ChatMessage) => diagnostics?.onCopy(message);
@@ -417,31 +442,30 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Compact Workspace Header */}
-      <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0 bg-[var(--mroya-surface)] shadow-xs z-20">
+      <header className="h-14 lg:h-[58px] px-3 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-2 lg:gap-4 shrink-0 bg-[var(--mroya-surface)] lg:shadow-xs z-20">
         {/* Left: Mobile Burger + Mroya Brand Logo | Desktop Sidebar toggles + Conversation title */}
         <div className="flex items-center gap-2.5 min-w-0">
           {/* Mobile Left: Burger + Mroya Logo right next to it */}
-          <div className="flex lg:hidden items-center gap-2 min-w-0">
+          <div className="flex lg:hidden items-center gap-1.5 min-w-0">
             <WorkspaceMenuButton/>
 
             <button
               type="button"
               onClick={onNewChat}
               className="group flex shrink-0 items-center gap-2 text-left rounded-lg py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer select-none"
-              aria-label={live&&conversation?tr('newChat',{ns:'chat'}):undefined}
+              aria-label={tr('newChat',{ns:'chat'})}
               title={tr('brandMeaning',{ns:'common'})}
             >
               <BrandMark size="sm" glow />
-              {(!live||!conversation)&&<div className="flex flex-col min-w-0">
-                <span className="text-[16px] font-bold tracking-[-0.02em] text-[var(--mroya-text)] leading-none group-hover:text-[var(--mroya-primary)] transition-colors">
-                  Mroya
-                </span>
-                <span className="text-[8.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-0.5 opacity-75 uppercase">
-                  {tr('brandTagline',{ns:'common'})}
-                </span>
-              </div>}
             </button>
-            {live&&conversation&&<h1 className="min-w-0 truncate text-sm font-semibold">{conversation.title}</h1>}
+            <div className="min-w-0">
+              <h1 className="truncate text-[15px] font-bold leading-tight">
+                {conversation?.title || 'Mroya'}
+              </h1>
+              <p className="truncate text-[8px] font-semibold uppercase tracking-wider text-[var(--mroya-text-muted)]">
+                {tr('brandTagline',{ns:'common'})}
+              </p>
+            </div>
           </div>
 
           {/* Desktop Left: Conversation title + Personal space indicator */}
@@ -471,7 +495,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             <Download className="w-5 h-5"/>
           </button>}
           {/* Mobile AI Tasks Trigger Button */}
-          <button
+          {!onSignIn&&<button
             type="button"
             onClick={openTasks}
             aria-label={tr('taskPanelTitle',{ns:'chat'})}
@@ -491,18 +515,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 {activeTasksCount}
               </span>
             )}
-          </button>
+          </button>}
 
           {/* Mobile Right: User avatar with dropdown containing all menu options */}
           <div className="relative lg:hidden" ref={mobileUserMenuRef}>
             <button
               type="button"
-              onClick={() => setMobileUserMenuOpen((prev) => !prev)}
-              aria-expanded={mobileUserMenuOpen}
-              aria-label={tr('accountOptions',{ns:'chat'})}
+              onClick={onSignIn ?? (() => setMobileUserMenuOpen(prev => !prev))}
+              aria-expanded={onSignIn ? undefined : mobileUserMenuOpen}
+              aria-label={onSignIn ? tr('signIn',{ns:'auth'}) : tr('accountOptions',{ns:'chat'})}
               className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[12px] font-bold text-[var(--mroya-primary)] hover:opacity-90 transition-opacity cursor-pointer shadow-2xs"
             >
-              {account.initials}
+              {onSignIn ? <User className="size-4" aria-hidden="true"/> : account.initials}
             </button>
 
             {mobileUserMenuOpen && (
@@ -787,11 +811,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       </header>
 
       {/* Main Scrollable Conversation Area */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-3 sm:px-8 py-5 sm:py-8">
+      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-3 sm:px-8 py-4 sm:py-8">
         <div className="max-w-[740px] mx-auto">
           {intro}
           {hasMessages ? (
-            <div className="space-y-6 sm:space-y-8 pb-6">
+            <div className="space-y-4 sm:space-y-8 pb-4 sm:pb-6">
               {conversation.messages.map((msg,index) => {
                 const imageActivity=latestImageGeneration(msg.timeline);
                 const generationPhase=imageGenerationPhase(msg.status,imageActivity);
@@ -804,6 +828,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 const hasTaskCard=!!(live&&msg.tasks?.length);
                 const legacyMemoryReview=msg.tasks?.some(task=>task.target==='memory'&&!task.review?.length);
                 const taskOnlyAnswer=hasTaskCard&&!generationPhase&&msg.status!=='failed'&&(!legacyMemoryReview||msg.tasks!.length===1);
+                const reminder=msg.actions?.some(action=>action.type==='view-reminder');
                 const actionState=diagnostics?.forMessage(msg);
                 const reporting=actionState?.reporting===true,reported=actionState?.reported===true,copied=actionState?.copied===true;
                 if (msg.sender === 'user') {
@@ -813,7 +838,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                     <div key={msg.id} className="flex flex-col items-end">
                       {!!msg.attachments?.length && <MessageAttachments files={msg.attachments} onImageOpen={onImageOpen}/>}
                       {!!msg.content.trim() && (
-                        <div className="min-w-0 max-w-[88%] sm:max-w-[78%] px-4 py-3 rounded-[14px] rounded-br-[4px] bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] shadow-xs">
+                        <div className="min-w-0 max-w-[90%] sm:max-w-[78%] px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] text-[15px] leading-[23px] text-[var(--mroya-text)] sm:shadow-xs">
                           {imageInstruction && <div className="mb-1 text-xs font-medium text-[var(--mroya-primary)]">Mroya Images</div>}
                           <AssistantMarkdown content={imageInstruction ? msg.content.slice(imageInstruction.length) : msg.content} variant="user" />
                         </div>
@@ -825,13 +850,30 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   );
                 }
 
-                // Assistant message (Mroya): top header with icon + Mroya, full width response below
+                const replyKey=imageActivity?.replyKey??msg.id;
+                const text=taskOnlyAnswer&&!legacyMemoryReview?taskMessageText(msg.tasks!):msg.content;
+                const actions=!showWaitingDots&&!(streaming&&generationPhase)&&(!live||msg.status!=='failed')&&<>
+                  <button type="button" onClick={()=>handleCopyMessage(msg.id,text)}
+                    aria-label={copiedMessageId===msg.id?tr('copied',{ns:'common'}):tr('copyResponse',{ns:'chat'})}
+                    title={copiedMessageId===msg.id?tr('copiedBang',{ns:'chat'}):tr('copy',{ns:'chat'})}
+                    className="grid size-8 place-items-center rounded-md hover:bg-[var(--mroya-surface-muted)] hover:text-[var(--mroya-text)]">
+                    {copiedMessageId===msg.id?<Check className="size-3.5 text-[var(--mroya-primary)]" aria-hidden="true"/>
+                      : <Copy className="size-3.5" aria-hidden="true"/>}
+                  </button>
+                  {!streaming&&!!text.trim()&&typeof navigator!=='undefined'&&typeof navigator.share==='function'&&
+                    <button type="button" aria-label={tr('shareReply',{ns:'chat'})} title={tr('shareReply',{ns:'chat'})}
+                      onClick={()=>void shareReply(msg.id,text)}
+                      className="grid size-8 place-items-center rounded-md hover:bg-[var(--mroya-surface-muted)]">
+                      <Share2 className="size-3.5" aria-hidden="true"/>
+                    </button>}
+                  {shareErrorId===msg.id&&<span role="status">{tr('shareReplyFailed',{ns:'chat'})}</span>}
+                </>;
                 return (
-                  <div key={imageActivity?.replyKey??msg.id} className="w-full space-y-2.5 sm:space-y-3">
+                  <ChatReply key={replyKey} actions={actions} timestamp={msg.timestamp}>
                     <div className="flex items-center gap-2">
-                      <BrandMark size="sm" />
+                      {reminder ? <Bell className="size-4 text-[var(--mroya-primary)]" aria-hidden="true"/> : <BrandMark size="sm" className="max-sm:size-[22px]" />}
                       <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
-                        Mroya
+                        {reminder?tr('reminder',{ns:'calendar'}):'Mroya'}
                       </span>
                       {msg.status && msg.status !== 'completed' && !showWaitingDots && !generationPhase && (
                         <span
@@ -883,8 +925,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         />
                       )}
 
-                      {/* Primary Assistant Response Card: full width, zero left indent on mobile */}
-                      {!taskOnlyAnswer&&<div className={`mroya-assistant-response w-full p-3.5 sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
+                      {!taskOnlyAnswer&&<div className={`mroya-assistant-response w-fit max-w-full p-3 sm:w-full sm:p-5 rounded-[12px] bg-[var(--mroya-surface)] border sm:shadow-[var(--mroya-shadow-subtle)] space-y-3.5 ${
                         msg.status === 'failed'
                           ? 'border-[var(--mroya-error)]/40'
                           : 'border-[var(--mroya-divider)]'
@@ -1087,35 +1128,13 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                         />
                       )}
 
-                      {/* Assistant message footer: Copy icon · Time */}
-                      <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-[var(--mroya-text-muted)]">
-                        {!showWaitingDots && !(streaming&&generationPhase) && (!live || msg.status !== 'failed') && <>
-                        <button
-                          type="button"
-                          onClick={() => taskOnlyAnswer&&!legacyMemoryReview
-                            ? handleCopyMessage(msg.id, taskMessageText(msg.tasks!))
-                            : handleCopyMessage(msg.id, msg.content)}
-                          aria-label={copiedMessageId === msg.id ? tr('copied',{ns:'common'}) : tr('copyResponse',{ns:'chat'})}
-                          title={copiedMessageId === msg.id ? tr('copiedBang',{ns:'chat'}) : tr('copy',{ns:'chat'})}
-                          className="inline-flex items-center justify-center p-1 -ml-1 rounded-[6px] text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] transition-colors cursor-pointer"
-                        >
-                          {copiedMessageId === msg.id ? (
-                            <Check className="w-3.5 h-3.5 text-[var(--mroya-primary)]" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                        <span aria-hidden="true" className="select-none">·</span>
-                        </>}
-                        <span className="tabular-nums">{msg.timestamp}</span>
-                      </div>
-                  </div>
+                  </ChatReply>
                 );
               })}
               {showThinking && (
                 <div className="w-full space-y-2.5 sm:space-y-3 animate-in fade-in duration-200">
                   <div className="flex items-center gap-2">
-                    <BrandMark size="sm" />
+                    <BrandMark size="sm" className="max-sm:size-[22px]" />
                     <span className="text-[13px] font-semibold text-[var(--mroya-text)]">
                       Mroya
                     </span>
@@ -1129,8 +1148,11 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               <div ref={messagesEndRef} />
             </div>
           ) : intro ? null : (
-            /* Restrained Empty New Conversation State */
-            <div className="min-h-[58vh] flex flex-col items-center justify-center text-center px-4">
+            <div className="grid min-h-[55dvh] place-items-center px-4 text-center lg:min-h-[58vh]">
+              {live && <h2 className="text-[15px] font-medium text-[var(--mroya-text-muted)] lg:hidden">
+                {tr('startConversation',{ns:'chat'})}
+              </h2>}
+              <div className={live ? 'hidden lg:flex lg:flex-col lg:items-center' : 'flex flex-col items-center'}>
               <BrandMark size="lg" glow className="mb-5" />
               <h2
                 className="text-[24px] sm:text-[28px] font-semibold tracking-[-0.02em] text-[var(--mroya-text)] mb-2"
@@ -1155,17 +1177,18 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </button>
                 ))}
               </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Fixed Bottom Message Composer */}
-      <div className="px-3 sm:px-8 pb-4 pt-2 bg-[var(--mroya-bg)] shrink-0">
+      <div className="px-3 sm:px-8 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-1 bg-[var(--mroya-bg)] shrink-0">
         <div className="max-w-[740px] mx-auto">
           <form
             onSubmit={handleSubmit}
-            className="rounded-[12px] bg-[var(--mroya-surface)] border-0 border-none outline-none ring-0 focus-within:border-none focus-within:outline-none focus-within:ring-0 shadow-[var(--mroya-shadow-subtle)] transition-all"
+            className="rounded-[10px] sm:rounded-xl bg-[var(--mroya-surface)] border-0 border-none outline-none ring-0 focus-within:border-none focus-within:outline-none focus-within:ring-0 shadow-[var(--mroya-shadow-subtle)] transition-all"
           >
             {/* Optional attached document preview */}
             <input type="file" accept="image/*" capture="environment" ref={cameraInput} hidden disabled={pending||submitting||voiceBusy} aria-label={tr('attachmentCamera',{ns:'chat'})} onChange={addAttachments}/>
@@ -1198,7 +1221,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               </div>
             )}
 
-            <div className="px-3.5 pt-3 pb-2">
+            <div className="px-3 pt-3 pb-1.5 sm:px-3.5">
               <label htmlFor="mroya-chat-composer" className="sr-only">
                 {tr('messageLabel',{ns:'chat'})}
               </label>
@@ -1218,15 +1241,15 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
             {imagePromptTooLong && <p id="mroya-image-prompt-limit" className="px-3.5 pb-2 text-xs text-[var(--mroya-error)]">{tr('imagePromptLimit',{ns:'chat',count:maxImagePromptCharacters})}</p>}
 
             {isRecording ? (
-              <div className="flex items-center gap-2 rounded-b-xl border-t border-[var(--mroya-divider)] px-3 py-2">
+              <div className="flex items-center gap-2 rounded-b-xl px-2.5 pb-2 pt-0.5">
                 <button type="button" onClick={handleCancelRecording} className={composerButton}
                   aria-label={tr('cancelRecording',{ns:'chat'})} title={tr('cancelRecording',{ns:'chat'})}>
                   <X className="size-4"/>
                 </button>
-                <div className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1" aria-hidden="true" data-voice-level={recordingLevel}>
+                <div className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2" aria-hidden="true" data-voice-level={recordingLevel}>
                   {Array.from({length:12},(_,index)=>(
                     <span key={index} className={`h-3 w-full max-w-2 rounded-full transition-colors motion-reduce:transition-none ${
-                      index<recordingLevel?'bg-[var(--mroya-primary)]':'bg-[var(--mroya-divider)]'
+                      index<recordingLevel?'bg-[var(--mroya-primary)]':'bg-[var(--mroya-surface-active)]'
                     }`}/>
                   ))}
                 </div>
@@ -1248,7 +1271,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 <button type="button" onClick={handleCancelRecording} className={composerButton} aria-label={tr('cancelRecording',{ns:'chat'})}><X className="size-4" /></button>
               </div>
             ) : (
-              <div className="relative flex items-center justify-between gap-2 px-3 pb-2.5 pt-1">
+              <div className="relative flex items-center justify-between gap-1 px-2 pb-2 pt-0.5 sm:px-3">
                 <div className="flex items-center gap-1">
                   <div className="relative" ref={attachmentMenuRef}>
                     <button type="button" ref={attachmentButtonRef} onClick={()=>setComposerMenu(composerMenu==='attachments'?null:'attachments')}
@@ -1272,7 +1295,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <button type="button" onClick={toggleImageMode} disabled={pending||submitting} aria-pressed={imageMode}
                     aria-label="Mroya Images" title="Mroya Images"
                     className={`${composerButton} aria-pressed:bg-[var(--mroya-surface-active)] aria-pressed:text-[var(--mroya-primary)]`}>
-                    <Image className="size-[18px]"/>
+                    <Sparkles className="size-[18px]"/>
                   </button>
                 </div>
 
@@ -1280,7 +1303,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   <div ref={effortMenuRef}>
                     <button type="button" ref={effortButtonRef} onClick={()=>setComposerMenu(composerMenu==='effort'?null:'effort')}
                       onPointerDown={event=>{if(document.activeElement===textareaRef.current)event.preventDefault();}}
-                      className="inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-full bg-[var(--mroya-surface-muted)] px-2 text-xs font-medium text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] cursor-pointer sm:px-3 sm:text-sm"
+                      className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-full bg-[var(--mroya-surface-muted)] px-2 text-xs font-medium text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)] cursor-pointer sm:px-3 sm:text-sm"
                       aria-label={tr('modelEffortCurrent',{ns:'chat',level:currentEffort})}
                       aria-expanded={composerMenu==='effort'} aria-controls={composerMenu==='effort'?'mroya-effort-options':undefined}>
                       <Gauge aria-hidden="true" className="size-4"/>
@@ -1312,7 +1335,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                   </div>
                   <button type="button" onClick={()=>{setComposerMenu(null);startRecording();}}
                     disabled={pending||submitting||(!speech&&!onSignIn&&!onUnavailable)}
-                    aria-label={tr('recordVoice',{ns:'chat'})} title={tr('recordVoiceHelp',{ns:'chat'})} className={composerButton}>
+                    aria-label={tr('recordVoice',{ns:'chat'})} title={tr('recordVoiceHelp',{ns:'chat'})} className={`${composerButton} enabled:text-[var(--mroya-primary)]`}>
                     <Mic className="size-[18px]"/>
                   </button>
                   <button type="submit" aria-label={tr('sendMessage',{ns:'chat'})} className={sendButton}

@@ -28,6 +28,19 @@ test('DTOs preserve occurrence IDs, timezone/read-only/source and recurrence con
  assert.equal('recurrence' in calendarWrite({...calendarPresentation(opaque),title:'Changed'},'UTC'),false);
 });
 
+test('all-day editor writes the exclusive bound and preserves or clears the existing end',()=>{
+ const allDay={...event,time_kind:'all_day' as const,start_time:null,timezone:null,utc_offset_minutes:null,end_date:'2026-10-21'};
+ const view=calendarPresentation(allDay);
+
+ assert.equal(calendarWrite({...view,api:undefined,allDayEndDate:'2026-10-31',locationOrLink:'Minsk'},'UTC').end_date,'2026-11-01');
+ assert.equal(calendarWrite({...view,api:undefined,allDayEndDate:'2026-10-19'},'UTC').end_date,'2026-10-20');
+ assert.equal(calendarWrite({...view,date:'2026-10-22'},'UTC').end_date,'2026-10-24');
+ assert.equal(calendarWrite({...view,allDayEndDate:null},'UTC').end_date,null);
+ assert.equal('end_date' in calendarWrite({...view,title:'Renamed'},'UTC'),false);
+ assert.equal(calendarWrite({...calendarPresentation(event),time:'All day',allDayEndDate:'2026-10-20'},'UTC').end_date,'2026-10-21');
+ assert.throws(()=>calendarWrite({...view,allDayEndDate:'2026-10-18'},'UTC'));
+});
+
 test('existing API client uses same-origin session and CSRF for create/update/delete and reads real Google state',async()=>{
  const calls:{url:string;init?:RequestInit}[]=[];
  const api=new MroyaApi((async(url,init)=>{calls.push({url:String(url),init});if(String(url).includes('auth/csrf'))return json({csrf_token:'test-csrf'});

@@ -262,5 +262,13 @@
   "memoryStatusRunning": "Saving to memory…",
   "memoryStatusCompleted": "Saved to memory",
   "memoryStatusFailed": "Could not save to memory",
-  "taskResultUnconfirmed": "The result could not be confirmed. Check the current status before trying again."
+  "taskResultUnconfirmed": "The result could not be confirmed. Check the current status before trying again.",
+  "startConversation": "Start a conversation with Mroya",
+  "imageZoomIn": "Zoom in",
+  "imageZoomOut": "Zoom out",
+  "imageZoomReset": "Reset zoom",
+  "taskDetailTitle": "Task",
+  "taskBackToList": "Back to tasks",
+  "shareReply": "Share response",
+  "shareReplyFailed": "Could not share the response."
 }

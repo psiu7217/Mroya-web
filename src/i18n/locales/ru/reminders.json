@@ -210,5 +210,9 @@
   "updatedFromGoogle": "Обновлено из Google Calendar · Правило повторения изменено для всех событий без дублирования напоминаний",
   "weeklyDemoSyncToast": "Встреча обновлена в Google Calendar · Интервал изменён для всей серии: за 15 минут",
   "doctorDemoSyncToast": "Приём врача обновлён в Google Calendar · Интервал изменён с 1 часа на 30 минут",
-  "occurrenceCompletedNext": "Событие завершено! Следующее напоминание назначено на {{date}}"
+  "occurrenceCompletedNext": "Событие завершено! Следующее напоминание назначено на {{date}}",
+  "liveUpcoming": "Ближайшие",
+  "liveHistory": "История",
+  "liveHistoryEmpty": "В истории пока нет напоминаний.",
+  "liveCancelled": "Отменено"
 }

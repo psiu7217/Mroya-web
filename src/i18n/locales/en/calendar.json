@@ -204,5 +204,10 @@
   "annualContactDemoCallout": "{{title}} (Google Contacts · annual)",
   "externalReadOnlyDescription": "This commitment is imported from an external read-only calendar ({{source}}). Edit or delete it in the source application.",
   "deleteSeriesConfirmation": "Permanently delete this recurring series and all its scheduled occurrences? This cannot be undone.",
-  "deleteCommitmentConfirmation": "Permanently delete this commitment from your calendar? This cannot be undone."
+  "deleteCommitmentConfirmation": "Permanently delete this commitment from your calendar? This cannot be undone.",
+  "eventDetailsTitle": "Event",
+  "eventLocation": "Location",
+  "eventDescription": "Description",
+  "eventEndDate": "End date",
+  "eventEndsOn": "Ends · {{date}}"
 }

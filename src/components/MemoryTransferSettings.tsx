@@ -1,5 +1,5 @@
 import React from 'react';
-import {BookOpen, CheckCircle2, Clock3, Download, FileWarning, LoaderCircle, RotateCcw, Upload} from 'lucide-react';
+import {Sparkles, CheckCircle2, Clock3, Download, FileWarning, LoaderCircle, RotateCcw, Upload} from 'lucide-react';
 import {tr} from '../i18n';
 import {MEMORY_SNAPSHOT_MAX_BYTES, type MemoryTransferPresentation} from '../types/memoryTransfer';
 
@@ -9,7 +9,7 @@ const icon='size-5 shrink-0 text-[var(--mroya-primary)]';
 
 // The controller owns authorization, validation, and the API.  This component
 // is only shown when a live, authorized controller supplies these callbacks.
-export function MemoryTransferSettings({transfer}: {transfer: MemoryTransferPresentation}) {
+export function MemoryTransferSettings({transfer,compact=false}: {transfer: MemoryTransferPresentation;compact?:boolean}) {
   const [confirming, setConfirming] = React.useState(false);
   const [selected, setSelected] = React.useState<{name:string; status:'checking'|'ready'|'rejected'}|null>(null);
   const input = React.useRef<HTMLInputElement>(null);
@@ -48,17 +48,16 @@ export function MemoryTransferSettings({transfer}: {transfer: MemoryTransferPres
     :transfer.operation==='restore'?'memoryRestoreProgressDetail'
     :transfer.operation==='retry'?'memoryRetryProgressDetail':'memoryImportProgressDetail';
   return <section aria-labelledby="mroya-memory-transfer-title" className="space-y-3">
-    <h3 id="mroya-memory-transfer-title" className="font-semibold">{copy('memoryTransferTitle')}</h3>
-    <div className="flex items-start gap-3 rounded-xl bg-[var(--mroya-surface-muted)] p-3.5">
-      <BookOpen aria-hidden="true" className={`${icon} mt-0.5`}/>
+    <h3 id="mroya-memory-transfer-title" className={compact?"sr-only":"font-semibold"}>{copy('memoryTransferTitle')}</h3>
+    <div className="rounded-2xl bg-[var(--mroya-surface-muted)] p-4">
       <div className="min-w-0 space-y-2 text-sm">
-        <h4 className="font-semibold">{copy('memoryBulkEditTitle')}</h4>
+        <h4 className="flex items-center gap-2 font-semibold"><Sparkles aria-hidden="true" className={icon}/>{copy('memoryBulkEditTitle')}</h4>
         <p className="leading-relaxed text-[var(--mroya-text-muted)]">{copy('memoryBulkEditExport')}</p>
         <p className="leading-relaxed text-[var(--mroya-text-muted)]">{copy('memoryBulkEditImport')}</p>
       </div>
     </div>
 
-    <div className="divide-y divide-[var(--mroya-divider)] rounded-xl border border-[var(--mroya-divider)]">
+    <div className="divide-y divide-[var(--mroya-divider)] rounded-2xl bg-[var(--mroya-surface)] px-1">
       <button type="button" disabled={busy} onClick={transfer.exportMemory} className={`${row} rounded-t-xl`}>
         {transfer.operation==='export'
           ? <LoaderCircle aria-hidden="true" className={`${icon} motion-safe:animate-spin`}/>

@@ -41,7 +41,7 @@ function FileMenu({label,icon,children}:{label:string;icon:React.ReactNode;child
   if(event.key!=='Escape'||!root.current?.open)return;
   event.preventDefault();event.stopPropagation();close();
  }}>
-  <summary ref={trigger} title={label} aria-label={label} className={`${button} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{icon}</summary>
+  <summary ref={trigger} title={label} aria-label={label} className="grid size-10 cursor-pointer list-none place-items-center rounded-full text-[var(--mroya-text-muted)] hover:bg-[var(--mroya-surface-muted)] [&::-webkit-details-marker]:hidden">{icon}</summary>
   <div className="absolute right-0 z-20 mt-2 w-60 max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-1.5 shadow-[var(--mroya-shadow-elevated)]"
     onClick={event=>{if((event.target as Element).closest('button:not(:disabled)'))close();}}>
    {children}
@@ -64,12 +64,14 @@ function FilePreview({file, showImage, className, iconClassName, thumbnail = fal
  file: DocumentDto; showImage: boolean; className: string; iconClassName: string; thumbnail?: boolean;
 }) {
  const [failed, setFailed] = useState(false);
- return <div className={`flex items-center justify-center overflow-hidden bg-[var(--mroya-surface-muted)] text-[var(--mroya-primary)] ${className}`}>
+ const extension=file.filename.match(/\.([a-z\d]{1,7})$/i)?.[1].toUpperCase();
+ return <div className={`flex flex-col items-center justify-center gap-1 overflow-hidden bg-[var(--mroya-surface-muted)] text-[var(--mroya-primary)] ${className}`}>
   {showImage && !failed
    ? <DocumentImage src={file.original_url} alt={thumbnail ? '' : file.title}
        loading={thumbnail ? 'lazy' : 'eager'} decoding="async" onFailure={() => setFailed(true)}
        className={`h-full w-full ${thumbnail ? 'object-cover' : 'object-contain'}`}/>
-   : <FileIcon file={file} className={iconClassName}/>}
+   : <><FileIcon file={file} className={iconClassName}/>
+       {thumbnail && extension && <span className="text-[10px] font-medium tracking-widest text-[var(--mroya-text-muted)]" aria-hidden="true">{extension}</span>}</>}
  </div>;
 }
 
@@ -90,10 +92,14 @@ function Details({runtime, file, onClose, onImageOpen}: {
   return()=>document.removeEventListener('keydown',key);
  },[onClose]);
  const save=async(event:React.FormEvent)=>{event.preventDefault();if(await runtime.onSave({title,summary,keywords:keywords.split(',').map(v=>v.trim()).filter(Boolean),category_id:category||null}))setEditing(false);};
- const preview = file && showImage && <FilePreview file={file} showImage className="h-52 w-full rounded-xl" iconClassName="h-10 w-10"/>;
- return <aside aria-label={t('fileDetails')} onKeyDown={event=>{if(window.matchMedia('(max-width:1023px)').matches)trapFocus(event);}} className="fixed inset-0 z-40 flex flex-col bg-[var(--mroya-surface)] lg:relative lg:inset-auto lg:z-auto lg:w-[400px] xl:w-[440px] lg:shrink-0 lg:border-l lg:border-[var(--mroya-divider)]">
-  <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-[var(--mroya-divider)] px-4 py-2">
-   <h2 className="min-w-0 flex-1 truncate text-sm font-semibold" title={file?.title}>{file?.title ?? t('fileDetails')}</h2>
+ const preview = file && showImage && <FilePreview file={file} showImage className="h-24 w-36 max-w-full rounded-lg lg:h-52 lg:w-full" iconClassName="h-10 w-10"/>;
+ return <aside aria-label={t('fileDetails')} onKeyDown={event=>{if(window.matchMedia('(max-width:1023px)').matches)trapFocus(event);}} className="fixed inset-0 z-40 flex flex-col bg-[var(--mroya-bg)] lg:relative lg:bg-[var(--mroya-surface)] lg:inset-auto lg:z-auto lg:w-[400px] xl:w-[440px] lg:shrink-0 lg:border-l lg:border-[var(--mroya-divider)]">
+  <header className="flex min-h-14 shrink-0 items-center gap-2 px-3 lg:min-h-16 lg:border-b lg:border-[var(--mroya-divider)] lg:px-4">
+   <button ref={closeRef} type="button" onClick={onClose} className="order-first grid size-10 shrink-0 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)] lg:order-last" aria-label={t('close')}><ArrowLeft className="size-5 lg:hidden" aria-hidden="true"/><X className="hidden size-4 lg:block" aria-hidden="true"/></button>
+   <h2 className="min-w-0 flex-1 truncate text-lg font-semibold lg:text-sm">
+    <span className="lg:hidden">{t('fileDetails')}</span>
+    <span className="hidden truncate lg:block" title={file?.title}>{file?.title ?? t('fileDetails')}</span>
+   </h2>
    <FileMenu label={t('fileActions')} icon={<MoreHorizontal aria-hidden="true" className="size-4"/>}>
     {detail&&!editing&&<button type="button" className={menuItem} disabled={pending(detail)||busy} onClick={()=>setEditing(true)}><Pencil className="size-4"/>{t('edit')}</button>}
     {detail&&detail.source!=='generated'&&<button type="button" className={menuItem} disabled={pending(detail)||busy}
@@ -102,15 +108,22 @@ function Details({runtime, file, onClose, onImageOpen}: {
     {file&&runtime.canDelete&&!runtime.designPreview&&<button type="button" className={`${menuItem} text-[var(--mroya-error)]`} disabled={busy}
       onClick={()=>{if(window.confirm(t('deleteConfirm',{name:file.title})))void runtime.onDelete();}}><Trash2 className="size-4"/>{t('deleteDocument')}</button>}
    </FileMenu>
-   <button ref={closeRef} type="button" onClick={onClose} className={`${button} shrink-0`} aria-label={t('close')}><ArrowLeft className="size-4 lg:hidden"/><X className="hidden size-4 lg:block"/></button>
   </header>
-  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+  <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-5">
+   <div className="space-y-4 rounded-xl bg-[var(--mroya-surface)] p-4 max-lg:border max-lg:border-[var(--mroya-divider)] lg:p-0">
    {file && <>
+    <div className="space-y-1 lg:hidden">
+     <p className="break-words text-lg font-semibold">{file.title}</p>
+     <div className="text-xs text-[var(--mroya-text-muted)]">
+      <p className="break-words">{fileFolder(file)} <Status file={file}/></p>
+      <p>{size(file.size_bytes)} · {date(file.created_at)}</p>
+     </div>
+    </div>
     {preview && (onImageOpen
-      ? <button type="button" className="block w-full cursor-zoom-in rounded-xl" data-image-url={file.original_url}
+      ? <button type="button" className="block max-w-full cursor-zoom-in rounded-xl lg:w-full" data-image-url={file.original_url}
           aria-label={t('openImage', {name: file.title})} onClick={() => onImageOpen(file.original_url, file.title)}>{preview}</button>
       : preview)}
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--mroya-text-muted)]">
+    <div className="hidden flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--mroya-text-muted)] lg:flex">
      <p className="min-w-0 break-words">{fileFolder(file)}</p>
      <Status file={file}/>
     </div>
@@ -124,7 +137,7 @@ function Details({runtime, file, onClose, onImageOpen}: {
    {runtime.detailError&&<div role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm"><p>{runtime.detailError}</p><button className={`${button} mt-2`} onClick={runtime.onRetryDetail}>{t('refresh')}</button></div>}
    {detail&&<>
     {detail.status==='failed'&&<p className="text-sm text-red-600 dark:text-red-400">{t('processingFailed')}</p>}
-    {!editing?<section>
+    {!editing?<section className="border-t border-[var(--mroya-divider)] pt-3">
      <h3 className="mb-2 text-sm font-medium">{t(detail.analysis_author==='user'?'yourDescription':detail.source==='generated'?'generationPrompt':'modelDescription')}</h3>
      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--mroya-text-muted)]">{detail.summary||t(pending(detail)?'descriptionPending':'noSummary')}</p>
     </section>:<form onSubmit={save} className="space-y-3">
@@ -158,6 +171,7 @@ function Details({runtime, file, onClose, onImageOpen}: {
     </details>
    </>}
   </div>
+  </div>
  </aside>;
 }
 
@@ -175,22 +189,19 @@ export function FilesView({runtime,isSidebarCollapsed,onExpandSidebar,onImageOpe
  const close=()=>{runtime?.onSelect(null);selectedTile.current?.focus({preventScroll:true});};
  const file=runtime?.detail??runtime?.rows.find(row=>row.id===runtime.selectedId)??null;
  const busy=!!(runtime?.mutating||runtime?.uploading);
- return <div className="flex h-full min-h-0 min-w-0 flex-1 bg-[var(--mroya-surface)] text-[var(--mroya-text)]">
+ const categoryTitle=category?.name??(runtime?.category==='generated'?t('generatedByMroya'):runtime?.category==='uncategorized'?t('uncategorized'):t('title'));
+ const goToParent=()=>runtime?.onCategory(category?.parent_id??'');
+ return <div className="flex h-full min-h-0 min-w-0 flex-1 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
   <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-   <header className="flex min-h-20 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--mroya-divider)] px-4 py-4 sm:px-6">
-    <div className="flex items-center gap-3"><WorkspaceMenuButton/>{isSidebarCollapsed&&<button className={`${button} hidden lg:inline-flex`} onClick={onExpandSidebar} aria-label={t('expandSidebar')}><PanelLeft className="h-4 w-4"/></button>}<h1 className="text-xl font-semibold">{t('title')}</h1></div>
-   </header>
-   {!runtime?<div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center"><Folder className="h-12 w-12 text-[var(--mroya-text-muted)]"/><p className="text-sm text-[var(--mroya-text-muted)]">{t('unavailable')}</p></div>:<>
-    <div className="space-y-3 border-b border-[var(--mroya-divider)] px-4 py-3 sm:px-6">
-     <div className="flex items-center gap-2">
-      <form className="flex min-w-0 flex-1 items-center gap-2" onSubmit={event=>{event.preventDefault();runtime.onSearch(query);}}>
-       <div className="relative min-w-0 flex-1">
-        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-2.5 size-4 text-[var(--mroya-text-muted)]"/>
-        <input type="search" maxLength={200} value={query} onChange={event=>setQuery(event.target.value)}
-          placeholder={t('searchPlaceholder')} aria-label={t('searchPlaceholder')} className={`${input} pl-9`}/>
-       </div>
-       <button type="submit" className={button}>{t('find')}</button>
-      </form>
+   <header className="flex min-h-14 shrink-0 items-center justify-between gap-2 px-3 lg:min-h-16 lg:border-b lg:border-[var(--mroya-divider)] lg:px-6">
+    <div className="flex min-w-0 items-center gap-2">
+     {runtime?.category
+       ? <button type="button" onClick={goToParent} aria-label={t('back')} className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)] lg:hidden"><ArrowLeft className="size-5" aria-hidden="true"/></button>
+       : <WorkspaceMenuButton/>}
+     {isSidebarCollapsed&&<button type="button" className={`${button} hidden lg:inline-flex`} onClick={onExpandSidebar} aria-label={t('expandSidebar')}><PanelLeft className="size-4"/></button>}
+     <h1 className="truncate text-lg font-semibold lg:text-xl">{categoryTitle}</h1>
+    </div>
+    {runtime&&
       <FileMenu label={t('filtersAndSort')} icon={<SlidersHorizontal aria-hidden="true" className={`size-4 ${runtime.category||runtime.order!=='newest'?'text-[var(--mroya-primary)]':''}`}/>}>
        {([['','allFiles'],['uncategorized','uncategorized'],['generated','generatedByMroya']] as const).map(([id,label])=>(
         <button key={id} type="button" className={menuItem} aria-pressed={runtime.category===id} onClick={()=>runtime.onCategory(id)}>
@@ -212,8 +223,23 @@ export function FilesView({runtime,isSidebarCollapsed,onExpandSidebar,onImageOpe
        </div>}
        <button type="button" className={menuItem} disabled={runtime.loading||busy} onClick={runtime.onRefresh}><RefreshCw className="size-4"/>{t('refresh')}</button>
       </FileMenu>
-     </div>
-     {!!runtime.category&&<nav aria-label={t('folderPath')} className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
+    }
+   </header>
+   {!runtime?<div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center"><Folder className="h-12 w-12 text-[var(--mroya-text-muted)]"/><p className="text-sm text-[var(--mroya-text-muted)]">{t('unavailable')}</p></div>:<>
+    <div className="space-y-3 px-4 py-1 lg:border-b lg:border-[var(--mroya-divider)] lg:px-6 lg:py-3">
+     <form className="flex min-w-0 items-center gap-2" onSubmit={event=>{event.preventDefault();runtime.onSearch(query);}}>
+      <div className="relative min-w-0 flex-1">
+       <button type="submit" aria-label={t('find')} className="absolute inset-y-0 left-0 grid w-10 place-items-center rounded-l-2xl text-[var(--mroya-text-muted)] hover:text-[var(--mroya-primary)]">
+        <Search aria-hidden="true" className="size-4"/>
+       </button>
+       <input type="search" maxLength={200} value={query} onChange={event=>{
+         setQuery(event.target.value);
+         if(!event.target.value && runtime.query)runtime.onSearch('');
+       }} enterKeyHint="search" placeholder={t('searchPlaceholder')} aria-label={t('searchPlaceholder')}
+        className="min-h-11 w-full rounded-2xl bg-[var(--mroya-surface-muted)] py-2 pl-10 pr-3 text-sm"/>
+      </div>
+     </form>
+     {!!runtime.category&&<nav aria-label={t('folderPath')} className="hidden min-w-0 flex-wrap items-center gap-1 text-sm lg:flex">
       <button type="button" onClick={()=>runtime.onCategory('')} className="rounded-lg px-2 py-1 hover:bg-[var(--mroya-surface-muted)]">{t('allFiles')}</button>
       {breadcrumbs.map((folder,index)=><React.Fragment key={folder.id}>
        <ChevronRight aria-hidden="true" className="size-3.5 text-[var(--mroya-text-muted)]"/>
@@ -227,18 +253,21 @@ export function FilesView({runtime,isSidebarCollapsed,onExpandSidebar,onImageOpe
       </>}
      </nav>}
     </div>
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6" aria-busy={runtime.loading}>
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 lg:px-6 lg:py-5" aria-busy={runtime.loading}>
      {runtime.error&&<div role="alert" className="mb-4 rounded-xl bg-red-500/10 p-3 text-sm"><p>{runtime.error}</p><button className={`${button} mt-2`} onClick={runtime.onRefresh}>{t('refresh')}</button></div>}
-     {!runtime.query&&!['uncategorized','generated'].includes(runtime.category)&&folders.length>0&&<section className="mb-7"><h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--mroya-text-muted)]">{t('folders')}</h2><div className="mroya-files-grid grid gap-3">{folders.map(folder=><button key={folder.id} onClick={()=>runtime.onCategory(folder.id)} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--mroya-divider)] px-3 py-4 text-left hover:bg-[var(--mroya-surface-muted)]"><Folder className="h-7 w-7 shrink-0 fill-blue-500/10 text-blue-500"/><div className="min-w-0"><p className="truncate text-sm font-medium">{folder.name}</p></div></button>)}</div></section>}
-     <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-xs font-medium uppercase tracking-wide text-[var(--mroya-text-muted)]">{t('filesCount',{count:runtime.total})}</h2>{runtime.category&&<button className="flex items-center gap-1 text-xs text-[var(--mroya-text-muted)]" onClick={()=>runtime.onCategory(category?.parent_id??'')}><ArrowLeft className="h-3 w-3"/>{t('back')}</button>}</div>
+     {!runtime.query&&!['uncategorized','generated'].includes(runtime.category)&&folders.length>0&&<section className="mb-5"><h2 className="mb-2 text-sm font-medium">{t('folders')}</h2><div className="mroya-files-grid grid gap-3">{folders.map(folder=><button key={folder.id} onClick={()=>runtime.onCategory(folder.id)} className="flex min-w-0 items-center gap-3 rounded-2xl bg-[var(--mroya-surface-muted)] px-3 py-4 text-left hover:bg-[var(--mroya-surface-active)]"><Folder className="size-5 shrink-0 fill-current text-[var(--mroya-primary)]"/><div className="min-w-0"><p className="truncate text-sm font-medium">{folder.name}</p></div></button>)}</div></section>}
+     <div className={`mb-2 items-center justify-between gap-2 ${runtime.category?'hidden lg:flex':'flex'}`}>
+      <h2 className="text-sm font-medium"><span className="lg:hidden">{t('title')}</span><span className="hidden lg:inline">{t('filesCount',{count:runtime.total})}</span></h2>
+      {runtime.category&&<button type="button" className="flex items-center gap-1 text-xs text-[var(--mroya-text-muted)]" onClick={goToParent}><ArrowLeft className="size-3"/>{t('back')}</button>}
+     </div>
      {!runtime.loading&&runtime.rows.length===0&&!runtime.error&&<div className="rounded-2xl border border-dashed border-[var(--mroya-divider)] py-14 px-5 text-center"><Folder className="mx-auto mb-4 h-11 w-11 text-[var(--mroya-text-muted)]"/><h3 className="font-medium">{t(runtime.query?'noResults':'emptyTitle')}</h3><p className="mx-auto mt-2 max-w-sm text-sm text-[var(--mroya-text-muted)]">{t(runtime.query?'noResultsHint':runtime.category==='generated'?'generatedEmptyHint':'emptyHint')}</p></div>}
      {runtime.loading&&runtime.rows.length===0&&<p role="status" className="py-10 text-center text-sm text-[var(--mroya-text-muted)]">{t('loading')}</p>}
      {!!runtime.rows.length && <div className="mroya-files-grid grid gap-3">
       {runtime.rows.map(file => (
        <button type="button" key={file.id} onClick={event=>{selectedTile.current=event.currentTarget;runtime.onSelect(file.id);}} aria-pressed={runtime.selectedId===file.id}
-        className={`min-w-0 self-start rounded-xl border p-2 text-left hover:bg-[var(--mroya-surface-muted)] sm:p-3 ${runtime.selectedId===file.id?'border-[var(--mroya-primary)]':'border-[var(--mroya-divider)]'}`}>
+        className="group min-w-0 self-start rounded-xl text-left aria-pressed:ring-2 aria-pressed:ring-[var(--mroya-primary)]">
         <FilePreview file={file} showImage={hasImagePreview(file,runtime.designPreview)} thumbnail
-         className="mb-2 aspect-[4/3] w-full rounded-lg" iconClassName="size-9"/>
+         className="mb-1.5 aspect-[4/3] w-full rounded-2xl group-hover:bg-[var(--mroya-surface-active)]" iconClassName="size-7"/>
         <span className="block truncate text-sm font-medium" title={file.title}>{file.title}</span>
         <Status file={file}/>
        </button>

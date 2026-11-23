@@ -283,6 +283,10 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
             connections={connections}
             onToggleConnection={onConnectionsSettingsViewToggleConnection}
             plan={plan}
+            planFeatures={runtime ? {
+              chat:runtime.chatAvailable, notes:notesAvailable, memory:runtime.memoryAvailable, files:!!model.files,
+              calendar:runtime.calendarAvailable, connections:!!model.googleCalendarAvailable||runtime.telegram?.status?.configured===true,
+            } : undefined}
             onSelectPlan={onConnectionsSettingsViewSelectPlan}
             theme={theme}
             onSelectTheme={onConnectionsSettingsViewSelectTheme}
@@ -401,9 +405,9 @@ export function WorkspaceView({model}: {model:WorkspaceModel}) {
         events={events}
         preselectedEventId={reminderPreselectedEventId}
       />
-      <AiTasksDrawer isOpen={tasksOpen} onClose={closeTasks} tasks={model.aiTasks?.tasks??[]}
+      <AiTasksDrawer mobileDetails={!!runtime && activeSection !== 'memory-map'} isOpen={tasksOpen} onClose={closeTasks} tasks={model.aiTasks?.tasks??[]}
        loading={model.aiTasks?.loading} error={model.aiTasks?.error} hasMore={model.aiTasks?.hasMore}
-       onRefresh={model.aiTasks?.onRefresh} onMore={model.aiTasks?.onMore} highlightTaskId={taskHighlight}
+       onRefresh={model.aiTasks?.onRefresh} onMore={model.aiTasks?.onMore} onDetails={model.aiTasks?.onDetails} highlightTaskId={taskHighlight}
        executingTaskId={model.aiTasks?.executingTaskId} onExecute={model.aiTasks?.onExecute}
        cancellingTaskId={model.aiTasks?.cancellingTaskId} onCancel={model.aiTasks?.onCancel}
        decidingTaskId={model.aiTasks?.decidingTaskId} onDecision={model.aiTasks?.onDecision} onReport={model.aiTasks?.onReport}/>

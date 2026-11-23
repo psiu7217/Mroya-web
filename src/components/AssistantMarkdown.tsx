@@ -1,4 +1,6 @@
-import React, {useMemo} from 'react';
+import React, {createContext, useContext, useMemo, useRef} from 'react';
+import {createPortal} from 'react-dom';
+import {Globe, X} from 'lucide-react';
 import Markdown, {defaultUrlTransform, type Components} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -35,6 +37,41 @@ export function assistantUrlTransform(url: string): string {
   return defaultUrlTransform(url);
 }
 
+export const MobileSourcesTarget = createContext<HTMLElement|null>(null);
+
+function WebSources({children}: {children: React.ReactNode}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const target = useContext(MobileSourcesTarget);
+  const title = tr('webSources', {ns:'chat'});
+  const links = React.Children.toArray(children).filter(child => !React.isValidElement(child) || child.type !== 'summary');
+
+  const trigger = <button type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}
+    className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] sm:hidden">
+    <Globe className="size-3.5" aria-hidden="true"/>{title}
+  </button>;
+
+  return <>
+    <details className="mroya-web-sources hidden sm:block">{children}</details>
+    {target ? createPortal(trigger,target) : trigger}
+    <dialog ref={dialog} aria-label={title}
+      onClick={event => {if (event.target === event.currentTarget) event.currentTarget.close();}}
+      className="inset-x-0 top-auto bottom-0 m-0 max-h-[80dvh] w-full max-w-none overflow-y-auto overscroll-contain rounded-t-2xl bg-[var(--mroya-surface)] p-0 text-[var(--mroya-text)] backdrop:bg-black/55 sm:mx-auto sm:max-w-xl">
+      <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <span className="mx-auto mb-3 block h-1 w-8 rounded-full bg-[var(--mroya-text-muted)]" aria-hidden="true"/>
+        <header className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="m-0 font-semibold">{title}</h2>
+          <button type="button" aria-label={tr('close',{ns:'common'})} onClick={() => dialog.current?.close()}
+            className="grid size-10 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)]"><X className="size-5" aria-hidden="true"/></button>
+        </header>
+        {links}
+      </div>
+    </dialog>
+  </>;
+}
+
+const renderDetails: NonNullable<Components['details']> = ({children,className}) => className === 'mroya-web-sources'
+  ? <WebSources>{children}</WebSources> : <details className={className}>{children}</details>;
+
 export function AssistantMarkdown({content, variant = 'assistant', onImageOpen, eagerImages=false}: AssistantMarkdownProps) {
   const renderImage = useMemo<NonNullable<Components['img']>>(() => ({alt,src}) => {
     if(variant!=='assistant'||typeof src!=='string'||!documentImageId(src))
@@ -59,6 +96,7 @@ export function AssistantMarkdown({content, variant = 'assistant', onImageOpen, 
           ? <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
           : <span>{children}</span>,
         img: renderImage,
+        details: renderDetails,
         table: ({children}) => <div className="mroya-markdown-scroll" role="region" aria-label={tr('messageTable',{ns:'chat'})} tabIndex={0}><table>{children}</table></div>,
         pre: ({children}) => <pre tabIndex={0}>{children}</pre>,
       }}>{content}</Markdown>

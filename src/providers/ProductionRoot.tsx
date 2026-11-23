@@ -15,6 +15,7 @@ import {usePwaInstall} from '../hooks/usePwaInstall';
 import {InstallDialog} from '../components/InstallDialog';
 import {UpdateNotice} from '../components/UpdateNotice';
 import {useFrontendUpdate} from '../hooks/useFrontendUpdate';
+import {isTelegramEntry,restoreTelegramGoogleReturn,setTelegramGoogleReturn} from '../utils/telegramEntry';
 import type {InstallPresentation} from '../types/install';
 export default function ProductionRoot(){
  const install=usePwaInstall();
@@ -25,7 +26,7 @@ function ProductionSession({install}:{install:InstallPresentation}){
  const source=useMemo(()=>createLiveSource(),[]);
  const {session,pending,error,setError,login,logout,refresh,startGoogleAuth,googleAvailable}=useSession(source);
  const {cache,workspaceSource,revoke}=useDocumentImageCache(source,session,refresh);
- const [loginOpen,setLoginOpen]=useState(false);
+ const [loginOpen,setLoginOpen]=useState(()=>typeof window!=='undefined'&&isTelegramEntry(window.location.pathname));
  // Retain the return notice across session loading/errors and refresh attempts.
  const [oauthError,setOAuthError]=useState<string|null>(null);
  const sessionLanguage=session.status==='authenticated'?session.user.preferences.language:undefined;
@@ -36,10 +37,23 @@ function ProductionSession({install}:{install:InstallPresentation}){
    if(next)setAppLanguage(next);
  },[session.status,sessionUserId,sessionLanguage]);
  useEffect(()=>{
+   if(restoreTelegramGoogleReturn())setLoginOpen(true);
    const authMsg=readAndClearAuthError();
    if(authMsg){setOAuthError(authMsg);setLoginOpen(true);}
  },[]);
  useEffect(()=>{if(session.status==="authenticated")setLoginOpen(false);},[session.status]);
+ const closeLogin=()=>{
+   setLoginOpen(false);setError(null);setOAuthError(null);
+   setTelegramGoogleReturn(false);
+   const url=new URL(window.location.href);
+   if(isTelegramEntry(url.pathname)){url.pathname='/';window.history.replaceState(window.history.state,'',url);}
+ };
+ const googleLogin=async()=>{
+   setOAuthError(null);
+   setTelegramGoogleReturn(isTelegramEntry(window.location.pathname));
+   try{await startGoogleAuth();}
+   catch(error){setTelegramGoogleReturn(false);throw error;}
+ };
  const authMessages:Record<string,string>={
   'Google sign-in was cancelled.':tr('googleCancelled',{ns:'auth'}),
   'Google sign-in failed. Please try again.':tr('googleFailed',{ns:'auth'}),
@@ -49,5 +63,5 @@ function ProductionSession({install}:{install:InstallPresentation}){
  const authNotice=oauthError&&<aside role="alert" className="fixed top-4 right-4 left-4 sm:left-auto z-50 max-w-md rounded-[14px] border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] text-[var(--mroya-text)] p-4 shadow-[var(--mroya-shadow-subtle)]"><p>{authMessages[oauthError]??tr('googleFailed',{ns:'auth'})}</p><button type="button" onClick={()=>setOAuthError(null)} className="mt-2 text-sm text-[var(--mroya-primary)]">{tr('dismiss',{ns:'auth'})}</button></aside>;
  if(session.status==='loading'||session.status==='error')return <>{authNotice}<main className="min-h-dvh flex items-center justify-center bg-[var(--mroya-bg)] text-[var(--mroya-text)] p-6"><section className="max-w-md space-y-4"><BrandMark size="lg"/>{session.status==='loading'?<p role="status">{tr('checkingSession',{ns:'auth'})}</p>:<><p role="alert">{tr('sessionCheckFailed',{ns:'auth',message:tr('sessionUnavailable',{ns:'auth'})})}</p><button onClick={refresh} className="rounded-full px-5 py-2 bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)]">{tr('retry',{ns:'common'})}</button></>}</section></main></>;
  if(session.status==='authenticated')return <>{authNotice}<DocumentImagesContext.Provider value={cache}><LiveExperience install={install} key={session.user.id} source={workspaceSource} user={session.user} onExpired={refresh} onLogout={()=>{revoke();retainWorkspaceLists(null);setLoginOpen(false);void logout();}}/></DocumentImagesContext.Provider></>;
- return <><GuestExperience install={install} onSignIn={()=>setLoginOpen(true)}/>{loginOpen&&<LoginDialog pending={pending} error={error??oauthError} onSubmit={async(username,password)=>{setOAuthError(null);await login(username,password);}} onGoogleSignIn={googleAvailable?async()=>{setOAuthError(null);await startGoogleAuth();}:undefined} onClose={()=>{setLoginOpen(false);setError(null);setOAuthError(null);}}/>}</>;
+ return <><GuestExperience install={install} onSignIn={()=>setLoginOpen(true)}/>{loginOpen&&<LoginDialog pending={pending} error={error??oauthError} onSubmit={async(username,password)=>{setOAuthError(null);await login(username,password);}} onGoogleSignIn={googleAvailable?googleLogin:undefined} onClose={closeLogin}/>}</>;
 }

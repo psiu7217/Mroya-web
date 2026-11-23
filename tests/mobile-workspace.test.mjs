@@ -53,7 +53,11 @@ test('visual viewport keyboard resize updates surface height without changing dr
 test('mobile font floor, intrinsic chat widths and contained Markdown scrolling preserve desktop typography',()=>{
   const css=readFileSync('src/index.css','utf8'),chat=readFileSync('src/components/ChatWorkspace.tsx','utf8');
   assert.match(css,/@media \(max-width: 1023px\)[\s\S]*textarea, select,[^}]+font-size: 16px !important/);
-  assert.match(chat,/text-\[15px\]/);assert.match(chat,/flex-1 min-h-0 min-w-0 overflow-y-auto/);assert.match(chat,/min-w-0 max-w-\[88%\]/);assert.match(chat,/truncate min-w-0">\{attachedFile\}/);
+  const attachments=readFileSync('src/components/AttachmentPreviews.tsx','utf8');
+  assert.match(chat,/text-\[15px\]/);assert.match(chat,/flex-1 min-h-0 min-w-0 overflow-y-auto/);
+  assert.match(chat,/min-w-0 max-w-\[(?:[1-9]|[1-9]\d)%\]/);
+  assert.match(chat,/mroya-assistant-response w-fit max-w-full/);
+  assert.match(attachments,/line-clamp-2 break-all[^>]*>\{item.filename\}/);
   assert.match(css,/\.mroya-markdown pre \{[^}]*overflow-x: auto/);assert.match(css,/\.mroya-markdown-scroll \{[^}]*overflow-x: auto/);
 });
 test('single shared drawer remains mounted for exit, is inert closed, and backdrop keeps close action',()=>{

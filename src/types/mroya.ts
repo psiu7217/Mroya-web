@@ -178,6 +178,8 @@ export interface CalendarEvent {
   id: string;
   title: string;
   date: string; // YYYY-MM-DD
+  /** Inclusive last day in the editor. Null clears a previously saved end. */
+  allDayEndDate?: string | null;
   dayOfMonth: number;
   time: string;
   duration: string;

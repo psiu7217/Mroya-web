@@ -9,7 +9,19 @@ import {DialogFocus} from './DialogFocus';
 import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 
 const copy=(key:string)=>tr(key,{ns:'calendar'});
-const action='grid min-h-10 min-w-10 place-items-center rounded-xl hover:bg-[var(--mroya-surface-muted)] disabled:opacity-50';
+const action='inline-flex min-h-10 min-w-10 items-center justify-center rounded-full hover:bg-[var(--mroya-surface-muted)] disabled:opacity-50';
+const calendarPill='bg-[var(--mroya-surface-muted)] text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-active)]';
+
+function calendarMonth(date:Date, locale:ReturnType<typeof currentLocale>, dayLabel:Intl.DateTimeFormat){
+ const year=date.getFullYear(),month=date.getMonth();
+ return {
+  key:calendarKey(date).slice(0,7), name:monthName(month,'long',locale), first:(date.getDay()+6)%7,
+  days:Array.from({length:new Date(year,month+1,0,12).getDate()},(_,day)=>{
+   const date=calendarDate(year,month,day+1);
+   return {key:calendarKey(date),number:day+1,label:dayLabel.format(date)};
+  }),
+ };
+}
 
 interface Props {
  today:Date; events:CalendarEvent[]; calendar?:CalendarPresentation;
@@ -30,20 +42,11 @@ export function MobileCalendar({today,events,calendar,active,readOnly,showGoogle
 
  const todayKey=calendarKey(today);
  const locale=currentLocale();
- const months=useMemo(()=>{
-  const dayLabel=new Intl.DateTimeFormat(locale,{day:'numeric',month:'long',year:'numeric'});
-  return Array.from({length:36},(_,index)=>{
-   const date=calendarDate(windowYear-1,index,1);
-   const year=date.getFullYear(),month=date.getMonth();
-   return {
-    key:calendarKey(date).slice(0,7),name:monthName(month,'long',locale),first:(date.getDay()+6)%7,
-    days:Array.from({length:new Date(year,month+1,0,12).getDate()},(_,day)=>{
-     const date=calendarDate(year,month,day+1);
-     return {key:calendarKey(date),number:day+1,label:dayLabel.format(date)};
-    }),
-   };
-  });
- },[windowYear,locale]);
+ const dayLabel=useMemo(()=>new Intl.DateTimeFormat(locale,{day:'numeric',month:'long',year:'numeric'}),[locale]);
+ const months=useMemo(()=>Array.from({length:36},(_,index)=>
+  calendarMonth(calendarDate(windowYear-1,index,1),locale,dayLabel)),[windowYear,locale,dayLabel]);
+ const yearMonths=useMemo(()=>yearMode?Array.from({length:12},(_,index)=>
+  calendarMonth(calendarDate(year,index,1),locale,dayLabel)):[],[yearMode,year,locale,dayLabel]);
  const days=useMemo(()=>{
   const index=new Map<string,CalendarEvent[]>();
   for(const event of events){
@@ -97,67 +100,86 @@ export function MobileCalendar({today,events,calendar,active,readOnly,showGoogle
  const upcoming=calendar?.upcoming?.events??[];
  const rows=panel==='day'?(days.get(selected)??[]):upcoming;
  const oneWeek=useMemo(()=>Array.from({length:7},(_,day)=>weekdayName(day,'short',locale)),[locale]);
- const title=panel==='day'?formatDate(selected+'T12:00:00Z',{weekday:'long',day:'numeric',month:'long'},'UTC'):copy('upcomingCommitments');
+ const title=panel==='day'?formatDate(selected+'T12:00:00Z',{weekday:'long',day:'numeric',month:'long',year:'numeric'},'UTC'):copy('upcomingCommitments');
  return <div className="flex min-h-0 flex-1 flex-col lg:hidden">
-  <header className="flex min-h-14 shrink-0 items-center gap-1 border-b border-[var(--mroya-divider)] px-3">
+  <header className="flex min-h-14 shrink-0 items-center gap-1 px-3">
    <WorkspaceMenuButton/>
-   <button type="button" aria-label={copy(yearMode?'backMonth':'showYear')} onClick={()=>yearMode?jump(calendarDate(year,0,1)):setYearMode(true)} className="flex min-h-10 items-center rounded-lg px-1.5 text-base font-semibold text-[var(--mroya-primary)]">
+   <button type="button" aria-label={copy(yearMode?'backMonth':'showYear')} onClick={()=>yearMode?jump(calendarDate(year,0,1)):setYearMode(true)} className={action+' '+calendarPill+' gap-1 px-3 text-sm font-semibold'}>
     <ChevronLeft aria-hidden="true" className="size-5"/>{year}
    </button>
-   <button type="button" disabled={readOnly} aria-label={copy('newEvent')} onClick={()=>onNew(new Date(selected+'T12:00:00'))} className={action+' ml-auto'}><Plus aria-hidden="true" className="size-6"/></button>
+   <button type="button" disabled={readOnly} aria-label={copy('newEvent')} onClick={()=>onNew(new Date(selected+'T12:00:00'))} className={action+' ml-auto bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] hover:bg-[var(--mroya-primary-hover)]'}><Plus aria-hidden="true" className="size-6"/></button>
   </header>
   {yearMode?<div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
    <div className="mb-4 flex items-center justify-between">
     <button type="button" aria-label={copy('previousYear')} onClick={()=>changeYear(year-1)} className={action}><ChevronLeft aria-hidden="true" className="size-5"/></button>
-    <h1 className="text-2xl font-bold">{year}</h1>
+    <h1 className="text-2xl font-bold text-[var(--mroya-primary)]">{year}</h1>
     <button type="button" aria-label={copy('nextYear')} onClick={()=>changeYear(year+1)} className={action}><ChevronRight aria-hidden="true" className="size-5"/></button>
    </div>
-   <div className="mx-auto grid max-w-xl grid-cols-[repeat(auto-fit,minmax(min(100%,max(7rem,calc((100%_-_1rem)/3))),1fr))] gap-2">
-    {Array.from({length:12},(_,month)=><button key={month} type="button" onClick={()=>jump(calendarDate(year,month,1))} className="min-h-16 min-w-0 break-words rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-2 text-center text-sm font-medium capitalize">{monthName(month)}</button>)}
+   <div className="mx-auto grid max-w-xl grid-cols-3 gap-x-3 gap-y-6">
+    {yearMonths.map((month,index)=><button key={month.key} type="button" onClick={()=>jump(calendarDate(year,index,1))}
+      className="min-w-0 self-start rounded-lg p-1 text-left hover:bg-[var(--mroya-surface)]">
+     <span className="mb-1 block truncate text-xs font-semibold capitalize">{month.name}</span>
+     <span className="grid grid-cols-7 text-center text-[9px] leading-[1.25] tabular-nums text-[var(--mroya-text-muted)]" aria-hidden="true">
+      {Array.from({length:month.first},(_,i)=><span key={i}/>)}
+      {month.days.map(day=><span key={day.key} className={day.key===selected?'rounded bg-[var(--mroya-primary)] font-bold text-[var(--mroya-on-primary)]':days.has(day.key)?'font-bold text-[var(--mroya-primary)]':undefined}>{day.number}</span>)}
+     </span>
+    </button>)}
    </div>
-  </div>:<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3" ref={scroll}>
-   {months.map(month=><section key={month.key} data-mobile-month={month.key} className="mx-auto max-w-xl border-b border-[var(--mroya-divider)] py-4">
-     <h2 className="mb-2 text-2xl font-bold capitalize">{month.name}</h2>
+  </div>:<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4" ref={scroll}>
+   {months.map(month=><section key={month.key} data-mobile-month={month.key} className="mx-auto max-w-xl pt-3 pb-5">
+     <h2 className="mb-2 text-2xl font-bold capitalize tracking-tight">{month.name}</h2>
      <div className="grid grid-cols-7">
       {oneWeek.map((day,i)=><div key={i} className="truncate pb-1 text-center text-xs text-[var(--mroya-text-muted)]">{day}</div>)}
-      {Array.from({length:month.first},(_,i)=><span key={'spacer'+i}/>)}
-      {month.days.map(({key,label,number})=>{
+      {Array.from({length:month.first},(_,i)=><span key={'before'+i} className="border-t border-[var(--mroya-divider)]"/>)}
+      {month.days.map(({key,label,number},index)=>{
        const marked=days.has(key);
+       const weekend=(month.first+index)%7>=5;
+       const picked=key===selected;
        return <button key={key} type="button" data-calendar-date={key} aria-current={key===todayKey?'date':undefined}
-         aria-pressed={key===selected}
+         aria-pressed={picked}
          aria-label={label+(marked?' · '+copy('hasEvents'):'')}
          onClick={()=>{setSelected(key);if(marked)setPanel('day');}}
-         className={'relative mx-auto flex min-h-11 w-full max-w-12 flex-col items-center justify-center rounded-xl text-sm '+(key===selected?'bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)]':key===todayKey?'bg-[var(--mroya-surface-active)] font-bold text-[var(--mroya-primary)]':'hover:bg-[var(--mroya-surface-muted)]')}>
-        {number}{marked&&<span aria-hidden="true" className="absolute bottom-1 size-1 rounded-full bg-current"/>}
+         className="relative grid min-h-[3.25rem] w-full place-items-center border-t border-[var(--mroya-divider)] hover:bg-[var(--mroya-surface)]">
+        <span className={'grid size-8 place-items-center rounded-full text-sm font-semibold '+(picked?'bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)]':key===todayKey?'bg-[var(--mroya-surface-active)] text-[var(--mroya-primary)]':weekend?'text-[var(--mroya-text-muted)]':'')}>{number}</span>
+        {marked&&<span aria-hidden="true" className="absolute bottom-1 size-1 rounded-full bg-[var(--mroya-primary)]"/>}
        </button>;
       })}
+      {Array.from({length:(7-(month.first+month.days.length)%7)%7},(_,i)=><span key={'after'+i} className="border-t border-[var(--mroya-divider)]"/>)}
      </div>
     </section>)}
   </div>}
-  <footer className="flex shrink-0 items-center justify-between border-t border-[var(--mroya-divider)] px-3 pt-1 pb-[max(.25rem,env(safe-area-inset-bottom))]">
-   <button type="button" onClick={()=>jump(today)} className={action+' px-2 text-sm font-semibold text-[var(--mroya-primary)]'}>{copy('today')}</button>
+  <footer className="flex shrink-0 items-center justify-between border-t border-[var(--mroya-divider)] px-4 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))]">
+   <button type="button" onClick={()=>jump(today)} className={action+' '+calendarPill+' px-4 text-sm font-semibold'}>{copy('today')}</button>
    {calendar?.loading&&!events.length&&<span role="status" className="text-xs text-[var(--mroya-text-muted)]">{copy('calendarLoading')}</span>}
-   <button type="button" aria-label={copy('upcomingCommitments')} onClick={()=>setPanel('upcoming')} className={action}><CalendarRange aria-hidden="true" className="size-5"/></button>
+   <button type="button" aria-label={copy('upcomingCommitments')} onClick={()=>setPanel('upcoming')} className={action+' '+calendarPill}><CalendarRange aria-hidden="true" className="size-5"/></button>
   </footer>
-  {active&&panel&&<DialogFocus onClose={()=>setPanel(null)} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40">
-   <div className="max-h-[80dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl bg-[var(--mroya-surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+  {active&&panel&&<DialogFocus onClose={()=>setPanel(null)} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className="fixed inset-0 z-[60] flex items-end justify-center bg-black/55" onClick={event=>{if(event.target===event.currentTarget)setPanel(null);}}>
+   <div className="max-h-[80dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-[24px] bg-[var(--mroya-bg)] px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <span className="mx-auto mb-3 block h-1 w-8 rounded-full bg-[var(--mroya-text-muted)]" aria-hidden="true"/>
     <header className="flex items-center justify-between gap-3">
-     <h2 className="font-semibold">{title}</h2>
+     <h2 className="text-lg font-semibold">{title}</h2>
      <button type="button" onClick={()=>setPanel(null)} aria-label={tr('close',{ns:'common'})} className={action}><X aria-hidden="true" className="size-5"/></button>
     </header>
-    {panel==='upcoming'&&showGoogle&&<button type="button" onClick={onGoogle} className="my-2 flex w-full items-center gap-3 rounded-xl border border-[var(--mroya-divider)] p-3 text-left">
+    {panel==='upcoming'&&calendar?.upcoming?.error&&<p role="alert" className="py-2 text-sm"><button type="button" onClick={calendar.upcoming.onRetry} className="underline">{copy('retryUpcoming')}</button></p>}
+    {!rows.length&&<p className="py-3 text-sm text-[var(--mroya-text-muted)]">{copy(panel==='day'?'noEventsScheduled':calendar?.upcoming?.loading?'checkingUpcoming':'noUpcoming')}</p>}
+    <ul>
+     {rows.map(event=><li key={event.id}><button type="button" className="flex w-full min-w-0 items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-[var(--mroya-surface-muted)]" onClick={()=>{setPanel(null);onEvent(event);}}>
+      <CalendarDays aria-hidden="true" className="size-5 shrink-0 text-[var(--mroya-primary)]"/>
+      <span className="min-w-0 flex-1">
+       <span className="block truncate text-sm font-medium">{event.title}</span>
+       <span className="block truncate text-xs text-[var(--mroya-text-muted)]">
+        {panel==='upcoming'&&formatDate(event.date+'T12:00:00Z',{day:'numeric',month:'short',year:'numeric'},'UTC')+' · '}
+        {event.time==='All day'?copy('allDay'):event.time}{event.locationOrLink&&' · '+event.locationOrLink}
+       </span>
+      </span>
+      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[var(--mroya-text-muted)]"/>
+     </button></li>)}
+    </ul>
+    {panel==='upcoming'&&showGoogle&&<button type="button" onClick={onGoogle} className="mt-2 flex w-full items-center gap-3 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-3 text-left">
      <CalendarDays aria-hidden="true" className="size-5 shrink-0 text-[var(--mroya-primary)]"/>
      <span className="min-w-0 flex-1 text-sm"><span className="block font-medium">Google Calendar</span><span className="block break-words text-xs text-[var(--mroya-text-muted)]">{googleStatus}</span></span>
      <ChevronRight aria-hidden="true" className="size-5 shrink-0"/>
     </button>}
-    {panel==='upcoming'&&calendar?.upcoming?.error&&<p role="alert" className="py-2 text-sm"><button type="button" onClick={calendar.upcoming.onRetry} className="underline">{copy('retryUpcoming')}</button></p>}
-    {!rows.length&&<p className="py-3 text-sm text-[var(--mroya-text-muted)]">{copy(panel==='day'?'noEventsScheduled':calendar?.upcoming?.loading?'checkingUpcoming':'noUpcoming')}</p>}
-    <ul className="divide-y divide-[var(--mroya-divider)]">
-     {rows.map(event=><li key={event.id}><button type="button" className="block w-full min-w-0 px-2 py-3 text-left hover:bg-[var(--mroya-surface-muted)]" onClick={()=>{setPanel(null);onEvent(event);}}>
-      <span className="block truncate font-medium">{event.title}</span>
-      <span className="block text-xs text-[var(--mroya-text-muted)]">{panel==='upcoming'&&formatDate(event.date+'T12:00:00Z',{day:'numeric',month:'short'},'UTC')+' · '}{event.time==='All day'?copy('allDay'):event.time}</span>
-     </button></li>)}
-    </ul>
    </div>
   </DialogFocus>}
  </div>;

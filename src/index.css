@@ -249,3 +249,14 @@ img.mroya-chat-image, .mroya-chat-image img {
   cursor: pointer;
   font-weight: 600;
 }
+
+.mroya-settings-rows > li + li {
+  position: relative;
+}
+.mroya-settings-rows > li + li::before {
+  position: absolute;
+  inset: 0 .5rem auto 2.5rem;
+  border-top: 1px solid var(--mroya-divider);
+  pointer-events: none;
+  content: "";
+}

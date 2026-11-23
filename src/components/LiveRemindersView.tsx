@@ -1,5 +1,5 @@
 import {useState, type FormEvent} from 'react';
-import {Bell, PanelLeftOpen, Plus} from 'lucide-react';
+import {Bell, ChevronDown, History, PanelLeftOpen, Plus} from 'lucide-react';
 import {tr} from '../i18n';
 import {formatDate} from '../i18n/format';
 import {reminderRepeats, type ReminderInput, type ReminderRecord, type RemindersPresentation} from '../types/reminders';
@@ -26,9 +26,12 @@ const inputStyle = 'w-full min-w-0 rounded-lg border border-[var(--mroya-divider
 
 export function LiveRemindersView({reminders, showTelegramSetup, onOpenConnections,
                                    isSidebarCollapsed, onExpandSidebar}: Props) {
+  const [history, setHistory] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [confirm, setConfirm] = useState<ReminderRecord | null>(null);
   const locked = reminders.busy || reminders.loading;
+  const rows = reminders.rows.filter(row => (row.status !== 'scheduled') === history);
   const label = (key: string) => tr(key, {ns: 'reminders'});
   const repeatLabel = (repeat: ReminderInput['repeat']) => tr(repeatLabels[repeat], {ns: 'reminders', days: ''});
 
@@ -48,25 +51,28 @@ export function LiveRemindersView({reminders, showTelegramSetup, onOpenConnectio
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editor || !zone || locked) return;
-    if (await reminders.onChange({...editor, input: {...editor.input, timezone: zone}})) setEditor(null);
+    if (await reminders.onChange({...editor, input: {...editor.input, timezone: zone}})) {
+      setHistory(false);
+      setEditor(null);
+    }
   };
   const cancel = async (row: ReminderRecord) => {
     if (await reminders.onChange({kind: 'cancel', id: row.id, version: row.version})) setConfirm(null);
   };
 
   return <section className="flex min-h-0 flex-1 flex-col">
-    <header className="flex shrink-0 items-center gap-3 border-b border-[var(--mroya-divider)] px-4 py-3 sm:px-6">
+    <header className="flex min-h-14 shrink-0 items-center gap-3 bg-[var(--mroya-surface)] px-3 py-2 sm:px-6">
       <WorkspaceMenuButton/>
       {isSidebarCollapsed && <button type="button" onClick={onExpandSidebar} aria-label={tr('expandSidebar', {ns: 'common'})}
         className="hidden rounded-lg p-2 lg:inline-flex"><PanelLeftOpen size={19}/></button>}
       <Bell size={19} className="hidden shrink-0 sm:block" aria-hidden="true"/>
       <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{label('liveTitle')}</h1>
-      <button type="button" className={primary} disabled={locked || !!editor} onClick={openCreate}>
-        <Plus size={16} aria-hidden="true"/>{label('liveNew')}
+      <button type="button" className={`${primary} size-10 rounded-full sm:w-auto`} aria-label={label('liveNew')} disabled={locked || !!editor} onClick={openCreate}>
+        <Plus size={18} aria-hidden="true"/><span className="hidden sm:inline">{label('liveNew')}</span>
       </button>
     </header>
 
-    <div className="flex-1 overflow-auto px-4 py-5 sm:px-6">
+    <div className="flex-1 overflow-auto px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-2xl space-y-4">
         {showTelegramSetup && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--mroya-divider)] px-4 py-3 text-sm">
           <p>{label('liveTelegramHint')}</p>
@@ -119,33 +125,50 @@ export function LiveRemindersView({reminders, showTelegramSetup, onOpenConnectio
           </div>
         </form>}
 
+        <div className="flex justify-center">
+          <div className="inline-flex overflow-hidden rounded-full border border-[var(--mroya-input-outline)]">
+            {[false, true].map(value => <button key={String(value)} type="button" aria-pressed={history === value}
+              onClick={() => {setHistory(value);setConfirm(null);setExpanded(null);}}
+              className="min-h-9 px-4 text-xs font-semibold aria-pressed:bg-[var(--mroya-input-outline)] aria-pressed:text-[var(--mroya-bg)]">
+              {label(value ? 'liveHistory' : 'liveUpcoming')}
+            </button>)}
+          </div>
+        </div>
         {reminders.loading && !reminders.loaded && <p role="status" className="text-sm">{tr('loading', {ns: 'common'})}</p>}
-        {reminders.loaded && !reminders.rows.length && <p className="rounded-xl border border-[var(--mroya-divider)] p-4 text-sm">
-          {label('liveEmpty')}
+        {reminders.loaded && !rows.length && <p className="p-4 text-center text-sm text-[var(--mroya-text-muted)]">
+          {label(history ? 'liveHistoryEmpty' : 'liveEmpty')}
         </p>}
-        {!!reminders.rows.length && <ul className="space-y-2">
-          {reminders.rows.map(row => <li key={row.id} className="rounded-xl border border-[var(--mroya-divider)] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1">
-                <p className="whitespace-pre-line break-words font-medium">{row.text}</p>
-                <p className="text-sm text-[var(--mroya-text-muted)]">
-                  {row.next_run_at ? formatDate(row.next_run_at, {dateStyle: 'medium', timeStyle: 'short'}, row.timezone)
-                    : label(row.last_outcome === 'skipped' ? 'liveSkipped' : 'liveFinished')}
-                  {' · '}{repeatLabel(row.repeat)}
-                  {row.next_run_at && <> · {row.timezone}</>}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
+        {!!rows.length && <ul className="space-y-2.5">
+          {rows.map(row => {
+            const Icon = history ? History : Bell;
+            const open = expanded === row.id;
+            const status = row.status === 'cancelled' ? 'liveCancelled' : row.last_outcome === 'skipped' ? 'liveSkipped' : 'liveFinished';
+            return <li key={row.id} className="rounded-xl bg-[var(--mroya-surface-muted)]">
+              <button type="button" aria-expanded={open} onClick={() => {setExpanded(open ? null : row.id);setConfirm(null);}}
+                className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left">
+                <Icon aria-hidden="true" className="size-5 shrink-0 text-[var(--mroya-primary)]"/>
+                <span className="min-w-0 flex-1">
+                  <span className="block whitespace-pre-line break-words text-sm font-semibold">{row.text}</span>
+                  <span className="mt-1 block text-xs text-[var(--mroya-text-muted)]">
+                    {row.next_run_at ? formatDate(row.next_run_at, {dateStyle: 'medium', timeStyle: 'short'}, row.timezone)
+                      : <>{formatDate(row.date + 'T12:00:00Z', {dateStyle: 'medium'}, 'UTC')} · {row.time}</>}
+                    <br/>{repeatLabel(row.repeat)} · {row.timezone}
+                    {history && <><br/>{label(status)}</>}
+                  </span>
+                </span>
+                <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-[var(--mroya-text-muted)] ${open ? 'rotate-180' : ''}`}/>
+              </button>
+              {open && <div className="flex flex-wrap gap-2 px-3.5 pb-3">
                 <button type="button" disabled={locked || !!editor} className={button} onClick={() => openEdit(row)}>{label('editLabel')}</button>
                 <button type="button" disabled={locked || !!editor} className={button} onClick={() => setConfirm(row)}>{label('deleteLabel')}</button>
-              </div>
-            </div>
-            {confirm?.id === row.id && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--mroya-divider)] pt-3 text-sm">
-              <p>{label('liveDeleteConfirm')}</p>
-              <button type="button" className={button} disabled={locked} onClick={() => void cancel(row)}>{label('deleteLabel')}</button>
-              <button type="button" className={button} disabled={reminders.busy} onClick={() => setConfirm(null)}>{tr('cancel', {ns: 'common'})}</button>
-            </div>}
-          </li>)}
+              </div>}
+              {open && confirm?.id === row.id && <div className="flex flex-wrap items-center gap-2 border-t border-[var(--mroya-divider)] p-3 text-sm">
+                <p>{label('liveDeleteConfirm')}</p>
+                <button type="button" className={button} disabled={locked} onClick={() => void cancel(row)}>{label('deleteLabel')}</button>
+                <button type="button" className={button} disabled={reminders.busy} onClick={() => setConfirm(null)}>{tr('cancel', {ns: 'common'})}</button>
+              </div>}
+            </li>;
+          })}
         </ul>}
         {reminders.hasMore && <button type="button" className={button} disabled={locked} onClick={reminders.onMore}>{label('liveMore')}</button>}
       </div>

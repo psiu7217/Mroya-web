@@ -1,12 +1,13 @@
 import {MobileCalendar} from './MobileCalendar';
 import {WorkspaceMenuButton} from './WorkspaceMenuButton';
 import {MemoryLinks} from './MemoryLinks';
-import {maskCalendarTime,calendarTimeError,isAllDay} from '../utils/calendarInput';
+import {maskCalendarTime,calendarTimeError,isAllDay,shiftDateKey} from '../utils/calendarInput';
 import {dateInTimezone,upcomingCalendarEvents,designUpcomingCalendarEvents} from '../utils/upcomingCalendar';
 import type {CalendarPresentation} from '../types/workspace';
 import React, { useState, useRef, useEffect } from 'react';
 import { DialogFocus } from './DialogFocus';
 import {
+  ArrowLeft,
   Calendar as CalendarIcon,
   Plus,
   Clock,
@@ -68,6 +69,14 @@ interface CalendarViewProps {
   googleCalendarEmail?: string;
   isSidebarCollapsed: boolean;
   onExpandSidebar: () => void;
+}
+
+function AllDayToggle({checked,onChange}:{checked:boolean;onChange:(checked:boolean)=>void}) {
+  return <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-sm">
+    {tr('allDay',{ns:'calendar'})}
+    <input type="checkbox" checked={checked} onChange={event=>onChange(event.target.checked)} className="peer sr-only"/>
+    <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full border border-[var(--mroya-input-outline)] after:absolute after:top-1/2 after:left-1 after:size-4 after:-translate-y-1/2 after:rounded-full after:bg-[var(--mroya-input-outline)] peer-checked:border-[var(--mroya-primary)] peer-checked:bg-[var(--mroya-primary)] peer-checked:after:translate-x-5 peer-checked:after:bg-[var(--mroya-on-primary)] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--mroya-primary)]"/>
+  </label>;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -133,6 +142,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [editCategory, setEditCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
   const [editPerson, setEditPerson] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editEnd, setEditEnd] = useState<string|undefined>(undefined);
   const [editRecurrence, setEditRecurrence] = useState<RecurrenceRule | undefined>(undefined);
 
   // New event form state
@@ -150,6 +161,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [newCategory, setNewCategory] = useState<'meeting' | 'deadline' | 'reminder'>('meeting');
   const [newPerson, setNewPerson] = useState(samples?.person??'');
   const [newNotes, setNewNotes] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [newEnd, setNewEnd] = useState('');
   const [newEventRecurrence, setNewEventRecurrence] = useState<RecurrenceRule | undefined>(undefined);
   const [newReminderEnabled, setNewReminderEnabled] = useState(false);
   const [newReminderOffset, setNewReminderOffset] = useState<number>(30);
@@ -157,11 +170,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [quickOffset, setQuickOffset] = useState<number>(30);
 
   const draftSignatures=useRef({create:'',edit:'',delete:''});
-  draftSignatures.current={create:JSON.stringify([newTitle,newDate,newTime,newNotes,newCategory,newPerson,newEventRecurrence]),edit:JSON.stringify([editingEvent?.id,editTitle,editDate,editTime,editNotes,editCategory,editPerson,editDuration,editRecurrence]),delete:deletingEvent?.id??''};
+  draftSignatures.current={create:JSON.stringify([newTitle,newDate,newTime,newNotes,newCategory,newPerson,newLocation,newEnd,newEventRecurrence]),edit:JSON.stringify([editingEvent?.id,editTitle,editDate,editTime,editNotes,editCategory,editPerson,editLocation,editEnd,editDuration,editRecurrence]),delete:deletingEvent?.id??''};
   const pendingForm=useRef<{kind:'create'|'edit'|'delete';signature:string}|null>(null);
   const finishForm=(pending:NonNullable<typeof pendingForm.current>)=>{
     if(!mounted.current||pending.signature!==draftSignatures.current[pending.kind])return;
-    if(pending.kind==='create'){setNewTitle('');setNewNotes('');setNewEventRecurrence(undefined);setNewReminderEnabled(false);setIsNewModalOpen(false);}
+    if(pending.kind==='create'){setNewTitle('');setNewNotes('');setNewLocation('');setNewEnd('');setNewEventRecurrence(undefined);setNewReminderEnabled(false);setIsNewModalOpen(false);}
     else if(pending.kind==='edit')setEditingEvent(null);else setDeletingEvent(null);
   };
   const retryCalendar=async()=>{
@@ -292,6 +305,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         category: newCategory,
         person: newPerson.trim() || undefined,
         notes: newNotes.trim(),
+        locationOrLink: newLocation.trim()||undefined,
+        allDayEndDate: isAllDay(newTime)&&newEnd ? newEnd : undefined,
         recurrence: newEventRecurrence,
         sourceName: 'Mroya',
         calendarSource: 'local',
@@ -322,6 +337,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setEditCategory(event.category);
     setEditPerson(event.person || '');
     setEditNotes(event.notes || '');
+    setEditLocation(event.locationOrLink||'');
+    setEditEnd(undefined);
     setEditRecurrence(event.recurrence);
   };
 
@@ -340,6 +357,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       category: editCategory,
       person: editPerson.trim() || undefined,
       notes: editNotes.trim(),
+      locationOrLink: editLocation.trim()||undefined,
+      allDayEndDate: isAllDay(editTime)&&editEnd!==undefined ? editEnd||null : undefined,
       recurrence: editRecurrence,
       syncStatus: 'local_only',
     };
@@ -528,6 +547,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const showGoogleBanner=!(googleCalendarConnected&&autoSync&&!['disconnected','connecting','sync_error','conflict','reconnect_required'].includes(gcalSyncState));
   const weekDays=calendarWeek(selectedDate);
   const availableYears=calendarYears(currentYear);
+
+  const editorInput="min-w-0 w-full rounded-lg border border-[var(--mroya-divider)] bg-transparent px-3 py-2.5 text-sm max-lg:rounded-none max-lg:border-0 max-lg:border-b max-lg:border-[var(--mroya-input-outline)] max-lg:px-0";
+  const priorEdit=editingEvent?.api;
+  const suggestedEditEnd=priorEdit?.time_kind==='all_day'&&priorEdit.end_date&&validDate(editDate)
+    ? shiftDateKey(priorEdit.end_date,Math.round((Date.parse(editDate)-Date.parse(priorEdit.date))/86400000)-1)
+    : '';
+  const displayedEnd=viewingEvent?.api?.end_date;
+  const lastDay=displayedEnd&&viewingEvent.api?.time_kind==='all_day'?shiftDateKey(displayedEnd,-1):displayedEnd;
 
   const calendarStatus=calendar&&(calendar.error||calendar.busy)&&<div role={calendar.error?'alert':'status'} className="px-4 py-2 text-sm bg-[var(--mroya-surface-muted)] border-b border-[var(--mroya-divider)] shrink-0">
         {calendar.error?tr('saveFailed',{ns:'common'}):tr('savingCalendarChange',{ns:'calendar'})}
@@ -1865,10 +1892,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* NEW EVENT MODAL */}
       {isNewModalOpen && (
         <DialogFocus onClose={closeNewEvent} role="dialog" aria-modal="true" aria-labelledby="new-event-title" tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[1px]">
-          <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
+          <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[24px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 id="new-event-title" className="text-[16px] font-semibold text-[var(--mroya-text)]">
-                {tr('newCommitmentModal',{ns:'calendar'})}
+              <h2 id="new-event-title" className="text-lg font-semibold text-[var(--mroya-text)]">
+                {tr(mobile?'newCommitment':'newCommitmentModal',{ns:'calendar'})}
               </h2>
               <button
                 type="button"
@@ -1883,33 +1910,43 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <form onSubmit={handleCreateEvent} className="space-y-4">
               {calendarStatus}
               <div>
-                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  {tr('eventTitleLabel',{ns:'calendar'})}
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-[var(--mroya-text-muted)]">
+                  <label htmlFor="mroya-new-event-name">{tr('eventTitleLabel',{ns:'calendar'})}</label>
+                  {mobile&&<span aria-hidden="true" className="tabular-nums">{newTitle.length}/240</span>}
+                </div>
                 <input
                   type="text"
+                  id="mroya-new-event-name"
+                  maxLength={240}
                   required
                   placeholder={samples?.titlePlaceholder??tr('eventTitle',{ns:'calendar'})}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  className={editorInput+' text-[var(--mroya-text)]'}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {live&&<label className="block text-xs font-medium text-[var(--mroya-text-muted)]">
+                {tr('eventLocation',{ns:'calendar'})}
+                <input type="text" maxLength={240} value={newLocation}
+                  onChange={event=>setNewLocation(event.target.value)} className={editorInput+' text-[var(--mroya-text)]'}/>
+              </label>}
+
+              <div className={`grid gap-3 ${mobile&&isAllDay(newTime)?'grid-cols-1':'grid-cols-2'}`}>
                 <div>
-                  <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  <label htmlFor="mroya-new-event-date" className="mb-1 block text-xs font-medium text-[var(--mroya-text-muted)]">
                     {tr('date',{ns:'calendar'})}
                   </label>
                   <input
                     type="date"
+                    id="mroya-new-event-date"
                     required
                     value={newDate}
                     onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                    className={editorInput+' text-[var(--mroya-text)]'}
                   />
                 </div>
-                <div>
+                {(!mobile||!isAllDay(newTime))&&<div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                     {tr('time',{ns:'calendar'})}
                   </label>
@@ -1923,12 +1960,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     aria-invalid={!!newTimeError}
                     value={isAllDay(newTime)?'':newTime}
                     onChange={(e) => changeTime(e.target,setNewTime,()=>setNewTimeError(null))}
-                    className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                    className={editorInput+' text-[var(--mroya-text)]'}
                   />
-                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(newTime)} onChange={e=>{setNewTime(e.target.checked?'All day':'14:00');setNewTimeError(null);}}/>{tr('allDay',{ns:'calendar'})}</label>
                   {newTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{tr('invalidTime',{ns:'calendar'})}</p>}
-                </div>
+                </div>}
               </div>
+              <AllDayToggle checked={isAllDay(newTime)} onChange={value=>{setNewTime(value?'All day':'14:00');setNewTimeError(null);}}/>
+
+              {live&&isAllDay(newTime)&&<label className="block text-xs font-medium text-[var(--mroya-text-muted)]">
+                {tr('eventEndDate',{ns:'calendar'})}
+                <input type="date" min={newDate} max="9999-12-30" value={newEnd}
+                  onChange={event=>setNewEnd(event.target.value)} className={editorInput+' text-[var(--mroya-text)]'}/>
+              </label>}
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
@@ -1952,7 +1995,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               </div>
 
-              <div>
+              {!live&&<div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   {tr('personCounterparty',{ns:'calendar'})}
                 </label>
@@ -1960,22 +2003,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   type="text"
                   placeholder={samples?.personPlaceholder??tr('person',{ns:'calendar'})}
                   value={newPerson}
-                  disabled={live}
                   onChange={(e) => setNewPerson(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  className={editorInput+' text-[var(--mroya-text)]'}
                 />
-              </div>
+              </div>}
 
               <div>
-                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  {tr('notesContext',{ns:'calendar'})}
+                <label htmlFor="mroya-new-event-description" className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  {tr(mobile?'eventDescription':'notesContext',{ns:'calendar'})}
                 </label>
                 <textarea
+                  id="mroya-new-event-description"
+                  maxLength={4000}
                   rows={2}
                   placeholder={tr('eventNotes',{ns:'calendar'})}
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  className={editorInput+' text-[var(--mroya-text)]'}
                 />
               </div>
 
@@ -1990,7 +2034,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
 
               {/* Optional Reminder Setup */}
-              {showReminders && <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
+              {showReminders && (!live || !mobile) && <div className="p-3 rounded-[10px] bg-[var(--mroya-surface-muted)]/60 border border-[var(--mroya-divider)] space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -2049,7 +2093,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <button
                   type="submit"
                   disabled={calendar?.busy||calendar?.mutationPending}
-                  className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
                 >
                   {tr('saveEvent',{ns:'calendar'})}
                 </button>
@@ -2067,31 +2111,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           aria-modal="true"
           aria-labelledby="view-event-title"
           tabIndex={-1}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex flex-col bg-[var(--mroya-bg)] lg:items-center lg:justify-center lg:bg-black/50 lg:p-4 lg:backdrop-blur-[2px]"
           onClick={() => setViewingEvent(null)}
         >
+          <header className="flex min-h-14 shrink-0 items-center gap-2 bg-[var(--mroya-surface)] px-3 lg:hidden" onClick={event=>event.stopPropagation()}>
+            <button type="button" aria-label={tr('closeDetails',{ns:'calendar'})} onClick={()=>setViewingEvent(null)}
+              className="grid size-10 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)]"><ArrowLeft className="size-5" aria-hidden="true"/></button>
+            <p className="text-lg font-semibold">{tr('eventDetailsTitle',{ns:'calendar'})}</p>
+          </header>
+          <div className="min-h-0 w-full overflow-y-auto overscroll-contain p-4 lg:max-w-lg lg:p-0">
           <div
-            className="w-full max-w-lg max-h-[calc(100dvh-2rem)] rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 sm:p-6 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
+            className="w-full space-y-4 rounded-2xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-4 text-[var(--mroya-text)] lg:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
+                <h2 id="view-event-title" className="break-words text-lg font-semibold">
+                  {viewingEvent.title}
+                </h2>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--mroya-primary)] bg-[var(--mroya-surface-active)] px-2 py-0.5 rounded-[5px]">
-                    {viewingEvent.category}
+                    {live?tr(viewingEvent.category,{ns:'calendar'}):viewingEvent.category}
                   </span>
                   {renderSourceBadge(viewingEvent)}
                   {renderSyncStatusBadge(viewingEvent)}
                 </div>
-                <h2 id="view-event-title" className="text-[17px] font-bold text-[var(--mroya-text)] pt-1">
-                  {viewingEvent.title}
-                </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setViewingEvent(null)}
                 aria-label={tr('closeDetails',{ns:'calendar'})}
-                className="p-1 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
+                className="hidden p-1 lg:block rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2106,14 +2156,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {formatCivilEventDate(viewingEvent.date)} · {formatCivilEventTime(viewingEvent.time)}
                   </span>
                 </div>
-                <span className="text-[var(--mroya-text-muted)] text-[12px]">
-                  {tr('durationLabel',{ns:'calendar',duration:viewingEvent.duration})}
-                </span>
+                {(lastDay&&lastDay!==viewingEvent.date||!viewingEvent.api||viewingEvent.api.end_time)&&<span className="text-xs text-[var(--mroya-text-muted)]">
+                  {lastDay&&lastDay!==viewingEvent.date
+                    ? tr('eventEndsOn',{ns:'calendar',date:formatCivilEventDate(lastDay)+(viewingEvent.api?.end_time?' · '+formatCivilEventTime(viewingEvent.api.end_time):'')})
+                    : tr('durationLabel',{ns:'calendar',duration:viewingEvent.duration})}
+                </span>}
               </div>
 
               {/* Counterparty / Organization */}
               {viewingEvent.person && (
-                <div className="pt-3 flex items-start gap-2">
+                <div className="flex flex-col items-start gap-1 pt-3 lg:flex-row lg:gap-2">
                   <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">{tr('withLabel',{ns:'calendar'})}</div>
                   <div className="font-medium text-[var(--mroya-text)]">
                     {viewingEvent.person}
@@ -2124,8 +2176,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               {/* Location or Link */}
               {viewingEvent.locationOrLink && (
-                <div className="pt-3 flex items-start gap-2">
-                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">{tr('locationLabel',{ns:'calendar'})}</div>
+                <div className="flex flex-col items-start gap-1 pt-3 lg:flex-row lg:gap-2">
+                  <div className="text-[var(--mroya-text-muted)] w-28 shrink-0">{tr(mobile?'eventLocation':'locationLabel',{ns:'calendar'})}</div>
                   <div className="font-medium text-[var(--mroya-text)]">
                     {viewingEvent.locationOrLink}
                   </div>
@@ -2186,13 +2238,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             {/* Footer buttons */}
-            <div className="flex items-center justify-between pt-3 border-t border-[var(--mroya-divider)]">
-              <div>
+            <div className="flex flex-wrap items-center justify-start gap-2 border-t border-[var(--mroya-divider)] pt-3 lg:justify-between">
+              <div className="order-last lg:order-first">
                 {!viewingEvent.isReadOnly && !readOnly && (
                   <button
                     type="button"
                     onClick={() => handleOpenDelete(viewingEvent)}
-                    className="px-3 py-1.5 rounded-[8px] border border-red-500/30 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                    className="px-3 py-2 rounded-full border border-red-500/30 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>{tr('deleteEventAction',{ns:'calendar'})}</span>
@@ -2203,7 +2255,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewingEvent(null)}
-                  className="px-3.5 py-1.5 rounded-[8px] border border-[var(--mroya-divider)] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
+                  className="hidden lg:block px-3.5 py-1.5 rounded-[8px] border border-[var(--mroya-divider)] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] cursor-pointer"
                 >
                   {tr('close',{ns:'common'})}
                 </button>
@@ -2211,7 +2263,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(viewingEvent)}
-                    className="px-3.5 py-1.5 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[12.5px] font-semibold cursor-pointer shadow-xs flex items-center gap-1.5"
+                    className="flex items-center gap-1.5 rounded-full border border-[var(--mroya-input-outline)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)]"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                     <span>{tr(viewingEvent.api?.edit_scope==='series'?'editEntireSeries':'editCommitment',{ns:'calendar'})}</span>
@@ -2219,6 +2271,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 )}
               </div>
             </div>
+          </div>
           </div>
         </DialogFocus>
       )}
@@ -2235,7 +2288,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           onClick={closeEditEvent}
         >
           <div
-            className="w-full max-w-md max-h-[calc(100dvh-2rem)] rounded-[16px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
+            className="w-full max-w-md max-h-[calc(100dvh-2rem)] rounded-[24px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] p-5 space-y-4 overflow-y-auto overscroll-contain text-[var(--mroya-text)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -2260,32 +2313,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <form onSubmit={handleSaveEdit} className="space-y-4">
               {calendarStatus}
               <div>
-                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  {tr('eventTitleLabel',{ns:'calendar'})}
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-[var(--mroya-text-muted)]">
+                  <label htmlFor="mroya-edit-event-name">{tr('eventTitleLabel',{ns:'calendar'})}</label>
+                  {mobile&&<span aria-hidden="true" className="tabular-nums">{editTitle.length}/240</span>}
+                </div>
                 <input
                   type="text"
+                  id="mroya-edit-event-name"
+                  maxLength={240}
                   required
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  className={editorInput+' text-[var(--mroya-text)]'}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {live&&<label className="block text-xs font-medium text-[var(--mroya-text-muted)]">
+                {tr('eventLocation',{ns:'calendar'})}
+                <input type="text" maxLength={240} value={editLocation}
+                  onChange={event=>setEditLocation(event.target.value)} className={editorInput+' text-[var(--mroya-text)]'}/>
+              </label>}
+
+              <div className={`grid gap-3 ${mobile&&isAllDay(editTime)?'grid-cols-1':'grid-cols-2'}`}>
                 <div>
-                  <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  <label htmlFor="mroya-edit-event-date" className="mb-1 block text-xs font-medium text-[var(--mroya-text-muted)]">
                     {tr('date',{ns:'calendar'})}
                   </label>
                   <input
                     type="date"
+                    id="mroya-edit-event-date"
                     required
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                    className={editorInput+' text-[var(--mroya-text)]'}
                   />
                 </div>
-                <div>
+                {(!mobile||!isAllDay(editTime))&&<div>
                   <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                     {tr('time',{ns:'calendar'})}
                   </label>
@@ -2298,12 +2361,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     aria-invalid={!!editTimeError}
                     value={isAllDay(editTime)?'':editTime}
                     onChange={(e) => changeTime(e.target,setEditTime,()=>setEditTimeError(null))}
-                    className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                    className={editorInput+' text-[var(--mroya-text)]'}
                   />
-                  <label className="mt-1 flex items-center gap-2 text-[12px] text-[var(--mroya-text-muted)]"><input type="checkbox" checked={isAllDay(editTime)} onChange={e=>{setEditTime(e.target.checked?'All day':'14:00');setEditTimeError(null);}}/>{tr('allDay',{ns:'calendar'})}</label>
                   {editTimeError&&<p role="alert" className="text-[12px] text-[var(--mroya-error)]">{tr('invalidTime',{ns:'calendar'})}</p>}
-                </div>
+                </div>}
               </div>
+              <AllDayToggle checked={isAllDay(editTime)} onChange={value=>{setEditTime(value?'All day':'14:00');setEditTimeError(null);}}/>
+
+              {live&&isAllDay(editTime)&&<label className="block text-xs font-medium text-[var(--mroya-text-muted)]">
+                {tr('eventEndDate',{ns:'calendar'})}
+                <input type="date" min={editDate} max="9999-12-30" value={editEnd??suggestedEditEnd}
+                  onChange={event=>setEditEnd(event.target.value)} className={editorInput+' text-[var(--mroya-text)]'}/>
+              </label>}
 
               <div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
@@ -2327,29 +2396,30 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               </div>
 
-              <div>
+              {!live&&<div>
                 <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
                   {tr('personCounterparty',{ns:'calendar'})}
                 </label>
                 <input
                   type="text"
                   value={editPerson}
-                  disabled={live}
                   onChange={(e) => setEditPerson(e.target.value)}
                   placeholder={tr('person',{ns:'calendar'})}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[14px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  className={editorInput+' text-[var(--mroya-text)]'}
                 />
-              </div>
+              </div>}
 
               <div>
-                <label className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
-                  {tr('notesContext',{ns:'calendar'})}
+                <label htmlFor="mroya-edit-event-description" className="block text-[12px] font-medium text-[var(--mroya-text-muted)] mb-1">
+                  {tr(mobile?'eventDescription':'notesContext',{ns:'calendar'})}
                 </label>
                 <textarea
+                  id="mroya-edit-event-description"
+                  maxLength={4000}
                   rows={2}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)]"
+                  className={editorInput+' text-[var(--mroya-text)]'}
                 />
               </div>
 
@@ -2380,7 +2450,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <button
                   type="submit"
                   disabled={calendar?.busy||calendar?.mutationPending}
-                  className="px-4 py-2 rounded-[8px] bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] text-[13px] font-semibold cursor-pointer shadow-xs"
                 >
                   {tr('saveChanges',{ns:'calendar'})}
                 </button>

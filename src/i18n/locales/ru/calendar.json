@@ -216,5 +216,10 @@
   "annualContactDemoCallout": "{{title}} (Google Contacts · ежегодно)",
   "externalReadOnlyDescription": "Это событие импортировано из внешнего календаря {{source}} с доступом только для чтения. Изменить или удалить его можно в исходном приложении.",
   "deleteSeriesConfirmation": "Удалить серию и все запланированные события без возможности восстановления?",
-  "deleteCommitmentConfirmation": "Удалить это событие из календаря без возможности восстановления?"
+  "deleteCommitmentConfirmation": "Удалить это событие из календаря без возможности восстановления?",
+  "eventDetailsTitle": "Событие",
+  "eventLocation": "Место",
+  "eventDescription": "Описание",
+  "eventEndDate": "Дата окончания",
+  "eventEndsOn": "Окончание · {{date}}"
 }

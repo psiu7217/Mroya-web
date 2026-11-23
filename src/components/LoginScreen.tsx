@@ -39,9 +39,9 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
   };
 
   return (
-    <main className={`${embedded ? "py-5" : "min-h-screen"} flex items-center justify-center px-5 bg-[var(--mroya-bg)] text-[var(--mroya-text)]`}>
+    <main className={`${embedded ? "mroya-sign-in-dialog bg-[var(--mroya-surface)] py-0" : "min-h-screen bg-[var(--mroya-bg)]"} flex items-center justify-center text-[var(--mroya-text)]`}>
       <form
-        className="w-full max-w-sm p-6 rounded-[14px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-subtle)] space-y-5"
+        className={`w-full max-w-sm bg-[var(--mroya-surface)] ${embedded ? "space-y-3 px-5 pb-5 pt-11" : "mx-5 space-y-5 rounded-[14px] border border-[var(--mroya-divider)] p-6 shadow-[var(--mroya-shadow-subtle)]"}`}
         onSubmit={async (event) => {
           event.preventDefault();
           if (!pending && !googlePending) {
@@ -57,21 +57,21 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
           <BrandMark size="lg" />
           <h1 className="text-xl font-semibold">{tr('welcomeTitle',{ns:'auth'})}</h1>
         </div>
-        <p className="text-sm text-[var(--mroya-text-muted)]">
+        {(!embedded||design)&&<p className="text-sm text-[var(--mroya-text-muted)]">
           {design ? tr('designPreview',{ns:'auth'}) : tr('personalSpacePrompt',{ns:'auth'})}
-        </p>
+        </p>}
 
         {/* Google Authentication Section */}
-        <div className="pt-1">
+        <div className={embedded ? "pt-2" : "pt-1"}>
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={pending || googlePending || !onGoogleSignIn}
-            aria-describedby="google-availability"
+            aria-describedby={onGoogleSignIn?undefined:"google-availability"}
             className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-full border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] hover:bg-[var(--mroya-surface-muted)] active:scale-[0.99] text-sm font-medium text-[var(--mroya-text)] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
             aria-label={tr('signInWithGoogle',{ns:'auth'})}
           >
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+            {!embedded&&<svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 fill="#4285F4"
                 d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
@@ -88,7 +88,7 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
                 fill="#EA4335"
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
-            </svg>
+            </svg>}
             <span>{googlePending ? tr('googleConnecting',{ns:'auth'}) : tr('signInWithGoogle',{ns:'auth'})}</span>
           </button>
         </div>
@@ -104,27 +104,28 @@ export function LoginScreen({ pending, error, onSubmit, onGoogleSignIn, design =
         </div>
 
         <label className="block text-sm">
-          {tr('username',{ns:'auth'})}
+          <span className={embedded ? 'sr-only' : undefined}>{tr('username',{ns:'auth'})}</span>
           <input
-            autoFocus={embedded}
             name="username"
+            placeholder={embedded ? tr('username',{ns:'auth'}) : undefined}
             autoComplete={design ? 'off' : 'username'}
             required
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="mt-2 w-full rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3 py-2 text-sm text-[var(--mroya-text)] focus:outline-none focus:ring-1 focus:ring-[var(--mroya-primary)]"
+            className={`w-full border px-3 py-2 text-sm placeholder:text-[var(--mroya-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--mroya-primary)] ${embedded ? "min-h-12 rounded-sm border-[var(--mroya-input-outline)]" : "mt-2 rounded-lg border-[var(--mroya-divider)] bg-[var(--mroya-bg)]"}`}
           />
         </label>
         <label className="block text-sm">
-          {tr('password',{ns:'auth'})}
+          <span className={embedded ? 'sr-only' : undefined}>{tr('password',{ns:'auth'})}</span>
           <input
             name="password"
+            placeholder={embedded ? tr('password',{ns:'auth'}) : undefined}
             type="password"
             autoComplete={design ? 'off' : 'current-password'}
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-2 w-full rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3 py-2 text-sm text-[var(--mroya-text)] focus:outline-none focus:ring-1 focus:ring-[var(--mroya-primary)]"
+            className={`w-full border px-3 py-2 text-sm placeholder:text-[var(--mroya-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--mroya-primary)] ${embedded ? "min-h-12 rounded-sm border-[var(--mroya-input-outline)]" : "mt-2 rounded-lg border-[var(--mroya-divider)] bg-[var(--mroya-bg)]"}`}
           />
         </label>
         {error && (

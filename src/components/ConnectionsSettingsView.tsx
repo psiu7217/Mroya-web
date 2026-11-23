@@ -24,7 +24,6 @@ import {
   ChevronRight,
   ArrowLeft,
   CreditCard,
-  Languages,
   Archive,
   Send,
   Brain,
@@ -35,6 +34,14 @@ import {
   CheckCircle2,
   Bell,
   Clock,
+  AtSign,
+  Globe,
+  LogOut,
+  MessageSquare,
+  Search,
+  SlidersHorizontal,
+  Unlink,
+  type LucideIcon,
 } from 'lucide-react';
 import { BrandMark } from './BrandMark';
 import { ModelReasoningBlock } from './ModelReasoningBlock';
@@ -70,30 +77,67 @@ const notificationScenarioLabel=(id:string)=>{
 };
 const settingsIcons = {
   home:Menu, profile:User, name:User, timezone:Clock, plan:CreditCard, appearance:Sun,
-  language:Languages, chat:Brain, notifications:Bell, connections:Link2, telegram:Send,
+  language:Globe, chat:MessageSquare, notifications:Bell, connections:Link2, telegram:Send,
   google:CalendarIcon, 'calendar-selection':CalendarIcon, 'memory-transfer':Archive, privacy:Shield,
 };
 const settingsLabels:Record<SettingsPage,string> = {
-  home:'tabsSettings', profile:'tabsProfile', name:'nickname', timezone:'timezone', plan:'tabsPlan',
-  appearance:'tabsAppearance', language:'language', chat:'chatSettings', notifications:'notifications',
+  home:'tabsSettings', profile:'tabsProfile', name:'mroyaName', timezone:'timezone', plan:'myPlanTitle',
+  appearance:'appearanceTitle', language:'language', chat:'chatTitle', notifications:'notifications',
   connections:'tabsConnections', telegram:'settingsTelegram', google:'settingsGoogle',
   'calendar-selection':'configureCalendars', 'memory-transfer':'memoryTransferTitle', privacy:'privacySettings',
 };
 const settingsLabel = (page:SettingsPage)=>tr(settingsLabels[page],{ns:'connections'});
-function SettingsRows({pages,onOpen}:{pages:SettingsPage[];onOpen:(page:SettingsPage)=>void}) {
-  return <ul className="divide-y divide-[var(--mroya-divider)] rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)]">
-    {pages.map(page=>{
-      const Icon=settingsIcons[page];
-      return <li key={page}>
-        <button type="button" onClick={()=>onOpen(page)} className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3.5 py-3 text-left text-sm font-medium hover:bg-[var(--mroya-surface-muted)]">
-          <Icon aria-hidden="true" className="size-5 shrink-0 text-[var(--mroya-primary)]"/>
-          <span className="min-w-0 flex-1">{settingsLabel(page)}</span>
-          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[var(--mroya-text-muted)]"/>
+const settingsCopy = (key:string) => tr(key, {ns:'connections'});
+const settingsCard = 'mroya-settings-rows rounded-2xl bg-[var(--mroya-surface)] px-3';
+const settingsRow = 'flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm';
+const settingsAction = settingsRow+' hover:bg-[var(--mroya-surface-muted)] disabled:cursor-default disabled:opacity-50';
+
+function SettingsItem({icon:Icon,title,detail,children}:{icon:LucideIcon;title:string;detail?:string;children?:React.ReactNode}) {
+  return <>
+    <Icon aria-hidden="true" className="size-5 shrink-0 text-[var(--mroya-primary)]"/>
+    <span className="min-w-0 flex-1 break-words font-medium">
+      {title}
+      {detail&&<span className="mt-0.5 block text-xs font-normal text-[var(--mroya-text-muted)]">{detail}</span>}
+    </span>
+    {children}
+  </>;
+}
+
+function SettingsRows({pages,onOpen,details,email}:{pages:SettingsPage[];onOpen:(page:SettingsPage)=>void;details?:Partial<Record<SettingsPage,string>>;email?:string}) {
+  return <ul className={settingsCard}>
+    {pages.map(page=><React.Fragment key={page}>
+      {page==='timezone'&&email&&<li className={settingsRow}><SettingsItem icon={AtSign} title={email}/></li>}
+      <li>
+        <button type="button" onClick={()=>onOpen(page)} className={settingsAction}>
+          <SettingsItem icon={settingsIcons[page]} title={settingsLabel(page)} detail={details?.[page]}>
+            <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[var(--mroya-text-muted)]"/>
+          </SettingsItem>
         </button>
-      </li>;
-    })}
+      </li>
+    </React.Fragment>)}
   </ul>;
 }
+
+function SettingsSwitch({label,checked,disabled,onChange}:{label:string;checked:boolean;disabled?:boolean;onChange:(next:boolean)=>void}) {
+  return <button type="button" role="switch" aria-label={label} aria-checked={checked} disabled={disabled}
+    onClick={()=>onChange(!checked)}
+    className="group relative h-7 w-12 shrink-0 rounded-full border border-[var(--mroya-input-outline)] aria-checked:border-[var(--mroya-primary)] aria-checked:bg-[var(--mroya-primary)] disabled:opacity-45">
+    <span aria-hidden="true" className="absolute top-1/2 left-1 size-4 -translate-y-1/2 rounded-full bg-[var(--mroya-input-outline)] transition-transform group-aria-checked:translate-x-5 group-aria-checked:bg-[var(--mroya-on-primary)]"/>
+  </button>;
+}
+
+function SettingsChoice({icon,title,selected,onClick,disabled}:{icon:LucideIcon;title:string;selected:boolean;onClick:()=>void;disabled?:boolean}) {
+  return <li>
+    <button type="button" aria-pressed={selected} disabled={disabled} onClick={onClick} className={settingsAction+' aria-pressed:text-[var(--mroya-primary)]'}>
+      <SettingsItem icon={icon} title={title}>{selected&&<Check className="size-5 shrink-0" aria-hidden="true"/>}</SettingsItem>
+    </button>
+  </li>;
+}
+
+const featureLabels = {
+  chat:'navChat', notes:'navNotes', memory:'navMemory', files:'navFiles', calendar:'navCalendar', connections:'navConnections',
+};
+type PlanFeatures = Partial<Record<keyof typeof featureLabels,boolean>>;
 
 export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   'connectionSamples'|'googleCalendarAvailable'|'googleCalendarBusy'|'googleCalendarOAuthNotice'|'googleCalendarError'|'googleConnections'|'selectedGoogleConnectionId'|'onSelectGoogleConnection'|'onRefreshGoogleCalendar'|'onConnectAnotherGoogleCalendar'|
@@ -119,6 +163,7 @@ export interface ConnectionsSettingsViewProps extends Pick<WorkspaceModel,
   connections: ServiceConnection[];
   onToggleConnection: (id: string) => void;
   plan: SubscriptionPlan;
+  planFeatures?: PlanFeatures;
   onSelectPlan: (plan: SubscriptionPlan) => void;
   theme: ThemeMode;
   onSelectTheme: (theme: ThemeMode) => void;
@@ -148,7 +193,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   account,
   connections,
   onToggleConnection,
-  plan,
+  plan,planFeatures,
   onSelectPlan,
   theme,
   onSelectTheme,
@@ -172,6 +217,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   const [nicknameDraft, setNicknameDraft] = React.useState(account.nickname || '');
   const [selectedTimezone, setSelectedTimezone] = React.useState(account.timezone || 'UTC');
   const [customTimezone,setCustomTimezone]=React.useState('');
+  const [timezoneSearch,setTimezoneSearch]=React.useState('');
   const [customTimezoneOpen,setCustomTimezoneOpen]=React.useState(false);
   const timezoneValue=live?(timezoneSettings?.draft??account.timezone??''):selectedTimezone;
   const [saveStatus, setSaveStatus] = React.useState<'saved'|'cleared'|'nicknameTooLong'|null>(null);
@@ -235,7 +281,16 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
   const notificationStatus=notificationState==='saving'?tr('saving',{ns:'common'}):tr(({loading:'notificationLoading',sending:'notificationSending',unavailable:'notificationUnavailable',pending:'notificationQueued',processing:'notificationProcessing',retry:'notificationRetrying',sent:'notificationDelivered',failed:'notificationFailed',cancelled:'notificationCancelled',expired:'notificationExpired',disabled:'notificationDisabled',disconnected:'disconnected',ready:'botReady',notReady:'notificationNotReady'} as Record<string,string>)[notificationState]??'notificationUnavailable',{ns:'connections'});
   const notificationError=notifications?.error?tr('requestFailed',{ns:'common'}):notifications?.lastTestStatus==='failed'?tr('deliveryFailed',{ns:'connections'}):null;
   const page=settingsNavigation?.page;
-  const service=page==='google'||page==='calendar-selection'?'google-calendar':page==='telegram'||page==='notifications'?'telegram':null;
+  React.useEffect(()=>{
+    if(page!=='timezone'){setTimezoneSearch('');setCustomTimezoneOpen(false);}
+  },[page]);
+  const timezonesForSearch=React.useMemo(()=>{
+    const query=timezoneSearch.trim().replaceAll(' ','_').toLowerCase();
+    return availableTimezones
+      .filter(({value,label})=>!query||value.toLowerCase().includes(query)||label.toLowerCase().includes(timezoneSearch.trim().toLowerCase()))
+      .sort((a,b)=>Number(b.value===timezoneValue)-Number(a.value===timezoneValue)||a.value.localeCompare(b.value,'en'));
+  },[availableTimezones,timezoneSearch,timezoneValue]);
+  const service=page==='google'||page==='calendar-selection'?'google-calendar':page==='telegram'?'telegram':null;
   const visibleConnections = live ? plannedConnections().filter(c=>c.id==='telegram'||(c.id==='google-calendar'&&showGoogleCalendar&&googleCalendarAvailable)).filter(c=>!page||c.id===service) : connections;
   const tabs: {
     id: 'connections' | 'profile' | 'plan' | 'appearance' | 'settings';
@@ -248,17 +303,42 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
     { id: 'settings', label: tr('assistantPreferences',{ns:'connections'}) },
   ];
 
+  const telegramNotifications = <ul className={settingsCard}>
+    <li className={settingsRow}>
+      <SettingsItem icon={Bell} title={settingsCopy('telegramNotifications')} detail={notificationStatus}>
+        <SettingsSwitch label={settingsCopy('telegramNotifications')} checked={notifications?.enabled??false}
+          disabled={!notifications?.available||notificationBusy||(!notifications.enabled&&!notifications.canEnable)}
+          onChange={enabled=>void notifications?.onToggleTelegram(enabled)}/>
+      </SettingsItem>
+    </li>
+    <li>
+      <button type="button" className={settingsAction} disabled={!notifications?.canSendTest||notificationBusy}
+        onClick={()=>void notifications?.onSendTest()}><SettingsItem icon={Send} title={settingsCopy('sendTestNotification')}/></button>
+    </li>
+    {notificationError&&<li className="px-2 py-3 text-sm text-[var(--mroya-error)]">
+      <p role="alert">{notificationError}</p>
+      <button type="button" disabled={notificationBusy} className="mt-2 underline" onClick={()=>void notifications?.onRetry()}>{settingsCopy('retry')}</button>
+    </li>}
+  </ul>;
+  const availableFeatures = (Object.keys(featureLabels) as (keyof typeof featureLabels)[]).filter(id=>planFeatures?.[id]);
+  const refresh = page==='notifications' ? notifications?.onRefresh : page==='telegram' ? telegram?.onCheck : undefined;
+
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 bg-[var(--mroya-bg)] text-[var(--mroya-text)]">
       {/* Header */}
-      <header className="h-[58px] px-4 sm:px-6 border-b border-[var(--mroya-divider)] flex items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <WorkspaceMenuButton/>
-          {settingsNavigation && <button type="button" aria-label={tr('back',{ns:'connections'})} onClick={settingsNavigation.back} className="grid size-9 shrink-0 place-items-center rounded-lg hover:bg-[var(--mroya-surface-muted)]"><ArrowLeft aria-hidden="true" className="size-5"/></button>}
-          <h1 className="text-[16px] font-semibold text-[var(--mroya-text)] truncate">
-            {page?settingsLabel(page):tr('header',{ns:'connections'})}
-          </h1>
+      <header className={`flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--mroya-divider)] px-3 sm:px-6 ${page?'bg-[var(--mroya-surface)]':''}`}>
+        <div className="flex items-center gap-2 min-w-0">
+          {(!page||page==='home')&&<WorkspaceMenuButton/>}
+          {settingsNavigation && <button type="button" aria-label={settingsCopy('back')} onClick={settingsNavigation.back}
+            className={`size-10 shrink-0 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)] ${page==='home'?'hidden lg:grid':'grid'}`}>
+            <ArrowLeft aria-hidden="true" className="size-5"/>
+          </button>}
+          <h1 className="truncate text-lg font-semibold">{page?settingsLabel(page):settingsCopy('header')}</h1>
         </div>
+        {refresh&&<button type="button" onClick={()=>void refresh()} disabled={page==='telegram'?!!telegram?.checking:notificationBusy}
+          aria-label={settingsCopy('refreshStatus')} className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-[var(--mroya-surface-muted)] disabled:opacity-45">
+          <RefreshCw aria-hidden="true" className="size-5"/>
+        </button>}
       </header>
 
       {/* Sub-navigation bar */}
@@ -282,25 +362,57 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
       }
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="max-w-[820px] mx-auto space-y-6">
-          {preferenceSave && <div className="text-[13px] text-[var(--mroya-text-muted)]" aria-live="polite">
+        <div className={`mx-auto ${page?'max-w-[660px] space-y-3':'max-w-[820px] space-y-6'}`}>
+          {preferenceSave && preferenceSave.status!=='saved' && <div className="text-[13px] text-[var(--mroya-text-muted)]" aria-live="polite">
             {preferenceSave.status==='saving' && <p role="status">{tr('savingAccount',{ns:'connections'})}</p>}
             {preferenceSave.status==='unsaved' && <><p role="alert">{tr('changesNotSaved',{ns:'connections'})}</p><button type="button" onClick={preferenceSave.onRetry} className="underline mt-2">{tr('retrySaving',{ns:'connections'})}</button></>}
           </div>}
           {settingsNavigation && page==='home' && <>
-            <SettingsRows pages={['profile','plan','appearance','language','chat']} onOpen={settingsNavigation.open}/>
-            <SettingsRows pages={['notifications','connections',...(memoryTransfer?['memory-transfer' as const]:[]),...(settingsNavigation.showPrivacy?['privacy' as const]:[])]} onOpen={settingsNavigation.open}/>
+            <SettingsRows pages={['profile','plan']} onOpen={settingsNavigation.open}/>
+            <SettingsRows pages={['appearance','language','chat','notifications']} onOpen={settingsNavigation.open}/>
+            <SettingsRows pages={['connections',...(memoryTransfer?['memory-transfer' as const]:[]),...(settingsNavigation.showPrivacy?['privacy' as const]:[])]} onOpen={settingsNavigation.open}/>
           </>}
           {settingsNavigation && page==='connections' && (
-            <SettingsRows pages={showGoogleCalendar?['telegram','google']:['telegram']} onOpen={settingsNavigation.open}/>
+            <SettingsRows pages={showGoogleCalendar?['telegram','google']:['telegram']} onOpen={settingsNavigation.open}
+              details={{telegram:settingsCopy('telegramConnectionHint'),google:settingsCopy('calendarCategory')}}/>
           )}
-          {settingsNavigation && page==='memory-transfer' && memoryTransfer && <MemoryTransferSettings transfer={memoryTransfer}/>}
-          {page==='plan' && <div className="rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-4">
-            <p className="font-medium">{tr(plan==='premium'?'premium':'free',{ns:'sidebar'})}</p>
-            <p className="mt-1 text-sm text-[var(--mroya-text-muted)]">{tr('subscriptionUnavailable',{ns:'connections'})}</p>
+          {settingsNavigation && page==='memory-transfer' && memoryTransfer && <MemoryTransferSettings transfer={memoryTransfer} compact/>}
+          {page==='plan' && <>
+            <div className={settingsCard}>
+              <div className={settingsRow}><SettingsItem icon={CreditCard} title={tr(plan==='premium'?'premium':'free',{ns:'sidebar'})} detail={settingsCopy('subscriptionUnavailable')}/></div>
+            </div>
+            {availableFeatures.length>0&&<section>
+              <h2 className="mb-2 px-1 text-sm font-semibold">{settingsCopy('planFeaturesTitle')}</h2>
+              <ul className={settingsCard}>
+                {availableFeatures.map(id=><li key={id} className="px-2 py-3 text-sm">{tr(featureLabels[id],{ns:'sidebar'})}</li>)}
+              </ul>
+            </section>}
+          </>}
+          {page==='profile' && settingsNavigation && <>
+            <SettingsRows pages={['name','timezone']} onOpen={settingsNavigation.open} email={account.email}
+              details={{name:account.displayName,timezone:account.timezone||tr('notSet',{ns:'common'})}}/>
+            {onLogout&&<div className={settingsCard}>
+              <button type="button" onClick={onLogout} className={settingsAction+' text-[var(--mroya-error)]'}>
+                <LogOut className="size-5 shrink-0" aria-hidden="true"/>{settingsCopy('signOut')}
+              </button>
+            </div>}
+          </>}
+          {page==='appearance' && <ul className={settingsCard}>
+            {([{value:'system',icon:Monitor,key:'themeSystemShort'},{value:'light',icon:Sun,key:'themeLightShort'},{value:'dark',icon:Moon,key:'themeDarkShort'}] as const).map(({value,icon,key})=>(
+              <SettingsChoice key={value} icon={icon} title={settingsCopy(key)} selected={theme===value} onClick={()=>onSelectTheme(value)}/>
+            ))}
+          </ul>}
+          {page==='chat' && <div className={settingsCard}>
+            <div className={settingsRow}>
+              <SettingsItem icon={Brain} title={settingsCopy('showReasoningInChat')}>
+                <SettingsSwitch label={settingsCopy('showReasoningInChat')} checked={showModelReasoning}
+                  onChange={enabled=>{setLocalShowModelReasoning(enabled);onToggleShowModelReasoning?.(enabled);}}/>
+              </SettingsItem>
+            </div>
           </div>}
+          {page==='notifications' && telegramNotifications}
           {(page==='privacy'||!page&&activeTab==='connections')&&live&&privacy&&<PrivacyControls privacy={privacy}/>}
-          {page==='google'&&!googleCalendarAvailable&&<p className="text-sm text-[var(--mroya-text-muted)]">{tr('calendarUnavailable',{ns:'connections'})}</p>}
+          {(page==='google'||page==='calendar-selection')&&!googleCalendarAvailable&&<p className="text-sm text-[var(--mroya-text-muted)]">{tr('calendarUnavailable',{ns:'connections'})}</p>}
           {(!page&&activeTab==='connections'||service!==null) && (
             <div className="space-y-4">
               {!page&&<div>
@@ -343,6 +455,107 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         : 'googleSyncActionRequired';
                     }
                     const calendars=live?(selectedConnection?.calendars??[]):(connectionSamples?.calendars??[]);
+                    const exportChoices=calendars.filter(cal=>cal.available&&!cal.read_only&&(!('exportable' in cal)||cal.exportable));
+                    const disconnect=()=>{
+                      if(window.confirm(settingsCopy('googleDisconnectConfirm')))handleDisconnectGcal?.();
+                    };
+                    const googleFeedback = <>
+                      {googleCalendarOAuthNotice&&<p role="status" className="text-sm text-[var(--mroya-text-muted)]">{googleCalendarOAuthNotice}</p>}
+                      {googleCalendarError&&<div role="alert" className="text-sm text-[var(--mroya-error)]">
+                        <p>{tr('requestFailed',{ns:'common'})}</p>
+                        <button type="button" disabled={googleCalendarBusy} onClick={onRefreshGoogleCalendar} className="mt-1 underline">{settingsCopy('checkStatus')}</button>
+                      </div>}
+                    </>;
+
+                    if(settingsNavigation&&page==='google') {
+                      const status = isConnected?'googleStatusConnected':isConnecting?'connecting':needsReconnect?'googleStatusReconnect':'googleStatusDisconnected';
+                      return <section key={conn.id} aria-label={conn.name} className="space-y-3">
+                        <ul className={settingsCard}>
+                          <li className={settingsRow}>
+                            <SettingsItem icon={isConnected?CheckCircle2:CalendarIcon} title={settingsCopy(status)}
+                              detail={isConnected?settingsCopy(autoSync?'autoSyncEnabled':'autoSyncDisabled'):undefined}/>
+                          </li>
+                          {isConnected&&<li>
+                            <button type="button" onClick={()=>settingsNavigation.open('calendar-selection')} className={settingsAction}>
+                              <SettingsItem icon={SlidersHorizontal} title={settingsLabel('calendar-selection')}>
+                                <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-[var(--mroya-text-muted)]"/>
+                              </SettingsItem>
+                            </button>
+                          </li>}
+                          {isConnected&&<li>
+                            <button type="button" disabled={!canSync} onClick={handleSyncNow} className={settingsAction}>
+                              <SettingsItem icon={RefreshCw} title={settingsCopy('syncNow')}/>
+                            </button>
+                          </li>}
+                          {!isConnected&&!isConnecting&&<li>
+                            <button type="button" disabled={googleCalendarBusy} onClick={handleConnectGcal} className={settingsAction}>
+                              <SettingsItem icon={Link2} title={settingsCopy(needsReconnect?'googleReconnectAction':'googleConnectAction')}/>
+                            </button>
+                          </li>}
+                          {(isConnected||needsReconnect)&&<li>
+                            <button type="button" disabled={googleCalendarBusy} onClick={disconnect} className={settingsAction+' text-[var(--mroya-error)]'}>
+                              <Unlink className="size-5 shrink-0" aria-hidden="true"/>{settingsCopy('disconnect')}
+                            </button>
+                          </li>}
+                        </ul>
+                        {extraStatus&&<p role="status" className="text-sm text-[var(--mroya-text-muted)]">{settingsCopy(extraStatus)}</p>}
+                        {(googleConnections.length>1||isConnected)&&<div className="flex flex-wrap items-center gap-3 px-1">
+                          {googleConnections.length>1&&<select aria-label={settingsCopy('googleAccount')} value={selectedGoogleConnectionId??''}
+                            disabled={googleCalendarBusy} onChange={event=>onSelectGoogleConnection?.(event.target.value)}
+                            className="max-w-full rounded-lg border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] px-3 py-2 text-sm">
+                            {googleConnections.map(account=><option key={account.id} value={account.id}>{account.email||settingsCopy('googleAccountName')}</option>)}
+                          </select>}
+                          {isConnected&&<button type="button" disabled={googleCalendarBusy} onClick={onConnectAnotherGoogleCalendar}
+                            className="py-2 text-sm font-semibold text-[var(--mroya-primary)] hover:underline disabled:opacity-50">{settingsCopy('connectGoogleAccount')}</button>}
+                        </div>}
+                        {googleFeedback}
+                        {isConnected&&<><CalendarAnalysisPanel analysis={calendarAnalysis}/>{memoryReview&&<MemoryReviewPanel review={memoryReview}/>}</>}
+                      </section>;
+                    }
+
+                    if(settingsNavigation&&page==='calendar-selection')return <section key={conn.id} aria-label={settingsLabel(page)} className="space-y-3">
+                      {isConnected ? <>
+                        <fieldset className="min-w-0">
+                          <legend className="mb-2 px-1 text-sm font-medium text-[var(--mroya-text-muted)]">{settingsCopy('importCalendarsTitle')}</legend>
+                          <ul className={settingsCard}>
+                            {calendars.map(cal=><li key={cal.id}>
+                              <label className={settingsAction+' cursor-pointer has-disabled:opacity-65'}>
+                                <span className="min-w-0 flex-1 break-words">
+                                  {cal.name}
+                                  {(!cal.available||cal.read_only)&&<span className="block text-xs text-[var(--mroya-text-muted)]">{settingsCopy(cal.available?'readOnly':'unavailable')}</span>}
+                                </span>
+                                <input type="checkbox" checked={importedCalendars.includes(cal.id)} disabled={!canConfigure||!cal.available}
+                                  onChange={event=>onChangeImportedCalendars?.(event.target.checked?[...importedCalendars,cal.id]:importedCalendars.filter(id=>id!==cal.id))}
+                                  className="size-4 shrink-0 accent-[var(--mroya-primary)]"/>
+                              </label>
+                            </li>)}
+                            {!calendars.length&&<li className="px-2 py-3 text-sm text-[var(--mroya-text-muted)]">{settingsCopy('noCalendarsAvailable')}</li>}
+                          </ul>
+                        </fieldset>
+                        <fieldset className="min-w-0">
+                          <legend className="mb-2 px-1 text-sm font-medium text-[var(--mroya-text-muted)]">{settingsCopy('exportCalendarTitle')}</legend>
+                          <ul className={settingsCard}>
+                            {[{id:'',name:settingsCopy('noCalendarExport')},...exportChoices].map(({id,name})=><li key={id||'none'}>
+                              <label className={settingsAction+' cursor-pointer has-disabled:opacity-65'}>
+                                <input type="radio" name="google-calendar-export" checked={exportCalendar===id} disabled={!canConfigure}
+                                  onChange={()=>onChangeExportCalendar?.(id)} className="size-4 shrink-0 accent-[var(--mroya-primary)]"/>
+                                <span className="min-w-0 break-words">{name}</span>
+                              </label>
+                            </li>)}
+                          </ul>
+                        </fieldset>
+                        <div className={settingsCard}>
+                          <div className={settingsRow}>
+                            <SettingsItem icon={RefreshCw} title={settingsCopy('automaticSync')}>
+                              <SettingsSwitch label={settingsCopy('automaticSync')} checked={autoSync} disabled={googleCalendarBusy}
+                                onChange={()=>handleToggleAutoSync?.()}/>
+                            </SettingsItem>
+                          </div>
+                        </div>
+                      </> : <p role="status" className="text-sm text-[var(--mroya-text-muted)]">{settingsCopy('googleStatusDisconnected')}</p>}
+                      {extraStatus&&<p role="status" className="text-sm text-[var(--mroya-text-muted)]">{settingsCopy(extraStatus)}</p>}
+                      {googleFeedback}
+                    </section>;
 
                     return (
                       <section
@@ -503,7 +716,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                                 className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)] focus:outline-none focus:border-[var(--mroya-primary)] cursor-pointer"
                               >
                                 {live&&<option value="">{tr('chooseExportCalendar',{ns:'connections'})}</option>}
-                                {calendars.filter(cal=>cal.available&&!cal.read_only&&(!('exportable' in cal)||cal.exportable)).map(cal=><option key={cal.id} value={cal.id}>{cal.name}</option>)}
+                                {exportChoices.map(cal=><option key={cal.id} value={cal.id}>{cal.name}</option>)}
                               </select>
                               <p className="text-[11.5px] text-[var(--mroya-text-muted)]">
                                 {tr('exportCalendarHelp',{ns:'connections'})}
@@ -544,9 +757,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                         {page!=='calendar-selection' && (isConnected || needsReconnect) && (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (window.confirm(tr('googleDisconnectConfirm', {ns:'connections'}))) handleDisconnectGcal?.();
-                            }}
+                            onClick={disconnect}
                             disabled={googleCalendarBusy}
                             className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-[var(--mroya-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-60"
                           >
@@ -580,6 +791,26 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                   const action=live&&isTelegram
                     ? state?.error?state.onRetry:connected?state?.onDisconnect:pending||unavailable?state?.onCheck:state?.onConnect
                     :()=>onToggleConnection(conn.id);
+                  if(page==='telegram')return <React.Fragment key={conn.id}>
+                    <ul className={settingsCard}>
+                      <li className={settingsRow}>
+                        <SettingsItem icon={Send} title={connected?settingsCopy('telegramConnectedTitle'):conn.name}
+                          detail={connected&&state?.status?.telegram_username?'@'+state.status.telegram_username.replace(/^@/,''):status}/>
+                      </li>
+                      <li>
+                        <button type="button" disabled={busy} onClick={action} className={settingsAction+(connected&&!state?.error?' text-[var(--mroya-error)]':'')}>
+                          {connected&&!state?.error ? <><Unlink className="size-5 shrink-0" aria-hidden="true"/>{settingsCopy('disconnectTelegramAction')}</>
+                            : <SettingsItem icon={Link2} title={buttonLabel}/>}
+                        </button>
+                      </li>
+                      {state?.link&&state.openFallback&&<li className="px-2 py-3 text-sm">
+                        <p role="status" className="mb-2 text-[var(--mroya-text-muted)]">{settingsCopy('telegramPopupBlocked')}</p>
+                        <a href={state.link.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--mroya-primary)] underline">{settingsCopy('openTelegram')}</a>
+                      </li>}
+                      {state?.error&&<li className="px-2 py-3 text-sm text-[var(--mroya-error)]" role="alert">{tr('requestFailed',{ns:'common'})}</li>}
+                    </ul>
+                    {telegramNotifications}
+                  </React.Fragment>;
                   return (
                   <div
                     key={conn.id}
@@ -878,7 +1109,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             </div>
           )}
 
-          {activeTab === 'appearance' && (
+          {!page && activeTab === 'appearance' && (
             <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-4">
               <div>
                 <h2 className="text-[16px] font-semibold text-[var(--mroya-text)]">
@@ -942,9 +1173,9 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             </div>
           )}
 
-          {(!page&&activeTab==='profile'||page==='profile'||page==='name'||page==='timezone'||page==='language') && (
-            <div className="p-5 sm:p-6 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">
-              {(!page||page==='profile')&&<>
+          {(!page&&activeTab==='profile'||page==='name'||page==='timezone'||page==='language') && (
+            <div className={page?'':'space-y-5 rounded-xl border border-[var(--mroya-divider)] bg-[var(--mroya-surface)] p-5 sm:p-6'}>
+              {!page&&<>
               <div className="flex items-center gap-3.5 pb-4 border-b border-[var(--mroya-divider)]">
                 <div className="w-12 h-12 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[16px] font-semibold text-[var(--mroya-primary)] shrink-0">
                   {account.initials}
@@ -959,18 +1190,14 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 </div>
               </div>
 
-              {settingsNavigation && <>
-                <SettingsRows pages={['name','timezone']} onOpen={settingsNavigation.open}/>
-                {onLogout&&<button type="button" className="text-sm font-medium text-[var(--mroya-error)]" onClick={onLogout}>{tr('signOut',{ns:'connections'})}</button>}
-              </>}
               </>}
               {!page&&memoryTransfer && <MemoryTransferSettings transfer={memoryTransfer} />}
 
               {(!page||page==='name') && (
-              <div className="space-y-2">
+              <form className="space-y-2" onSubmit={event=>{event.preventDefault();handleSaveNickname();}}>
                 <div className="flex items-center justify-between">
                   <label htmlFor="mroya-profile-nickname" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
-                    {tr('nickname',{ns:'connections'})}
+                    {settingsCopy(page?'mroyaName':'nickname')}
                   </label>
                   {nicknameStatus && (
                     <span className="text-[12px] font-medium text-[var(--mroya-primary)]">
@@ -978,7 +1205,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     </span>
                   )}
                 </div>
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <div className={page?"space-y-2":"flex flex-wrap items-center gap-2 sm:flex-nowrap"}>
                   <input
                     id="mroya-profile-nickname"
                     type="text"
@@ -986,34 +1213,57 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     value={nicknameDraft}
                     onChange={(e) => { nicknameEdited.current = true; setNicknameSubmitted(false); setSaveStatus(null); setNicknameDraft(e.target.value); }}
                     placeholder={tr('nicknamePlaceholder',{ns:'connections'})}
-                    className="flex-1 min-w-[200px] rounded-[10px] border border-[var(--mroya-divider)] bg-[var(--mroya-bg)] px-3.5 py-2 text-[13px] text-[var(--mroya-text)] placeholder-[var(--mroya-text-muted)] hover:border-[var(--mroya-primary)]/50 focus:border-[var(--mroya-primary)] focus:outline-none transition-colors"
+                    aria-describedby="mroya-nickname-help"
+                    className={`min-h-12 w-full min-w-0 flex-1 border bg-transparent px-3.5 py-2 text-sm placeholder:text-[var(--mroya-text-muted)] ${page?'rounded-sm border-[var(--mroya-input-outline)]':'rounded-lg border-[var(--mroya-divider)]'}`}
                   />
-                  <div className="flex items-center gap-2 shrink-0">
+                  {page&&<div className="flex justify-between gap-3 px-1 text-xs text-[var(--mroya-text-muted)]">
+                    <p id="mroya-nickname-help">{settingsCopy('mroyaNameHelp')}</p>
+                    <span className="shrink-0 tabular-nums" aria-hidden="true">{Array.from(nicknameDraft).length}/80</span>
+                  </div>}
+                  <div className={`flex shrink-0 items-center gap-2 ${page?'justify-end':''}`}>
                     <button
-                      type="button"
-                      onClick={handleSaveNickname}
-                      className="px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer"
+                      type="submit"
+                      disabled={page==='name'&&(Array.from(nicknameDraft.trim()).length>80||preferenceSave?.status==='saving')}
+                      className="px-4 py-2 rounded-full text-[13px] font-semibold bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] text-[var(--mroya-on-primary)] transition-colors cursor-pointer disabled:opacity-45"
                     >
                       {tr('save',{ns:'common'})}
                     </button>
-                    <button
+                    {!page&&<button
                       type="button"
                       onClick={handleClearNickname}
                       className="px-3 py-2 rounded-full text-[12px] font-medium text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-muted)] border border-[var(--mroya-divider)] transition-colors cursor-pointer"
                       title={tr('clearNickname',{ns:'connections'})}
                     >
                       {tr('clear',{ns:'common'})}
-                    </button>
+                    </button>}
                   </div>
                 </div>
-                <p className="text-[12px] text-[var(--mroya-text-muted)]">
-                  {tr('nicknameHelp',{ns:'connections'})}
-                </p>
-              </div>
+                {!page&&<p id="mroya-nickname-help" className="text-[12px] text-[var(--mroya-text-muted)]">
+                  {settingsCopy('nicknameHelp')}
+                </p>}
+              </form>
 
               )}
               {(!page||page==='timezone') && (
-              <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">
+              <div className={page?"space-y-2":"space-y-2 border-t border-[var(--mroya-divider)] pt-3"}>
+                {page ? <>
+                  <label className="flex items-center gap-3 rounded-sm border border-[var(--mroya-input-outline)] px-3">
+                    <Search aria-hidden="true" className="size-5 shrink-0 text-[var(--mroya-text-muted)]"/>
+                    <input type="search" value={timezoneSearch} aria-label={settingsCopy('searchTimezone')} placeholder={settingsCopy('searchTimezone')}
+                      onChange={event=>setTimezoneSearch(event.target.value)} className="min-h-12 min-w-0 flex-1 bg-transparent px-1 text-sm"/>
+                  </label>
+                  <ul className="pb-2">
+                    {timezonesForSearch.map(({value})=><li key={value}>
+                      <button type="button" aria-pressed={value===timezoneValue} disabled={live&&!timezoneSettings?.apiReady}
+                        onClick={()=>{setCustomTimezoneOpen(false);setSelectedTimezone(value);(onChangeTimezone??timezoneSettings?.onChange)?.(value);}}
+                        className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm hover:bg-[var(--mroya-surface-muted)] aria-pressed:text-[var(--mroya-primary)] disabled:opacity-50">
+                        <span className="min-w-0 break-words">{value}</span>{value===timezoneValue&&<Check aria-hidden="true" className="size-5 shrink-0"/>}
+                      </button>
+                    </li>)}
+                  </ul>
+                  <button type="button" disabled={live&&!timezoneSettings?.apiReady} onClick={()=>setCustomTimezoneOpen(true)}
+                    className="rounded-lg px-3 py-2 text-sm text-[var(--mroya-primary)] hover:bg-[var(--mroya-surface-muted)] disabled:opacity-50">{settingsCopy('otherTimezone')}</button>
+                </> : <>
                 <label htmlFor="mroya-timezone-select" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
                   {tr('timezone',{ns:'connections'})}
                 </label>
@@ -1037,24 +1287,29 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                     <ChevronDown className="w-4 h-4" />
                   </div>
                   </div>
+                </>}
                   {customTimezoneOpen&&<div className="flex items-center gap-2">
                     <input aria-label={tr('customTimezone',{ns:'connections'})} value={customTimezone} onChange={event=>setCustomTimezone(event.target.value)} placeholder={tr('timezonePlaceholder',{ns:'connections'})} disabled={live&&!timezoneSettings?.apiReady} className="w-full px-3 py-2 rounded-[8px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] text-[13px] text-[var(--mroya-text)]"/>
                     <button type="button" disabled={!customTimezone.trim()||live&&!timezoneSettings?.apiReady} onClick={()=>{const value=customTimezone.trim();setSelectedTimezone(value);(onChangeTimezone??timezoneSettings?.onChange)?.(value);}} className="px-3 py-2 rounded-[8px] bg-[var(--mroya-primary)] text-[var(--mroya-on-primary)] text-[13px]">{tr('useTimezone',{ns:'connections'})}</button>
                   </div>}
-                  {live&&timezoneSettings&&<div aria-live="polite" className="text-[12px] text-[var(--mroya-text-muted)]">
+                  {live&&timezoneSettings&&timezoneSettings.status!=='idle'&&<div aria-live="polite" className="text-[12px] text-[var(--mroya-text-muted)]">
                     {timezoneSettings.status==='saving'&&<p role="status">{tr('savingTimezone',{ns:'connections'})}</p>}
                     {timezoneSettings.status==='saved'&&timezoneSettings.timezone&&<p role="status">{tr('savedTimezone',{ns:'connections',timezone:timezoneSettings.timezone})}</p>}
                     {timezoneSettings.status==='error'&&<><p role="alert">{tr('timezoneNotSaved',{ns:'connections'})}</p>{timezoneSettings.apiReady&&<button type="button" onClick={timezoneSettings.onRetry} className="underline mt-2">{tr('retryTimezone',{ns:'connections'})}</button>}</>}
                   </div>}
 
-                <p className="text-[12px] text-[var(--mroya-text-muted)]">
+                {(!page||!timezoneSettings?.apiReady)&&<p className="text-[12px] text-[var(--mroya-text-muted)]">
                   {live ? (timezoneSettings?.apiReady?tr('confirmedTimezoneHelp',{ns:'connections'}):tr('timezoneReadOnly',{ns:'connections'})) : tr('timezoneTitle',{ns:'connections'})}
-                </p>
+                </p>}
               </div>
 
               )}
               {(!page||page==='language') && (
-              <div className="space-y-2 pt-3 border-t border-[var(--mroya-divider)]">
+              <div className={page?"space-y-2":"space-y-2 border-t border-[var(--mroya-divider)] pt-3"}>
+                {page ? <ul className={settingsCard}>
+                  {(['ru','en'] as const).map(value=><SettingsChoice key={value} icon={Globe} title={value==='ru'?'Русский':'English'}
+                    disabled={!onChangeLanguage} selected={language===value} onClick={()=>onChangeLanguage?.(value)}/>)}
+                </ul> : <>
                 <label htmlFor="mroya-language-select" className="block text-[13px] font-semibold text-[var(--mroya-text)]">
                   {tr('language',{ns:'connections'})}
                 </label>
@@ -1072,7 +1327,8 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
                 <p id="mroya-language-help" className="text-[12px] text-[var(--mroya-text-muted)]">
                   {tr('languageHelp',{ns:'connections'})}
                 </p>
-                <div id="mroya-language-status" aria-live="polite" className="text-[12px] text-[var(--mroya-text-muted)]">
+                </>}
+                <div id="mroya-language-status" aria-live="polite" className="px-1 text-[12px] text-[var(--mroya-text-muted)]">
                   {languageSave?.status==='saving'&&<p role="status">{tr('savingLanguage',{ns:'connections'})}</p>}
                   {languageSave?.status==='saved'&&<p role="status">{tr('savedLanguage',{ns:'connections'})}</p>}
                   {languageSave?.status==='unsaved'&&<div role="alert"><p>{tr('languageNotSaved',{ns:'connections'})}</p><button type="button" onClick={languageSave.onRetry} className="underline mt-2">{tr('retryLanguage',{ns:'connections'})}</button></div>}
@@ -1090,7 +1346,7 @@ export const ConnectionsSettingsView: React.FC<ConnectionsSettingsViewProps> = (
             </div>
           )}
 
-          {(page==='chat'||!live&&activeTab==='settings') && (
+          {(!page&&!live&&activeTab==='settings') && (
             <div className="space-y-5">
               <div className="p-5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] space-y-5">
                 <div className="flex items-center gap-2.5">

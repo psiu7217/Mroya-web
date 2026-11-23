@@ -2,6 +2,7 @@ import type {CalendarEventDto,CalendarRecurrence,CalendarWrite,GoogleConnectionD
 import type {CalendarEvent,RecurrenceRule,GoogleSyncState} from '../types/mroya.ts';
 import {tr} from '../i18n/index.ts';
 import {formatDate} from '../i18n/format.ts';
+import {shiftDateKey} from '../utils/calendarInput.ts';
 const weekdays=['SU','MO','TU','WE','TH','FR','SA'];
 export function recurrenceFromApi(rule:CalendarEventDto['recurrence']):RecurrenceRule|undefined{
  if(!rule||'provider_rules' in rule)return undefined;
@@ -46,10 +47,18 @@ export function calendarWrite(event:Omit<CalendarEvent,'id'>,timezone:string):Ca
  if(!allDay&&!candidate.timezone)throw new Error('Set a valid timezone in your profile first.');
  // Keep opaque Google rules unless explicitly replaced by a normalized editor rule.
  if(!(prior?.recurrence&&'provider_rules' in prior.recurrence&&!event.recurrence))candidate.recurrence=recurrenceToApi(event.recurrence);
+ if(allDay&&event.allDayEndDate!==undefined){
+  if(event.allDayEndDate===null)candidate.end_date=null;
+  else {
+   const exclusive=shiftDateKey(event.allDayEndDate,1);
+   if(!exclusive||event.allDayEndDate<event.date)throw new Error('Choose a valid last day.');
+   candidate.end_date=exclusive;
+  }
+ }
  if(!prior)return candidate;
  // Date moves carry the existing end-date offset; do not invent an end or duration.
- if(prior.end_date&&event.date!==prior.date){const days=Date.parse(event.date+'T12:00Z')-Date.parse(prior.date+'T12:00Z');candidate.end_date=new Date(Date.parse(prior.end_date+'T12:00Z')+days).toISOString().slice(0,10);}
- if(allDay&&prior.time_kind==='exact'){candidate.end_time=null;candidate.end_date=null;candidate.utc_offset_minutes=null;}
+ if(candidate.end_date===undefined&&prior.end_date&&event.date!==prior.date){const days=Date.parse(event.date+'T12:00Z')-Date.parse(prior.date+'T12:00Z');candidate.end_date=new Date(Date.parse(prior.end_date+'T12:00Z')+days).toISOString().slice(0,10);}
+ if(allDay&&prior.time_kind==='exact'){candidate.end_time=null;candidate.end_date??=null;candidate.utc_offset_minutes=null;}
  const changes:Record<string,unknown>={};
  for(const [key,value] of Object.entries(candidate))if(JSON.stringify(value)!==JSON.stringify(prior[key as keyof CalendarEventDto]))changes[key]=value;
  return changes as CalendarWrite;

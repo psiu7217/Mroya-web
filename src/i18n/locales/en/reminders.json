@@ -180,5 +180,9 @@
   "updatedFromGoogle": "Updated from Google Calendar · Shared recurrence rule updated (no duplicate reminders)",
   "weeklyDemoSyncToast": "Weekly meeting synced from Google Calendar · Offset changed across all recurrences (15m before)",
   "doctorDemoSyncToast": "Doctor appointment synced from Google Calendar · Offset changed from 1 hour to 30 min before",
-  "occurrenceCompletedNext": "Occurrence completed! Next alert scheduled for {{date}}"
+  "occurrenceCompletedNext": "Occurrence completed! Next alert scheduled for {{date}}",
+  "liveUpcoming": "Upcoming",
+  "liveHistory": "History",
+  "liveHistoryEmpty": "No reminders in your history yet.",
+  "liveCancelled": "Cancelled"
 }

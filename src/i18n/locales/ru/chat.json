@@ -262,5 +262,13 @@
   "memoryStatusRunning": "Сохраняю в память…",
   "memoryStatusCompleted": "Сохранено в память",
   "memoryStatusFailed": "Не удалось сохранить в память",
-  "taskResultUnconfirmed": "Результат не подтверждён. Проверьте актуальный статус перед повторной попыткой."
+  "taskResultUnconfirmed": "Результат не подтверждён. Проверьте актуальный статус перед повторной попыткой.",
+  "startConversation": "Начните разговор с Мроей",
+  "imageZoomIn": "Увеличить",
+  "imageZoomOut": "Уменьшить",
+  "imageZoomReset": "Сбросить масштаб",
+  "taskDetailTitle": "Задача",
+  "taskBackToList": "К списку задач",
+  "shareReply": "Поделиться ответом",
+  "shareReplyFailed": "Не удалось поделиться ответом."
 }

@@ -115,6 +115,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [saving, setSaving] = useState(false);
   const actionPending = useRef(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileSearch, setMobileSearch] = useState(false);
+  const mobileSearchField = useRef<HTMLInputElement>(null);
+  const compactDrawer = mobileViewport && activeSection !== 'memory-map' && !showDeveloperFeatures;
+
+  useEffect(() => {
+    if (mobileOpen && compactDrawer && mobileSearch) mobileSearchField.current?.focus();
+  }, [mobileOpen, compactDrawer, mobileSearch]);
+
+  useEffect(() => {
+    if ((!mobileOpen || !compactDrawer) && mobileSearch) {
+      setMobileSearch(false);
+      setSearchQuery('');
+    }
+  }, [mobileOpen, compactDrawer, mobileSearch]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [logoutToast, setLogoutToast] = useState(false);
   const [openMenuConvId, setOpenMenuConvId] = useState<string | null>(null);
@@ -234,7 +248,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const filteredConversations = conversations.filter(conv => conv.title.toLowerCase().includes(searchQuery.trim().toLowerCase()));
   const defaultGroup=tr('today',{ns:'sidebar'});
   const localizeGroup=(value:string)=>value==='Today'?tr('today',{ns:'sidebar'}):value==='Previous 7 Days'?tr('previous7Days',{ns:'sidebar'}):value==='Earlier in October'?tr('earlierInOctober',{ns:'sidebar'}):value;
-  const groups = [...new Set(filteredConversations.map(c => localizeGroup(c.group || defaultGroup)))];
+  const groupedConversations = compactDrawer
+    ? [{key: 'recent', label: null, items: filteredConversations}]
+    : [...new Set(filteredConversations.map(c => localizeGroup(c.group || defaultGroup)))].map(group => ({
+      key: group, label: group, items: filteredConversations.filter(c => localizeGroup(c.group || defaultGroup) === group),
+    }));
 
   const navItems: {
     id: NavSection;
@@ -279,6 +297,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const visibleNavItems = navItems.filter(item => (item.id !== 'notes' || notesAvailable) && (item.id !== 'reminders' || showReminders) && (!live || item.id !== 'memory'));
   const otherNavItems = visibleNavItems.filter(item => (live ? ['ai-tasks'] : ['ai-tasks', 'memory', 'connections']).includes(item.id));
   const primaryNavItems = visibleNavItems.filter(item => !otherNavItems.includes(item));
+  const compactOrder: NavSection[] = ['calendar', 'reminders', 'files', 'notes', 'memory-map'];
+  const compactItems = compactOrder.flatMap(id => visibleNavItems.filter(item => item.id === id));
 
   const renderNavItems = (items: typeof navItems, collapsed: boolean) => items.map(item => {
     const Icon = item.icon;
@@ -315,7 +335,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     aria-label={tr('mainSections',{ns:'sidebar'})}
     className="px-2.5 pb-3 border-b border-[var(--mroya-divider)] w-full min-h-0 overflow-y-auto"
   >
-    <ul className="space-y-1">
+    {compactDrawer ? <ul>{renderNavItems(compactItems, false)}</ul> : <ul className="space-y-1">
       {renderNavItems(primaryNavItems, collapsed)}
       <li className="pt-4">
         <button
@@ -337,7 +357,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {renderNavItems(otherNavItems, collapsed)}
         </ul>
       </li>
-    </ul>
+    </ul>}
   </nav>;
 
   const renderAccountPopover = (isNarrow: boolean) => (
@@ -347,7 +367,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       className={`absolute py-1.5 rounded-[12px] bg-[var(--mroya-surface)] border border-[var(--mroya-divider)] shadow-[var(--mroya-shadow-elevated)] z-50 ${
         isNarrow
           ? 'bottom-0 left-12 w-60 mb-0'
-          : 'bottom-full left-0 right-0 mb-2'
+          : compactDrawer ? 'bottom-full right-0 mb-2 w-60' : 'bottom-full left-0 right-0 mb-2'
       }`}
     >
       <div className="px-3.5 py-2 border-b border-[var(--mroya-divider)]">
@@ -405,6 +425,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Settings className="w-4 h-4 text-[var(--mroya-text-muted)]" />
           <span>{tr('settings',{ns:'sidebar'})}</span>
+        </button>}
+
+        {compactDrawer && live && <button type="button" role="menuitem"
+          onClick={() => {setAccountMenuOpen(false);onSelectSection('ai-tasks');onCloseMobile();}}
+          className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-[13px] hover:bg-[var(--mroya-surface-muted)]">
+          <Inbox className="size-4 text-[var(--mroya-text-muted)]" aria-hidden="true"/>
+          {tr('taskPanelTitle',{ns:'chat'})}
         </button>}
 
         {!live && <button
@@ -566,10 +593,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       );
     }
 
+    const newChatButton = (
+          <button
+            type="button"
+            disabled={conversationLocked}
+            onClick={() => {
+              if(conversationLocked)return;
+              onNewChat();
+              onCloseMobile();
+            }}
+            className={`h-10 ${compactDrawer ? "w-auto" : "w-full"} flex items-center justify-center gap-2 px-4 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] active:scale-[0.98] text-[var(--mroya-on-primary)] text-[14px] font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap`}
+          >
+            {compactDrawer ? <Pencil className="size-4" aria-hidden="true"/> : <Plus className="w-4 h-4 stroke-[2.2]" />}
+            <span>{tr('newChat',{ns:'chat'})}</span>
+          </button>
+    );
     return (
       <aside
         aria-label={tr('primaryNavigation',{ns:'sidebar'})}
-        className="flex flex-col h-full w-[264px] bg-[var(--mroya-surface-muted)] border-r border-[var(--mroya-divider)] text-[var(--mroya-text)] select-none shrink-0"
+        className={`flex h-full shrink-0 select-none flex-col text-[var(--mroya-text)] ${compactDrawer
+          ? 'w-[min(82vw,22rem)] overflow-hidden rounded-r-[20px] bg-[var(--mroya-bg)]'
+          : 'w-[264px] border-r border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)]'}`}
       >
         {/* Top Header: Brand Mark & Wordmark + Collapse Button */}
         <div className="h-[68px] flex items-center justify-between px-4 pt-4 pb-3 shrink-0">
@@ -582,16 +626,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="group flex items-center gap-2.5 text-left rounded-xl py-1 px-1.5 -ml-1 hover:bg-[var(--mroya-surface-active)]/50 active:scale-[0.98] transition-all duration-150 cursor-pointer"
             title={tr('brandTitle',{ns:'sidebar'})}
           >
-            <BrandMark size="md" glow />
+            <BrandMark size="md" glow={!compactDrawer} />
             <div className="flex flex-col min-w-0">
               <span className="text-[17.5px] font-bold tracking-[-0.03em] text-[var(--mroya-text)] leading-none group-hover:text-[var(--mroya-primary)] transition-colors whitespace-nowrap">
                 Mroya
               </span>
-              <span className="text-[9.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-1 opacity-75 uppercase flex items-center gap-1 whitespace-nowrap">
+              {!compactDrawer&&<span className="text-[9.5px] font-semibold tracking-[0.05em] text-[var(--mroya-text-muted)] leading-tight mt-1 opacity-75 uppercase flex items-center gap-1 whitespace-nowrap">
                 <span>мроя</span>
                 <span className="w-1 h-1 rounded-full bg-[var(--mroya-brand-honey)] opacity-70" />
                 <span>{tr('brandDreamMemory',{ns:'sidebar'})}</span>
-              </span>
+              </span>}
             </div>
           </button>
 
@@ -605,7 +649,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <PanelLeftClose className="w-4 h-4" />
             </button>
-            <button
+            {compactDrawer ? <button
+              type="button"
+              aria-label={mobileSearch ? tr('close',{ns:'common'}) : tr('searchConversations',{ns:'sidebar'})}
+              aria-expanded={mobileSearch}
+              aria-controls="mroya-mobile-chat-search"
+              onClick={() => {
+                if (mobileSearch) setSearchQuery('');
+                setMobileSearch(open => !open);
+              }}
+              className="grid size-10 place-items-center rounded-full bg-[var(--mroya-surface-muted)] text-[var(--mroya-text)]"
+            >
+              {mobileSearch ? <X className="size-4" aria-hidden="true"/> : <Search className="size-4" aria-hidden="true"/>}
+            </button> : <button
               type="button"
               onClick={onCloseMobile}
               title={tr('closeNavigation',{ns:'common'})}
@@ -613,32 +669,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="lg:hidden inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
-            </button>
+            </button>}
           </div>
         </div>
 
-        {/* Prominent + New Chat Action & Search Conversations */}
-        <div className="px-3.5 space-y-2.5 pb-3 shrink-0">
-          <button
-            type="button"
-            disabled={conversationLocked}
-            onClick={() => {
-              if(conversationLocked)return;
-              onNewChat();
-              onCloseMobile();
-            }}
-            className="w-full h-10 flex items-center justify-center gap-2 px-4 rounded-full bg-[var(--mroya-primary)] hover:bg-[var(--mroya-primary-hover)] active:scale-[0.98] text-[var(--mroya-on-primary)] text-[14px] font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4 stroke-[2.2]" />
-            <span>{tr('newChat',{ns:'chat'})}</span>
-          </button>
-
+        <div className="shrink-0 space-y-2.5 px-3.5 pb-3" hidden={compactDrawer && !mobileSearch}>
+          {!compactDrawer && newChatButton}
           <div className="relative h-8">
             <Search
               className="w-3.5 h-3.5 text-[var(--mroya-text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
               aria-hidden="true"
             />
             <input
+              id={compactDrawer ? 'mroya-mobile-chat-search' : undefined}
+              ref={compactDrawer ? mobileSearchField : undefined}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -660,22 +704,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Primary Navigation */}
-        {renderNavigation(false)}
+        {(!compactDrawer || !mobileSearch) && renderNavigation(false)}
 
-        {/* Recent Conversations History */}
-        <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
-          {Array.from(
-            new Set([...groups, ...filteredConversations.map((c) => localizeGroup(c.group || defaultGroup))])
-          ).map((groupName) => {
-            const items = filteredConversations.filter(
-              (c) => localizeGroup(c.group || defaultGroup) === groupName
-            );
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-2.5 py-2.5">
+          {compactDrawer && <h2 className="px-2.5 text-xs font-medium text-[var(--mroya-text-muted)]">{tr('yourChats',{ns:'sidebar'})}</h2>}
+          {groupedConversations.map(({key,label,items}) => {
             if (items.length === 0) return null;
             return (
-              <div key={groupName}>
-                <div className="px-2.5 pb-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)]">
-                  {groupName}
-                </div>
+              <div key={key}>
+                {label && <div className="px-2.5 pb-1.5 text-[12px] font-medium text-[var(--mroya-text-muted)]">{label}</div>}
                 <ul className="space-y-0.5">
                   {items.map((conv) => {
                     const isCurrent =
@@ -735,7 +772,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           className={`relative w-full flex items-center justify-between rounded-[8px] transition-colors ${
                             isCurrent
                               ? 'bg-[var(--mroya-surface-active)] text-[var(--mroya-text)] font-semibold'
-                              : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/50'
+                              : compactDrawer
+                                ? 'text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]'
+                                : 'text-[var(--mroya-text-muted)] hover:text-[var(--mroya-text)] hover:bg-[var(--mroya-surface)]/50'
                           }`}
                         >
                           <button
@@ -748,9 +787,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             }}
                             disabled={conversationLocked}
                             title={conv.title}
-                            className="flex-1 min-w-0 text-left px-2.5 py-2 text-[13px] leading-[18px] cursor-pointer focus:outline-none"
+                            className={`min-w-0 flex-1 cursor-pointer px-2.5 text-left text-[13px] leading-[18px] ${compactDrawer ? "py-3" : "py-2"}`}
                           >
-                            <span className="line-clamp-2 break-words lg:line-clamp-none lg:truncate block">{conv.title}</span>
+                            <span className={compactDrawer ? "block truncate" : "line-clamp-2 break-words lg:line-clamp-none lg:truncate"}>{conv.title}</span>
                           </button>
 
                           {/* Subtle three-dot menu trigger */}
@@ -832,10 +871,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Bottom Area: User Account Menu */}
-        <div className="h-[72px] p-3 border-t border-[var(--mroya-divider)] bg-[var(--mroya-surface-muted)] flex items-center shrink-0">
-          {/* User Profile & Account Menu Popover */}
-          <div className="relative w-full" ref={menuRef}>
+        <div className={`flex shrink-0 items-center justify-between gap-2 border-t border-[var(--mroya-divider)] p-3 ${compactDrawer ? 'bg-[var(--mroya-bg)]' : 'h-[72px] bg-[var(--mroya-surface-muted)]'}`}>
+          {compactDrawer && newChatButton}
+          <div className={`relative ${compactDrawer ? 'shrink-0' : 'w-full'}`} ref={menuRef}>
             {accountMenuOpen && renderAccountPopover(false)}
 
             <button
@@ -843,26 +881,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => (onSignIn ? onSignIn() : setAccountMenuOpen((prev) => !prev))}
               aria-expanded={accountMenuOpen}
               aria-haspopup="menu"
-              className="w-full h-12 flex items-center justify-between px-2.5 rounded-[10px] hover:bg-[var(--mroya-surface-active)] transition-colors cursor-pointer"
+              aria-label={compactDrawer ? (onSignIn ? tr('signIn',{ns:'auth'}) : tr('accountMenu',{ns:'sidebar'})) : undefined}
+              className={`flex cursor-pointer items-center hover:bg-[var(--mroya-surface-active)] ${compactDrawer
+                ? 'size-11 justify-center rounded-full bg-[var(--mroya-surface-muted)]'
+                : 'h-12 w-full justify-between rounded-[10px] px-2.5'}`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-[var(--mroya-surface-active)] border border-[var(--mroya-divider)] flex items-center justify-center text-[13px] font-semibold text-[var(--mroya-primary)] shrink-0">
                   {account.initials || <User className="w-4 h-4 text-[var(--mroya-primary)]" />}
                 </div>
-                <div className="text-left min-w-0">
+                {!compactDrawer && <div className="text-left min-w-0">
                   <div className="text-[13px] font-semibold text-[var(--mroya-text)] truncate">
                     {onSignIn ? tr('signIn',{ns:'auth'}) : account.displayName}
                   </div>
                   <div className="text-[11px] text-[var(--mroya-text-muted)] truncate">
                     {tr('personalSpace',{ns:'sidebar'})}
                   </div>
-                </div>
+                </div>}
               </div>
-              <ChevronUp
+              {!compactDrawer && <ChevronUp
                 className={`w-4 h-4 text-[var(--mroya-text-muted)] transition-transform duration-150 ${
                   accountMenuOpen ? 'rotate-180' : ''
                 }`}
-              />
+              />}
             </button>
 
             {logoutToast && (
@@ -883,7 +924,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {!mobileViewport && renderSidebar(isCollapsed)}
       </div>
 
-      {/* Mobile Navigation Drawer (always full width when open) */}
+      {/* Mobile navigation mounts once for the drawer transition. */}
       {mobileViewport && <div ref={drawerRef} id="mroya-mobile-navigation" className="mroya-mobile-drawer fixed inset-0 z-50 lg:hidden flex" data-open={mobileOpen} inert={!mobileOpen} aria-hidden={!mobileOpen}
           role="dialog" aria-modal={mobileOpen||undefined} aria-label={tr('mainSections',{ns:'sidebar'})} tabIndex={-1}>
           <div
